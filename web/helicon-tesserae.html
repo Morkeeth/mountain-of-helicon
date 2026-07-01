@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helicon — mountain of tesserae</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FCFBF8; --panel:#FFFFFF; --ink:#2b2825; --muted:#9a9184;
+    --accent:#C25E3A; --line:#EEEAE1; --wght:360; --track:.2em;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#efece5;font-family:ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--ink);}
+  .wrap{display:flex;min-height:100vh;}
+  .stage{flex:1;display:flex;align-items:flex-start;justify-content:center;padding:52px 32px;}
+  .app{width:440px;background:var(--bg);border-radius:20px;padding:38px 36px 40px;box-shadow:0 30px 80px rgba(50,40,28,.14);}
+  .wm{display:flex;align-items:baseline;gap:13px;margin-bottom:8px;}
+  .wm b{font-family:'Fraunces','Playfair Display',Georgia,serif;font-size:34px;letter-spacing:var(--track);
+        text-transform:uppercase;font-weight:var(--wght);color:var(--ink);font-variation-settings:'opsz' 144,'SOFT' 0;}
+  .wm em{font-style:normal;font-size:10px;letter-spacing:.36em;text-transform:uppercase;color:var(--accent);opacity:.85;}
+  .tag{font-size:12.5px;line-height:1.6;color:#6f665a;margin:12px 0 26px;max-width:36ch;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 22px 14px;margin-bottom:20px;}
+  .metric{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:4px;}
+  .metric b{font-family:'Fraunces',Georgia,serif;font-size:30px;font-weight:400;color:var(--ink);font-variation-settings:'opsz' 144;}
+  .metric b i{font-style:normal;color:var(--accent);}
+  .metric span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  svg{display:block;width:100%;}
+  .lbl{font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:22px 0 4px;}
+  .row{display:flex;align-items:center;gap:12px;font-size:13px;padding:10px 0;border-top:1px solid var(--line);color:#443e36;}
+  .row:first-of-type{border-top:none;}
+  .dot{width:7px;height:7px;border-radius:1px;flex:none;}
+  .row b{font-weight:600;}
+
+  .panel{width:270px;background:#211d18;color:#d9d2c4;padding:26px 22px;flex:none;font-size:12px;}
+  .panel h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#8f8677;margin:0 0 18px;}
+  .ctl{margin-bottom:15px;}
+  .ctl label{display:flex;justify-content:space-between;margin-bottom:6px;color:#b9b0a0;}
+  .ctl input[type=range]{width:100%;accent-color:#C25E3A;}
+  .hint{font-size:10.5px;color:#6f685c;line-height:1.55;margin-top:20px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <div class="app" id="app">
+      <div class="wm"><b>Helicon</b><em>tesserae</em></div>
+      <div class="tag">Your agent's memory is a mountain built of tiles. Helicon shows you the moment one starts to crack.</div>
+      <div class="card">
+        <div class="metric"><b>94<i>%</i></b><span>mosaic intact</span></div>
+        <svg id="mtn" viewBox="0 0 360 190"></svg>
+      </div>
+      <div class="lbl">Flagged — 3 tiles cracking</div>
+      <div class="row"><span class="dot" style="background:var(--accent)"></span>RELAY payout logic&nbsp; <b>· drift vs snapshot</b></div>
+      <div class="row"><span class="dot" style="background:#B98A4E"></span>deploy target&nbsp; · stale (job changed)</div>
+      <div class="row"><span class="dot" style="background:#7d8f88"></span>auth flow&nbsp; · contradiction</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Tune Helicon</h2>
+    <div class="ctl"><label>Ground lightness <i id="vBg"></i></label><input id="bg" type="range" min="80" max="100" value="98"></div>
+    <div class="ctl"><label>Wordmark weight <i id="vW"></i></label><input id="w" type="range" min="300" max="600" value="360"></div>
+    <div class="ctl"><label>Letter-spacing <i id="vT"></i></label><input id="t" type="range" min="0" max="40" value="20"></div>
+    <div class="ctl"><label>Tile size <i id="vTile"></i></label><input id="tile" type="range" min="8" max="18" value="11"></div>
+    <div class="ctl"><label>Grout <i id="vGap"></i></label><input id="gap" type="range" min="1" max="5" value="2"></div>
+    <div class="ctl"><label>Corner (crisp→soft) <i id="vRad"></i></label><input id="rad" type="range" min="0" max="4" value="0"></div>
+    <div class="ctl"><label>Palette (tonal→varied) <i id="vSp"></i></label><input id="sp" type="range" min="0" max="100" value="18"></div>
+    <div class="ctl"><label>Ridge drama <i id="vR"></i></label><input id="ridge" type="range" min="0" max="100" value="55"></div>
+    <div class="hint">Now the tiles build a summit. Low palette = elegant tonal stone; the terracotta only marks cracks. Push ground toward 100, weight toward light for the elegant read.</div>
+  </div>
+</div>
+
+<script>
+const rs=document.documentElement.style;
+function hsl(h,s,l){return `hsl(${h} ${s}% ${l}%)`;}
+
+// ridge elevation profile 0..1 across x (0..1). A main peak + subordinate ridges.
+function ridge(x, drama){
+  const base = 0.30
+    + 0.55*Math.exp(-Math.pow((x-0.42)/0.20,2))     // main peak
+    + 0.30*Math.exp(-Math.pow((x-0.72)/0.13,2))     // second summit
+    + 0.16*Math.exp(-Math.pow((x-0.15)/0.12,2))     // shoulder
+    + 0.03*Math.sin(x*38);                          // rocky jitter
+  return 0.18 + (base)*(0.55+drama*0.7);
+}
+
+function render(){
+  const bg=+bgEl.value, wght=+wEl.value, track=+tEl.value, tile=+tileEl.value,
+        gap=+gapEl.value, rad=+radEl.value, sp=+spEl.value/100, drama=+ridgeEl.value/100;
+
+  const L = 90 + (bg-80)/20*8;                 // 90..98(+)
+  rs.setProperty('--bg', hsl(40,28, Math.min(99,L)));
+  rs.setProperty('--panel', hsl(42,30, Math.min(100,L+2)));
+  rs.setProperty('--line', hsl(40,18, L-8));
+  rs.setProperty('--wght', wght);
+  rs.setProperty('--track', (track/100)+'em');
+
+  vBg.textContent=bg; vW.textContent=wght; vT.textContent=track; vTile.textContent=tile;
+  vGap.textContent=gap; vRad.textContent=rad; vSp.textContent=Math.round(sp*100); vR.textContent=Math.round(drama*100);
+
+  const W=360, H=190, size=tile, g=gap;
+  const cols=Math.floor((W+g)/(size+g));
+  const rows=Math.floor((H+g)/(size+g));
+  const groundL=Math.min(99,L);
+  let s='';
+  let ridgePts=[];
+  const crackCells=[];
+  for(let c=0;c<cols;c++){
+    const xf=c/(cols-1);
+    const rY = (1-ridge(xf,drama));                  // fraction from top where tiles begin
+    const startRow=Math.max(0,Math.round(rY*rows));
+    ridgePts.push([g+c*(size+g), g+startRow*(size+g)]);
+    for(let r=startRow;r<rows;r++){
+      const x=g+c*(size+g), y=g+r*(size+g);
+      const depth=(r-startRow)/(rows-startRow||1);   // 0 at ridge, 1 at base
+      // tonal ramp: high=cool light stone/snow, low=warm stone. saturation from palette slider.
+      const hue = 208 - depth*172;                    // 208(slate) -> 36(stone/ochre)
+      const sat = 6 + sp*34;
+      const light = 74 - depth*20 + (Math.random()-0.5)*4;
+      crackCells.push(false);
+      s+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${rad}" fill="${hsl(hue,sat,light)}"/>`;
+    }
+  }
+  // a few cracked tiles near the summit ridge
+  const nCrack=6;
+  for(let k=0;k<nCrack;k++){
+    const c=Math.floor(cols*(0.30+Math.random()*0.5));
+    const xf=c/(cols-1); const startRow=Math.max(0,Math.round((1-ridge(xf,drama))*rows));
+    const r=startRow+Math.floor(Math.random()*3);
+    const x=g+c*(size+g), y=g+r*(size+g);
+    s+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${rad}" fill="${hsl(40,22,Math.min(97,groundL))}"/>`;
+    s+=`<path d="M${x+1.5} ${y+size-1.5} L${x+size*0.55} ${y+1.5} M${x+size*0.42} ${y+size-1.5} L${x+size-1.5} ${y+2.5}" stroke="var(--accent)" stroke-width="0.8"/>`;
+  }
+  // elegant thin ridge line along the summit
+  let d='M'+ridgePts.map(p=>`${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L');
+  s = `<path d="${d}" fill="none" stroke="${hsl(210,12,42)}" stroke-width="1" opacity="0.5" stroke-linejoin="round"/>` + s;
+  // re-add ridge line on TOP for crispness
+  s += `<path d="${d}" fill="none" stroke="${hsl(210,14,40)}" stroke-width="0.8" opacity="0.6" stroke-linejoin="round"/>`;
+
+  const svg=document.getElementById('mtn');
+  svg.setAttribute('viewBox',`0 0 ${W} ${g+rows*(size+g)}`);
+  svg.innerHTML=s;
+}
+
+const bgEl=document.getElementById('bg'), wEl=document.getElementById('w'), tEl=document.getElementById('t'),
+ tileEl=document.getElementById('tile'), gapEl=document.getElementById('gap'), radEl=document.getElementById('rad'),
+ spEl=document.getElementById('sp'), ridgeEl=document.getElementById('ridge');
+const vBg=document.getElementById('vBg'),vW=document.getElementById('vW'),vT=document.getElementById('vT'),
+ vTile=document.getElementById('vTile'),vGap=document.getElementById('vGap'),vRad=document.getElementById('vRad'),
+ vSp=document.getElementById('vSp'),vR=document.getElementById('vR');
+[bgEl,wEl,tEl,tileEl,gapEl,radEl,spEl,ridgeEl].forEach(e=>e.addEventListener('input',render));
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mount Helicon — design directions A / B / C</title>
+<style>
+  :root { font-family: system-ui, -apple-system, sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #17150f; color: #ddd; }
+  header.top { padding: 22px 28px 8px; }
+  header.top h1 { margin: 0; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: #9a9384; font-weight: 600; }
+  header.top p { margin: 4px 0 0; font-size: 13px; color: #6f6a5e; }
+  .rail { display: flex; gap: 0; align-items: stretch; overflow-x: auto; padding: 16px; }
+  .col { flex: 1 1 0; min-width: 380px; border-radius: 14px; overflow: hidden; margin: 0 8px; box-shadow: 0 18px 50px rgba(0,0,0,.45); display: flex; flex-direction: column; }
+  .col .body { padding: 26px 24px 30px; flex: 1; }
+  .wm { display: flex; align-items: baseline; gap: 10px; }
+  .tag { font-size: 12.5px; line-height: 1.5; margin: 12px 0 20px; }
+  .swatches { display: flex; gap: 6px; margin: 0 0 22px; }
+  .sw { width: 34px; height: 34px; border-radius: 6px; }
+  .card { border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .metric { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .metric b { font-size: 30px; font-weight: 700; }
+  .metric span { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  .row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 7px 0; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .label { font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .6; margin: 18px 0 8px; }
+  .kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .2em; opacity: .55; }
+  svg { display: block; width: 100%; }
+
+  /* ---------- A: TESSERAE ---------- */
+  .A { background: #E7DDC8; color: #2E2A26; }
+  .A .wm b { font-family: Georgia, 'Times New Roman', serif; font-size: 30px; letter-spacing: .16em; text-transform: uppercase; font-weight: 600; color: #2E2A26; }
+  .A .wm em { font-style: normal; font-size: 11px; letter-spacing: .3em; text-transform: uppercase; color: #B5613E; }
+  .A .card { background: #F2EBDA; border: 1px solid #d8ccb0; }
+  .A .metric b { color: #B5613E; }
+  .A .tag { color: #5b5347; }
+  .A .row { border-top: 1px solid #e0d5bd; }
+
+  /* ---------- B: CARTOGRAPHER ---------- */
+  .B { background: #F2EDE1; color: #3c3a44; }
+  .B .wm b { font-family: 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif; font-size: 32px; letter-spacing: .02em; font-weight: 600; color: #4b5568; }
+  .B .wm em { font-style: italic; font-size: 13px; color: #8B9A7A; }
+  .B .card { background: #faf7ef; border: 1px solid #e3dccb; }
+  .B .metric b { color: #6A7C93; }
+  .B .tag { color: #6b6873; }
+  .B .row { border-top: 1px solid #eae3d3; }
+
+  /* ---------- C: FIELD NOTES ---------- */
+  .C { background: #F5F1E6; color: #1F2A24; }
+  .C .wm b { font-family: 'Courier New', ui-monospace, monospace; font-size: 26px; letter-spacing: .02em; font-weight: 700; color: #1F2A24; text-transform: uppercase; }
+  .C .wm em { font-style: normal; font-family:'Courier New',monospace; font-size: 11px; letter-spacing: .18em; color: #A34A3A; text-transform: uppercase; }
+  .C .card { background: #fbf8ee; border: 1px solid #d7d0bd; background-image: repeating-linear-gradient(#fbf8ee, #fbf8ee 27px, #ece5d2 28px); }
+  .C .metric b { color: #1F2A24; font-family:'Courier New',monospace; }
+  .C .tag { color: #4b544c; font-family:'Courier New',monospace; }
+  .C .row { border-top: 1px dashed #cfc7b2; font-family:'Courier New',monospace; }
+  .C .label, .C .kicker { font-family:'Courier New',monospace; }
+
+  /* ---------- D: HYBRID (mountain shell + mosaic memory) ---------- */
+  .D { background: #EDE7D8; color: #3c3a44; position: relative; }
+  .D .wm b { font-family: 'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif; font-size: 32px; letter-spacing: .02em; font-weight: 600; color: #4b5568; }
+  .D .wm em { font-style: italic; font-size: 12px; color: #9a7d4e; }
+  .D .card { background: #f7f2e7; border: 1px solid #ddd4c0; }
+  .D .metric b { color: #6A7C93; }
+  .D .metric .alt { color:#a86f4a; font-size:15px; margin-left:8px; }
+  .D .tag { color: #6b6873; }
+  .D .row { border-top: 1px solid #e5ddca; }
+  .D .badge { display:inline-block; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:#8a6f3a; border:1px solid #cbb98f; border-radius:20px; padding:2px 9px; margin-bottom:14px;}
+
+  .note { font-size: 11px; opacity: .5; padding: 4px 28px 30px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Mount Helicon — three visual directions</h1>
+  <p>Same product, same data. React to the feel. A = mosaic/tesserae · B = watercolor topographic · C = naturalist field notes · D = hybrid (B shell + A mosaic).</p>
+</header>
+
+<div class="rail">
+
+  <!-- ============ A: TESSERAE ============ -->
+  <div class="col A">
+    <div class="body">
+      <div class="wm"><b>Helicon</b><em>tesserae</em></div>
+      <div class="tag">Your agent's memory is a mosaic assembled from thousands of tiles. Helicon shows you where it's <b>cracking</b>.</div>
+      <div class="swatches">
+        <div class="sw" style="background:#B5613E"></div>
+        <div class="sw" style="background:#7A7A4E"></div>
+        <div class="sw" style="background:#4A7A6F"></div>
+        <div class="sw" style="background:#2E2A26"></div>
+        <div class="sw" style="background:#E7DDC8"></div>
+      </div>
+      <div class="card">
+        <div class="metric"><b>94%</b><span>mosaic intact</span></div>
+        <svg id="mosaic" viewBox="0 0 320 150" aria-label="memory mosaic"></svg>
+      </div>
+      <div class="label">Flagged — 3 tiles cracked</div>
+      <div class="row"><span class="dot" style="background:#B5613E"></span>RELAY payout logic · <b>drift vs snapshot</b></div>
+      <div class="row"><span class="dot" style="background:#7A7A4E"></span>deploy target · stale (job changed)</div>
+      <div class="row"><span class="dot" style="background:#4A7A6F"></span>auth flow · contradiction</div>
+    </div>
+  </div>
+
+  <!-- ============ B: CARTOGRAPHER ============ -->
+  <div class="col B">
+    <div class="body">
+      <div class="wm"><b>Helicon</b><em>the overview</em></div>
+      <div class="tag">Stand on the summit and see the whole terrain of your agent's memory — elevation, decay bands, where it's eroding.</div>
+      <div class="swatches">
+        <div class="sw" style="background:#6A7C93"></div>
+        <div class="sw" style="background:#8B9A7A"></div>
+        <div class="sw" style="background:#C29B54"></div>
+        <div class="sw" style="background:#7E7488"></div>
+        <div class="sw" style="background:#F2EDE1"></div>
+      </div>
+      <div class="card">
+        <div class="metric"><b>2,140<span style="font-size:14px">m</span></b><span>memory elevation</span></div>
+        <svg id="contour" viewBox="0 0 320 150" aria-label="topographic terrain"></svg>
+      </div>
+      <div class="label">Eroding — checked this week</div>
+      <div class="row"><span class="dot" style="background:#6A7C93"></span>RELAY payout logic · slipping downhill</div>
+      <div class="row"><span class="dot" style="background:#C29B54"></span>deploy target · below the snowline</div>
+      <div class="row"><span class="dot" style="background:#8B9A7A"></span>auth flow · ridge conflict</div>
+    </div>
+  </div>
+
+  <!-- ============ C: FIELD NOTES ============ -->
+  <div class="col C">
+    <div class="body">
+      <div class="wm"><b>Helicon</b><em>field notes</em></div>
+      <div class="tag">An explorer's notebook of your agent's mind. Every memory a labeled specimen; every drift a note in the margin.</div>
+      <div class="swatches">
+        <div class="sw" style="background:#1F2A24"></div>
+        <div class="sw" style="background:#A34A3A"></div>
+        <div class="sw" style="background:#7d8a6f"></div>
+        <div class="sw" style="background:#b7ad93"></div>
+        <div class="sw" style="background:#F5F1E6"></div>
+      </div>
+      <div class="card">
+        <div class="metric"><b>186</b><span>specimens catalogued</span></div>
+        <svg id="notes" viewBox="0 0 320 150" aria-label="field notes"></svg>
+      </div>
+      <div class="label">Margin notes — needs review</div>
+      <div class="row"><span class="dot" style="background:#A34A3A"></span>spec.14 RELAY payout — <b>drift</b></div>
+      <div class="row"><span class="dot" style="background:#1F2A24"></span>spec.31 deploy target — stale</div>
+      <div class="row"><span class="dot" style="background:#7d8a6f"></span>spec.09 auth flow — conflict</div>
+    </div>
+  </div>
+
+  <!-- ============ D: HYBRID ============ -->
+  <div class="col D">
+    <div class="body">
+      <div class="wm"><b>Helicon</b><em>overview × mosaic</em></div>
+      <span class="badge">recommended</span>
+      <div class="tag">Calm mountain overview for the shell; the memory itself is a living <b>mosaic</b> in the same watercolor palette — tiles you watch crack when context drifts.</div>
+      <div class="swatches">
+        <div class="sw" style="background:#6A7C93"></div>
+        <div class="sw" style="background:#8B9A7A"></div>
+        <div class="sw" style="background:#C29B54"></div>
+        <div class="sw" style="background:#a86f4a"></div>
+        <div class="sw" style="background:#EDE7D8"></div>
+      </div>
+      <div class="card">
+        <div class="metric"><b>94%<span class="alt">· 2,140m</span></b><span>intact · elevation</span></div>
+        <svg id="hybrid" viewBox="0 0 320 150" aria-label="mosaic over terrain"></svg>
+      </div>
+      <div class="label">Flagged — 3 tiles slipping</div>
+      <div class="row"><span class="dot" style="background:#a86f4a"></span>RELAY payout logic · <b>drift vs snapshot</b></div>
+      <div class="row"><span class="dot" style="background:#C29B54"></span>deploy target · stale (job changed)</div>
+      <div class="row"><span class="dot" style="background:#8B9A7A"></span>auth flow · contradiction</div>
+    </div>
+  </div>
+
+</div>
+<div class="note">Open in a browser. Each column is fully committed to its own type, palette, and data-viz metaphor — the point is which one feels like Helicon.</div>
+
+<script>
+// A — mosaic tesserae (some cracked)
+(function(){
+  const svg = document.getElementById('mosaic');
+  const cols=16, rows=8, gap=2, size=(320-(cols+1)*gap)/cols;
+  const palette=['#B5613E','#7A7A4E','#4A7A6F','#C9A15B','#8a5a44','#5f7a6a'];
+  const cracked=new Set(); while(cracked.size<9){cracked.add(Math.floor(Math.random()*cols*rows));}
+  let s='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const i=r*cols+c, x=gap+c*(size+gap), y=gap+r*(size+gap);
+    if(cracked.has(i)){
+      s+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="1.5" fill="#d9cfba"/>`;
+      s+=`<path d="M${x+2} ${y+size-2} L${x+size*0.6} ${y+2} M${x+size*0.4} ${y+size-2} L${x+size-2} ${y+3}" stroke="#8a8168" stroke-width="0.7"/>`;
+    } else {
+      const col=palette[Math.floor(Math.random()*palette.length)];
+      s+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="1.5" fill="${col}" opacity="${0.72+Math.random()*0.28}"/>`;
+    }
+  }
+  svg.innerHTML=s; svg.setAttribute('viewBox',`0 0 320 ${gap+rows*(size+gap)}`);
+})();
+
+// B — topographic contours + peak
+(function(){
+  const svg=document.getElementById('contour');
+  const cx=200, cy=95, cols=['#cdd6cf','#b6c3bd','#9fb0ac','#87a09b','#6f8f8c','#5c8385'];
+  let s='';
+  for(let k=6;k>=1;k--){
+    const rx=18+k*20, ry=12+k*13;
+    let d='M';
+    for(let a=0;a<=360;a+=20){
+      const rad=a*Math.PI/180;
+      const jitter=1+ (Math.sin(a*1.3+k)*0.06);
+      const x=cx+Math.cos(rad)*rx*jitter, y=cy+Math.sin(rad)*ry*jitter;
+      d+=`${x.toFixed(1)} ${y.toFixed(1)} `+(a===0?'':'L');
+    }
+    d+='Z';
+    s+=`<path d="${d}" fill="${cols[6-k]}" stroke="#6A7C93" stroke-width="0.5" opacity="0.9"/>`;
+  }
+  // peak marker + a slipping token
+  s+=`<circle cx="${cx}" cy="${cy}" r="3" fill="#4b5568"/>`;
+  s+=`<circle cx="90" cy="120" r="4.5" fill="#C29B54"/><text x="98" y="124" font-size="9" fill="#8a6f3a">eroding</text>`;
+  svg.innerHTML=s;
+})();
+
+// C — field notes: ruled specimens + a circled flag
+(function(){
+  const svg=document.getElementById('notes');
+  let s='';
+  const items=[['14','RELAY payout',true],['31','deploy target',false],['09','auth flow',false],['22','embeddings',false]];
+  items.forEach((it,i)=>{
+    const y=22+i*30;
+    s+=`<line x1="8" y1="${y+14}" x2="312" y2="${y+14}" stroke="#cfc7b2" stroke-width="0.6" stroke-dasharray="2 3"/>`;
+    s+=`<rect x="10" y="${y-6}" width="20" height="20" fill="none" stroke="#1F2A24" stroke-width="0.8"/>`;
+    s+=`<text x="20" y="${y+7}" font-size="9" font-family="Courier New,monospace" fill="#1F2A24" text-anchor="middle">${it[0]}</text>`;
+    s+=`<text x="40" y="${y+7}" font-size="11" font-family="Courier New,monospace" fill="#1F2A24">${it[1]}</text>`;
+    if(it[2]){
+      s+=`<ellipse cx="200" cy="${y+2}" rx="60" ry="14" fill="none" stroke="#A34A3A" stroke-width="1.2" transform="rotate(-3 200 ${y+2})"/>`;
+      s+=`<text x="248" y="${y+6}" font-size="9.5" font-family="Courier New,monospace" fill="#A34A3A">drift!</text>`;
+    }
+  });
+  svg.innerHTML=s;
+})();
+
+// D — hybrid: faint contour terrain UNDER a watercolor-palette mosaic
+(function(){
+  const svg=document.getElementById('hybrid');
+  let s='';
+  // contour backdrop (subtle)
+  const cx=210, cy=70;
+  for(let k=5;k>=1;k--){
+    const rx=16+k*24, ry=10+k*15; let d='M';
+    for(let a=0;a<=360;a+=24){
+      const rad=a*Math.PI/180, j=1+Math.sin(a*1.2+k)*0.05;
+      const x=cx+Math.cos(rad)*rx*j, y=cy+Math.sin(rad)*ry*j;
+      d+=`${x.toFixed(1)} ${y.toFixed(1)} `+(a===0?'':'L');
+    }
+    d+='Z'; s+=`<path d="${d}" fill="none" stroke="#6A7C93" stroke-width="0.5" opacity="0.18"/>`;
+  }
+  // mosaic in watercolor palette
+  const cols=16, rows=8, gap=2, size=(320-(cols+1)*gap)/cols;
+  const pal=['#6A7C93','#8B9A7A','#C29B54','#7E7488','#a86f4a','#9fb0ac'];
+  const cracked=new Set(); while(cracked.size<8){cracked.add(Math.floor(Math.random()*cols*rows));}
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const i=r*cols+c, x=gap+c*(size+gap), y=gap+r*(size+gap);
+    if(cracked.has(i)){
+      s+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="1.5" fill="#e2d9c4" opacity="0.9"/>`;
+      s+=`<path d="M${x+2} ${y+size-2} L${x+size*0.6} ${y+2} M${x+size*0.4} ${y+size-2} L${x+size-2} ${y+3}" stroke="#a86f4a" stroke-width="0.7"/>`;
+    } else {
+      const col=pal[Math.floor(Math.random()*pal.length)];
+      s+=`<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="1.5" fill="${col}" opacity="${0.62+Math.random()*0.3}"/>`;
+    }
+  }
+  svg.innerHTML=s; svg.setAttribute('viewBox',`0 0 320 ${gap+rows*(size+gap)}`);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+/* ============================================================
+   HELICON — locked visual identity (Tesserae / mountain-of-memory)
+   Dialed in the live tuner 2026-07-01. Build the real UI on these.
+   Aesthetic: elegant, fresh, mountain. NOT frosted glass, NOT AI-purple,
+   NOT a rainbow grid. Memory renders as a summit built of tonal stone
+   tiles; terracotta appears ONLY on cracked/flagged tiles.
+   ============================================================ */
+:root {
+  /* ground & surfaces (ground-lightness = 100 -> near-white warm) */
+  --helicon-bg:     hsl(40 28% 98%);   /* app ground */
+  --helicon-panel:  #FFFFFF;           /* cards */
+  --helicon-line:   hsl(40 18% 90%);   /* hairline borders */
+  --helicon-ink:    #2b2825;           /* primary text */
+  --helicon-muted:  #9a9184;           /* labels / secondary */
+  --helicon-accent: #C25E3A;           /* terracotta — cracks & flags ONLY */
+
+  /* accent supporting (flag categories) */
+  --helicon-stale:  #B98A4E;           /* ochre */
+  --helicon-conflict:#7d8f88;          /* muted sage */
+
+  /* wordmark: elegant editorial serif, LIGHT weight */
+  --helicon-serif:  'Fraunces','Playfair Display',Georgia,serif;
+  --helicon-wm-weight: 300;
+  --helicon-wm-track:  0em;            /* uppercase, no extra tracking */
+  --helicon-wm-opsz:   144;            /* high-contrast display cut */
+
+  /* memory viz: mountain-of-tesserae (generative SVG) */
+  --helicon-tile:   9px;
+  --helicon-grout:  1px;
+  --helicon-corner: 0px;               /* crisp */
+}
+
+/* viz generation params (used by the mountain render fn in
+   helicon-tesserae.html — port that renderer into the real app):
+     palette-spread = 0.28   (tonal, low saturation)
+     ridge-drama    = 0.50
+     tonal ramp: hue 208(slate summit) -> 36(warm stone base),
+                 sat = 6 + spread*34, light = 74 - depth*20
+     cracks: ~6 tiles near the ridge, filled ground-color + terracotta fracture */
