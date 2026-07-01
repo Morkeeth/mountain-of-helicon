@@ -393,6 +393,58 @@ def cmd_review(args):
     print(f"Reviewed {reviewed} this session. Pending: {total} -> {remaining}")
 
 
+def cmd_snapshot(args):
+    """Regression-test retrieved context: capture baselines, check for drift."""
+    from glaze.config import load_config
+    from glaze.db import init_db
+    from glaze.snapshots import init_snapshot_table, capture_snapshot, check_all
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    init_snapshot_table(conn)
+
+    if args.action == "add":
+        if not args.task:
+            print('usage: glaze snapshot add "<task>"')
+            return
+        r = capture_snapshot(conn, args.task, k=args.k)
+        print(f"\nSnapshot #{r['id']} captured for: \"{args.task}\"  (top {r['top_k']})")
+        for i, h in enumerate(r["hits"], 1):
+            print(f"  {i}. {h['title'][:66]}")
+
+    elif args.action == "list":
+        rows = conn.execute(
+            "SELECT id, task, top_k, created_at FROM context_snapshots ORDER BY id"
+        ).fetchall()
+        if not rows:
+            print('No snapshots yet. Add one:  glaze snapshot add "<task>"')
+            return
+        for r in rows:
+            print(f"  #{r['id']:<3} k={r['top_k']}  \"{r['task']}\"")
+
+    elif args.action == "check":
+        results = check_all(conn)
+        if not results:
+            print("No snapshots to check.")
+            return
+        regr = 0
+        for res in results:
+            mark = "REGRESSED" if res["regressed"] else "stable"
+            sym = "x" if res["regressed"] else "."
+            print(f"\n[{sym}] #{res['snapshot_id']} \"{res['task']}\"  "
+                  f"{int(res['overlap']*100)}% overlap  -> {mark}")
+            for t in res["dropped"]:
+                print(f"    - dropped:   {t[:60]}")
+            for t in res["added"]:
+                print(f"    + added:     {t[:60]}")
+            if res["reordered"]:
+                print(f"    ~ reordered top-K")
+            for t, why in res["stale"]:
+                print(f"    ! stale ({why}): {t[:52]}")
+            regr += 1 if res["regressed"] else 0
+        print(f"\n{regr}/{len(results)} snapshots regressed.")
+
+
 def cmd_score(args):
     """Show current Glaze Score."""
     from glaze.config import load_config
@@ -739,6 +791,11 @@ def main():
     review_p.add_argument("--preview", action="store_true",
                           help="Show the queue + suggested actions without prompting or writing")
 
+    snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
+    snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
+    snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
+    snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
+
     sub.add_parser("score", help="Show current Glaze Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
@@ -769,6 +826,7 @@ def main():
         "serve": cmd_serve,
         "triage": cmd_triage,
         "review": cmd_review,
+        "snapshot": cmd_snapshot,
         "score": cmd_score,
         "stack": cmd_stack,
         "optimize": cmd_optimize,
