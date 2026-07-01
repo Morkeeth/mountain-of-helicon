@@ -1,0 +1,11 @@
+services:
+  glaze:
+    build: .
+    ports:
+      - "8420:8420"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - GLAZE_PASSWORD=${GLAZE_PASSWORD:-}
+    restart: unless-stopped

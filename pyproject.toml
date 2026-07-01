@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glaze-audit"
+version = "0.1.0"
+description = "Agent-agnostic memory audit system"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.30.0",
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
+    "pyyaml>=6.0",
+    "gitpython>=3.1.0",
+]
+
+[project.scripts]
+glaze = "glaze.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["glaze*"]

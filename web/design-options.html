@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GLAZE — Design Directions</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+  * { -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .serif { font-family: 'Instrument Serif', serif; }
+
+  /* ---- direction switcher ---- */
+  .pane { display: none; }
+  .pane.active { display: block; }
+
+  /* =========================================================
+     DIRECTION 2 — LIQUID GLASS
+     glass only reads over a rich background, so we give it one
+     ========================================================= */
+  .glass-bg {
+    background:
+      radial-gradient(at 18% 22%, #7c3aed55 0px, transparent 50%),
+      radial-gradient(at 82% 18%, #3b82f655 0px, transparent 50%),
+      radial-gradient(at 70% 80%, #ec489955 0px, transparent 50%),
+      radial-gradient(at 25% 85%, #6366f155 0px, transparent 50%),
+      linear-gradient(135deg, #1e1b4b, #312e81 60%, #1e1b4b);
+  }
+  .glass {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.25);
+  }
+  .glass-bright {
+    background: rgba(255,255,255,0.14);
+    backdrop-filter: blur(28px) saturate(200%);
+    -webkit-backdrop-filter: blur(28px) saturate(200%);
+    border: 1px solid rgba(255,255,255,0.28);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4);
+  }
+
+  /* =========================================================
+     DIRECTION 3 — DARK INSTRUMENT (terminal / observatory)
+     ========================================================= */
+  .inst-bg { background: #0a0b0f; background-image: linear-gradient(#13151c 1px, transparent 1px), linear-gradient(90deg, #13151c 1px, transparent 1px); background-size: 32px 32px; }
+  .inst-card { background: #101218; border: 1px solid #1f232e; }
+
+  /* =========================================================
+     DIRECTION 4 — SOFT DEPTH (light, real elevation)
+     ========================================================= */
+  .soft-bg { background: #eef1f7; }
+  .soft-card { background: #ffffff; border: 1px solid #e6e9f0; box-shadow: 0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.06); }
+  .soft-inset { background: #f4f6fb; box-shadow: inset 0 1px 2px rgba(16,24,40,0.05); }
+
+  /* =========================================================
+     DIRECTION 5 — FROSTED LIGHT (1 base + 2 glass) ★ chosen
+     light + readable, but surfaces are translucent frosted
+     glass. needs a faint tint-wash behind so glass refracts.
+     ========================================================= */
+  .flux-bg {
+    background:
+      radial-gradient(at 12% 18%, rgba(124,58,237,0.12) 0px, transparent 46%),
+      radial-gradient(at 88% 12%, rgba(59,130,246,0.12) 0px, transparent 46%),
+      radial-gradient(at 78% 88%, rgba(236,72,153,0.09) 0px, transparent 46%),
+      radial-gradient(at 18% 92%, rgba(99,102,241,0.12) 0px, transparent 46%),
+      #f3f5fb;
+  }
+  .fglass {
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.7);
+    box-shadow: 0 4px 24px rgba(80,80,160,0.08), inset 0 1px 0 rgba(255,255,255,0.9);
+  }
+  .fglass-inset {
+    background: rgba(255,255,255,0.42);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.55);
+  }
+</style>
+</head>
+<body class="bg-zinc-100">
+
+<!-- ============ SWITCHER ============ -->
+<div class="sticky top-0 z-50 bg-zinc-900 text-white px-5 py-3 flex items-center gap-2 flex-wrap shadow-lg">
+  <span class="text-[13px] font-bold tracking-tight mr-3">GLAZE — pick a direction →</span>
+  <button onclick="show(5)" id="t5" class="tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white text-zinc-900">★ Frosted Light <span class="opacity-60">(1+2)</span></button>
+  <button onclick="show(1)" id="t1" class="tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white/10 hover:bg-white/20">1 · Qwen Light</button>
+  <button onclick="show(2)" id="t2" class="tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white/10 hover:bg-white/20">2 · Liquid Glass</button>
+  <button onclick="show(3)" id="t3" class="tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white/10 hover:bg-white/20">3 · Dark Instrument</button>
+  <button onclick="show(4)" id="t4" class="tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white/10 hover:bg-white/20">4 · Soft Depth</button>
+  <span class="ml-auto text-[11px] text-zinc-400 mono">same screen · same data · 4 visual languages</span>
+</div>
+
+<!-- ============================================================
+     DIRECTION 1 — QWEN LIGHT (current baseline anchor)
+     ============================================================ -->
+<div id="p1" class="pane">
+  <div class="min-h-screen bg-[#f7f8fc] px-8 py-8">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex items-center gap-2 text-[13px] text-zinc-400 mb-1">
+        <span>Projects</span><span>/</span><span class="text-zinc-700 font-medium">RELAY</span>
+      </div>
+      <div class="flex items-start justify-between mb-7">
+        <div>
+          <h1 class="text-3xl font-bold text-zinc-900 tracking-tight">RELAY</h1>
+          <p class="text-zinc-500 text-sm mt-1">Task marketplace · World App Store · 142 memory cubes</p>
+        </div>
+        <button class="bg-gradient-to-r from-violet-600 to-indigo-500 text-white text-[13px] font-semibold px-4 py-2.5 rounded-lg shadow-sm">Inject Context →</button>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-7">
+        <div class="bg-white rounded-xl border border-zinc-200 p-4"><div class="text-2xl font-bold text-zinc-900">142</div><div class="text-[12px] text-zinc-400 mt-0.5">cubes</div></div>
+        <div class="bg-white rounded-xl border border-zinc-200 p-4"><div class="text-2xl font-bold text-zinc-900">8</div><div class="text-[12px] text-zinc-400 mt-0.5">consolidations</div></div>
+        <div class="bg-white rounded-xl border border-zinc-200 p-4"><div class="text-2xl font-bold text-violet-600">81%</div><div class="text-[12px] text-zinc-400 mt-0.5">glaze score</div></div>
+        <div class="bg-white rounded-xl border border-zinc-200 p-4"><div class="text-2xl font-bold text-zinc-900">12</div><div class="text-[12px] text-zinc-400 mt-0.5">contradictions</div></div>
+      </div>
+      <div class="bg-white rounded-xl border border-zinc-200 p-5">
+        <div class="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide mb-3">Consolidated Knowledge</div>
+        <div class="space-y-3">
+          <div class="border-l-2 border-violet-400 pl-3"><div class="text-sm font-medium text-zinc-800">Point tasks ship as a separate reward type</div><div class="text-[13px] text-zinc-500 mt-0.5">Decided not to fake USDC amounts. RewardType enum, store normalization, "pts" labels in feed.</div></div>
+          <div class="border-l-2 border-violet-400 pl-3"><div class="text-sm font-medium text-zinc-800">Typography-first UX over imagery</div><div class="text-[13px] text-zinc-500 mt-0.5">Stripped hero images, animated stat counters, SVG icons replace all emoji.</div></div>
+          <div class="border-l-2 border-zinc-300 pl-3"><div class="text-sm font-medium text-zinc-800">0 completions, Oscar funding everything</div><div class="text-[13px] text-zinc-500 mt-0.5">Marketplace liquidity unsolved. Three lanes: campaign rails, engagement-first, vertical niche.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     DIRECTION 2 — LIQUID GLASS
+     ============================================================ -->
+<div id="p2" class="pane">
+  <div class="min-h-screen glass-bg px-8 py-8">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex items-center gap-2 text-[13px] text-white/50 mb-1">
+        <span>Projects</span><span>/</span><span class="text-white/90 font-medium">RELAY</span>
+      </div>
+      <div class="flex items-start justify-between mb-7">
+        <div>
+          <h1 class="text-3xl font-bold text-white tracking-tight" style="text-shadow:0 2px 20px rgba(0,0,0,0.3)">RELAY</h1>
+          <p class="text-white/60 text-sm mt-1">Task marketplace · World App Store · 142 memory cubes</p>
+        </div>
+        <button class="glass-bright text-white text-[13px] font-semibold px-5 py-2.5 rounded-2xl">Inject Context →</button>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-7">
+        <div class="glass rounded-2xl p-4"><div class="text-2xl font-bold text-white">142</div><div class="text-[12px] text-white/55 mt-0.5">cubes</div></div>
+        <div class="glass rounded-2xl p-4"><div class="text-2xl font-bold text-white">8</div><div class="text-[12px] text-white/55 mt-0.5">consolidations</div></div>
+        <div class="glass rounded-2xl p-4"><div class="text-2xl font-bold text-white" style="color:#c4b5fd">81%</div><div class="text-[12px] text-white/55 mt-0.5">glaze score</div></div>
+        <div class="glass rounded-2xl p-4"><div class="text-2xl font-bold text-white">12</div><div class="text-[12px] text-white/55 mt-0.5">contradictions</div></div>
+      </div>
+      <div class="glass rounded-2xl p-5">
+        <div class="text-[12px] font-semibold text-white/50 uppercase tracking-wide mb-3">Consolidated Knowledge</div>
+        <div class="space-y-2.5">
+          <div class="glass rounded-xl px-3.5 py-3"><div class="text-sm font-medium text-white">Point tasks ship as a separate reward type</div><div class="text-[13px] text-white/60 mt-0.5">Decided not to fake USDC amounts. RewardType enum, store normalization, "pts" labels in feed.</div></div>
+          <div class="glass rounded-xl px-3.5 py-3"><div class="text-sm font-medium text-white">Typography-first UX over imagery</div><div class="text-[13px] text-white/60 mt-0.5">Stripped hero images, animated stat counters, SVG icons replace all emoji.</div></div>
+          <div class="glass rounded-xl px-3.5 py-3 opacity-75"><div class="text-sm font-medium text-white">0 completions, Oscar funding everything</div><div class="text-[13px] text-white/60 mt-0.5">Marketplace liquidity unsolved. Three lanes: campaign rails, engagement-first, vertical niche.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     DIRECTION 3 — DARK INSTRUMENT (terminal / observatory)
+     ============================================================ -->
+<div id="p3" class="pane">
+  <div class="min-h-screen inst-bg px-8 py-8 text-zinc-300">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex items-center gap-2 text-[12px] text-zinc-600 mb-1 mono">
+        <span>projects</span><span class="text-zinc-700">/</span><span class="text-emerald-400">relay</span>
+      </div>
+      <div class="flex items-start justify-between mb-7 border-b border-zinc-800 pb-5">
+        <div>
+          <h1 class="text-3xl font-bold text-white tracking-tight mono">RELAY</h1>
+          <p class="text-zinc-500 text-[13px] mt-1 mono">task_marketplace · world_app_store · 142 cubes</p>
+        </div>
+        <button class="bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 text-[12px] font-semibold px-4 py-2.5 rounded mono hover:bg-emerald-500/20 transition">$ inject_context</button>
+      </div>
+      <div class="grid grid-cols-4 gap-px bg-zinc-800 border border-zinc-800 rounded-lg overflow-hidden mb-7">
+        <div class="inst-card p-4"><div class="text-2xl font-bold text-white mono">142</div><div class="text-[11px] text-zinc-500 mt-0.5 mono uppercase tracking-wider">cubes</div></div>
+        <div class="inst-card p-4"><div class="text-2xl font-bold text-white mono">8</div><div class="text-[11px] text-zinc-500 mt-0.5 mono uppercase tracking-wider">consolid.</div></div>
+        <div class="inst-card p-4"><div class="text-2xl font-bold text-emerald-400 mono">81%</div><div class="text-[11px] text-zinc-500 mt-0.5 mono uppercase tracking-wider">glaze_score</div></div>
+        <div class="inst-card p-4"><div class="text-2xl font-bold text-amber-400 mono">12</div><div class="text-[11px] text-zinc-500 mt-0.5 mono uppercase tracking-wider">conflicts</div></div>
+      </div>
+      <div class="inst-card rounded-lg p-5">
+        <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3 mono">// consolidated_knowledge</div>
+        <div class="space-y-2.5">
+          <div class="flex gap-3"><span class="text-emerald-500 mono text-[13px] mt-0.5">▸</span><div><div class="text-sm font-medium text-zinc-100">Point tasks ship as a separate reward type</div><div class="text-[13px] text-zinc-500 mt-0.5">Decided not to fake USDC amounts. RewardType enum, store normalization, "pts" labels in feed.</div></div></div>
+          <div class="flex gap-3"><span class="text-emerald-500 mono text-[13px] mt-0.5">▸</span><div><div class="text-sm font-medium text-zinc-100">Typography-first UX over imagery</div><div class="text-[13px] text-zinc-500 mt-0.5">Stripped hero images, animated stat counters, SVG icons replace all emoji.</div></div></div>
+          <div class="flex gap-3 opacity-60"><span class="text-zinc-600 mono text-[13px] mt-0.5">▸</span><div><div class="text-sm font-medium text-zinc-300">0 completions, Oscar funding everything</div><div class="text-[13px] text-zinc-500 mt-0.5">Marketplace liquidity unsolved. Three lanes: campaign rails, engagement-first, vertical niche.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     DIRECTION 4 — SOFT DEPTH (light, real elevation)
+     ============================================================ -->
+<div id="p4" class="pane">
+  <div class="min-h-screen soft-bg px-8 py-8">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex items-center gap-2 text-[13px] text-zinc-400 mb-1">
+        <span>Projects</span><span>/</span><span class="text-zinc-600 font-medium">RELAY</span>
+      </div>
+      <div class="flex items-start justify-between mb-7">
+        <div>
+          <h1 class="text-3xl font-bold text-zinc-800 tracking-tight">RELAY</h1>
+          <p class="text-zinc-500 text-sm mt-1">Task marketplace · World App Store · 142 memory cubes</p>
+        </div>
+        <button class="bg-zinc-900 text-white text-[13px] font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-zinc-900/15 active:scale-95 transition">Inject Context →</button>
+      </div>
+      <div class="grid grid-cols-4 gap-4 mb-7">
+        <div class="soft-card rounded-2xl p-4"><div class="text-2xl font-bold text-zinc-800">142</div><div class="text-[12px] text-zinc-400 mt-0.5">cubes</div></div>
+        <div class="soft-card rounded-2xl p-4"><div class="text-2xl font-bold text-zinc-800">8</div><div class="text-[12px] text-zinc-400 mt-0.5">consolidations</div></div>
+        <div class="soft-card rounded-2xl p-4"><div class="text-2xl font-bold" style="color:#7c3aed">81%</div><div class="text-[12px] text-zinc-400 mt-0.5">glaze score</div></div>
+        <div class="soft-card rounded-2xl p-4"><div class="text-2xl font-bold text-zinc-800">12</div><div class="text-[12px] text-zinc-400 mt-0.5">contradictions</div></div>
+      </div>
+      <div class="soft-card rounded-2xl p-5">
+        <div class="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide mb-3">Consolidated Knowledge</div>
+        <div class="space-y-2.5">
+          <div class="soft-inset rounded-xl px-4 py-3"><div class="text-sm font-medium text-zinc-800">Point tasks ship as a separate reward type</div><div class="text-[13px] text-zinc-500 mt-0.5">Decided not to fake USDC amounts. RewardType enum, store normalization, "pts" labels in feed.</div></div>
+          <div class="soft-inset rounded-xl px-4 py-3"><div class="text-sm font-medium text-zinc-800">Typography-first UX over imagery</div><div class="text-[13px] text-zinc-500 mt-0.5">Stripped hero images, animated stat counters, SVG icons replace all emoji.</div></div>
+          <div class="soft-inset rounded-xl px-4 py-3 opacity-75"><div class="text-sm font-medium text-zinc-800">0 completions, Oscar funding everything</div><div class="text-[13px] text-zinc-500 mt-0.5">Marketplace liquidity unsolved. Three lanes: campaign rails, engagement-first, vertical niche.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     DIRECTION 5 — FROSTED LIGHT (chosen: #1 base + #2 glass)
+     ============================================================ -->
+<div id="p5" class="pane active">
+  <div class="min-h-screen flux-bg px-8 py-8">
+    <div class="max-w-5xl mx-auto">
+      <div class="flex items-center gap-2 text-[13px] text-zinc-400 mb-1">
+        <span>Projects</span><span>/</span><span class="text-zinc-700 font-medium">RELAY</span>
+      </div>
+      <div class="flex items-start justify-between mb-7">
+        <div>
+          <h1 class="text-3xl font-bold text-zinc-900 tracking-tight">RELAY</h1>
+          <p class="text-zinc-500 text-sm mt-1">Task marketplace · World App Store · 142 memory cubes</p>
+        </div>
+        <button class="bg-gradient-to-r from-violet-600 to-indigo-500 text-white text-[13px] font-semibold px-5 py-2.5 rounded-xl shadow-lg shadow-violet-500/25 active:scale-95 transition">Inject Context →</button>
+      </div>
+      <div class="grid grid-cols-4 gap-3 mb-7">
+        <div class="fglass rounded-2xl p-4"><div class="text-2xl font-bold text-zinc-900">142</div><div class="text-[12px] text-zinc-500 mt-0.5">cubes</div></div>
+        <div class="fglass rounded-2xl p-4"><div class="text-2xl font-bold text-zinc-900">8</div><div class="text-[12px] text-zinc-500 mt-0.5">consolidations</div></div>
+        <div class="fglass rounded-2xl p-4"><div class="text-2xl font-bold text-violet-600">81%</div><div class="text-[12px] text-zinc-500 mt-0.5">glaze score</div></div>
+        <div class="fglass rounded-2xl p-4"><div class="text-2xl font-bold text-zinc-900">12</div><div class="text-[12px] text-zinc-500 mt-0.5">contradictions</div></div>
+      </div>
+      <div class="fglass rounded-2xl p-5">
+        <div class="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide mb-3">Consolidated Knowledge</div>
+        <div class="space-y-2.5">
+          <div class="fglass-inset rounded-xl px-4 py-3"><div class="text-sm font-medium text-zinc-800">Point tasks ship as a separate reward type</div><div class="text-[13px] text-zinc-500 mt-0.5">Decided not to fake USDC amounts. RewardType enum, store normalization, "pts" labels in feed.</div></div>
+          <div class="fglass-inset rounded-xl px-4 py-3"><div class="text-sm font-medium text-zinc-800">Typography-first UX over imagery</div><div class="text-[13px] text-zinc-500 mt-0.5">Stripped hero images, animated stat counters, SVG icons replace all emoji.</div></div>
+          <div class="fglass-inset rounded-xl px-4 py-3 opacity-80"><div class="text-sm font-medium text-zinc-800">0 completions, Oscar funding everything</div><div class="text-[13px] text-zinc-500 mt-0.5">Marketplace liquidity unsolved. Three lanes: campaign rails, engagement-first, vertical niche.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function show(n){
+    for (let i=1;i<=5;i++){
+      document.getElementById('p'+i).classList.toggle('active', i===n);
+      const t = document.getElementById('t'+i);
+      if (i===n){ t.className='tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white text-zinc-900'; }
+      else { t.className='tab px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white/10 hover:bg-white/20'; }
+    }
+    window.scrollTo(0,0);
+  }
+</script>
+</body>
+</html>

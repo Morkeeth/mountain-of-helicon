@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GLAZE — Frosted Light Tuner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+  * { -webkit-font-smoothing: antialiased; }
+  body { font-family: 'Inter', system-ui, sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  :root {
+    --card-alpha: 0.55;
+    --blur: 20;
+    --border-alpha: 0.7;
+    --tint: 1;
+    --radius: 16;
+    --highlight: 0.9;
+    --accent: #3f3f46;
+    --accent2: #52525b;
+  }
+
+  #bg { transition: background 0.15s; }
+
+  .tcard {
+    background: rgb(255 255 255 / var(--card-alpha));
+    backdrop-filter: blur(calc(var(--blur) * 1px)) saturate(180%);
+    -webkit-backdrop-filter: blur(calc(var(--blur) * 1px)) saturate(180%);
+    border: 1px solid rgb(255 255 255 / var(--border-alpha));
+    box-shadow: 0 4px 24px rgba(80,80,160,0.08), inset 0 1px 0 rgb(255 255 255 / var(--highlight));
+    border-radius: calc(var(--radius) * 1px);
+  }
+  .tcard-inset {
+    background: rgb(255 255 255 / calc(var(--card-alpha) - 0.13));
+    backdrop-filter: blur(calc(var(--blur) * 0.6px)) saturate(160%);
+    -webkit-backdrop-filter: blur(calc(var(--blur) * 0.6px)) saturate(160%);
+    border: 1px solid rgb(255 255 255 / calc(var(--border-alpha) - 0.18));
+    border-radius: calc(var(--radius) * 0.7px);
+  }
+
+  /* control panel */
+  .ctrl { position: fixed; top: 16px; right: 16px; width: 270px; z-index: 100;
+          background: rgba(24,24,32,0.92); backdrop-filter: blur(20px);
+          border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 16px;
+          box-shadow: 0 12px 40px rgba(0,0,0,0.35); color: #e4e4e7; }
+  .ctrl label { display:block; font-size: 11px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#a1a1aa; margin-bottom:4px; display:flex; justify-content:space-between; }
+  .ctrl label span { color:#c4b5fd; }
+  .ctrl input[type=range] { width:100%; margin-bottom:14px; accent-color:#8b5cf6; }
+  .vals { background:#0a0a0f; border:1px solid #27272a; border-radius:8px; padding:8px 10px; font-size:11px; line-height:1.6; color:#71717a; margin-top:4px; }
+  .vals b { color:#a78bfa; }
+</style>
+</head>
+<body>
+
+<div id="bg" class="min-h-screen px-8 py-8">
+  <div class="max-w-4xl mx-auto pr-72">
+    <div class="flex items-center gap-2 text-[13px] text-zinc-400 mb-1">
+      <span>Projects</span><span>/</span><span class="text-zinc-700 font-medium">RELAY</span>
+    </div>
+    <div class="flex items-start justify-between mb-7">
+      <div>
+        <h1 class="text-3xl font-bold text-zinc-900 tracking-tight">RELAY</h1>
+        <p class="text-zinc-500 text-sm mt-1">Task marketplace · World App Store · 142 memory cubes</p>
+      </div>
+      <button id="cta" class="text-white text-[13px] font-semibold px-5 py-2.5 rounded-xl shadow-lg active:scale-95 transition" style="background:linear-gradient(to right,var(--accent),var(--accent2))">Inject Context →</button>
+    </div>
+    <div class="grid grid-cols-4 gap-3 mb-7">
+      <div class="tcard p-4"><div class="text-2xl font-bold text-zinc-900">142</div><div class="text-[12px] text-zinc-500 mt-0.5">cubes</div></div>
+      <div class="tcard p-4"><div class="text-2xl font-bold text-zinc-900">8</div><div class="text-[12px] text-zinc-500 mt-0.5">consolidations</div></div>
+      <div class="tcard p-4"><div class="text-2xl font-bold" style="color:var(--accent)">81%</div><div class="text-[12px] text-zinc-500 mt-0.5">glaze score</div></div>
+      <div class="tcard p-4"><div class="text-2xl font-bold text-zinc-900">12</div><div class="text-[12px] text-zinc-500 mt-0.5">contradictions</div></div>
+    </div>
+    <div class="tcard p-5">
+      <div class="text-[12px] font-semibold text-zinc-400 uppercase tracking-wide mb-3">Consolidated Knowledge</div>
+      <div class="space-y-2.5">
+        <div class="tcard-inset px-4 py-3"><div class="text-sm font-medium text-zinc-800">Point tasks ship as a separate reward type</div><div class="text-[13px] text-zinc-500 mt-0.5">Decided not to fake USDC amounts. RewardType enum, store normalization, "pts" labels in feed.</div></div>
+        <div class="tcard-inset px-4 py-3"><div class="text-sm font-medium text-zinc-800">Typography-first UX over imagery</div><div class="text-[13px] text-zinc-500 mt-0.5">Stripped hero images, animated stat counters, SVG icons replace all emoji.</div></div>
+        <div class="tcard-inset px-4 py-3 opacity-80"><div class="text-sm font-medium text-zinc-800">0 completions, Oscar funding everything</div><div class="text-[13px] text-zinc-500 mt-0.5">Marketplace liquidity unsolved. Three lanes: campaign rails, engagement-first, vertical niche.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TUNER -->
+<div class="ctrl">
+  <div class="text-[13px] font-bold text-white mb-3">✦ Frosted Light Tuner</div>
+
+  <label>Glass transparency <span id="v-alpha">0.55</span></label>
+  <input type="range" id="s-alpha" min="0.15" max="0.92" step="0.01" value="0.55" />
+
+  <label>Frost / blur <span id="v-blur">20px</span></label>
+  <input type="range" id="s-blur" min="0" max="40" step="1" value="20" />
+
+  <label>Border brightness <span id="v-border">0.70</span></label>
+  <input type="range" id="s-border" min="0.15" max="1" step="0.01" value="0.70" />
+
+  <label>Color wash strength <span id="v-tint">1.0×</span></label>
+  <input type="range" id="s-tint" min="0" max="2" step="0.05" value="1" />
+
+  <label>Corner radius <span id="v-radius">16px</span></label>
+  <input type="range" id="s-radius" min="6" max="28" step="1" value="16" />
+
+  <label style="margin-top:4px">Accent <span id="v-pal">Graphite</span></label>
+  <div id="swatches" class="flex gap-1.5 mb-3 flex-wrap"></div>
+
+  <div class="vals" id="readout"></div>
+  <div class="flex gap-2 mt-2">
+    <button onclick="preset('subtle')" class="flex-1 text-[11px] py-1.5 rounded bg-white/10 hover:bg-white/20 text-white font-medium">Subtle</button>
+    <button onclick="preset('clear')" class="flex-1 text-[11px] py-1.5 rounded bg-white/10 hover:bg-white/20 text-white font-medium">Clear glass</button>
+    <button onclick="preset('vivid')" class="flex-1 text-[11px] py-1.5 rounded bg-white/10 hover:bg-white/20 text-white font-medium">Vivid</button>
+  </div>
+  <div class="text-[10px] text-zinc-500 mt-2 leading-snug">Dial it in, then tell me the readout values (or just say "subtle/clear/vivid"). I bake them into the real app.</div>
+</div>
+
+<script>
+  const root = document.documentElement;
+  const bg = document.getElementById('bg');
+
+  // each palette: 4 wash blobs [r,g,b,baseAlpha], button gradient accents, base bg
+  const PALETTES = {
+    Graphite: { meme:false, base:'#f4f5f8', accent:'#3f3f46', accent2:'#52525b',
+      blobs:[[100,116,139,0.10],[71,85,105,0.08],[148,163,184,0.07],[100,116,139,0.09]] },
+    Azure:    { meme:false, base:'#f2f5fb', accent:'#2563eb', accent2:'#3b82f6',
+      blobs:[[37,99,235,0.12],[59,130,246,0.12],[14,165,233,0.09],[37,99,235,0.11]] },
+    Teal:     { meme:false, base:'#f1f7f6', accent:'#0d9488', accent2:'#14b8a6',
+      blobs:[[13,148,136,0.12],[20,184,166,0.12],[6,182,212,0.09],[13,148,136,0.11]] },
+    Amber:    { meme:false, base:'#faf6f1', accent:'#ea580c', accent2:'#f97316',
+      blobs:[[234,88,12,0.11],[249,115,22,0.11],[245,158,11,0.10],[234,88,12,0.10]] },
+    Emerald:  { meme:false, base:'#f1f7f3', accent:'#059669', accent2:'#10b981',
+      blobs:[[5,150,105,0.12],[16,185,129,0.11],[20,184,166,0.09],[5,150,105,0.11]] },
+    Purple:   { meme:true,  base:'#f3f5fb', accent:'#7c3aed', accent2:'#6366f1',
+      blobs:[[124,58,237,0.12],[59,130,246,0.12],[236,72,153,0.09],[99,102,241,0.12]] },
+  };
+  let activePal = 'Graphite';
+
+  function buildBg(tint){
+    const p = PALETTES[activePal];
+    const a = (base) => Math.min(base * tint, 1).toFixed(3);
+    const pos = ['12% 18%','88% 12%','78% 88%','18% 92%'];
+    const layers = p.blobs.map((b,i) =>
+      `radial-gradient(at ${pos[i]}, rgba(${b[0]},${b[1]},${b[2]},${a(b[3])}) 0px, transparent 46%)`);
+    return layers.join(',') + ',' + p.base;
+  }
+
+  function applyPalette(name){
+    activePal = name;
+    const p = PALETTES[name];
+    root.style.setProperty('--accent', p.accent);
+    root.style.setProperty('--accent2', p.accent2);
+    document.getElementById('v-pal').textContent = name + (p.meme ? ' ✗ meme' : '');
+    [...document.querySelectorAll('.sw')].forEach(el =>
+      el.style.outline = el.dataset.name === name ? '2px solid #fff' : '2px solid transparent');
+    sync();
+  }
+
+  // build swatches
+  const swWrap = document.getElementById('swatches');
+  Object.entries(PALETTES).forEach(([name,p]) => {
+    const b = document.createElement('button');
+    b.className = 'sw'; b.dataset.name = name; b.title = name + (p.meme ? ' (the meme)' : '');
+    b.style.cssText = `width:30px;height:30px;border-radius:8px;outline:2px solid transparent;outline-offset:1px;cursor:pointer;border:none;background:linear-gradient(135deg,${p.accent},${p.accent2});${p.meme?'opacity:0.55;':''}`;
+    b.onclick = () => applyPalette(name);
+    swWrap.appendChild(b);
+  });
+
+  function sync(){
+    const alpha = document.getElementById('s-alpha').value;
+    const blur = document.getElementById('s-blur').value;
+    const border = document.getElementById('s-border').value;
+    const tint = document.getElementById('s-tint').value;
+    const radius = document.getElementById('s-radius').value;
+
+    root.style.setProperty('--card-alpha', alpha);
+    root.style.setProperty('--blur', blur);
+    root.style.setProperty('--border-alpha', border);
+    root.style.setProperty('--radius', radius);
+    bg.style.background = buildBg(parseFloat(tint));
+
+    document.getElementById('v-alpha').textContent = alpha;
+    document.getElementById('v-blur').textContent = blur + 'px';
+    document.getElementById('v-border').textContent = (+border).toFixed(2);
+    document.getElementById('v-tint').textContent = (+tint).toFixed(2) + '×';
+    document.getElementById('v-radius').textContent = radius + 'px';
+
+    const p = PALETTES[activePal];
+    document.getElementById('readout').innerHTML =
+      `accent <b>${activePal}</b> (${p.accent}) · alpha <b>${alpha}</b> · blur <b>${blur}px</b> · border <b>${(+border).toFixed(2)}</b> · wash <b>${(+tint).toFixed(2)}×</b> · radius <b>${radius}px</b>`;
+  }
+
+  function preset(name){
+    const p = {
+      subtle: {alpha:0.68, blur:14, border:0.55, tint:0.6, radius:14},
+      clear:  {alpha:0.32, blur:26, border:0.85, tint:1.1, radius:18},
+      vivid:  {alpha:0.50, blur:22, border:0.75, tint:1.7, radius:16},
+    }[name];
+    document.getElementById('s-alpha').value = p.alpha;
+    document.getElementById('s-blur').value = p.blur;
+    document.getElementById('s-border').value = p.border;
+    document.getElementById('s-tint').value = p.tint;
+    document.getElementById('s-radius').value = p.radius;
+    sync();
+  }
+
+  ['s-alpha','s-blur','s-border','s-tint','s-radius'].forEach(id =>
+    document.getElementById(id).addEventListener('input', sync));
+  applyPalette('Graphite');
+</script>
+</body>
+</html>

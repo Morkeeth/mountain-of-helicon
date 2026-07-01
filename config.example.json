@@ -1,0 +1,55 @@
+{
+  "db_path": "data/glaze.db",
+  "qwen_api_key": "sk-your-qwen-api-key",
+  "qwen_model": "qwen-plus",
+  "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+  "connectors": {
+    "claude-code": {
+      "enabled": true,
+      "jsonl_dir": "~/.claude/projects",
+      "memory_dir": "~/.claude/projects/-Users-you/memory",
+      "sessions_index": "~/.claude/projects/-Users-you/sessions-index.json"
+    },
+    "obsidian": {
+      "enabled": true,
+      "vault_path": "~/Documents/MyVault",
+      "max_depth": 3,
+      "skip_dirs": [".obsidian", ".trash"]
+    },
+    "git": {
+      "enabled": true,
+      "repos_dir": "~/projects",
+      "max_commits": 30
+    },
+    "chatgpt": {
+      "enabled": false,
+      "export_path": "~/Downloads/chatgpt-export/conversations.json"
+    },
+    "cursor": {
+      "enabled": false,
+      "memory_dir": "~/.cursor"
+    }
+  },
+  "forgetting": {
+    "stability": {
+      "code": 7.0,
+      "file_created": 14.0,
+      "decision": 30.0,
+      "draft": 10.0,
+      "pattern": 60.0,
+      "memory": 45.0
+    },
+    "prune_threshold": 0.05
+  },
+  "audit": {
+    "temporal_stale_days": 7,
+    "min_spin_sessions": 4,
+    "kill_prediction_days": 30,
+    "kill_prediction_threshold": 0.9
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "password": ""
+  }
+}

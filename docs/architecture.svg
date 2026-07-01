@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="Inter, -apple-system, sans-serif">
+  <defs>
+    <style>
+      .title { font-size: 18px; font-weight: 600; fill: #e4e4e7; }
+      .subtitle { font-size: 11px; fill: #71717a; text-transform: uppercase; letter-spacing: 0.1em; }
+      .label { font-size: 12px; fill: #a1a1aa; }
+      .small { font-size: 10px; fill: #52525b; }
+      .accent { fill: #d97706; }
+      .box { fill: #111113; stroke: #1c1c20; stroke-width: 1; rx: 6; }
+      .box-accent { fill: #111113; stroke: #d97706; stroke-width: 1; rx: 6; stroke-opacity: 0.3; }
+      .connector { stroke: #27272a; stroke-width: 1; fill: none; }
+      .connector-accent { stroke: #d97706; stroke-width: 1; fill: none; stroke-opacity: 0.4; }
+      .arrow { fill: #27272a; }
+      .arrow-accent { fill: #d97706; fill-opacity: 0.4; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="560" fill="#09090b" rx="8"/>
+
+  <!-- Title -->
+  <text x="40" y="40" class="title">GLAZE</text>
+  <text x="105" y="40" class="subtitle" dy="0">Architecture</text>
+
+  <!-- Layer labels -->
+  <text x="40" y="80" class="subtitle">Layer 1: Extraction</text>
+  <text x="40" y="230" class="subtitle">Layer 2: Review + Pattern Learning</text>
+  <text x="40" y="390" class="subtitle">Layer 3: Meta-Audit</text>
+
+  <!-- Layer 1: Connectors -->
+  <rect x="40" y="95" width="140" height="100" class="box"/>
+  <text x="110" y="130" class="label" text-anchor="middle">Claude Code</text>
+  <text x="110" y="148" class="small" text-anchor="middle">JSONL transcripts</text>
+  <text x="110" y="164" class="small" text-anchor="middle">memory/*.md</text>
+  <text x="110" y="180" class="small" text-anchor="middle">753 cubes</text>
+
+  <rect x="200" y="95" width="140" height="100" class="box"/>
+  <text x="270" y="130" class="label" text-anchor="middle">Obsidian</text>
+  <text x="270" y="148" class="small" text-anchor="middle">vault markdown</text>
+  <text x="270" y="164" class="small" text-anchor="middle">YAML frontmatter</text>
+  <text x="270" y="180" class="small" text-anchor="middle">179 cubes</text>
+
+  <rect x="360" y="95" width="140" height="100" class="box"/>
+  <text x="430" y="130" class="label" text-anchor="middle">Git</text>
+  <text x="430" y="148" class="small" text-anchor="middle">commit history</text>
+  <text x="430" y="164" class="small" text-anchor="middle">~/CODE/* repos</text>
+  <text x="430" y="180" class="small" text-anchor="middle">336 cubes</text>
+
+  <rect x="520" y="95" width="140" height="100" class="box"/>
+  <text x="590" y="130" class="label" text-anchor="middle">ChatGPT</text>
+  <text x="590" y="148" class="small" text-anchor="middle">conversations.json</text>
+  <text x="590" y="164" class="small" text-anchor="middle">export parser</text>
+
+  <rect x="680" y="95" width="140" height="100" class="box"/>
+  <text x="750" y="130" class="label" text-anchor="middle">Cursor</text>
+  <text x="750" y="148" class="small" text-anchor="middle">memory banks</text>
+  <text x="750" y="164" class="small" text-anchor="middle">.cursorrules</text>
+
+  <!-- SAGE Gate -->
+  <rect x="340" y="200" width="200" height="20" class="box-accent"/>
+  <text x="440" y="214" class="small accent" text-anchor="middle">SAGE Novelty Gate: ADD / NOOP / MERGE</text>
+
+  <!-- Arrows from connectors to scanner -->
+  <line x1="110" y1="195" x2="340" y2="210" class="connector"/>
+  <line x1="270" y1="195" x2="380" y2="210" class="connector"/>
+  <line x1="430" y1="195" x2="430" y2="200" class="connector"/>
+  <line x1="590" y1="195" x2="490" y2="210" class="connector"/>
+  <line x1="750" y1="195" x2="540" y2="210" class="connector"/>
+
+  <!-- Layer 2: Review + Patterns -->
+  <rect x="40" y="245" width="260" height="120" class="box-accent"/>
+  <text x="170" y="272" class="label" text-anchor="middle">GlazeCube Store</text>
+  <text x="170" y="290" class="small" text-anchor="middle">SQLite with FTS5</text>
+  <text x="170" y="306" class="small" text-anchor="middle">content_hash dedup</text>
+  <text x="170" y="322" class="small" text-anchor="middle">versioned confidence</text>
+  <text x="170" y="340" class="small accent" text-anchor="middle">1268 cubes, 91 reviewed</text>
+
+  <rect x="320" y="245" width="260" height="120" class="box"/>
+  <text x="450" y="272" class="label" text-anchor="middle">Human Review Queue</text>
+  <text x="450" y="290" class="small" text-anchor="middle">approve / revise / kill</text>
+  <text x="450" y="306" class="small" text-anchor="middle">voice notes (Web Speech)</text>
+  <text x="450" y="322" class="small" text-anchor="middle">review velocity tracking</text>
+  <text x="450" y="340" class="small" text-anchor="middle">time-to-decision capture</text>
+
+  <rect x="600" y="245" width="260" height="120" class="box"/>
+  <text x="730" y="272" class="label" text-anchor="middle">Pattern Learner</text>
+  <text x="730" y="290" class="small" text-anchor="middle">review-decision extraction</text>
+  <text x="730" y="306" class="small" text-anchor="middle">spin detection (topic loops)</text>
+  <text x="730" y="322" class="small" text-anchor="middle">kill prediction by type+age</text>
+  <text x="730" y="340" class="small" text-anchor="middle">shipping rate analysis</text>
+
+  <!-- Arrows between L2 boxes -->
+  <line x1="300" y1="305" x2="320" y2="305" class="connector-accent"/>
+  <polygon points="318,302 324,305 318,308" class="arrow-accent"/>
+  <line x1="580" y1="305" x2="600" y2="305" class="connector-accent"/>
+  <polygon points="598,302 604,305 598,308" class="arrow-accent"/>
+
+  <!-- Layer 3: Meta-Audit -->
+  <rect x="40" y="405" width="195" height="120" class="box"/>
+  <text x="137" y="432" class="label" text-anchor="middle">Temporal Audit</text>
+  <text x="137" y="450" class="small" text-anchor="middle">stale time references</text>
+  <text x="137" y="466" class="small" text-anchor="middle">"this week" in 27d file</text>
+  <text x="137" y="482" class="small" text-anchor="middle">52 findings</text>
+
+  <rect x="255" y="405" width="195" height="120" class="box"/>
+  <text x="352" y="432" class="label" text-anchor="middle">Factual Audit</text>
+  <text x="352" y="450" class="small" text-anchor="middle">contradictions</text>
+  <text x="352" y="466" class="small" text-anchor="middle">Qwen-enhanced pairwise</text>
+  <text x="352" y="482" class="small" text-anchor="middle">SSGM consistency gate</text>
+
+  <rect x="470" y="405" width="195" height="120" class="box"/>
+  <text x="567" y="432" class="label" text-anchor="middle">Decay Audit</text>
+  <text x="567" y="450" class="small" text-anchor="middle">Ebbinghaus R=e^(-t/S)</text>
+  <text x="567" y="466" class="small" text-anchor="middle">below 5% confidence</text>
+  <text x="567" y="482" class="small" text-anchor="middle">never reviewed</text>
+
+  <rect x="685" y="405" width="175" height="120" class="box"/>
+  <text x="772" y="432" class="label" text-anchor="middle">Pattern Staleness</text>
+  <text x="772" y="450" class="small" text-anchor="middle">weak data points</text>
+  <text x="772" y="466" class="small" text-anchor="middle">anti-confabulation</text>
+  <text x="772" y="482" class="small" text-anchor="middle">challenge oldest</text>
+
+  <!-- Arrows L2 to L3 -->
+  <line x1="170" y1="365" x2="137" y2="405" class="connector"/>
+  <line x1="170" y1="365" x2="352" y2="405" class="connector"/>
+  <line x1="450" y1="365" x2="567" y2="405" class="connector"/>
+  <line x1="730" y1="365" x2="772" y2="405" class="connector"/>
+
+  <!-- Qwen Cloud label -->
+  <rect x="700" y="20" width="160" height="36" class="box-accent"/>
+  <text x="780" y="42" class="small accent" text-anchor="middle">Qwen Cloud API</text>
+  <text x="780" y="54" class="small" text-anchor="middle">qwen-plus via DashScope</text>
+
+  <!-- Glaze Score -->
+  <rect x="40" y="535" width="820" height="18" rx="3" fill="#1c1c20"/>
+  <rect x="40" y="535" width="60" height="18" rx="3" fill="#d97706" fill-opacity="0.3"/>
+  <text x="450" y="548" class="small" text-anchor="middle">Glaze Score: 7.2% (91/1268 reviewed)</text>
+</svg>

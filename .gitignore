@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/*.db
+data/compiled/
+node_modules/
+.vite/
+*.egg-info/
+dist/
+build/
+config.json
+.DS_Store
+static/
+
+# local-only: contains personal filter terms, never commit
+scripts/make_demo_db.py

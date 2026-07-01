@@ -1,0 +1,17 @@
+# Lean deploy image: Python only. Uses the web bundle you already built locally
+# (web/dist), so the server never runs Node. config.json and data/ are NOT baked
+# in - they are mounted at runtime (see docker-compose.deploy.yml) to keep the
+# Qwen key and your real DB out of the image.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY glaze/ glaze/
+COPY scripts/ scripts/
+COPY web/dist/ static/
+
+EXPOSE 8420
+CMD ["python3", "-m", "uvicorn", "glaze.api.app:app", "--host", "0.0.0.0", "--port", "8420"]

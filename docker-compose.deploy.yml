@@ -1,0 +1,16 @@
+# Deploy compose for Alibaba Simple Application Server (SWAS).
+#   docker compose -f docker-compose.deploy.yml up -d --build
+# Serves the app on port 80 so the demo URL is just http://<public-ip>/
+# Mounts the real config.json (with the working Qwen key) and the seeded
+# glaze.db, so the live site shows a full system, not an empty one.
+services:
+  glaze:
+    build:
+      context: .
+      dockerfile: Dockerfile.deploy
+    ports:
+      - "80:8420"
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./data:/app/data
+    restart: unless-stopped
