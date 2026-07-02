@@ -1,4 +1,4 @@
-from glaze.connectors import claude_code, obsidian, git, chatgpt, cursor
+from glaze.connectors import claude_code, obsidian, git, chatgpt, cursor, agent_rules
 from glaze.models import ConnectorResult
 
 CONNECTORS = {
@@ -7,6 +7,7 @@ CONNECTORS = {
     "git": git.scan,
     "chatgpt": chatgpt.scan,
     "cursor": cursor.scan,
+    "agent-rules": agent_rules.scan,
 }
 
 

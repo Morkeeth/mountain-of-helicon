@@ -4,7 +4,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 
 ## What it does
 
-- **Layer 1:** Extracts agent output from Claude Code transcripts, Obsidian, git
+- **Layer 1:** Extracts agent output from Claude Code transcripts, Obsidian, git, and coding-agent *rules* files (CLAUDE.md / AGENTS.md / .cursorrules / .clinerules / copilot-instructions), each split into section-level memory cubes so regression can catch a single rule drifting
 - **Layer 2:** Learns review patterns (velocity, shipping rates, spin detection, kill prediction)
 - **Layer 3:** Audits its own stored patterns. Flags stale memories, contradictions, low-confidence patterns. Proposes prunes. Human reviews the memory review (meta-loop).
 

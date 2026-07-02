@@ -28,6 +28,12 @@
     "cursor": {
       "enabled": false,
       "memory_dir": "~/.cursor"
+    },
+    "agent-rules": {
+      "enabled": true,
+      "repos_dir": "~/projects",
+      "repos": [],
+      "max_repos": 50
     }
   },
   "forgetting": {
