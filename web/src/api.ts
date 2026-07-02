@@ -171,6 +171,7 @@ export const api = {
   getContextSwitches: (weeks = 4) => get<ContextSwitchData>(`/projects/context-switches?weeks=${weeks}`),
   getBattery: () => get<BatteryReport>('/integrity/battery'),
   getSnapshots: () => get<SnapshotReport>('/integrity/snapshots'),
+  getSkillsAudit: () => get<SkillsAudit>('/integrity/skills'),
   runEval: () => post<EvalResult>('/eval/run'),
   getEvalHistory: () => get<{ runs: EvalRun[] }>('/eval/history'),
   getScoreHistory: () => get<{ history: ScoreHistoryPoint[] }>('/score/history'),
@@ -215,6 +216,16 @@ export interface SnapshotReport {
   regressed: number;
   clean: number;
   snapshots: SnapshotResult[];
+}
+
+export interface SkillsAudit {
+  roots: string[];
+  files: number;
+  unique: number;
+  duplicates: { name: string; count: number; paths: string[] }[];
+  collisions: { a: string; b: string; overlap: number }[];
+  thin: { name: string; desc_len: number }[];
+  summary: { duplicated: number; collisions: number; thin: number };
 }
 
 export interface QwenStats {

@@ -13,6 +13,7 @@ import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
 import { DecayHeatmap } from './components/Charts';
 import HeliconMountain from './components/HeliconMountain';
+import SkillsAudit from './components/SkillsAudit';
 
 type Tab = 'projects' | 'review' | 'insights' | 'graph' | 'system';
 
@@ -439,6 +440,11 @@ function App() {
             <div>
               <h2 className="text-[15px] font-medium text-zinc-200 mb-4">Memory integrity</h2>
               <HeliconMountain />
+            </div>
+
+            <div>
+              <h2 className="text-[15px] font-medium text-zinc-200 mb-4">Skills integrity</h2>
+              <SkillsAudit />
             </div>
 
             <div className="max-w-2xl border-t border-zinc-800/40 pt-8">
