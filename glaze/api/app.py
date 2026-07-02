@@ -73,6 +73,7 @@ def create_app() -> FastAPI:
     from glaze.api.playbooks import router as playbooks_router
     from glaze.api.consolidation import router as consolidation_router
     from glaze.api.tokens import router as tokens_router
+    from glaze.api.integrity import router as integrity_router
 
     app.include_router(cubes_router, prefix="/api")
     app.include_router(review_router, prefix="/api")
@@ -89,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(playbooks_router, prefix="/api")
     app.include_router(consolidation_router, prefix="/api")
     app.include_router(tokens_router, prefix="/api")
+    app.include_router(integrity_router, prefix="/api")
 
     @app.get("/api/health")
     async def health():

@@ -1,12 +1,14 @@
-# GLAZE
+# Helicon
 
-**Agent-agnostic memory audit system.** Most memory systems store what you said. GLAZE watches what you did, checks its own work, and flags when memory goes stale.
+**Agent-agnostic memory audit system.** Most memory systems store what you said. Helicon watches what you did, checks its own work, and flags when memory goes stale.
+
+> Helicon is the product name. The CLI, Python package, and MCP tools are still `glaze` / `glaze_*` (`pip install glaze-audit`) — the rename is branding only.
 
 Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
 
 ## The Problem
 
-Production memory accuracy drops to **49% after 30 days** at 38% staleness rate (Mem0 ECAI 2025 research). AI agents accumulate memory files, transcripts, and decisions without review. Mem0 ($24M raised, 48K stars) stores. Letta ($10M) organizes. Zep timestamps. **Nobody audits.** GLAZE does.
+Production memory accuracy drops to **49% after 30 days** at 38% staleness rate (Mem0 ECAI 2025 research). AI agents accumulate memory files, transcripts, and decisions without review. Mem0 ($24M raised, 48K stars) stores. Letta ($10M) organizes. Zep timestamps. **Nobody audits.** Helicon does.
 
 ## Three Layers
 
@@ -21,9 +23,9 @@ Five pluggable connectors scan agent output from any platform:
 Each item becomes a **GlazeCube** -- a versioned memory unit (inspired by MemOS) with source, confidence, content hash, review status, and decay parameters. SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage at ingestion.
 
 ### Layer 2: Review Pattern Learning
-GLAZE learns *how you review*, not what you say:
+Helicon learns *how you review*, not what you say:
 - **Weibull forgetting curves** -- `w(t) = exp(-(t/eta)^kappa)` with per-type shape. kappa>1 = cliff decay (code, drafts). kappa<1 = long tail (decisions, archives). From SSGM/LiCoMemory.
-- **Auto-triage** -- after enough reviews, GLAZE derives rules and makes its own kill/approve decisions. Human only reviews uncertain items.
+- **Auto-triage** -- after enough reviews, Helicon derives rules and makes its own kill/approve decisions. Human only reviews uncertain items.
 - **Spin detection** -- topics discussed in 4+ sessions without file changes
 - **Kill prediction** -- historical kill rate by type and age
 - **Glaze Score** -- percentage of memory reviewed and acted on
@@ -39,7 +41,7 @@ The system checks its own stored patterns:
 
 ## Project Intelligence
 
-GLAZE groups cubes by project tag and computes per-project metrics:
+Helicon groups cubes by project tag and computes per-project metrics:
 - **Spin score** = sessions / shipped items. Over 3x = pure spin.
 - **Ship rate** = approved / reviewed. 0% = no output.
 - **Decay velocity** = how fast a project's memory is decaying
@@ -56,10 +58,10 @@ Entity extraction from all cubes (projects, tools, concepts). Force-directed vis
 Neuroscience-inspired batch consolidation. Groups related cubes by topic overlap, merges them into higher-level consolidated memories. Raw cubes become episodes become schemas.
 
 ### Auto-Triage Engine
-After enough human reviews, GLAZE derives triage rules from behavior. If 97% of code items get killed and confidence is below 10%, auto-kill. On first run, auto-triage handled 585 out of 1,268 cubes autonomously, pushing the Glaze Score from 7% to 53.6% without a single human decision.
+After enough human reviews, Helicon derives triage rules from behavior. If 97% of code items get killed and confidence is below 10%, auto-kill. On first run, auto-triage handled 585 out of 1,268 cubes autonomously, pushing the Glaze Score from 7% to 53.6% without a single human decision.
 
 ### MCP Server (8 tools)
-GLAZE exposes itself as an MCP tool so AI agents can audit their own memory mid-conversation:
+Helicon exposes itself as an MCP tool so AI agents can audit their own memory mid-conversation:
 
 | Tool | Description |
 |------|-------------|
@@ -87,7 +89,7 @@ glaze optimize      # LLM-powered optimization suggestions
 
 ## Research Foundation
 
-| Technique | Source | How GLAZE Uses It |
+| Technique | Source | How Helicon Uses It |
 |-----------|--------|-------------------|
 | GlazeCube schema | MemOS (SJTU, 2025) | Versioned memory units with metadata |
 | Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |

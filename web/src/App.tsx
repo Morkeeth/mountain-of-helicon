@@ -12,6 +12,7 @@ import { TriageView } from './components/TriageView';
 import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
 import { DecayHeatmap } from './components/Charts';
+import HeliconMountain from './components/HeliconMountain';
 
 type Tab = 'projects' | 'review' | 'insights' | 'graph' | 'system';
 
@@ -172,7 +173,12 @@ function App() {
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
-              <h1 className="text-[15px] font-semibold tracking-tight qwen-gradient-text">GLAZE</h1>
+              <h1
+                className="text-[19px] tracking-tight text-zinc-100"
+                style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
+              >
+                Helicon
+              </h1>
               <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Memory Audit</span>
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium tracking-wide">
                 Powered by Qwen
@@ -430,7 +436,12 @@ function App() {
 
         {tab === 'system' && (
           <div className="space-y-10">
-            <div className="max-w-2xl">
+            <div>
+              <h2 className="text-[15px] font-medium text-zinc-200 mb-4">Memory integrity</h2>
+              <HeliconMountain />
+            </div>
+
+            <div className="max-w-2xl border-t border-zinc-800/40 pt-8">
               <h2 className="text-[15px] font-medium text-zinc-200 mb-2">Setup</h2>
               <p className="text-[12px] text-zinc-600 mb-5">Three commands to go from zero to auditing your agent memory.</p>
               <div className="space-y-3 text-[12px] text-zinc-500 leading-relaxed">
@@ -455,7 +466,7 @@ function App() {
                     <span className="text-[10px] font-mono text-white bg-violet-500 px-1.5 py-0.5 rounded">3</span>
                     <h4 className="text-zinc-300 font-medium">Review and teach</h4>
                   </div>
-                  <p className="text-zinc-500 mb-2">Review items: <strong className="text-zinc-400">Keep</strong>, <strong className="text-zinc-400">Revise</strong>, or <strong className="text-zinc-400">Kill</strong>. GLAZE learns your patterns and auto-triages the obvious stuff.</p>
+                  <p className="text-zinc-500 mb-2">Review items: <strong className="text-zinc-400">Keep</strong>, <strong className="text-zinc-400">Revise</strong>, or <strong className="text-zinc-400">Kill</strong>. Helicon learns your patterns and auto-triages the obvious stuff.</p>
                   <p className="text-zinc-500">Connect via MCP for agent self-audit: your agents can query their own memory health.</p>
                 </div>
               </div>
@@ -996,7 +1007,7 @@ function PatternView() {
       {patterns.length === 0 ? (
         <div className="py-8 text-center">
           <p className="text-zinc-500 text-sm mb-1">No patterns yet.</p>
-          <p className="text-zinc-600 text-[12px]">Review items first. GLAZE learns from your decisions.</p>
+          <p className="text-zinc-600 text-[12px]">Review items first. Helicon learns from your decisions.</p>
         </div>
       ) : (
         <div className="space-y-1">

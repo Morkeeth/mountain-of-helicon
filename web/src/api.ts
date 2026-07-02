@@ -169,11 +169,53 @@ export const api = {
   getProjects: () => get<{ projects: ProjectRollup[] }>('/projects'),
   getProjectRecommendations: () => get<{ recommendations: ProjectRecommendation[]; weekly: WeeklySummary }>('/projects/recommend'),
   getContextSwitches: (weeks = 4) => get<ContextSwitchData>(`/projects/context-switches?weeks=${weeks}`),
+  getBattery: () => get<BatteryReport>('/integrity/battery'),
+  getSnapshots: () => get<SnapshotReport>('/integrity/snapshots'),
   runEval: () => post<EvalResult>('/eval/run'),
   getEvalHistory: () => get<{ runs: EvalRun[] }>('/eval/history'),
   getScoreHistory: () => get<{ history: ScoreHistoryPoint[] }>('/score/history'),
   backfillScoreHistory: () => post<{ status: string; points: number }>('/score/history/backfill'),
 };
+
+export interface BatteryTestResult {
+  name: string;
+  status: 'PASS' | 'FAIL';
+  reason: string;
+  critical: boolean;
+}
+
+export interface BatteryTask {
+  task: string;
+  verdict: 'HEALTHY' | 'DEGRADED' | 'BROKEN';
+  results: BatteryTestResult[];
+  retrieved: string[];
+}
+
+export interface BatteryReport {
+  top_k: number;
+  total: number;
+  summary: { healthy: number; degraded: number; broken: number };
+  tasks: BatteryTask[];
+}
+
+export interface SnapshotResult {
+  snapshot_id: number;
+  task: string;
+  regressed: boolean;
+  overlap: number;
+  dropped: string[];
+  added: string[];
+  reordered: boolean;
+  stale: [string, string][];
+  new_titles: string[];
+}
+
+export interface SnapshotReport {
+  total: number;
+  regressed: number;
+  clean: number;
+  snapshots: SnapshotResult[];
+}
 
 export interface QwenStats {
   total_calls: number;
