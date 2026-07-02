@@ -72,8 +72,42 @@ def _fetch(conn: sqlite3.Connection, ids: list[str]) -> dict:
     return {r["id"]: dict(r) for r in rows}
 
 
-def run_battery(conn: sqlite3.Connection, task: str, k: int = 5) -> dict:
-    """Run the deterministic tests on what `task` retrieves. Returns a verdict."""
+def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plus") -> list[dict]:
+    """The subjective (llm-mode) tests, judged by Qwen. Returns [] if no client
+    or the call fails — the battery then falls back to deterministic-only, never
+    fabricating a verdict."""
+    if client is None or not hits:
+        return []
+    from glaze.qwen import complete_json
+    llm = [t for t in CONTEXT_TESTS if t["mode"] == "llm"]
+    lines = [f"Task the agent retrieves context for:\n  {task}\n", "Retrieved memories:"]
+    for i, h in enumerate(hits, 1):
+        lines.append(f"  {i}. {h.get('title','')}")
+    lines.append("\nRun each test on the retrieved set. Be honest; default to FAIL if unsure.")
+    for t in llm:
+        lines.append(f"- {t['name']}: {t['question']} (fail signal: {t['fail_signal']})")
+    lines.append('\nReturn ONLY JSON: '
+                 '{"Contradiction":{"status":"PASS|FAIL","reason":"..."},'
+                 '"Grounding":{"status":"PASS|FAIL","reason":"..."}}')
+    system = "You are a strict memory-quality auditor for an AI agent's retrieved context."
+    data = complete_json(client, system, "\n".join(lines), model=model, operation="battery")
+    if not isinstance(data, dict):
+        return []
+    out = []
+    for t in llm:
+        v = data.get(t["name"]) or data.get(t["name"].lower())
+        if isinstance(v, dict) and v.get("status") in ("PASS", "FAIL"):
+            out.append({"name": t["name"], "status": v["status"],
+                        "reason": str(v.get("reason", ""))[:200],
+                        "critical": False, "judged_by": "qwen"})
+    return out
+
+
+def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
+                model: str = "qwen3.6-plus") -> dict:
+    """Run the battery on what `task` retrieves. Deterministic tests always run;
+    if a Qwen `client` is given, Contradiction/Grounding are judged live by Qwen
+    and folded into the verdict (non-critical: they degrade, never break)."""
     hits = _retrieve(conn, task, k)
     ids = [h["id"] for h in hits]
     cubes = _fetch(conn, ids)
@@ -120,6 +154,10 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5) -> dict:
     else:
         add("Thinness", False, "no cubes to measure")
 
+    # Qwen-judged tests (Contradiction/Grounding), folded in if a client is given.
+    llm_results = run_llm_tests(client, task, hits, model=model)
+    results.extend(llm_results)
+
     fails = [r for r in results if r["status"] == "FAIL"]
     crit_fail = any(r["critical"] for r in fails)
     verdict = "BROKEN" if crit_fail else ("DEGRADED" if fails else "HEALTHY")
@@ -127,6 +165,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5) -> dict:
     return {
         "task": task, "top_k": k, "verdict": verdict,
         "results": results,
+        "llm_ran": bool(llm_results),
         "llm_tests": [t["name"] for t in CONTEXT_TESTS if t["mode"] == "llm"],
         "retrieved": [h["title"] for h in hits],
     }

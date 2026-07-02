@@ -42,14 +42,23 @@ def _terms(text: str) -> set[str]:
 
 
 @router.get("/integrity/battery")
-async def integrity_battery():
-    """Live context-quality battery over the real benchmark tasks."""
+async def integrity_battery(llm: bool = False):
+    """Live context-quality battery over the real benchmark tasks. With ?llm=true
+    the Contradiction/Grounding tests are judged live by Qwen (slower, needs a
+    key); default is deterministic-only for a fast dashboard load."""
     conn = get_conn()
+    client = model = None
+    if llm:
+        from glaze.api.app import get_config
+        from glaze.qwen import get_client, resolve_model
+        config = get_config()
+        client = get_client(config)
+        model = resolve_model("default", config)
     queries = _build_test_queries(conn)
     tasks = []
     counts = Counter()
     for q in queries:
-        res = run_battery(conn, q["query"], k=K)
+        res = run_battery(conn, q["query"], k=K, client=client, model=model or "qwen3.6-plus")
         counts[res["verdict"]] += 1
         tasks.append({
             "task": res["task"],

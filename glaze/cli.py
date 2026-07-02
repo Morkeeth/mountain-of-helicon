@@ -457,15 +457,24 @@ def cmd_battery(args):
         return
     config = load_config()
     conn = init_db(config["db_path"])
-    res = run_battery(conn, args.task, k=args.k)
+    # Build a Qwen client when possible so Contradiction/Grounding are judged
+    # live; --no-llm forces deterministic-only.
+    client = None
+    if not getattr(args, "no_llm", False):
+        from glaze.qwen import get_client, set_cache_db, resolve_model
+        set_cache_db(conn)
+        client = get_client(config)
+    model = resolve_model("default", config) if client else "qwen3.6-plus"
+    res = run_battery(conn, args.task, k=args.k, client=client, model=model)
 
     print(f"\nContext battery for: \"{args.task}\"  (top {res['top_k']})")
     print(f"Verdict: {res['verdict']}\n")
     for r in res["results"]:
         crit = " *" if r.get("critical") and r["status"] == "FAIL" else ""
-        print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}")
-    if res["llm_tests"]:
-        print(f"\n  llm-judged (needs a model): {', '.join(res['llm_tests'])}")
+        judged = " (qwen)" if r.get("judged_by") == "qwen" else ""
+        print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}{judged}")
+    if not res.get("llm_ran") and res["llm_tests"]:
+        print(f"\n  llm-judged (needs a Qwen key): {', '.join(res['llm_tests'])}")
     if getattr(args, "prompt", False):
         print("\n--- LLM battery prompt ---")
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
@@ -826,6 +835,7 @@ def main():
     battery_p.add_argument("task", nargs="?", help="task or query text")
     battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
     battery_p.add_argument("--prompt", action="store_true", help="also print the LLM prompt for subjective tests")
+    battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live Qwen judging")
 
     sub.add_parser("score", help="Show current Glaze Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
