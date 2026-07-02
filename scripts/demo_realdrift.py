@@ -24,9 +24,10 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from glaze.connectors import agent_rules
-from glaze.scanner import result_to_cube
+from glaze.scanner import result_to_cube, content_hash
 from glaze.db import init_db, insert_cube, rebuild_fts
 from glaze.snapshots import capture_snapshot, check_all
+from glaze.reconcile import reconcile_scan, source_ref_scope
 
 REPO = os.path.expanduser(os.environ.get("DEMO_REPO", "~/CODE/glaze"))
 RULES_FILE = os.environ.get("DEMO_RULES_FILE", "CLAUDE.md")
@@ -109,6 +110,16 @@ def main():
     new_results, new_inserted = ingest_rules_version(conn, repo_name, work_root, REPO, new_sha, RULES_FILE)
     print(f"   {len(new_results)} rule-cubes at {new_sha}; {new_inserted} are NEW "
           f"(edited sections), {len(new_results) - new_inserted} unchanged (same content_hash)")
+
+    banner("3b. RECONCILE — retire section cubes the re-scan no longer sees")
+    present = {content_hash(r.content) for r in new_results}
+    scope = source_ref_scope(new_results[0].source_ref) if new_results else None
+    rec = reconcile_scan(conn, source="agent-rules", present_hashes=present, scope_prefix=scope)
+    rebuild_fts(conn)
+    print(f"   retired {rec['count']} orphaned cube(s) as 'superseded' (human-reviewed "
+          f"cubes are never touched):")
+    for r in rec["retired"]:
+        print(f"     - {r['title']}")
 
     banner("4. RE-CHECK snapshot -> regression is whatever the real edits caused")
     any_reg = False

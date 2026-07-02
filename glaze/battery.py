@@ -97,7 +97,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5) -> dict:
 
     # Freshness (critical): no retrieved cube is killed or decayed near zero.
     bad = [c for c in cubes.values()
-           if c.get("review_status") == "killed" or (c.get("confidence") or 1.0) < 0.10]
+           if c.get("review_status") in ("killed", "superseded") or (c.get("confidence") or 1.0) < 0.10]
     add("Freshness", not bad,
         "all retrieved cubes are live" if not bad
         else f"{len(bad)} retrieved cube(s) killed/decayed: {[c['title'][:40] for c in bad]}",

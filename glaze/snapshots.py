@@ -31,14 +31,34 @@ def init_snapshot_table(conn: sqlite3.Connection):
     conn.commit()
 
 
+def _drop_superseded(conn: sqlite3.Connection, hits: list[dict], k: int) -> list[dict]:
+    """Exclude cubes reconciliation has retired ('superseded') — a re-scan
+    replaced them, so serving them is strictly wrong. 'killed'/decayed cubes are
+    intentionally left retrievable so the battery can still flag stale context."""
+    if not hits:
+        return hits
+    ids = [h["id"] for h in hits]
+    q = ",".join("?" * len(ids))
+    gone = {
+        r[0] for r in conn.execute(
+            f"SELECT id FROM glaze_cubes WHERE id IN ({q}) AND review_status = 'superseded'",
+            ids,
+        ).fetchall()
+    }
+    return [h for h in hits if h["id"] not in gone][:k]
+
+
 def _retrieve(conn: sqlite3.Connection, task: str, k: int) -> list[dict]:
-    """Rank memories for a task the way the agent would (hybrid, FTS fallback)."""
+    """Rank memories for a task the way the agent would (hybrid, FTS fallback).
+    Over-fetch, then drop superseded, so retiring a stale cube frees its slot."""
+    over = k * 3
     try:
         from glaze.embeddings import hybrid_search, get_embedding_stats
         if get_embedding_stats(conn)["embedded"] > 0:
-            rows = hybrid_search(conn, task, limit=k)
+            rows = hybrid_search(conn, task, limit=over)
             if rows:
-                return [{"id": r["id"], "title": r.get("title", "")} for r in rows[:k]]
+                hits = [{"id": r["id"], "title": r.get("title", "")} for r in rows]
+                return _drop_superseded(conn, hits, k)
     except Exception:
         pass
     # FTS fallback: OR the terms so multi-word queries still match partially
@@ -48,10 +68,11 @@ def _retrieve(conn: sqlite3.Connection, task: str, k: int) -> list[dict]:
     terms = [t for t in re.findall(r"[A-Za-z0-9]+", task) if len(t) > 2]
     query = " OR ".join(terms) if terms else task
     try:
-        rows = search_cubes(conn, query, k)
+        rows = search_cubes(conn, query, over)
     except Exception:
-        rows = search_cubes(conn, task, k)
-    return [{"id": r["id"], "title": r["title"]} for r in rows[:k]]
+        rows = search_cubes(conn, task, over)
+    hits = [{"id": r["id"], "title": r["title"]} for r in rows]
+    return _drop_superseded(conn, hits, k)
 
 
 def capture_snapshot(conn: sqlite3.Connection, task: str, k: int = 5, note: str = "") -> dict:
@@ -93,6 +114,8 @@ def check_snapshot(conn: sqlite3.Connection, snap: sqlite3.Row) -> dict:
             stale.append((title_of[i], "removed"))
         elif row["review_status"] == "killed":
             stale.append((title_of[i], "killed"))
+        elif row["review_status"] == "superseded":
+            stale.append((title_of[i], "superseded"))
         elif (row["confidence"] or 0) < 0.10:
             stale.append((title_of[i], "decayed"))
 
