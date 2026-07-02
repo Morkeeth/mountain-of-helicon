@@ -39,6 +39,7 @@ glaze triage --dry-run     # preview what would be triaged
 glaze score                # show Glaze Score + decay by type
 glaze stack                # audit your AI tool setup
 glaze optimize             # LLM-powered optimization suggestions
+glaze battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding)
 ```
 
 ## Dev Commands

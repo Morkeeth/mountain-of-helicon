@@ -445,6 +445,32 @@ def cmd_snapshot(args):
         print(f"\n{regr}/{len(results)} snapshots regressed.")
 
 
+def cmd_battery(args):
+    """Context-quality battery: named tests on what a task retrieves."""
+    from glaze.config import load_config
+    from glaze.db import init_db
+    from glaze.battery import run_battery, format_battery_prompt
+    from glaze.snapshots import _retrieve
+
+    if not args.task:
+        print('usage: glaze battery "<task>"')
+        return
+    config = load_config()
+    conn = init_db(config["db_path"])
+    res = run_battery(conn, args.task, k=args.k)
+
+    print(f"\nContext battery for: \"{args.task}\"  (top {res['top_k']})")
+    print(f"Verdict: {res['verdict']}\n")
+    for r in res["results"]:
+        crit = " *" if r.get("critical") and r["status"] == "FAIL" else ""
+        print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}")
+    if res["llm_tests"]:
+        print(f"\n  llm-judged (needs a model): {', '.join(res['llm_tests'])}")
+    if getattr(args, "prompt", False):
+        print("\n--- LLM battery prompt ---")
+        print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
+
+
 def cmd_score(args):
     """Show current Glaze Score."""
     from glaze.config import load_config
@@ -796,6 +822,11 @@ def main():
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
+    battery_p = sub.add_parser("battery", help="Context-quality battery: named tests on retrieved context")
+    battery_p.add_argument("task", nargs="?", help="task or query text")
+    battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
+    battery_p.add_argument("--prompt", action="store_true", help="also print the LLM prompt for subjective tests")
+
     sub.add_parser("score", help="Show current Glaze Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
@@ -827,6 +858,7 @@ def main():
         "triage": cmd_triage,
         "review": cmd_review,
         "snapshot": cmd_snapshot,
+        "battery": cmd_battery,
         "score": cmd_score,
         "stack": cmd_stack,
         "optimize": cmd_optimize,
