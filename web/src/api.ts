@@ -123,6 +123,41 @@ export interface GraphData {
   links: GraphLink[];
 }
 
+// One row of the unified FINDINGS surface (/api/findings)
+export interface Finding {
+  id: string;                 // "audit-262" | "skill-thin-x" | "battery-0"
+  kind: string;               // temporal | decay | factual | logical | skill | battery
+  severity: string;           // critical | warning | info
+  title: string;
+  why: string;                // the human sentence — this IS the finding
+  evidence_preview: string;
+  source: string;
+  source_ref: string;
+  cube_id: string | null;
+  suggested_action: string;   // kill_stale | fix_skill | reconcile | review
+  created_at: string;
+}
+
+export interface FindingsSummary {
+  total: number;
+  by_kind: Record<string, number>;
+  by_severity: Record<string, number>;
+}
+
+export interface FindingsResponse {
+  findings: Finding[];
+  summary: FindingsSummary;
+}
+
+// One receipt of the LOG surface (/api/log)
+export interface LogEntry {
+  ts: string;
+  actor: string;              // human | helicon | qwen
+  action: string;
+  detail: string;
+  count?: number;
+}
+
 export interface Consolidation {
   id: string;
   title: string;
@@ -196,6 +231,14 @@ export const api = {
   runEval: () => post<EvalResult>('/eval/run'),
   getEvalHistory: () => get<{ runs: EvalRun[] }>('/eval/history'),
   getScoreHistory: () => get<{ history: ScoreHistoryPoint[] }>('/score/history'),
+  getFindings: (params?: { kind?: string; limit?: number; include?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.kind) qs.set('kind', params.kind);
+    qs.set('limit', String(params?.limit ?? 500));
+    if (params?.include) qs.set('include', params.include);
+    return get<FindingsResponse>(`/findings?${qs}`);
+  },
+  getLog: (limit = 100) => get<{ entries: LogEntry[]; total: number }>(`/log?limit=${limit}`),
   backfillScoreHistory: () => post<{ status: string; points: number }>('/score/history/backfill'),
 };
 

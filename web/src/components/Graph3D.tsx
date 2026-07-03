@@ -14,12 +14,33 @@ interface SimNode extends GraphNode {
   vz: number;
 }
 
+/* Mount Helicon palette: the graph is audit evidence. Memory nodes are
+   tinted by HEALTH (healthy=stone, stale/decayed=ochre, superseded/killed=
+   terracotta); entities are structural ink. Warm paper ground, no default
+   space-black force graph. */
+
+const PAPER = '#faf7f1';           // warm ground, matches --helicon-bg
+const INK = '#2b2825';             // --helicon-ink
+const HEALTHY = '#8a8478';         // stone/zinc — reviewed & holding
+const STALE = '#B98A4E';           // --helicon-stale (ochre)
+const DEAD = '#C25E3A';            // --helicon-accent (terracotta)
+
+// entities: structural, muted warm ink tones per type
 const TYPE_COLORS: Record<string, string> = {
-  project: '#f59e0b',
-  person: '#a8a29e',
-  tool: '#71717a',
-  concept: '#a1a1aa',
+  project: '#4a4238',
+  person: '#6b6257',
+  tool: '#7d756a',
+  concept: '#8f877b',
 };
+
+// health tint for a memory node: review_status first, confidence fallback
+function cubeHealthColor(node: GraphNode): string {
+  const status = node.review_status || '';
+  if (status === 'superseded' || status === 'killed') return DEAD;
+  const conf = node.confidence ?? 1;
+  if (conf < 0.3) return STALE;   // decayed below the keep threshold
+  return HEALTHY;
+}
 
 function NodeSphere({ node, selected, onClick }: { node: SimNode; selected: boolean; onClick: () => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -30,12 +51,9 @@ function NodeSphere({ node, selected, onClick }: { node: SimNode; selected: bool
     : 0.08;
 
   const color = useMemo(() => {
-    if (selected) return '#f59e0b';
-    if (node.kind === 'entity') return TYPE_COLORS[node.type] || '#71717a';
-    const conf = node.confidence ?? 1;
-    if (conf < 0.1) return '#ef4444';
-    if (conf < 0.3) return '#d97706';
-    return '#52525b';
+    if (selected) return INK;
+    if (node.kind === 'entity') return TYPE_COLORS[node.type] || '#7d756a';
+    return cubeHealthColor(node);
   }, [node, selected]);
 
   useFrame(() => {
@@ -67,9 +85,9 @@ function NodeSphere({ node, selected, onClick }: { node: SimNode; selected: bool
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={selected ? 0.8 : 0.3}
-          roughness={0.3}
-          metalness={0.1}
+          emissiveIntensity={selected ? 0.4 : 0.12}
+          roughness={0.55}
+          metalness={0.05}
         />
       </mesh>
     </group>
@@ -90,12 +108,12 @@ function NodeLabel({ node }: { node: SimNode }) {
     <group ref={ref}>
       <Text
         fontSize={0.15}
-        color="#a1a1aa"
+        color="#6f665a"
         anchorX="center"
         anchorY="bottom"
         maxWidth={2}
         outlineWidth={0.01}
-        outlineColor="#09090b"
+        outlineColor={PAPER}
       >
         {node.label}
       </Text>
@@ -154,11 +172,11 @@ function EdgeLines({ links, nodeMap }: { links: GraphLink[]; nodeMap: Map<string
     <>
       <lineSegments ref={linesRef}>
         <bufferGeometry />
-        <lineBasicMaterial color="#3f3f46" transparent opacity={0.15} />
+        <lineBasicMaterial color="#8a8072" transparent opacity={0.16} />
       </lineSegments>
       <lineSegments ref={contradictionRef}>
         <bufferGeometry />
-        <lineBasicMaterial color="#ef4444" transparent opacity={0.4} linewidth={2} />
+        <lineBasicMaterial color={DEAD} transparent opacity={0.4} linewidth={2} />
       </lineSegments>
     </>
   );
@@ -228,9 +246,9 @@ function Scene({ nodes, links, nodeMap, selected, onSelect }: {
 }) {
   return (
     <>
-      <ambientLight intensity={0.4} />
-      <pointLight position={[10, 10, 10]} intensity={0.6} />
-      <pointLight position={[-10, -5, 5]} intensity={0.3} color="#f59e0b" />
+      <ambientLight intensity={1.1} />
+      <pointLight position={[10, 10, 10]} intensity={0.5} color="#fff8ee" />
+      <pointLight position={[-10, -5, 5]} intensity={0.2} color="#e8ddcc" />
 
       <ForceSimulation nodes={nodes} links={links} nodeMap={nodeMap} />
       <EdgeLines links={links} nodeMap={nodeMap} />
@@ -258,7 +276,7 @@ function Scene({ nodes, links, nodeMap, selected, onSelect }: {
         autoRotateSpeed={0.3}
       />
 
-      <fog attach="fog" args={['#09090b', 15, 40]} />
+      <fog attach="fog" args={[PAPER, 15, 40]} />
     </>
   );
 }
@@ -341,7 +359,7 @@ export function Graph3D() {
 
       <div className="relative">
         {loading || nodes.length === 0 ? (
-          <div className="h-[560px] flex items-center justify-center border border-zinc-800/40 rounded-xl bg-zinc-950/50">
+          <div className="h-[560px] flex items-center justify-center rounded-xl" style={{ background: PAPER, border: '1px solid var(--helicon-line)' }}>
             <div className="text-center">
               <p className="text-zinc-500 text-sm mb-2">{loading ? 'Loading graph...' : 'No graph data yet.'}</p>
               {!loading && (
@@ -352,11 +370,11 @@ export function Graph3D() {
             </div>
           </div>
         ) : (
-          <div className="h-[560px] border border-zinc-800/40 rounded-xl overflow-hidden bg-[#050507]">
+          <div className="h-[560px] rounded-xl overflow-hidden" style={{ background: PAPER, border: '1px solid var(--helicon-line)', boxShadow: '0 20px 60px rgba(50,40,28,.10)' }}>
             <Canvas
               camera={{ position: [0, 0, 12], fov: 60 }}
               gl={{ antialias: true, alpha: false }}
-              onCreated={({ gl }) => { gl.setClearColor('#050507'); }}
+              onCreated={({ gl }) => { gl.setClearColor(PAPER); }}
             >
               <Scene
                 nodes={nodes}
@@ -422,21 +440,22 @@ export function Graph3D() {
         )}
       </div>
 
-      <div className="flex gap-6 mt-4 text-[11px] text-zinc-700">
+      <div className="flex gap-5 mt-4 text-[11px] text-zinc-600 flex-wrap items-center">
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-violet-500" /> Project
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: HEALTHY }} /> healthy
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-zinc-400/70" /> Person
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: STALE }} /> stale
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-zinc-500/50" /> Tool
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: DEAD }} /> superseded
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-zinc-400/40" /> Concept
+        <span className="text-zinc-700">— rot is localized, not everywhere.</span>
+        <span className="flex items-center gap-1.5 text-zinc-700">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: INK }} /> entity
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 h-[2px] bg-red-400/50 rounded" /> Contradiction
+        <span className="flex items-center gap-1.5 text-zinc-700">
+          <span className="w-4 h-[2px] rounded" style={{ background: DEAD, opacity: 0.5 }} /> contradiction
         </span>
         <span className="text-zinc-800 ml-auto">drag to rotate, scroll to zoom</span>
       </div>

@@ -204,7 +204,11 @@ export default function HeliconMountain() {
                 <i style={{ fontStyle: 'normal', color: 'var(--helicon-accent)' }}>%</i>
               </b>
               <span style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--helicon-muted)' }}>
-                mosaic intact · {battery.summary.healthy}/{battery.total} tasks healthy
+                mosaic intact · {battery.summary.healthy} healthy
+                {' / '}
+                <span style={{ color: battery.summary.degraded ? 'var(--helicon-stale)' : undefined }}>{battery.summary.degraded} degraded</span>
+                {' / '}
+                <span style={{ color: battery.summary.broken ? 'var(--helicon-accent)' : undefined }}>{battery.summary.broken} broken</span>
               </span>
             </div>
             <div style={{ position: 'relative' }}>

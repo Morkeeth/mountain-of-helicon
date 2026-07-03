@@ -1,78 +1,87 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
-import type { Score, Cube, AuditFinding, DecayStats, Connector, ProjectRollup, Consolidation } from './api';
-import { ReviewCard } from './components/ReviewCard';
-import { AuditPanel } from './components/AuditPanel';
+import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
 import { Graph3D } from './components/Graph3D';
-import { ConsolidationView } from './components/ConsolidationView';
-import { ContradictionView } from './components/ContradictionView';
 import { TokenDashboard } from './components/TokenDashboard';
-import { TriageView } from './components/TriageView';
 import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
-import { DecayHeatmap } from './components/Charts';
 import HeliconMountain from './components/HeliconMountain';
 import SkillsAudit from './components/SkillsAudit';
+import FindingsView from './components/FindingsView';
+import LogView from './components/LogView';
 
-type Tab = 'projects' | 'review' | 'insights' | 'graph' | 'system';
+/* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
+   Graph · Projects secondary. Review and Insights are gone — findings
+   carry their own actions, the log carries the receipts. */
 
-const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: 'projects', label: 'Projects', icon: '◆' },
-  { key: 'review', label: 'Review', icon: '○' },
-  { key: 'insights', label: 'Insights', icon: '△' },
-  { key: 'graph', label: 'Graph', icon: '◎' },
-  { key: 'system', label: 'System', icon: '⚙' },
+type Tab = 'health' | 'findings' | 'log' | 'graph' | 'projects';
+
+const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'health', label: 'Health' },
+  { key: 'findings', label: 'Findings' },
+  { key: 'log', label: 'Log' },
 ];
 
-function App() {
-  const [tab, setTab] = useState<Tab>('projects');
-  const [score, setScore] = useState<Score | null>(null);
-  const [cubes, setCubes] = useState<Cube[]>([]);
-  const [total, setTotal] = useState(0);
-  const [findings, setFindings] = useState<AuditFinding[]>([]);
-  const [decayStats, setDecayStats] = useState<DecayStats | null>(null);
-  const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [filter, setFilter] = useState({ source: '', type: '', sort: 'urgency' });
-  const [loading, setLoading] = useState(true);
-  const [focusIdx, setFocusIdx] = useState(0);
-  const [search, setSearch] = useState('');
-  const [triageCount, setTriageCount] = useState(0);
-  const [showTriage, setShowTriage] = useState(false);
+const SECONDARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'graph', label: 'Graph' },
+  { key: 'projects', label: 'Projects' },
+];
 
-  // Project-centric state
+const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
+
+function App() {
+  const [tab, setTab] = useState<Tab>('findings');
+  const [score, setScore] = useState<Score | null>(null);
+  const [connectors, setConnectors] = useState<Connector[]>([]);
+  const [triageCount, setTriageCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  // Findings (the heart) — owned here so the header attention bar shares it
+  const [findingsData, setFindingsData] = useState<FindingsResponse | null>(null);
+  const [batteryIncluded, setBatteryIncluded] = useState(false);
+  const [batteryLoading, setBatteryLoading] = useState(false);
+
+  // Project-centric state (secondary surface, unchanged)
   const [projects, setProjects] = useState<ProjectRollup[]>([]);
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projectConsolidations, setProjectConsolidations] = useState<Consolidation[]>([]);
   const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [s, d, c, t] = await Promise.all([
+    const [s, c, t] = await Promise.all([
       api.getScore(),
-      api.getDecayStats(),
       api.getConnectors(),
       api.getTriageStats().catch(() => ({ total_triaged: 0 })),
     ]);
     setScore(s);
-    setDecayStats(d);
     setConnectors(c.connectors);
     setTriageCount(t.total_triaged);
   }, []);
 
-  const loadCubes = useCallback(async () => {
-    const params: Record<string, string | number> = { limit: 30, sort: filter.sort };
-    if (filter.source) params.source = filter.source;
-    if (filter.type) params.type = filter.type;
-    params.status = 'pending';
-    const res = await api.getCubes(params);
-    setCubes(res.cubes);
-    setTotal(res.total);
-  }, [filter]);
-
-  const loadFindings = useCallback(async () => {
-    const res = await api.getAudit();
-    setFindings(res.findings);
+  const loadFindings = useCallback(async (includeBattery: boolean) => {
+    if (includeBattery) setBatteryLoading(true);
+    try {
+      const res = await api.getFindings({ limit: 500, include: includeBattery ? 'battery' : '' });
+      setFindingsData(res);
+      setBatteryIncluded(includeBattery);
+    } finally {
+      if (includeBattery) setBatteryLoading(false);
+    }
   }, []);
+
+  // Optimistic removal after Kill/Skip/Keep so acting on a row never re-runs
+  // the expensive battery; counts stay honest by decrementing the summary.
+  const handleFindingActed = useCallback((f: Finding) => {
+    setFindingsData(prev => {
+      if (!prev) return prev;
+      const findings = prev.findings.filter(x => x.id !== f.id);
+      const by_kind = { ...prev.summary.by_kind, [f.kind]: Math.max(0, (prev.summary.by_kind[f.kind] || 1) - 1) };
+      const by_severity = { ...prev.summary.by_severity, [f.severity]: Math.max(0, (prev.summary.by_severity[f.severity] || 1) - 1) };
+      return { findings, summary: { total: Math.max(0, prev.summary.total - 1), by_kind, by_severity } };
+    });
+    refresh(); // review decisions move the Helicon Score
+  }, [refresh]);
 
   const loadProjects = useCallback(async () => {
     const res = await api.getProjects().catch(() => ({ projects: [] }));
@@ -85,35 +94,23 @@ function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([refresh(), loadCubes(), loadFindings(), loadProjects(), loadConsolidations()])
+    Promise.all([refresh(), loadFindings(false), loadProjects(), loadConsolidations()])
       .then(() => setLoading(false));
-  }, [refresh, loadCubes, loadFindings, loadProjects, loadConsolidations]);
-
-  const handleReviewed = async () => {
-    await Promise.all([refresh(), loadCubes()]);
-  };
+  }, [refresh, loadFindings, loadProjects, loadConsolidations]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const idx = parseInt(e.key) - 1;
-      if (idx >= 0 && idx < TABS.length) setTab(TABS[idx].key);
-      if (tab === 'review') {
-        if (e.key === 'j') setFocusIdx(i => Math.min(i + 1, cubes.length - 1));
-        if (e.key === 'k' && !e.metaKey) { e.preventDefault(); setFocusIdx(i => Math.max(i - 1, 0)); }
-        if (e.key === '/') { e.preventDefault(); document.getElementById('cube-search')?.focus(); }
-      }
+      if (idx >= 0 && idx < ALL_TABS.length) setTab(ALL_TABS[idx]);
       if (tab === 'projects' && e.key === 'Escape') setSelectedProject(null);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [tab, cubes.length]);
+  }, [tab]);
 
-  const filteredCubes = search
-    ? cubes.filter(c => c.title.toLowerCase().includes(search.toLowerCase()) || c.content.toLowerCase().includes(search.toLowerCase()))
-    : cubes;
-
-  const criticalCount = findings.filter(f => f.severity === 'critical').length;
+  const criticalCount = findingsData?.summary.by_severity.critical || 0;
+  const warningCount = findingsData?.summary.by_severity.warning || 0;
 
   // Get consolidations for a project
   const getProjectConsolidations = (projectName: string) => {
@@ -188,11 +185,19 @@ function App() {
                 Powered by Qwen
               </span>
             </div>
-            {score && (
-              <div className="flex items-center gap-3">
-                {criticalCount > 0 && (
-                  <span className="text-[11px] text-red-500/80 tabular-nums">{criticalCount} critical</span>
-                )}
+            <div className="flex items-center gap-3">
+              {/* Attention bar: live findings severity split, click-through to FINDINGS */}
+              {findingsData && (criticalCount > 0 || warningCount > 0) && (
+                <button
+                  onClick={() => setTab('findings')}
+                  className="text-[11px] tabular-nums transition-opacity hover:opacity-70"
+                >
+                  <span style={{ color: 'var(--helicon-accent)' }}>{criticalCount} critical</span>
+                  <span className="text-zinc-700"> · </span>
+                  <span style={{ color: 'var(--helicon-stale)' }}>{warningCount} warning</span>
+                </button>
+              )}
+              {score && (
                 <div className="flex items-center gap-1.5">
                   <div className="w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
                     <div
@@ -202,31 +207,25 @@ function App() {
                   </div>
                   <span className="text-[12px] text-zinc-400 tabular-nums font-medium">{score.score}%</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          <nav className="flex gap-0 border-b border-zinc-800/60">
-            {TABS.map((t, i) => (
+          <nav className="flex items-stretch gap-0 border-b border-zinc-800/60">
+            {PRIMARY_TABS.map((t, i) => (
               <button
                 key={t.key}
-                onClick={() => { setTab(t.key); if (t.key !== 'projects') setSelectedProject(null); }}
-                className={`px-4 py-2.5 text-[13px] transition-colors relative ${
-                  tab === t.key
-                    ? 'text-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-400'
+                onClick={() => setTab(t.key)}
+                className={`px-4 py-2.5 text-[12px] uppercase tracking-[0.12em] transition-colors relative ${
+                  tab === t.key ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-400'
                 }`}
               >
-                <span className="text-zinc-600 mr-1.5 text-[11px] tabular-nums">{i + 1}</span>
+                <span className="text-zinc-600 mr-1.5 text-[11px] tabular-nums tracking-normal">{i + 1}</span>
                 {t.label}
-                {t.key === 'projects' && projects.length > 0 && (
-                  <span className="ml-1.5 text-[10px] text-zinc-600 tabular-nums">{projects.length}</span>
-                )}
-                {t.key === 'review' && total > 0 && (
-                  <span className="ml-1.5 text-[10px] text-zinc-600 tabular-nums">{total}</span>
-                )}
-                {t.key === 'insights' && findings.length > 0 && (
-                  <span className="ml-1.5 text-[10px] text-zinc-600 tabular-nums">{findings.length}</span>
+                {t.key === 'findings' && findingsData && findingsData.summary.total > 0 && (
+                  <span className="ml-1.5 text-[10px] tabular-nums tracking-normal" style={{ color: 'var(--helicon-accent)' }}>
+                    {findingsData.summary.total}
+                  </span>
                 )}
                 {tab === t.key && (
                   <motion.span
@@ -237,6 +236,30 @@ function App() {
                 )}
               </button>
             ))}
+            <div className="ml-auto flex items-stretch">
+              {SECONDARY_TABS.map((t, i) => (
+                <button
+                  key={t.key}
+                  onClick={() => { setTab(t.key); if (t.key !== 'projects') setSelectedProject(null); }}
+                  className={`px-3 py-2.5 text-[11px] transition-colors relative ${
+                    tab === t.key ? 'text-zinc-400' : 'text-zinc-600 hover:text-zinc-500'
+                  }`}
+                >
+                  <span className="text-zinc-700 mr-1 text-[10px] tabular-nums">{PRIMARY_TABS.length + i + 1}</span>
+                  {t.label}
+                  {t.key === 'projects' && projects.length > 0 && (
+                    <span className="ml-1 text-[10px] text-zinc-700 tabular-nums">{projects.length}</span>
+                  )}
+                  {tab === t.key && (
+                    <motion.span
+                      layoutId="tab-indicator"
+                      className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full qwen-gradient-bg opacity-60"
+                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
           </nav>
         </div>
       </header>
@@ -250,6 +273,77 @@ function App() {
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
+
+        {tab === 'health' && (
+          <div className="space-y-10">
+            <TabPurpose>Live health of every retrieval task — cracks are failing tasks.</TabPurpose>
+
+            <HeliconMountain />
+
+            <ScoreStrip score={score} />
+
+            <SkillsAudit />
+
+            <div className="border-t border-zinc-800/40 pt-8">
+              <h3 className="text-[15px] font-medium text-zinc-200 mb-4">Evaluation</h3>
+              <EvalView />
+            </div>
+
+            <div className="border-t border-zinc-800/40 pt-8">
+              <h3 className="text-[15px] font-medium text-zinc-200 mb-6">Qwen Cloud</h3>
+              <TokenDashboard />
+            </div>
+
+            <div className="border-t border-zinc-800/40 pt-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div>
+                  <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Review coverage by source</h3>
+                  {score && (
+                    <div className="space-y-3">
+                      {Object.entries(score.by_source).map(([src, data]) => (
+                        <div key={src} className="flex items-center justify-between">
+                          <span className="text-[13px] text-zinc-400">{src}</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-[11px] text-zinc-600 tabular-nums">{data.reviewed}/{data.total}</span>
+                            <span className="text-[13px] text-zinc-300 tabular-nums w-10 text-right">{data.score}%</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <ConnectorStatus connectors={connectors} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'findings' && (
+          <>
+          <TabPurpose>Every failed check in one place — the why leads, the fix is one click away.</TabPurpose>
+          <FindingsView
+            data={findingsData}
+            onReload={loadFindings}
+            onActed={handleFindingActed}
+            batteryLoading={batteryLoading}
+            batteryIncluded={batteryIncluded}
+          />
+          </>
+        )}
+
+        {tab === 'log' && (
+          <>
+          <TabPurpose>What Helicon did and what you decided — every action is a receipt.</TabPurpose>
+          <LogView />
+          </>
+        )}
+
+        {tab === 'graph' && (
+          <>
+          <TabPurpose>Where the rot lives in your knowledge graph.</TabPurpose>
+          <Graph3D />
+          </>
+        )}
 
         {tab === 'projects' && !selectedProject && (
           <>
@@ -276,267 +370,6 @@ function App() {
           />
         )}
 
-        {tab === 'review' && (
-          <>
-          <TabPurpose>Teach Helicon your judgment — keep, revise, or kill what it extracted.</TabPurpose>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8 overflow-hidden">
-            <div>
-              <div className="flex items-center gap-2 mb-6 flex-wrap">
-                <input
-                  id="cube-search"
-                  type="text"
-                  value={search}
-                  onChange={e => { setSearch(e.target.value); setFocusIdx(0); }}
-                  placeholder="Search memories... (/)"
-                  className="text-[12px] bg-white border border-zinc-800/60 rounded-lg px-3 py-1.5 text-zinc-400 placeholder:text-zinc-600 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 w-44 shadow-sm"
-                  onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); e.currentTarget.blur(); } }}
-                />
-                <StyledSelect
-                  value={filter.source}
-                  onChange={v => setFilter({ ...filter, source: v })}
-                  options={[
-                    ['', 'All sources'],
-                    ['claude-code', 'Claude Code'],
-                    ['obsidian', 'Obsidian'],
-                    ['git', 'Git'],
-                  ]}
-                />
-                <StyledSelect
-                  value={filter.type}
-                  onChange={v => setFilter({ ...filter, type: v })}
-                  options={[
-                    ['', 'All types'],
-                    ['code', 'Code'],
-                    ['memory', 'Memory'],
-                    ['project', 'Project'],
-                    ['draft', 'Draft'],
-                    ['file_created', 'File'],
-                    ['idea', 'Idea'],
-                  ]}
-                />
-                <StyledSelect
-                  value={filter.sort}
-                  onChange={v => setFilter({ ...filter, sort: v })}
-                  options={[
-                    ['urgency', 'Most urgent'],
-                    ['confidence', 'Lowest confidence'],
-                    ['age', 'Oldest'],
-                    ['newest', 'Newest'],
-                  ]}
-                />
-                <span className="text-[10px] text-zinc-700 ml-auto hidden lg:block">j/k navigate, a/r/k review</span>
-              </div>
-
-              <div className="space-y-0">
-                {filteredCubes.map((cube, i) => (
-                  <div key={cube.id} className="animate-fade-in" style={{ animationDelay: `${i * 20}ms` }}>
-                    <ReviewCard
-                      cube={cube}
-                      onReviewed={handleReviewed}
-                      focused={i === focusIdx}
-                      onAction={() => setFocusIdx(j => Math.min(j, filteredCubes.length - 2))}
-                    />
-                  </div>
-                ))}
-                {filteredCubes.length === 0 && (
-                  <div className="py-20 text-center">
-                    <p className="text-zinc-500 text-sm">{search ? 'No matches.' : 'Nothing to review. Memory is clean.'}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <aside className="space-y-6">
-              <div>
-                <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Score</h3>
-                <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-3xl font-light tabular-nums text-zinc-200">
-                    {score?.score}
-                  </span>
-                  <span className="text-[12px] text-zinc-600">/ 100</span>
-                </div>
-                <p className="text-[11px] text-zinc-600 leading-relaxed">
-                  Review items: <strong className="text-zinc-400">Keep</strong>, <strong className="text-zinc-400">Revise</strong>, or <strong className="text-zinc-400">Kill</strong>. Score climbs as you review.
-                </p>
-              </div>
-
-              <div className="border-t border-zinc-800/40 pt-4">
-                <button
-                  onClick={() => setShowTriage(!showTriage)}
-                  className="flex items-center justify-between w-full text-left"
-                >
-                  <h3 className="text-[11px] uppercase tracking-wider text-zinc-500">Auto-Triage</h3>
-                  <span className="text-[11px] text-zinc-600">{showTriage ? '-' : '+'}</span>
-                </button>
-                {showTriage && (
-                  <div className="mt-3 animate-fade-in">
-                    <AutoTriageCompact onTriaged={() => { refresh(); loadCubes(); }} />
-                  </div>
-                )}
-                {!showTriage && triageCount > 0 && (
-                  <p className="text-[11px] text-zinc-600 mt-1">{triageCount} items auto-handled</p>
-                )}
-              </div>
-
-              <DecayHeatmap stats={decayStats} />
-              <RecentReviews />
-            </aside>
-          </div>
-          </>
-        )}
-
-        {tab === 'insights' && (
-          <>
-          <TabPurpose>Audit findings — memories that failed a health check, with the evidence.</TabPurpose>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-8">
-            <div>
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-[14px] font-medium text-zinc-300">Audit Findings</h2>
-                <div className="flex gap-2">
-                  <GhostButton onClick={async () => { await api.runDecay(); refresh(); }}>
-                    Run Decay
-                  </GhostButton>
-                  <GhostButton onClick={async () => { await api.runAudit(); loadFindings(); }} accent>
-                    Run Audit
-                  </GhostButton>
-                </div>
-              </div>
-              <AuditPanel findings={findings} onRefresh={loadFindings} />
-
-              <div className="border-t border-zinc-800/40 mt-10 pt-8">
-                <PatternView />
-              </div>
-
-              <div className="border-t border-zinc-800/40 mt-10 pt-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                  <ConsolidationView />
-                  <ContradictionView />
-                </div>
-              </div>
-            </div>
-            <aside className="space-y-6">
-              <div>
-                <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Audit Axes</h3>
-                <div className="space-y-4">
-                  {[
-                    { type: 'temporal', label: 'Temporal', desc: 'Stale time references' },
-                    { type: 'factual', label: 'Factual', desc: 'Contradictions' },
-                    { type: 'decay', label: 'Decay', desc: 'Below threshold' },
-                    { type: 'logical', label: 'Logical', desc: 'Weak patterns' },
-                  ].map(a => {
-                    const count = findings.filter(f => f.audit_type === a.type).length;
-                    return (
-                      <div key={a.type} className="flex items-baseline justify-between">
-                        <div>
-                          <span className="text-[13px] text-zinc-400">{a.label}</span>
-                          <p className="text-[11px] text-zinc-600">{a.desc}</p>
-                        </div>
-                        <span className="text-[12px] tabular-nums text-zinc-500">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <SpinView />
-              <KillCandidatesView />
-            </aside>
-          </div>
-          </>
-        )}
-
-        {tab === 'graph' && (
-          <>
-          <TabPurpose>Entities and their connections across your memory.</TabPurpose>
-          <Graph3D />
-          </>
-        )}
-
-        {tab === 'system' && (
-          <div className="space-y-10">
-            <TabPurpose>Live health of every retrieval task — cracks are failing tasks.</TabPurpose>
-            <div>
-              <h2 className="text-[15px] font-medium text-zinc-200 mb-4">Memory integrity</h2>
-              <HeliconMountain />
-            </div>
-
-            <div>
-              <h2 className="text-[15px] font-medium text-zinc-200 mb-4">Skills integrity</h2>
-              <SkillsAudit />
-            </div>
-
-            <div className="max-w-2xl border-t border-zinc-800/40 pt-8">
-              <h2 className="text-[15px] font-medium text-zinc-200 mb-2">Setup</h2>
-              <p className="text-[12px] text-zinc-600 mb-5">Three commands to go from zero to auditing your agent memory.</p>
-              <div className="space-y-3 text-[12px] text-zinc-500 leading-relaxed">
-                <div className="border border-zinc-800/60 rounded-lg p-4 bg-white shadow-sm">
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-[10px] font-mono text-white bg-violet-500 px-1.5 py-0.5 rounded">1</span>
-                    <h4 className="text-zinc-300 font-medium">Install and detect</h4>
-                  </div>
-                  <code className="block text-[11px] text-violet-600 bg-violet-50 border border-violet-100 rounded-md px-3 py-2 mb-2 font-mono">pip install glaze-audit && glaze init</code>
-                  <p className="text-zinc-500">Auto-detects Claude Code, Cursor, Obsidian vaults, and git repos.</p>
-                </div>
-                <div className="border border-zinc-800/60 rounded-lg p-4 bg-white shadow-sm">
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-[10px] font-mono text-white bg-violet-500 px-1.5 py-0.5 rounded">2</span>
-                    <h4 className="text-zinc-300 font-medium">Scan and serve</h4>
-                  </div>
-                  <code className="block text-[11px] text-violet-600 bg-violet-50 border border-violet-100 rounded-md px-3 py-2 mb-2 font-mono">glaze scan && glaze serve</code>
-                  <p className="text-zinc-500">Extracts memory items, computes confidence scores, starts the UI.</p>
-                </div>
-                <div className="border border-zinc-800/60 rounded-lg p-4 bg-white shadow-sm">
-                  <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-[10px] font-mono text-white bg-violet-500 px-1.5 py-0.5 rounded">3</span>
-                    <h4 className="text-zinc-300 font-medium">Review and teach</h4>
-                  </div>
-                  <p className="text-zinc-500 mb-2">Review items: <strong className="text-zinc-400">Keep</strong>, <strong className="text-zinc-400">Revise</strong>, or <strong className="text-zinc-400">Kill</strong>. Helicon learns your patterns and auto-triages the obvious stuff.</p>
-                  <p className="text-zinc-500">Connect via MCP for agent self-audit: your agents can query their own memory health.</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <h3 className="text-[15px] font-medium text-zinc-200 mb-4">Auto-Triage</h3>
-              <TriageView onTriaged={() => { refresh(); loadCubes(); }} />
-            </div>
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <h3 className="text-[15px] font-medium text-zinc-200 mb-4">Evaluation</h3>
-              <EvalView />
-            </div>
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <h3 className="text-[15px] font-medium text-zinc-200 mb-6">Qwen Cloud</h3>
-              <TokenDashboard />
-            </div>
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                <div>
-                  <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Stats</h3>
-                  {score && (
-                    <div className="space-y-3">
-                      {Object.entries(score.by_source).map(([src, data]) => (
-                        <div key={src} className="flex items-center justify-between">
-                          <span className="text-[13px] text-zinc-400">{src}</span>
-                          <div className="flex items-center gap-4">
-                            <span className="text-[11px] text-zinc-600 tabular-nums">{data.reviewed}/{data.total}</span>
-                            <span className="text-[13px] text-zinc-300 tabular-nums w-10 text-right">{data.score}%</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <ConnectorStatus connectors={connectors} />
-              </div>
-            </div>
-
-            <SessionDriftView />
-          </div>
-        )}
-
         </motion.div>
         </AnimatePresence>
       </main>
@@ -550,7 +383,47 @@ function TabPurpose({ children }: { children: React.ReactNode }) {
 }
 
 // ============================================================
-// Project Grid - the primary landing view
+// Helicon Score strip (HEALTH tab)
+// ============================================================
+
+function ScoreStrip({ score }: { score: Score | null }) {
+  if (!score) return null;
+  const pct = score.score;
+  const color = pct < 20 ? 'var(--helicon-accent)' : pct < 50 ? 'var(--helicon-stale)' : '#3f3f46';
+
+  return (
+    <div className="border border-zinc-800/60 rounded-xl bg-white shadow-sm px-6 py-5">
+      <div className="flex items-center gap-8 flex-wrap">
+        <div className="flex items-baseline gap-2">
+          <span
+            className="text-[32px] tabular-nums"
+            style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontVariationSettings: "'opsz' 144", color }}
+          >
+            {pct}
+          </span>
+          <span className="text-[12px] text-zinc-600">/ 100</span>
+          <span className="text-[10px] uppercase tracking-wider text-zinc-500 ml-2">Helicon Score</span>
+        </div>
+        <div className="flex-1 min-w-[160px]">
+          <div className="w-full h-[4px] bg-zinc-800/60 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${pct}%`, background: color, opacity: 0.7 }}
+            />
+          </div>
+        </div>
+        <div className="flex gap-6 text-[11px] text-zinc-600 tabular-nums">
+          <span><strong className="text-zinc-400">{score.reviewed}</strong> reviewed</span>
+          <span><strong className="text-zinc-400">{score.pending}</strong> pending</span>
+          <span><strong className="text-zinc-400">{score.total.toLocaleString()}</strong> total</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Project Grid - compiled-context export (secondary surface)
 // ============================================================
 
 function ProjectsGrid({ projects, score, connectors, triageCount, onSelect, onRefresh }: {
@@ -919,276 +792,6 @@ function ConsolidationDetailRow({ consolidation }: { consolidation: Consolidatio
           </p>
         </div>
       )}
-    </div>
-  );
-}
-
-// ============================================================
-// Shared UI components
-// ============================================================
-
-function StyledSelect({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
-  const [open, setOpen] = useState(false);
-  const label = options.find(([v]) => v === value)?.[1] || options[0][1];
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(!open)}
-        className="text-[12px] bg-white border border-zinc-800/60 rounded-lg px-3 py-1.5 text-zinc-400 hover:border-violet-300 hover:text-zinc-300 transition-colors flex items-center gap-1.5 min-w-[100px] shadow-sm"
-      >
-        <span className="truncate">{label}</span>
-        <svg width="10" height="6" viewBox="0 0 10 6" className="shrink-0 opacity-40">
-          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        </svg>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-zinc-800/60 rounded-lg shadow-xl shadow-zinc-200/40 py-1 min-w-[140px] animate-fade-in">
-            {options.map(([v, l]) => (
-              <button
-                key={v}
-                onClick={() => { onChange(v); setOpen(false); }}
-                className={`w-full text-left px-3 py-1.5 text-[12px] transition-colors ${
-                  v === value ? 'text-violet-600 bg-violet-50' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900/40'
-                }`}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function AutoTriageCompact({ onTriaged }: { onTriaged: () => void }) {
-  const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ triaged: number } | null>(null);
-
-  const run = async (dryRun: boolean) => {
-    setRunning(true);
-    const r = await api.runTriage(dryRun);
-    setResult({ triaged: r.triaged });
-    if (!dryRun) onTriaged();
-    setRunning(false);
-  };
-
-  return (
-    <div className="space-y-2">
-      <p className="text-[11px] text-zinc-600 leading-relaxed">
-        Auto-kill/approve items that match learned patterns with high confidence.
-      </p>
-      <div className="flex gap-2">
-        <button onClick={() => run(true)} disabled={running}
-          className="text-[11px] px-2 py-1 rounded-md border border-zinc-800/60 text-zinc-500 hover:text-zinc-400 disabled:opacity-30 shadow-sm bg-white">
-          Preview
-        </button>
-        <button onClick={() => run(false)} disabled={running}
-          className="text-[11px] px-2 py-1 rounded-md border border-violet-200 text-violet-600 hover:bg-violet-50 disabled:opacity-30 shadow-sm bg-white">
-          Execute
-        </button>
-      </div>
-      {result && (
-        <p className="text-[11px] text-emerald-600 animate-fade-in">{result.triaged} items processed</p>
-      )}
-    </div>
-  );
-}
-
-function GhostButton({ children, onClick, accent }: { children: React.ReactNode; onClick: () => void; accent?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`text-[12px] px-3 py-1.5 rounded-lg border transition-all active:scale-95 shadow-sm bg-white ${
-        accent
-          ? 'border-violet-200 text-violet-600 hover:bg-violet-50'
-          : 'border-zinc-800/60 text-zinc-500 hover:bg-zinc-900/40'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function PatternView() {
-  const [patterns, setPatterns] = useState<{ name: string; description: string; pattern_type: string; data_points: number; confidence: number }[]>([]);
-  const [, setLoading] = useState(true);
-
-  useEffect(() => {
-    api.getPatterns().then(r => { setPatterns(r.patterns); setLoading(false); });
-  }, []);
-
-  const extract = async () => {
-    setLoading(true);
-    await api.extractPatterns();
-    const r = await api.getPatterns();
-    setPatterns(r.patterns);
-    setLoading(false);
-  };
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-[15px] font-medium text-zinc-200">Learned Patterns</h2>
-        <GhostButton onClick={extract} accent>Extract</GhostButton>
-      </div>
-      {patterns.length === 0 ? (
-        <div className="py-8 text-center">
-          <p className="text-zinc-500 text-sm mb-1">No patterns yet.</p>
-          <p className="text-zinc-600 text-[12px]">Review items first. Helicon learns from your decisions.</p>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {patterns.map(p => (
-            <div key={p.name} className="py-3 border-b border-zinc-800/30">
-              <div className="flex items-baseline justify-between mb-0.5">
-                <span className="text-[13px] text-zinc-300">{p.name}</span>
-                <span className="text-[11px] text-zinc-600">{p.pattern_type}</span>
-              </div>
-              <p className="text-[12px] text-zinc-500">{p.description}</p>
-              <div className="flex gap-4 mt-1 text-[11px] text-zinc-600">
-                <span>{p.data_points} points</span>
-                <span>{(p.confidence * 100).toFixed(0)}%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SpinView() {
-  const [spins, setSpins] = useState<{ tags: string[]; session_count: number; cube_count: number; unreviewed: number }[]>([]);
-
-  useEffect(() => {
-    fetch('/api/patterns/spin').then(r => r.json()).then(d => setSpins(d.spins?.slice(0, 5) || []));
-  }, []);
-
-  if (spins.length === 0) return null;
-
-  return (
-    <div>
-      <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Spin Detection</h3>
-      <div className="space-y-2">
-        {spins.map((s, i) => (
-          <div key={i} className="flex items-baseline justify-between text-[12px]">
-            <span className="text-zinc-400 truncate max-w-[140px]">{s.tags.slice(0, 2).join(', ')}</span>
-            <div className="flex items-center gap-3">
-              <span className="text-amber-600 tabular-nums">{s.session_count}x</span>
-              <span className="text-zinc-600 tabular-nums">{s.unreviewed}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function KillCandidatesView() {
-  const [candidates, setCandidates] = useState<{ id: string; title: string; confidence: number; age_days: number; type: string }[]>([]);
-
-  useEffect(() => {
-    fetch('/api/patterns/kill-candidates').then(r => r.json()).then(d => setCandidates(d.candidates?.slice(0, 5) || []));
-  }, []);
-
-  if (candidates.length === 0) return null;
-
-  return (
-    <div>
-      <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Kill Candidates</h3>
-      <div className="space-y-2">
-        {candidates.map(c => (
-          <div key={c.id} className="text-[12px]">
-            <div className="flex items-baseline justify-between">
-              <span className="text-zinc-400 truncate max-w-[160px]">{c.title}</span>
-              <span className="text-red-500/70 tabular-nums">{(c.confidence * 100).toFixed(1)}%</span>
-            </div>
-            <span className="text-[11px] text-zinc-600">{c.age_days.toFixed(0)}d - {c.type}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RecentReviews() {
-  const [reviews, setReviews] = useState<{ id: number; cube_id: string; decision: string; cube_type: string; reviewed_at: string }[]>([]);
-
-  useEffect(() => {
-    api.getReviews(10).then(r => setReviews(r.reviews));
-  }, []);
-
-  if (reviews.length === 0) return null;
-
-  const decisionColor = (d: string) => {
-    if (d === 'approved') return 'text-green-600';
-    if (d === 'killed') return 'text-red-500';
-    return 'text-amber-600';
-  };
-
-  return (
-    <div>
-      <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Recent Reviews</h3>
-      <div className="space-y-1.5">
-        {reviews.map(r => (
-          <div key={r.id} className="flex items-center justify-between text-[11px]">
-            <span className="text-zinc-500 truncate max-w-[160px]">{r.cube_type}</span>
-            <span className={decisionColor(r.decision)}>{r.decision}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SessionDriftView() {
-  const [sessions, setSessions] = useState<{ id: number; session_start: string; total_reviews: number; kill_rate: number; decisions: Record<string, number>; types_reviewed: Record<string, number> }[]>([]);
-  const [drift, setDrift] = useState<{ sessions: number; drift_detected: boolean; kill_rate_trend?: { current: number; historical_avg: number; drift_magnitude: number; direction: string } } | null>(null);
-
-  useEffect(() => {
-    api.getSessions().then(r => setSessions(r.sessions));
-    api.getReviewDrift().then(setDrift);
-  }, []);
-
-  if (sessions.length === 0) return null;
-
-  return (
-    <div className="border-t border-zinc-800/40 pt-8">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-[11px] uppercase tracking-wider text-zinc-500">Review Sessions</h3>
-        {drift?.drift_detected && (
-          <span className="text-[11px] px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded">Drift detected</span>
-        )}
-      </div>
-      {drift?.kill_rate_trend && (
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <div>
-            <span className="text-[11px] text-zinc-600 block">Current kill rate</span>
-            <span className="text-[15px] text-zinc-300 tabular-nums">{(drift.kill_rate_trend.current * 100).toFixed(0)}%</span>
-          </div>
-          <div>
-            <span className="text-[11px] text-zinc-600 block">Historical avg</span>
-            <span className="text-[15px] text-zinc-400 tabular-nums">{(drift.kill_rate_trend.historical_avg * 100).toFixed(0)}%</span>
-          </div>
-          <div>
-            <span className="text-[11px] text-zinc-600 block">Direction</span>
-            <span className="text-[13px] text-zinc-500">{drift.kill_rate_trend.direction}</span>
-          </div>
-        </div>
-      )}
-      <div className="space-y-2">
-        {sessions.map(s => (
-          <div key={s.id} className="flex items-center justify-between text-[12px] py-2 border-b border-zinc-800/30">
-            <span className="text-zinc-400">{s.session_start.slice(0, 10)}</span>
-            <span className="text-zinc-300 tabular-nums">{s.total_reviews} reviews</span>
-            <span className={`tabular-nums ${s.kill_rate > 0.5 ? 'text-red-500' : 'text-zinc-400'}`}>{(s.kill_rate * 100).toFixed(0)}% killed</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
