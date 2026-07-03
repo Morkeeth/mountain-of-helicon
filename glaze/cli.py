@@ -564,6 +564,11 @@ def cmd_battery(args):
     model = resolve_model("default", config) if client else "qwen3.6-plus"
     res = run_battery(conn, args.task, k=args.k, client=client, model=model)
 
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+
     print(f"\nContext battery for: \"{args.task}\"  (top {res['top_k']})")
     print(f"Verdict: {res['verdict']}\n")
     for r in res["results"]:
@@ -941,6 +946,7 @@ def main():
     battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
     battery_p.add_argument("--prompt", action="store_true", help="also print the LLM prompt for subjective tests")
     battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live Qwen judging")
+    battery_p.add_argument("--json", action="store_true", help="machine-readable result (for scripts/CI)")
 
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")

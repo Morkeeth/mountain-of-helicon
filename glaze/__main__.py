@@ -1,2 +1,3 @@
-from glaze.mcp_server import main
+from glaze.cli import main
+
 main()
