@@ -10,9 +10,9 @@ MODELS = {
 }
 
 TIER_COST_PER_1K = {
-    "qwen-turbo": 0.0003,
-    "qwen-plus": 0.0008,
-    "qwen-max": 0.0024,
+    "qwen3.6-flash": 0.0003,
+    "qwen3.6-plus": 0.0008,
+    "qwen3.7-max": 0.0024,
 }
 
 _call_log: list[dict] = []

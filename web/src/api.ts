@@ -1,7 +1,28 @@
 const BASE = '/api';
 
+// When the server sets GLAZE_PASSWORD, pass it via ?token=... once; it is
+// kept in localStorage and sent as a Bearer header on every call.
+const urlToken = new URLSearchParams(window.location.search).get('token');
+if (urlToken) localStorage.setItem('helicon_token', urlToken);
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('helicon_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// A few components call fetch('/api/...') directly; patch the global so every
+// API call carries the token without touching each call site.
+const rawFetch = window.fetch.bind(window);
+window.fetch = (input, init) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  if (url.startsWith('/api')) {
+    init = { ...init, headers: { ...authHeaders(), ...(init?.headers || {}) } };
+  }
+  return rawFetch(input, init);
+};
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json();
 }
@@ -9,7 +30,7 @@ async function get<T>(path: string): Promise<T> {
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
