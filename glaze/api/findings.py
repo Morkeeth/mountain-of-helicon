@@ -1,0 +1,266 @@
+"""Findings API — the FINDINGS surface of the dashboard.
+
+One unified list of "things that failed a check", aggregated from the
+existing signal sources (nothing new is computed here, no synthetic data):
+
+  - audit_log: pending temporal / decay / factual / pattern-staleness findings
+    (what `glaze.audit.run_audit` wrote, same rows the Audit tab shows)
+  - skills integrity: duplicates / thin descriptions / trigger collisions,
+    same lens as /api/integrity/skills (filesystem scan, no DB)
+  - battery: per-task BROKEN/DEGRADED verdicts from the context-quality
+    battery (same as /api/integrity/battery). Expensive — only computed when
+    explicitly requested with ?include=battery so the default load stays fast.
+
+Every finding has the same shape:
+  {id, kind, severity, title, why, evidence_preview, source, source_ref,
+   cube_id, suggested_action, created_at}
+"""
+import os
+from collections import Counter
+from datetime import datetime
+from itertools import combinations
+
+from fastapi import APIRouter
+
+from glaze.api.app import get_conn
+from glaze.api.integrity import _SKILL_ROOTS, _terms
+from glaze.connectors import skills as skills_connector
+
+router = APIRouter()
+
+PREVIEW_CHARS = 300
+BATTERY_K = 5
+
+_SEVERITY_RANK = {"critical": 3, "warning": 2, "info": 1}
+
+# Which named check an audit_type corresponds to, for the human "why" sentence.
+_AUDIT_CHECK = {
+    "temporal": "Freshness",
+    "decay": "Decay",
+    "factual": "Contradiction",
+    "logical": "Pattern staleness",
+}
+
+# What the human should do about each audit kind.
+_AUDIT_ACTION = {
+    "temporal": "kill_stale",
+    "decay": "kill_stale",
+    "factual": "reconcile",
+    "logical": "review",
+}
+
+
+def _preview(text: str | None) -> str:
+    text = (text or "").strip()
+    return text[:PREVIEW_CHARS]
+
+
+def _audit_findings(conn) -> list[dict]:
+    """Pending audit_log rows as findings, joined to their cube for evidence."""
+    rows = conn.execute(
+        """SELECT a.id, a.audit_type, a.target_type, a.target_id, a.finding,
+                  a.severity, a.proposed_action, a.audited_at,
+                  c.title AS cube_title, c.content AS cube_content,
+                  c.source AS cube_source, c.source_ref AS cube_source_ref
+           FROM audit_log a
+           LEFT JOIN glaze_cubes c
+             ON a.target_type = 'cube' AND c.id = a.target_id
+           WHERE a.human_decision IS NULL
+           ORDER BY a.audited_at DESC"""
+    ).fetchall()
+
+    findings = []
+    for r in rows:
+        kind = r["audit_type"]
+        check = _AUDIT_CHECK.get(kind, kind.capitalize())
+        is_cube = r["target_type"] == "cube" and r["cube_title"] is not None
+        findings.append({
+            "id": f"audit-{r['id']}",
+            "kind": kind,
+            "severity": r["severity"],
+            "title": r["cube_title"] if is_cube else r["target_id"],
+            "why": f"{check}: {r['finding']}",
+            "evidence_preview": _preview(r["cube_content"]) if is_cube else "",
+            "source": r["cube_source"] if is_cube else "audit",
+            "source_ref": r["cube_source_ref"] if is_cube else r["target_id"],
+            "cube_id": r["target_id"] if r["target_type"] == "cube" else None,
+            "suggested_action": _AUDIT_ACTION.get(kind, "review"),
+            "created_at": r["audited_at"],
+        })
+    return findings
+
+
+def _skill_findings(now: str) -> list[dict]:
+    """Skills-integrity issues as findings — same checks as /api/integrity/skills
+    (duplicates / trigger collisions / thin descriptions), but scanned here with
+    the description kept so evidence_preview shows the actual SKILL.md text."""
+    roots = [r for r in _SKILL_ROOTS if os.path.exists(os.path.expanduser(r))]
+    if not roots:
+        return []
+    found = skills_connector.scan({"skill_roots": roots})
+
+    meta = []
+    for r in found:
+        name = r.metadata["skill_name"]
+        desc = r.metadata["description"]
+        meta.append({
+            "name": name,
+            "desc": desc,
+            "desc_len": r.metadata["desc_len"],
+            "trigger_terms": _terms(f"{name} {desc}"),
+            "path": r.metadata["path"],
+            "content": r.content,
+        })
+
+    findings = []
+
+    by_name: dict[str, list[dict]] = {}
+    for m in meta:
+        by_name.setdefault(m["name"].lower(), []).append(m)
+    for group in by_name.values():
+        if len(group) > 1:
+            first = group[0]
+            findings.append({
+                "id": f"skill-dup-{first['name'].lower()}",
+                "kind": "skill",
+                "severity": "warning",
+                "title": f"Duplicate skill: {first['name']}",
+                "why": (f"Skills integrity: '{first['name']}' is installed "
+                        f"{len(group)} times; the agent can load either copy"),
+                "evidence_preview": _preview(first["desc"] or first["content"]),
+                "source": "skills",
+                "source_ref": first["path"],
+                "cube_id": None,
+                "suggested_action": "fix_skill",
+                "created_at": now,
+            })
+
+    uniq = list({m["name"].lower(): m for m in meta}.values())
+
+    for m in uniq:
+        if m["desc_len"] < 40:
+            label = ("has no description" if m["desc_len"] == 0
+                     else f"has a {m['desc_len']}-char description")
+            findings.append({
+                "id": f"skill-thin-{m['name'].lower()}",
+                "kind": "skill",
+                "severity": "warning" if m["desc_len"] == 0 else "info",
+                "title": f"Thin skill: {m['name']}",
+                "why": (f"Skills integrity: '{m['name']}' {label}, "
+                        f"too thin for the agent to know when to trigger it"),
+                "evidence_preview": _preview(m["desc"] or m["content"]),
+                "source": "skills",
+                "source_ref": m["path"],
+                "cube_id": None,
+                "suggested_action": "fix_skill",
+                "created_at": now,
+            })
+
+    for a, b in combinations(uniq, 2):
+        t1, t2 = a["trigger_terms"], b["trigger_terms"]
+        if t1 and t2:
+            j = len(t1 & t2) / len(t1 | t2)
+            if j > 0.5:
+                findings.append({
+                    "id": f"skill-collide-{a['name'].lower()}-{b['name'].lower()}",
+                    "kind": "skill",
+                    "severity": "warning",
+                    "title": f"Trigger collision: {a['name']} vs {b['name']}",
+                    "why": (f"Skills integrity: '{a['name']}' and '{b['name']}' "
+                            f"share {j:.0%} of their trigger terms; "
+                            f"the agent may fire the wrong one"),
+                    "evidence_preview": _preview(a["desc"] or a["content"]),
+                    "source": "skills",
+                    "source_ref": a["path"],
+                    "cube_id": None,
+                    "suggested_action": "fix_skill",
+                    "created_at": now,
+                })
+
+    return findings
+
+
+def _battery_findings(conn, now: str) -> list[dict]:
+    """One finding per BROKEN/DEGRADED battery task, naming the failing tests
+    and the offending cubes. Deterministic tests only (no LLM) — still needs a
+    retrieval pass per task, which is why this is behind ?include=battery."""
+    from glaze.battery import run_battery
+    from glaze.eval import _build_test_queries
+    from glaze.snapshots import _retrieve
+
+    findings = []
+    for i, q in enumerate(_build_test_queries(conn)):
+        task = q["query"]
+        res = run_battery(conn, task, k=BATTERY_K)
+        if res["verdict"] not in ("BROKEN", "DEGRADED"):
+            continue
+        fails = [r for r in res["results"] if r["status"] == "FAIL"]
+        fail_names = [f["name"] for f in fails]
+        reasons = "; ".join(f"{f['name']}: {f['reason']}" for f in fails)
+
+        if "Freshness" in fail_names:
+            action = "kill_stale"
+        elif "Redundancy" in fail_names:
+            action = "reconcile"
+        else:
+            action = "review"
+
+        hits = _retrieve(conn, task, BATTERY_K)
+        first_cube_id = hits[0]["id"] if hits else None
+        evidence = ""
+        if first_cube_id:
+            row = conn.execute(
+                "SELECT content FROM glaze_cubes WHERE id = ?", (first_cube_id,)
+            ).fetchone()
+            evidence = _preview(row["content"]) if row else ""
+
+        offenders = ", ".join(t[:60] for t in res["retrieved"][:3]) or "nothing retrieved"
+        findings.append({
+            "id": f"battery-{i}",
+            "kind": "battery",
+            "severity": "critical" if res["verdict"] == "BROKEN" else "warning",
+            "title": f"Battery {res['verdict']}: {task[:80]}",
+            "why": (f"Battery: task '{task}' is {res['verdict']}, "
+                    f"failed {', '.join(fail_names)} ({reasons}). "
+                    f"Retrieved: {offenders}"),
+            "evidence_preview": evidence,
+            "source": "battery",
+            "source_ref": task,
+            "cube_id": first_cube_id,
+            "suggested_action": action,
+            "created_at": now,
+        })
+    return findings
+
+
+@router.get("/findings")
+async def list_findings(kind: str | None = None, limit: int = 100, include: str = ""):
+    """Unified findings list. ?kind= filters to one kind (temporal, decay,
+    factual, logical, skill, battery). ?include=battery adds the expensive
+    per-task battery findings. Sorted severity desc, then created_at desc."""
+    conn = get_conn()
+    now = datetime.utcnow().isoformat()
+
+    findings = _audit_findings(conn)
+    try:
+        findings.extend(_skill_findings(now))
+    except Exception:
+        pass  # skills roots missing/unreadable must never break the surface
+    if "battery" in (include or ""):
+        findings.extend(_battery_findings(conn, now))
+
+    if kind:
+        findings = [f for f in findings if f["kind"] == kind]
+
+    findings.sort(
+        key=lambda f: (_SEVERITY_RANK.get(f["severity"], 0), f["created_at"] or ""),
+        reverse=True,
+    )
+
+    summary = {
+        "total": len(findings),
+        "by_kind": dict(Counter(f["kind"] for f in findings)),
+        "by_severity": dict(Counter(f["severity"] for f in findings)),
+    }
+
+    return {"findings": findings[: max(limit, 0)], "summary": summary}
