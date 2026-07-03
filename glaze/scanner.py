@@ -35,6 +35,25 @@ def result_to_cube(result: ConnectorResult) -> GlazeCube:
     )
 
 
+def collect_present_hashes(config: dict, source: str | None = None) -> dict:
+    """Re-scan configured sources and group content hashes by (source, file-scope).
+
+    Returns {(source, scope): set(content_hash)} where scope is the file part of
+    source_ref (source_ref_scope). Hashes are computed exactly the way ingestion
+    does — content_hash over the raw connector content, the same call
+    result_to_cube makes — so reconcile comparisons against stored cubes match.
+    """
+    from glaze.reconcile import source_ref_scope
+
+    scopes: dict = {}
+    for result in scan_all(config):
+        if source and result.source != source:
+            continue
+        key = (result.source, source_ref_scope(result.source_ref))
+        scopes.setdefault(key, set()).add(content_hash(result.content))
+    return scopes
+
+
 def enrich_with_qwen(cube: GlazeCube, qwen_client, existing_titles: list[str], config: dict | None = None) -> GlazeCube:
     if not qwen_client:
         return cube

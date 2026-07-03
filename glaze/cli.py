@@ -4,6 +4,8 @@
 Usage:
   glaze init          Auto-detect your AI tools and create config
   glaze scan          Scan all detected sources
+  glaze reconcile     Retire memory a re-scan no longer sees (dry-run by default)
+  glaze fix-skills    Write descriptions into SKILL.md files missing one (dry-run by default)
   glaze serve         Start the web UI
   glaze triage        Run auto-triage (autonomous decisions)
   glaze score         Show current Helicon Score
@@ -180,6 +182,101 @@ def cmd_scan(args):
     print(f"Total in DB: {stats['total_in_db']}")
     for source, count in stats.get("by_source", {}).items():
         print(f"  {source}: {count}")
+
+
+def cmd_reconcile(args):
+    """Retire cubes a re-scan no longer sees. Dry-run by default; --apply to
+    mark them superseded. Never touches human-reviewed (approved/killed) cubes."""
+    from glaze.config import load_config
+    from glaze.db import init_db
+    from glaze.reconcile import reconcile_scan
+    from glaze.scanner import collect_present_hashes
+
+    config = load_config()
+    if not config.get("connectors"):
+        print("No connectors configured. Run `glaze init` first.")
+        return
+    conn = init_db(config["db_path"])
+
+    mode = "APPLY" if args.apply else "dry-run"
+    print(f"Mount Helicon reconcile ({mode})\n")
+    print("Re-scanning sources to compute present hashes...")
+    scopes = collect_present_hashes(config, source=args.source)
+    if not scopes:
+        target = f"source '{args.source}'" if args.source else "any configured source"
+        print(f"Re-scan found nothing for {target}. Not retiring anything.")
+        return
+    print(f"  {len(scopes)} (source, file) scope(s) scanned")
+
+    total = 0
+    for (source, scope), hashes in sorted(scopes.items()):
+        rec = reconcile_scan(conn, source=source, present_hashes=hashes,
+                             scope_prefix=scope, dry_run=not args.apply)
+        if not rec["count"]:
+            continue
+        total += rec["count"]
+        verb = "would retire" if not args.apply else "retired"
+        print(f"\n{source} :: {scope} — {verb} {rec['count']}:")
+        for r in rec["retired"]:
+            row = conn.execute(
+                "SELECT source_ref FROM glaze_cubes WHERE id = ?", (r["id"],)
+            ).fetchone()
+            ref = row["source_ref"] if row else "?"
+            print(f"  {r['id']}  {r['title'][:60]:60s}  ({ref})")
+
+    if total == 0:
+        print("\nNothing to retire. Memory matches the re-scan.")
+    elif args.apply:
+        print(f"\nRetired {total} cube(s) as 'superseded'.")
+    else:
+        print(f"\nWould retire {total} cube(s). Run with --apply to execute.")
+
+
+def cmd_fix_skills(args):
+    """Write back Qwen-generated descriptions into SKILL.md files that the
+    skills audit flags as missing one. Dry-run by default; --apply writes with
+    a .bak backup per modified file."""
+    from glaze.config import load_config
+    from glaze.qwen import get_client, resolve_model
+    from glaze.writeback import DEFAULT_SKILLS_DIR, fix_skills
+
+    config = load_config()
+    client = get_client(config)
+    model = resolve_model("fast", config)
+    skills_dir = args.skills_dir or DEFAULT_SKILLS_DIR
+
+    mode = "APPLY" if args.apply else "dry-run"
+    print(f"Mount Helicon fix-skills ({mode})  dir: {skills_dir}\n")
+    if client is None:
+        print("No Qwen key configured (set QWEN_API_KEY). Descriptions can't be "
+              "generated; listing files that need one:\n")
+
+    result = fix_skills(skills_dir, client=client, model=model, apply=args.apply)
+    if not result["records"]:
+        print("No skill files found.")
+        return
+
+    for r in result["records"]:
+        if r["action"] == "has_description":
+            continue
+        if r["action"] == "skipped_no_client":
+            print(f"  [skip] {r['rel']}  (missing description; no Qwen key)")
+        elif r["action"] == "failed":
+            print(f"  [fail] {r['rel']}  (Qwen returned nothing usable)")
+        elif r["action"] == "proposed":
+            print(f"  [would fix] {r['rel']}")
+            print(f"      description: {r['description']}")
+        elif r["action"] == "fixed":
+            print(f"  [fixed] {r['rel']}  (.bak written)")
+            print(f"      description: {r['description']}")
+
+    c = result["counts"]
+    ok = c.get("has_description", 0)
+    print(f"\n{sum(c.values())} skill file(s): {ok} already described, "
+          f"{c.get('proposed', 0)} proposed, {c.get('fixed', 0)} fixed, "
+          f"{c.get('skipped_no_client', 0)} skipped (no key), {c.get('failed', 0)} failed")
+    if c.get("proposed"):
+        print("Dry-run: nothing written. Run with --apply to write (creates .bak backups).")
 
 
 def cmd_serve(args):
@@ -813,6 +910,14 @@ def main():
 
     sub.add_parser("scan", help="Scan all configured sources")
 
+    rec_p = sub.add_parser("reconcile", help="Retire memory a re-scan no longer sees (dry-run by default)")
+    rec_p.add_argument("--apply", action="store_true", help="Actually mark orphans superseded (default: dry-run)")
+    rec_p.add_argument("--source", help="Only reconcile this source (e.g. agent-rules, obsidian, skills)")
+
+    fix_p = sub.add_parser("fix-skills", help="Write Qwen descriptions into SKILL.md files missing one (dry-run by default)")
+    fix_p.add_argument("--apply", action="store_true", help="Write files (creates .bak backups; default: dry-run)")
+    fix_p.add_argument("--skills-dir", help="Skills directory to fix (default: ~/.claude/skills, the dir the audit scans)")
+
     serve_p = sub.add_parser("serve", help="Start the web UI")
     serve_p.add_argument("--port", type=int, default=8420)
 
@@ -864,6 +969,8 @@ def main():
     cmds = {
         "init": cmd_init,
         "scan": cmd_scan,
+        "reconcile": cmd_reconcile,
+        "fix-skills": cmd_fix_skills,
         "serve": cmd_serve,
         "triage": cmd_triage,
         "review": cmd_review,
