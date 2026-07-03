@@ -137,7 +137,7 @@ function CubeSide({ cube, label }: { cube: Cube | null; label: string }) {
   if (!cube) {
     return (
       <div className="bg-zinc-900/40 rounded-md p-3">
-        <span className="text-[11px] text-zinc-700">Cube not found</span>
+        <span className="text-[11px] text-zinc-700">Memory not found</span>
       </div>
     );
   }

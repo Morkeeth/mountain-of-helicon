@@ -346,7 +346,7 @@ export function Graph3D() {
               <p className="text-zinc-500 text-sm mb-2">{loading ? 'Loading graph...' : 'No graph data yet.'}</p>
               {!loading && (
                 <button onClick={handleBuild} className="text-[12px] text-violet-600 hover:text-violet-500">
-                  Build graph from cubes
+                  Build graph from memories
                 </button>
               )}
             </div>
@@ -381,7 +381,7 @@ export function Graph3D() {
               </button>
             </div>
             <div className="flex gap-3 text-[11px] text-zinc-600 mb-3">
-              <span className="px-1.5 py-0.5 rounded bg-zinc-800/50">{selected.kind}</span>
+              <span className="px-1.5 py-0.5 rounded bg-zinc-800/50">{selected.kind === 'cube' ? 'memory' : selected.kind}</span>
               <span className="px-1.5 py-0.5 rounded bg-zinc-800/50">{selected.type}</span>
               {selected.kind === 'entity' && <span>{selected.size} mentions</span>}
               {selected.confidence !== undefined && (
@@ -393,7 +393,7 @@ export function Graph3D() {
               <div className="space-y-4 border-t border-zinc-800/40 pt-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-zinc-700 mb-1.5">
-                    Cubes ({detail.cubes.length})
+                    Memories ({detail.cubes.length})
                   </p>
                   <div className="space-y-1 max-h-36 overflow-y-auto">
                     {detail.cubes.slice(0, 8).map(c => (

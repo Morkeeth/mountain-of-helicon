@@ -37,7 +37,15 @@ function ridge(x: number, drama: number) {
   return 0.18 + base * (0.55 + drama * 0.7);
 }
 
-function buildMountain(crackCount: number, seed: number) {
+// A hover target: one tessera tied to one real battery task
+interface TaskTile {
+  x: number;
+  y: number;
+  size: number;
+  task: BatteryTask;
+}
+
+function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], seed: number) {
   const rand = mulberry32(seed);
   const size = TILE;
   const g = GAP;
@@ -47,11 +55,13 @@ function buildMountain(crackCount: number, seed: number) {
   const rows = Math.floor((H + g) / (size + g));
   let s = '';
   const ridgePts: [number, number][] = [];
+  const startRows: number[] = [];
 
   for (let c = 0; c < cols; c++) {
     const xf = c / (cols - 1);
     const rY = 1 - ridge(xf, drama);
     const startRow = Math.max(0, Math.round(rY * rows));
+    startRows.push(startRow);
     ridgePts.push([g + c * (size + g), g + startRow * (size + g)]);
     for (let r = startRow; r < rows; r++) {
       const x = g + c * (size + g);
@@ -64,12 +74,13 @@ function buildMountain(crackCount: number, seed: number) {
     }
   }
 
+  const tiles: TaskTile[] = [];
+
   // cracked tiles near the summit ridge — ONE per flagged task, terracotta fracture
   const groundL = 98;
-  for (let k = 0; k < crackCount; k++) {
+  for (let k = 0; k < crackTasks.length; k++) {
     const c = Math.floor(cols * (0.3 + rand() * 0.5));
-    const xf = c / (cols - 1);
-    const startRow = Math.max(0, Math.round((1 - ridge(xf, drama)) * rows));
+    const startRow = startRows[c];
     const r = startRow + Math.floor(rand() * 3);
     const x = g + c * (size + g);
     const y = g + r * (size + g);
@@ -77,12 +88,21 @@ function buildMountain(crackCount: number, seed: number) {
     s += `<path d="M${x + 1.5} ${y + size - 1.5} L${x + size * 0.55} ${y + 1.5} M${x + size * 0.42} ${
       y + size - 1.5
     } L${x + size - 1.5} ${y + 2.5}" stroke="var(--helicon-accent)" stroke-width="0.8"/>`;
+    tiles.push({ x, y, size, task: crackTasks[k] });
+  }
+
+  // healthy tasks map onto ridge-top tesserae, spread across the summit line
+  for (let k = 0; k < healthyTasks.length; k++) {
+    const c = Math.min(cols - 1, Math.floor(((k + 0.5) / healthyTasks.length) * cols));
+    const x = g + c * (size + g);
+    const y = g + startRows[c] * (size + g);
+    tiles.push({ x, y, size, task: healthyTasks[k] });
   }
 
   const d = 'M' + ridgePts.map((p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L');
   const ridgeLine = `<path d="${d}" fill="none" stroke="${hsl(210, 14, 40)}" stroke-width="0.8" opacity="0.6" stroke-linejoin="round"/>`;
   const viewH = g + rows * (size + g);
-  return { svg: ridgeLine + s, viewH };
+  return { svg: ridgeLine + s, viewH, tiles };
 }
 
 const DOT: Record<string, string> = {
@@ -101,6 +121,7 @@ export default function HeliconMountain() {
   const [snapshots, setSnapshots] = useState<SnapshotReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hovered, setHovered] = useState<TaskTile | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -130,11 +151,13 @@ export default function HeliconMountain() {
     [battery]
   );
 
+  const healthy = useMemo(() => (battery?.tasks || []).filter((t) => t.verdict === 'HEALTHY'), [battery]);
+
   const intact = battery && battery.total ? Math.round((battery.summary.healthy / battery.total) * 100) : 0;
-  const { svg, viewH } = useMemo(() => buildMountain(flagged.length, (battery?.total || 0) * 100 + flagged.length), [
-    flagged.length,
-    battery?.total,
-  ]);
+  const { svg, viewH, tiles } = useMemo(
+    () => buildMountain(flagged, healthy, (battery?.total || 0) * 100 + flagged.length),
+    [flagged, healthy, battery?.total]
+  );
 
   return (
     <div
@@ -184,7 +207,59 @@ export default function HeliconMountain() {
                 mosaic intact · {battery.summary.healthy}/{battery.total} tasks healthy
               </span>
             </div>
-            <svg style={{ display: 'block', width: '100%' }} viewBox={`0 0 ${W} ${viewH}`} dangerouslySetInnerHTML={{ __html: svg }} />
+            <div style={{ position: 'relative' }}>
+              <svg style={{ display: 'block', width: '100%' }} viewBox={`0 0 ${W} ${viewH}`}>
+                <g dangerouslySetInnerHTML={{ __html: svg }} />
+                {tiles.map((tile, i) => (
+                  <rect
+                    key={`${tile.task.task}-${i}`}
+                    x={tile.x - 1}
+                    y={tile.y - 1}
+                    width={tile.size + 2}
+                    height={tile.size + 2}
+                    fill="transparent"
+                    stroke={hovered === tile ? 'var(--helicon-ink)' : 'none'}
+                    strokeWidth={0.6}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHovered(tile)}
+                    onMouseLeave={() => setHovered(null)}
+                  />
+                ))}
+              </svg>
+              {hovered && (() => {
+                const fails = hovered.task.results.filter((r) => r.status === 'FAIL');
+                const below = hovered.y < viewH * 0.3; // summit tiles: flip tooltip under the tile
+                return (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${((hovered.x + hovered.size / 2) / W) * 100}%`,
+                      top: `${((below ? hovered.y + hovered.size : hovered.y) / viewH) * 100}%`,
+                      transform: below ? 'translate(-50%, 8px)' : 'translate(-50%, calc(-100% - 8px))',
+                      background: 'var(--helicon-ink)',
+                      color: 'var(--helicon-bg)',
+                      borderRadius: 8,
+                      padding: '7px 10px',
+                      fontSize: 11,
+                      lineHeight: 1.5,
+                      maxWidth: 260,
+                      pointerEvents: 'none',
+                      zIndex: 10,
+                      boxShadow: '0 6px 18px rgba(43,40,37,.28)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 600 }}>{hovered.task.task}</div>
+                    <div style={{ opacity: 0.8 }}>
+                      {hovered.task.verdict.toLowerCase()}
+                      {fails.length > 0 ? ` — failing: ${fails.map((f) => f.name).join(', ')}` : ' — all checks passing'}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 10 }}>
+              Each tessera is a retrieval task. Cracks mark tasks serving broken memory.
+            </div>
           </div>
 
           <div style={{ fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--helicon-muted)', margin: '20px 0 4px' }}>

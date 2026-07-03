@@ -121,7 +121,7 @@ export function Dashboard({ score, findings, connectors, triageCount, onNavigate
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-[13px] font-medium text-zinc-300">Consolidated knowledge</h3>
-                <p className="text-[11px] text-zinc-600 mt-0.5">Synthesized from {tiers?.total_merged || 0} cubes across {consolidations.length} topics</p>
+                <p className="text-[11px] text-zinc-600 mt-0.5">Synthesized from {tiers?.total_merged || 0} memories across {consolidations.length} topics</p>
               </div>
               <button
                 onClick={() => onNavigate('insights')}

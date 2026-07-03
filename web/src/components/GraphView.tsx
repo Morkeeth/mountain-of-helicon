@@ -239,7 +239,7 @@ export function GraphView() {
               <p className="text-zinc-500 text-sm mb-2">{loading ? 'Loading graph...' : 'No graph data yet.'}</p>
               {!loading && (
                 <button onClick={handleBuild} className="text-[12px] text-violet-600 hover:text-violet-500">
-                  Build graph from cubes
+                  Build graph from memories
                 </button>
               )}
             </div>

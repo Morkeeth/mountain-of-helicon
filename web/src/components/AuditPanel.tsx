@@ -37,6 +37,15 @@ function issueDescription(f: AuditFinding): string {
   return f.proposed_action || 'Needs review';
 }
 
+// Names the health check the memory failed, so a Kill is never decided blind.
+function failedCheck(f: AuditFinding): string {
+  if (f.audit_type === 'temporal') return 'Temporal check — time-relative wording no longer matches the memory\'s age';
+  if (f.audit_type === 'factual') return 'Factual check — this memory contradicts another stored memory';
+  if (f.audit_type === 'decay') return 'Decay check — confidence has decayed below the keep threshold';
+  if (f.audit_type === 'logical') return 'Logical check — the learned pattern is no longer supported by review data';
+  return `${f.audit_type} check`;
+}
+
 export function AuditPanel({ findings, onRefresh }: Props) {
   const [acting, setActing] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
@@ -113,52 +122,124 @@ export function AuditPanel({ findings, onRefresh }: Props) {
 
       {/* Finding rows */}
       <div className="border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/30 bg-white shadow-sm">
-        {visible.slice(0, 25).map(f => {
-          const { label, variant } = actionLabel(f);
-          const btnColors = variant === 'critical'
-            ? 'border-red-800/30 text-red-400/70 hover:bg-red-500/5'
-            : variant === 'warning'
-              ? 'border-amber-200 text-amber-700 hover:bg-amber-50'
-              : 'border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/30';
-
-          return (
-            <div
-              key={f.id}
-              className="flex items-center gap-3 py-2.5 px-4 hover:bg-zinc-800/10 transition-colors animate-fade-in"
-            >
-              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                f.severity === 'critical' ? 'bg-red-500' : f.severity === 'warning' ? 'bg-amber-500' : 'bg-zinc-500'
-              }`} />
-
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] text-zinc-300 truncate leading-snug">{shortSummary(f)}</p>
-                <p className="text-[11px] text-zinc-600 leading-snug">{issueDescription(f)}</p>
-              </div>
-
-              <div className="flex gap-1 shrink-0">
-                <button
-                  onClick={() => handleAct(f.id, 'acted')}
-                  disabled={acting === f.id}
-                  className={`text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 ${btnColors}`}
-                >
-                  {acting === f.id ? '...' : label}
-                </button>
-                <button
-                  onClick={() => handleDismiss(f.id)}
-                  className="text-[11px] px-2 py-1 rounded-md text-zinc-700 hover:text-zinc-400 hover:bg-zinc-800/30 transition-colors"
-                >
-                  Skip
-                </button>
-              </div>
-            </div>
-          );
-        })}
+        {visible.slice(0, 25).map(f => (
+          <FindingRow
+            key={f.id}
+            f={f}
+            acting={acting === f.id}
+            onAct={decision => handleAct(f.id, decision)}
+            onDismiss={() => handleDismiss(f.id)}
+          />
+        ))}
       </div>
 
       {visible.length > 25 && (
         <p className="text-[11px] text-zinc-700 mt-3 text-center">
           Showing 25 of {visible.length}
         </p>
+      )}
+    </div>
+  );
+}
+
+// Expandable finding row: click to see the memory's content and WHY it was
+// flagged before deciding Kill/Skip.
+function FindingRow({ f, acting, onAct, onDismiss }: {
+  f: AuditFinding;
+  acting: boolean;
+  onAct: (decision: string) => void;
+  onDismiss: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const { label, variant } = actionLabel(f);
+  const btnColors = variant === 'critical'
+    ? 'border-red-800/30 text-red-400/70 hover:bg-red-500/5'
+    : variant === 'warning'
+      ? 'border-amber-200 text-amber-700 hover:bg-amber-50'
+      : 'border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/30';
+
+  const toggle = async () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (next && !previewLoaded && !previewLoading && f.target_id) {
+      setPreviewLoading(true);
+      try {
+        const res = await fetch(`/api/cubes/${f.target_id}`);
+        if (res.ok) {
+          const cube = await res.json();
+          if (typeof cube?.content === 'string') setPreview(cube.content);
+        }
+      } catch { /* memory may not exist for this finding */ }
+      setPreviewLoaded(true);
+      setPreviewLoading(false);
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={toggle}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}
+        className="flex items-center gap-3 py-2.5 px-4 hover:bg-zinc-800/10 transition-colors cursor-pointer"
+      >
+        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+          f.severity === 'critical' ? 'bg-red-500' : f.severity === 'warning' ? 'bg-amber-500' : 'bg-zinc-500'
+        }`} />
+
+        <div className="flex-1 min-w-0">
+          <p className="text-[12px] text-zinc-300 truncate leading-snug">{shortSummary(f)}</p>
+          <p className="text-[11px] text-zinc-600 leading-snug">{issueDescription(f)}</p>
+        </div>
+
+        <svg
+          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className={`text-zinc-600 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+
+        <div className="flex gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => onAct('acted')}
+            disabled={acting}
+            className={`text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 ${btnColors}`}
+          >
+            {acting ? '...' : label}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="text-[11px] px-2 py-1 rounded-md text-zinc-700 hover:text-zinc-400 hover:bg-zinc-800/30 transition-colors"
+          >
+            Skip
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-4 pb-3 pl-9 animate-fade-in">
+          <p className="text-[11px] text-zinc-500 mb-2">
+            <span className="text-zinc-400 font-medium">Why: </span>{failedCheck(f)}.
+            {f.finding && <span className="text-zinc-600"> Evidence: {f.finding}</span>}
+          </p>
+          {previewLoading && (
+            <p className="text-[11px] text-zinc-600">Loading memory content...</p>
+          )}
+          {!previewLoading && preview !== null && (
+            <pre className="text-[11px] text-zinc-400 bg-zinc-900/50 p-3 rounded-lg whitespace-pre-wrap leading-relaxed border border-zinc-800/40 max-h-40 overflow-auto">
+              {preview.slice(0, 300)}
+              {preview.length > 300 && '...'}
+            </pre>
+          )}
+          {!previewLoading && previewLoaded && preview === null && (
+            <p className="text-[11px] text-zinc-600">No memory content available for this finding.</p>
+          )}
+        </div>
       )}
     </div>
   );

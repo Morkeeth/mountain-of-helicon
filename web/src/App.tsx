@@ -181,7 +181,10 @@ function App() {
                 Mount Helicon
               </h1>
               <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Memory Audit</span>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium tracking-wide">
+              <span
+                className="text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
+                style={{ background: 'rgba(194, 94, 58, 0.08)', color: 'var(--helicon-accent)', borderColor: 'rgba(194, 94, 58, 0.25)' }}
+              >
                 Powered by Qwen
               </span>
             </div>
@@ -249,6 +252,8 @@ function App() {
         >
 
         {tab === 'projects' && !selectedProject && (
+          <>
+          <TabPurpose>Compiled knowledge per project — copy it into your agent's context.</TabPurpose>
           <ProjectsGrid
             projects={projects}
             score={score}
@@ -257,6 +262,7 @@ function App() {
             onSelect={setSelectedProject}
             onRefresh={loadProjects}
           />
+          </>
         )}
 
         {tab === 'projects' && selectedProject && (
@@ -271,6 +277,8 @@ function App() {
         )}
 
         {tab === 'review' && (
+          <>
+          <TabPurpose>Teach Helicon your judgment — keep, revise, or kill what it extracted.</TabPurpose>
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-8 overflow-hidden">
             <div>
               <div className="flex items-center gap-2 mb-6 flex-wrap">
@@ -279,7 +287,7 @@ function App() {
                   type="text"
                   value={search}
                   onChange={e => { setSearch(e.target.value); setFocusIdx(0); }}
-                  placeholder="Search cubes... (/)"
+                  placeholder="Search memories... (/)"
                   className="text-[12px] bg-white border border-zinc-800/60 rounded-lg px-3 py-1.5 text-zinc-400 placeholder:text-zinc-600 focus:outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 w-44 shadow-sm"
                   onKeyDown={e => { if (e.key === 'Escape') { setSearch(''); e.currentTarget.blur(); } }}
                 />
@@ -374,9 +382,12 @@ function App() {
               <RecentReviews />
             </aside>
           </div>
+          </>
         )}
 
         {tab === 'insights' && (
+          <>
+          <TabPurpose>Audit findings — memories that failed a health check, with the evidence.</TabPurpose>
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-8">
             <div>
               <div className="flex items-center justify-between mb-5">
@@ -431,12 +442,19 @@ function App() {
               <KillCandidatesView />
             </aside>
           </div>
+          </>
         )}
 
-        {tab === 'graph' && <Graph3D />}
+        {tab === 'graph' && (
+          <>
+          <TabPurpose>Entities and their connections across your memory.</TabPurpose>
+          <Graph3D />
+          </>
+        )}
 
         {tab === 'system' && (
           <div className="space-y-10">
+            <TabPurpose>Live health of every retrieval task — cracks are failing tasks.</TabPurpose>
             <div>
               <h2 className="text-[15px] font-medium text-zinc-200 mb-4">Memory integrity</h2>
               <HeliconMountain />
@@ -524,6 +542,11 @@ function App() {
       </main>
     </div>
   );
+}
+
+// One muted line under each tab's top bar stating what the screen is for.
+function TabPurpose({ children }: { children: React.ReactNode }) {
+  return <p className="text-[12px] text-zinc-600 mb-5 leading-relaxed">{children}</p>;
 }
 
 // ============================================================
@@ -741,10 +764,11 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
           </button>
           <button
             onClick={() => onInject(project)}
+            title="Paste into your agent (CLAUDE.md, system prompt)"
             className="text-[12px] px-4 py-1.5 rounded-lg text-white font-medium transition-all active:scale-95 shadow-sm hover:shadow-md hover:shadow-violet-200/50"
             style={{ background: 'linear-gradient(135deg, #7C3AED 0%, #6366F1 100%)' }}
           >
-            {copied ? 'Copied!' : 'Inject Context'}
+            {copied ? 'Copied!' : 'Copy compiled context'}
           </button>
         </div>
       </div>
@@ -792,9 +816,10 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
             </div>
             <button
               onClick={() => onInject(project)}
+              title="Paste into your agent (CLAUDE.md, system prompt)"
               className="text-[11px] px-3 py-1 rounded-md text-violet-600 hover:bg-violet-50 border border-violet-200 transition-colors"
             >
-              {copied ? 'Copied!' : 'Copy All'}
+              {copied ? 'Copied!' : 'Copy compiled context'}
             </button>
           </div>
         </div>
@@ -802,7 +827,7 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
         {displayConsolidations.length === 0 ? (
           <div className="py-12 text-center">
             <p className="text-zinc-500 text-[13px] mb-1">No consolidations yet.</p>
-            <p className="text-zinc-600 text-[12px]">Run a Sleep Cycle to merge related cubes into consolidated knowledge.</p>
+            <p className="text-zinc-600 text-[12px]">Run a Sleep Cycle to merge related memories into consolidated knowledge.</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-800/30">

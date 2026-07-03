@@ -79,7 +79,7 @@ export function ConsolidationView() {
           {consolidations.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-zinc-600 text-sm mb-1">No consolidations yet.</p>
-              <p className="text-zinc-700 text-[12px]">Run a sleep cycle to merge related cubes into consolidated memories.</p>
+              <p className="text-zinc-700 text-[12px]">Run a sleep cycle to merge related memories into consolidated knowledge.</p>
             </div>
           ) : (
             consolidations.map(c => (
@@ -104,7 +104,7 @@ function ClusterRow({ cluster }: { cluster: Cluster }) {
             <span className="text-[11px] text-zinc-700">{cluster.method.replace('_', ' ')}</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[12px] tabular-nums text-zinc-500">{cluster.count} cubes</span>
+            <span className="text-[12px] tabular-nums text-zinc-500">{cluster.count} memories</span>
             <span className="text-[11px] text-zinc-700">{expanded ? '-' : '+'}</span>
           </div>
         </div>

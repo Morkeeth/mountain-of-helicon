@@ -151,7 +151,7 @@ function ProjectCard({ rec, rank }: { rec: ProjectRecommendation; rank: number }
           <p className="text-[12px] text-zinc-500 leading-relaxed pl-6">{rec.action}</p>
 
           <div className="flex gap-4 mt-2 pl-6 text-[11px]">
-            <span className="text-zinc-600 tabular-nums">{rec.cube_count} cubes</span>
+            <span className="text-zinc-600 tabular-nums">{rec.cube_count} memories</span>
             <span className={`tabular-nums ${shipColor}`}>
               {(rec.ship_rate * 100).toFixed(0)}% shipped
             </span>
@@ -272,7 +272,7 @@ function FocusLegend() {
       <div className="space-y-2 text-[11px] text-zinc-700 leading-relaxed">
         <p><strong className="text-zinc-500">Spin score</strong> = sessions / shipped items. Over 3x = pure spin.</p>
         <p><strong className="text-zinc-500">Ship rate</strong> = approved / reviewed. 0% = no output.</p>
-        <p><strong className="text-zinc-500">Days since output</strong> = last commit or approved cube.</p>
+        <p><strong className="text-zinc-500">Days since output</strong> = last commit or approved memory.</p>
         <p><strong className="text-zinc-500">Urgency</strong> = spin + staleness + backlog + decay + momentum.</p>
       </div>
     </div>

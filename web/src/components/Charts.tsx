@@ -230,7 +230,7 @@ export function DecayHeatmap({ stats }: { stats: DecayStats | null }) {
                 style={{ width: `${d.avg}%` }}
               >
                 <span className="text-[10px] text-zinc-400 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {d.count} cubes
+                  {d.count} memories
                 </span>
               </div>
               <div

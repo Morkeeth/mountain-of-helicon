@@ -28,6 +28,7 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [notes, setNotes] = useState('');
+  const [notesSaved, setNotesSaved] = useState(false);
   const startTime = Date.now();
 
   const handleReview = async (decision: string) => {
@@ -35,7 +36,13 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
     const elapsed = (Date.now() - startTime) / 1000;
     await api.submitReview(cube.id, decision, notes, elapsed);
     setReviewing(false);
-    onReviewed();
+    if (notes.trim()) {
+      // Hold the card briefly so the confirmation is visible before the list refreshes.
+      setNotesSaved(true);
+      setTimeout(() => onReviewed(), 1400);
+    } else {
+      onReviewed();
+    }
   };
 
   useEffect(() => {
@@ -108,13 +115,18 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
         </div>
       )}
 
+      {notesSaved && (
+        <p className="mt-3 pl-3 text-[11px] text-emerald-600 animate-fade-in">
+          Saved — Helicon learns your review patterns from this.
+        </p>
+      )}
       <div className="mt-3 pl-3 flex items-center gap-2">
         <VoiceInput onTranscript={useCallback((t: string) => setNotes(n => n ? `${n} ${t}` : t), [])} disabled={reviewing} />
         <input
           type="text"
           value={notes}
           onChange={e => setNotes(e.target.value)}
-          placeholder="Notes"
+          placeholder="Why? (teaches Helicon your judgment)"
           className="flex-1 text-[12px] bg-white border border-zinc-800/60 rounded-lg px-2.5 py-1.5 text-zinc-400 placeholder:text-zinc-700 focus:outline-none focus:border-violet-300 focus:ring-1 focus:ring-violet-200 transition-colors shadow-sm"
         />
         <div className="flex gap-0.5">
