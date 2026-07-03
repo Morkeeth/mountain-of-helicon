@@ -1,4 +1,4 @@
-# GLAZE
+# Mount Helicon
 
 Three-layer memory system for AI agent output. Extracts what agents built, learns how the human reviews, and audits its own memory for staleness and contradictions.
 
@@ -36,7 +36,7 @@ glaze scan                 # extract memory items into GlazeCubes
 glaze serve                # start web UI on :8420
 glaze triage               # run auto-triage from learned patterns
 glaze triage --dry-run     # preview what would be triaged
-glaze score                # show Glaze Score + decay by type
+glaze score                # show Helicon Score + decay by type
 glaze stack                # audit your AI tool setup
 glaze optimize             # LLM-powered optimization suggestions
 glaze battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding)

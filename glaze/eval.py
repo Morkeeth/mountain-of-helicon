@@ -1,4 +1,4 @@
-"""Evaluation harness: measures GLAZE's own retrieval, forgetting, and audit quality.
+"""Evaluation harness: measures Mount Helicon's own retrieval, forgetting, and audit quality.
 
 Three benchmarks:
 1. Retrieval precision: does glaze_context return the right cubes for known queries?

@@ -1,4 +1,4 @@
-"""GLAZE MCP Server - expose memory audit as tools for AI agents.
+"""Mount Helicon MCP Server - expose memory audit as tools for AI agents.
 
 Run with: python -m glaze.mcp_server
 """
@@ -90,7 +90,7 @@ TOOLS = [
     },
     {
         "name": "glaze_context",
-        "description": "Proactive memory injection. Describe what you're working on and GLAZE returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context.",
+        "description": "Proactive memory injection. Describe what you're working on and Mount Helicon returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -103,7 +103,7 @@ TOOLS = [
     },
     {
         "name": "glaze_playbook",
-        "description": "Get task-specific guidance based on learned review patterns and feedback. Describe what you're about to do and GLAZE returns the relevant playbook with rules, common mistakes, and a prompt template.",
+        "description": "Get task-specific guidance based on learned review patterns and feedback. Describe what you're about to do and Mount Helicon returns the relevant playbook with rules, common mistakes, and a prompt template.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -114,7 +114,7 @@ TOOLS = [
     },
     {
         "name": "glaze_compile",
-        "description": "Compile GLAZE's learned patterns into injectable files: core-memory.md (top memories), skill files (per-category rules), and a CLAUDE.md patch. Returns the compiled content.",
+        "description": "Compile Mount Helicon's learned patterns into injectable files: core-memory.md (top memories), skill files (per-category rules), and a CLAUDE.md patch. Returns the compiled content.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -125,7 +125,7 @@ TOOLS = [
     },
     {
         "name": "glaze_triage",
-        "description": "Run auto-triage on pending memory items. GLAZE auto-approves/kills items where it has high confidence based on learned patterns. Returns what was triaged and why.",
+        "description": "Run auto-triage on pending memory items. Mount Helicon auto-approves/kills items where it has high confidence based on learned patterns. Returns what was triaged and why.",
         "inputSchema": {
             "type": "object",
             "properties": {

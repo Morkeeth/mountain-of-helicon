@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed the GLAZE database from all configured connectors."""
+"""Seed the Mount Helicon database from all configured connectors."""
 
 import sys
 import os
@@ -12,7 +12,7 @@ from glaze.scanner import run_scan
 
 def main():
     config = load_config()
-    print("GLAZE Seed")
+    print("Mount Helicon Seed")
     print(f"DB: {config['db_path']}")
     print()
 

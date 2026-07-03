@@ -7,7 +7,7 @@ export function ScoreBar({ score }: { score: Score | null }) {
 
   return (
     <div>
-      <h3 className="text-[11px] uppercase tracking-wider text-zinc-600 mb-3">Glaze Score</h3>
+      <h3 className="text-[11px] uppercase tracking-wider text-zinc-600 mb-3">Helicon Score</h3>
       <div className="flex items-baseline gap-2 mb-3">
         <span
           className="text-3xl font-light tabular-nums transition-colors duration-700"

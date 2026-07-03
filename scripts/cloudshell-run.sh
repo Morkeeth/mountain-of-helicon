@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run GLAZE inside Alibaba Cloud Shell as proof the backend runs on Alibaba Cloud.
+# Run Mount Helicon inside Alibaba Cloud Shell as proof the backend runs on Alibaba Cloud.
 # Slim mode: skips torch/sentence-transformers (~2GB) so it fits Cloud Shell disk.
 # The dashboard, scores, cubes, consolidations, reviews all work from the DB;
 # only semantic query-search degrades to keyword (fine for a proof/demo).
@@ -40,6 +40,6 @@ if [ ! -f data/glaze.db ]; then
   exit 1
 fi
 
-echo "==> Starting GLAZE on 0.0.0.0:${PORT}"
+echo "==> Starting Mount Helicon on 0.0.0.0:${PORT}"
 echo "    Open Cloud Shell 'Web Preview' -> port ${PORT} to view, then screenshot + record."
 exec python3 -m uvicorn glaze.api.app:app --host 0.0.0.0 --port "${PORT}"

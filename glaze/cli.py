@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""GLAZE CLI - plug-and-play memory audit for AI agent stacks.
+"""Mount Helicon CLI - plug-and-play memory audit for AI agent stacks.
 
 Usage:
   glaze init          Auto-detect your AI tools and create config
   glaze scan          Scan all detected sources
   glaze serve         Start the web UI
   glaze triage        Run auto-triage (autonomous decisions)
-  glaze score         Show current Glaze Score
+  glaze score         Show current Helicon Score
   glaze stack         Audit your AI stack setup
   glaze optimize      LLM-powered optimization suggestions
 """
@@ -110,7 +110,7 @@ def _detect_sources() -> dict:
 
 def cmd_init(args):
     """Auto-detect AI tools and create config.json."""
-    print("GLAZE init - detecting your AI stack...\n")
+    print("Mount Helicon init - detecting your AI stack...\n")
     detected = _detect_sources()
 
     if not detected:
@@ -174,7 +174,7 @@ def cmd_scan(args):
         print("No connectors configured. Run `glaze init` first.")
         return
 
-    print("GLAZE scan\n")
+    print("Mount Helicon scan\n")
     stats = run_scan(config)
     print(f"\nFound {stats['total_raw']} items, added {stats['added']}, skipped {stats['skipped']} dupes")
     print(f"Total in DB: {stats['total_in_db']}")
@@ -185,7 +185,7 @@ def cmd_scan(args):
 def cmd_serve(args):
     """Start the web UI."""
     port = args.port or 8420
-    print(f"Starting GLAZE at http://localhost:{port}")
+    print(f"Starting Mount Helicon at http://localhost:{port}")
     print("Press Ctrl+C to stop\n")
     import uvicorn
     uvicorn.run("glaze.api.app:app", host="0.0.0.0", port=port)
@@ -481,7 +481,7 @@ def cmd_battery(args):
 
 
 def cmd_score(args):
-    """Show current Glaze Score."""
+    """Show current Helicon Score."""
     from glaze.config import load_config
     from glaze.db import init_db
     from glaze.score import compute_score
@@ -492,7 +492,7 @@ def cmd_score(args):
     score = compute_score(conn)
     decay = get_decay_stats(conn)
 
-    print(f"\nGlaze Score: {score['score']}%")
+    print(f"\nHelicon Score: {score['score']}%")
     print(f"  Total: {score['total']}  Reviewed: {score['reviewed']}  Pending: {score['pending']}")
     print(f"\nDecay by type:")
     for t, d in sorted(decay.items(), key=lambda x: x[1]["avg_confidence"]):
@@ -502,7 +502,7 @@ def cmd_score(args):
 
 def cmd_stack(args):
     """Audit your AI agent stack."""
-    print("GLAZE stack audit\n")
+    print("Mount Helicon stack audit\n")
     detected = _detect_sources()
 
     if not detected:
@@ -598,7 +598,7 @@ def cmd_optimize(args):
     ).fetchall()
 
     context = f"""Memory system stats:
-- Glaze Score: {score['score']}% ({score['reviewed']} reviewed / {score['total']} total, {score['pending']} pending)
+- Helicon Score: {score['score']}% ({score['reviewed']} reviewed / {score['total']} total, {score['pending']} pending)
 - Triage rules: {len(rules)} active
 
 Type distribution:
@@ -614,7 +614,7 @@ Decay stats:
     client = get_client(config)
     if not client:
         print("Qwen API key not set. Showing rule-based analysis:\n")
-        print(f"Glaze Score: {score['score']}%")
+        print(f"Helicon Score: {score['score']}%")
         if score['pending'] > score['reviewed']:
             print(f"  Issue: {score['pending']} pending vs {score['reviewed']} reviewed. Review backlog growing.")
         for t, d in decay.items():
@@ -805,7 +805,7 @@ def cmd_consolidation_eval(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GLAZE - memory audit for AI agent stacks")
+    parser = argparse.ArgumentParser(description="Mount Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
 
     init_p = sub.add_parser("init", help="Auto-detect AI tools and create config")
@@ -837,7 +837,7 @@ def main():
     battery_p.add_argument("--prompt", action="store_true", help="also print the LLM prompt for subjective tests")
     battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live Qwen judging")
 
-    sub.add_parser("score", help="Show current Glaze Score")
+    sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
     sub.add_parser("eval", help="Run evaluation benchmarks (retrieval, forgetting, audit)")

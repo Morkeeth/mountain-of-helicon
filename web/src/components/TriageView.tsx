@@ -37,7 +37,7 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-[15px] font-medium text-zinc-200">Auto-Triage</h2>
-            <p className="text-[12px] text-zinc-600 mt-1">GLAZE makes its own decisions based on your review history</p>
+            <p className="text-[12px] text-zinc-600 mt-1">Mount Helicon makes its own decisions based on your review history</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -142,7 +142,7 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
         <h3 className="text-[11px] uppercase tracking-wider text-zinc-600 mb-4">Active Rules</h3>
         {rules.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-[12px] text-zinc-700">No rules yet. Review more items to teach GLAZE your preferences.</p>
+            <p className="text-[12px] text-zinc-700">No rules yet. Review more items to teach Mount Helicon your preferences.</p>
             <p className="text-[11px] text-zinc-800 mt-1">Rules emerge after 5+ reviews of the same type.</p>
           </div>
         ) : (

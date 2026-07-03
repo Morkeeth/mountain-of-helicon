@@ -1,4 +1,4 @@
-# GLAZE Architecture
+# Mount Helicon Architecture
 
 ```
                             ANY AI AGENT PLATFORM
@@ -34,7 +34,7 @@
               │                 │                 │
     ┌─────────▼──────┐ ┌───────▼────────┐ ┌──────▼───────┐
     │ Weibull Decay  │ │ Review Feed    │ │ Auto-Triage  │
-    │ w=exp(-(t/η)^κ)│ │ sorted by      │ │ GLAZE makes  │
+    │ w=exp(-(t/η)^κ)│ │ sorted by      │ │ Mount Helicon makes  │
     │ per-type shape │ │ learned urgency│ │ its own       │
     │ (SSGM/LiCo)   │ │                │ │ decisions     │
     └────────────────┘ └───────┬────────┘ └──────┬───────┘
@@ -121,7 +121,7 @@
     │  glaze scan      Extract memory into GlazeCubes              │
     │  glaze serve     Start web UI on :8420                        │
     │  glaze triage    Auto-triage from learned patterns            │
-    │  glaze score     Show Glaze Score + decay by type             │
+    │  glaze score     Show Helicon Score + decay by type             │
     │  glaze stack     Audit AI tool setup                          │
     │  glaze optimize  LLM-powered optimization                    │
     └──────────────────────────────────────────────────────────────┘
@@ -142,7 +142,7 @@ Agent output (any platform)
   > Session summary generated (Hermes-inspired)
   > 4-axis audit challenges stored patterns (qwen-max)
   > Context-aware prompts inject past decisions (ByteRover pattern)
-  > Proactive MCP: agents request relevant context, GLAZE ranks and injects
+  > Proactive MCP: agents request relevant context, Mount Helicon ranks and injects
   > Knowledge graph updated (entities + edges)
   > Drift detection flags behavior changes
   > Consolidation merges related memories ("sleep" cycle)
@@ -151,7 +151,7 @@ Agent output (any platform)
 
 ## Research Citations
 
-| Technique | Source | What GLAZE Uses |
+| Technique | Source | What Mount Helicon Uses |
 |-----------|--------|-----------------|
 | GlazeCube | MemOS (SJTU, 2025) | Versioned memory units with metadata |
 | Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |

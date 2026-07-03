@@ -1,8 +1,8 @@
-# Helicon
+# Mount Helicon
 
 **Agent-agnostic memory audit system.** Most memory systems store what you said. Helicon watches what you did, checks its own work, and flags when memory goes stale.
 
-> Helicon is the product name. The CLI, Python package, and MCP tools are still `glaze` / `glaze_*` (`pip install glaze-audit`) — the rename is branding only.
+> Mount Helicon is the product name. The CLI, Python package, and MCP tools are still `glaze` / `glaze_*` (`pip install glaze-audit`) — the rename is branding only.
 
 Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
 
@@ -28,7 +28,7 @@ Helicon learns *how you review*, not what you say:
 - **Auto-triage** -- after enough reviews, Helicon derives rules and makes its own kill/approve decisions. Human only reviews uncertain items.
 - **Spin detection** -- topics discussed in 4+ sessions without file changes
 - **Kill prediction** -- historical kill rate by type and age
-- **Glaze Score** -- percentage of memory reviewed and acted on
+- **Helicon Score** -- percentage of memory reviewed and acted on
 
 ### Layer 3: Meta-Audit
 The system checks its own stored patterns:
@@ -58,7 +58,7 @@ Entity extraction from all cubes (projects, tools, concepts). Force-directed vis
 Neuroscience-inspired batch consolidation. Groups related cubes by topic overlap, merges them into higher-level consolidated memories. Raw cubes become episodes become schemas.
 
 ### Auto-Triage Engine
-After enough human reviews, Helicon derives triage rules from behavior. If 97% of code items get killed and confidence is below 10%, auto-kill. On first run, auto-triage handled 585 out of 1,268 cubes autonomously, pushing the Glaze Score from 7% to 53.6% without a single human decision.
+After enough human reviews, Helicon derives triage rules from behavior. If 97% of code items get killed and confidence is below 10%, auto-kill. On first run, auto-triage handled 585 out of 1,268 cubes autonomously, pushing the Helicon Score from 7% to 53.6% without a single human decision.
 
 ### MCP Server (8 tools)
 Helicon exposes itself as an MCP tool so AI agents can audit their own memory mid-conversation:
@@ -82,7 +82,7 @@ glaze init          # auto-detect Claude Code, Cursor, Obsidian, git repos
 glaze scan          # extract memory into GlazeCubes
 glaze serve         # start web UI on :8420
 glaze triage        # run auto-triage from learned patterns
-glaze score         # show Glaze Score + decay by type
+glaze score         # show Helicon Score + decay by type
 glaze stack         # audit your AI tool setup
 glaze optimize      # LLM-powered optimization suggestions
 ```
@@ -184,7 +184,7 @@ Then ask Claude Code: "What's my memory health?" and it will call `glaze_health`
 |--------|------|-------------|
 | POST | `/api/review` | Submit review decision + voice notes |
 | GET | `/api/reviews` | Review history |
-| GET | `/api/score` | Glaze Score with breakdown |
+| GET | `/api/score` | Helicon Score with breakdown |
 | POST | `/api/decay` | Run Weibull decay pass |
 | GET | `/api/decay/stats` | Confidence stats by type |
 

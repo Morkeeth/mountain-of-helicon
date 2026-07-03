@@ -47,7 +47,7 @@ patterns = extract_patterns_from_sql(conn)
 save_patterns(conn, patterns)
 print(f"Patterns: {len(patterns)}")
 
-print("\n=== Step 5: Glaze Score ===")
+print("\n=== Step 5: Helicon Score ===")
 score = compute_score(conn)
 print(f"Score: {score['score']}% ({score['reviewed']}/{score['total']})")
 

@@ -178,7 +178,7 @@ function App() {
                 className="text-[19px] tracking-tight text-zinc-100"
                 style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
               >
-                Helicon
+                Mount Helicon
               </h1>
               <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Memory Audit</span>
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-600 font-medium tracking-wide">

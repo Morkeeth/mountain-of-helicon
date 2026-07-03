@@ -156,7 +156,7 @@ export default function HeliconMountain() {
             fontVariationSettings: "'opsz' 144",
           }}
         >
-          Helicon
+          Mount Helicon
         </b>
         <em style={{ fontStyle: 'normal', fontSize: 9.5, letterSpacing: '0.36em', textTransform: 'uppercase', color: 'var(--helicon-accent)', opacity: 0.85 }}>
           tesserae
