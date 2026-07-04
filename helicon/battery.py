@@ -43,6 +43,11 @@ CONTEXT_TESTS = [
         "fail_signal": "Cubes are tiny stubs with no specifics (no names, numbers, detail).",
     },
     {
+        "name": "Expiry", "mode": "auto",
+        "question": "Is any retrieved memory past its type's half-life without reinforcement?",
+        "fail_signal": "A cube older than its stability window is served as current context.",
+    },
+    {
         "name": "Contradiction", "mode": "llm",
         "question": "Do any retrieved memories contradict each other?",
         "fail_signal": "Two cubes assert incompatible facts for the same subject.",
@@ -66,7 +71,8 @@ def _fetch(conn: sqlite3.Connection, ids: list[str]) -> dict:
         return {}
     q = ",".join("?" * len(ids))
     rows = conn.execute(
-        f"SELECT id, title, content, content_hash, confidence, review_status "
+        f"SELECT id, title, content, content_hash, confidence, review_status, "
+        f"type, created_at, last_reinforced "
         f"FROM helicon_cubes WHERE id IN ({q})", ids
     ).fetchall()
     return {r["id"]: dict(r) for r in rows}
@@ -163,6 +169,30 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
             f"{stubs}/{len(cubes)} retrieved cubes are stubs (<40 chars)")
     else:
         add("Thinness", False, "no cubes to measure")
+
+    # Expiry: a cube older than its type's half-life, served without any
+    # reinforcement since, is suspect context even if nobody killed it yet.
+    # (Benchmark incident 3: a 6.9d-old execution plan — dashboard η=7d — was
+    # reused verbatim and rebuilt yesterday's priorities.) Non-critical:
+    # expired context degrades, it doesn't break.
+    from datetime import datetime as _dt
+    from helicon.forgetting import DEFAULT_STABILITY
+    expired = []
+    now_dt = _dt.utcnow()
+    for c in cubes.values():
+        eta = DEFAULT_STABILITY.get(c.get("type"))
+        if not eta:
+            continue
+        anchor = c.get("last_reinforced") or c.get("created_at") or ""
+        try:
+            age = (now_dt - _dt.fromisoformat(anchor.replace("Z", ""))).total_seconds() / 86400
+        except ValueError:
+            continue
+        if age > eta:
+            expired.append(f"{(c.get('title') or '')[:40]} ({age:.0f}d > {eta:.0f}d)")
+    add("Expiry", not expired,
+        "no retrieved cube is past its half-life" if not expired
+        else f"{len(expired)} past half-life: {expired[:3]}")
 
     # Tokens-per-query (BEAM-style): what this retrieval costs in context budget.
     # Accuracy without a token price is a half-finished score.

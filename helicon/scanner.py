@@ -120,6 +120,11 @@ def run_scan(config: dict, use_qwen: bool = False) -> dict:
             skipped += 1
 
     conn.commit()
+    # Decay is only honest if it actually runs. Before this it lived off-path
+    # and stored confidence stayed 1.0 forever (benchmark incident 3: a
+    # 6.9-day-old execution plan scored 1.0 while the model said 0.38).
+    from helicon.forgetting import apply_decay
+    decay_stats = apply_decay(conn, config)
     log_scan_complete(conn, scan_id, added=added, skipped=skipped)
 
     stats = {
@@ -128,6 +133,7 @@ def run_scan(config: dict, use_qwen: bool = False) -> dict:
         "added": added,
         "skipped": skipped,
         "enriched": enriched,
+        "decayed": decay_stats.get("updated", 0),
         "qwen_enabled": qwen_client is not None,
     }
 

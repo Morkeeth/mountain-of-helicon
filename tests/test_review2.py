@@ -144,3 +144,25 @@ def test_rule_preview_precision_vs_history(conn):
     assert row[0] == "killed"
     sess = conn.execute("SELECT session_id FROM reviews WHERE cube_id='gc_p1'").fetchone()[0]
     assert sess == f"rule:{rid}"
+
+
+# ------------------------------------------------------------- expiry test
+def test_battery_expiry_flags_cube_past_half_life(conn):
+    from helicon.battery import run_battery
+    old = _cube("gc_old1", "Sprint execution plan priorities",
+                "Execution plan: priorities for the sprint, deploy target list")
+    old.created_at = old.valid_from = old.last_reinforced = \
+        (datetime.utcnow() - timedelta(days=20)).isoformat()
+    old.type = "draft"  # draft half-life is 10d -> 20d is past it
+    assert insert_cube(conn, old)
+    conn.commit()
+    rebuild_fts(conn)
+
+    res = run_battery(conn, "sprint execution plan priorities", k=5)
+    expiry = next(r for r in res["results"] if r["name"] == "Expiry")
+    assert expiry["status"] == "FAIL"
+    assert "past half-life" in expiry["reason"]
+    # Expiry is non-critical: on its own it degrades, never breaks. (The
+    # fixture's killed ECS cube also gets retrieved here and trips the
+    # critical Freshness test, so the overall verdict is Freshness's call.)
+    assert expiry["critical"] is False

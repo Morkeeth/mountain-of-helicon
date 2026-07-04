@@ -31,7 +31,7 @@ Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.s
 ## Headline Features
 
 - **`helicon snapshot`** -- regression tests for retrieved context. Capture what a task retrieves today; `snapshot check` fails when tomorrow's retrieval drifts. CI for memory.
-- **`helicon battery "<task>"`** -- context-quality battery on what a task retrieves: Relevance, Freshness, Redundancy, Thinness (deterministic) + Contradiction, Grounding (judged live by Qwen). Verdict: HEALTHY / DEGRADED / BROKEN. Every verdict prints the age of the last scan, because a DEGRADED verdict is uninterpretable if the scan itself is stale. `--json` for scripts and CI.
+- **`helicon battery "<task>"`** -- context-quality battery on what a task retrieves: Relevance, Freshness, Redundancy, Thinness, Expiry (deterministic) + Contradiction, Grounding (judged live by Qwen). Verdict: HEALTHY / DEGRADED / BROKEN. Every verdict prints the age of the last scan, because a DEGRADED verdict is uninterpretable if the scan itself is stale. `--json` for scripts and CI.
 - **`helicon reconcile`** -- timely forgetting. Re-scans sources and retires cubes reality no longer contains (dry-run by default, never touches human decisions). On the live DB it retired 20 superseded memories in its first run.
 - **`helicon fix-skills`** -- write-back: Qwen writes missing descriptions into your agent skill files (dry-run by default, `.bak` backups). It fixed 7 of this project's own skills.
 - **`helicon doctor`** -- five checks (PATH, config, key, DB, last scan), exit 1 on failure. The front door to a daily loop.
