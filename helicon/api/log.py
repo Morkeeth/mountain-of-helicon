@@ -53,7 +53,7 @@ def _review_entries(conn, limit: int) -> list[dict]:
     rows = conn.execute(
         """SELECT r.decision, r.notes, r.reviewed_at, r.cube_id, c.title
            FROM reviews r LEFT JOIN helicon_cubes c ON c.id = r.cube_id
-           WHERE r.session_id != 'auto-triage'
+           WHERE r.session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%'
            ORDER BY r.reviewed_at DESC LIMIT ?""",
         (limit,),
     ).fetchall()

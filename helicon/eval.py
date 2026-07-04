@@ -184,13 +184,13 @@ def _run_forgetting_benchmark(conn: sqlite3.Connection) -> dict:
     """
     killed = [r["confidence"] for r in conn.execute(
         "SELECT c.confidence FROM reviews r JOIN helicon_cubes c ON r.cube_id = c.id "
-        "WHERE r.decision = 'killed' AND r.session_id != 'auto-triage' "
+        "WHERE r.decision = 'killed' AND r.session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%' "
         "ORDER BY r.reviewed_at DESC LIMIT 200"
     ).fetchall()]
 
     approved = [r["confidence"] for r in conn.execute(
         "SELECT c.confidence FROM reviews r JOIN helicon_cubes c ON r.cube_id = c.id "
-        "WHERE r.decision = 'approved' AND r.session_id != 'auto-triage' "
+        "WHERE r.decision = 'approved' AND r.session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%' "
         "ORDER BY r.reviewed_at DESC LIMIT 200"
     ).fetchall()]
 

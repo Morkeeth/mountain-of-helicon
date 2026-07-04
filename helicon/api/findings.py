@@ -90,6 +90,33 @@ def _audit_findings(conn) -> list[dict]:
     return findings
 
 
+def _regret_findings(conn) -> list[dict]:
+    """Retired cubes that retrieval keeps wanting back — the eviction was
+    probably wrong. Keep = restore (an approve review revives the cube)."""
+    from helicon.regret import get_regrets
+
+    findings = []
+    for r in get_regrets(conn, limit=30):
+        findings.append({
+            "id": f"regret-{r['cube_id']}",
+            "kind": "regret",
+            "severity": "high" if (r["total_weight"] or 0) >= 1.0 else "medium",
+            "title": r["title"],
+            "why": (f"You retired this ({r['review_status']}"
+                    + (f", by {r['killed_by']}" if r["killed_by"] else "")
+                    + f") and retrieval wanted it {r['events']}x since — "
+                    f"e.g. for \"{(r['sample_task'] or '')[:60]}\""),
+            "evidence_preview": f"regret weight {round(r['total_weight'] or 0, 2)} "
+                                f"(time-decayed), last wanted {(r['last_wanted'] or '')[:16]}",
+            "source": r["cube_source"],
+            "source_ref": r["source_ref"],
+            "cube_id": r["cube_id"],
+            "suggested_action": "restore",
+            "created_at": r["last_wanted"],
+        })
+    return findings
+
+
 def _skill_findings(now: str) -> list[dict]:
     """Skills-integrity issues as findings — same checks as /api/integrity/skills
     (duplicates / trigger collisions / thin descriptions), but scanned here with
@@ -242,6 +269,10 @@ async def list_findings(kind: str | None = None, limit: int = 100, include: str 
     now = datetime.utcnow().isoformat()
 
     findings = _audit_findings(conn)
+    try:
+        findings.extend(_regret_findings(conn))
+    except Exception:
+        pass  # empty/missing regret table must never break the surface
     try:
         findings.extend(_skill_findings(now))
     except Exception:

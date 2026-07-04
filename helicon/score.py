@@ -56,7 +56,7 @@ def backfill_score_history(conn: sqlite3.Connection):
 
     human_reviews = conn.execute(
         "SELECT MIN(reviewed_at) as last_at, COUNT(*) as cnt "
-        "FROM reviews WHERE session_id != 'auto-triage'"
+        "FROM reviews WHERE session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%'"
     ).fetchone()
 
     behavioral_triage = conn.execute(

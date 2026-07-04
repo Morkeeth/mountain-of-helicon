@@ -113,6 +113,12 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     DEGRADED verdict is uninterpretable without knowing whether memory is stale
     or the scan is. Annotation only — it never flips the verdict."""
     hits = _retrieve(conn, task, k)
+    # Ghost pass: a benchmark task matching retired memory is a regret event
+    try:
+        from helicon.regret import record_ghost_hits
+        record_ghost_hits(conn, task, source="battery")
+    except Exception:
+        pass
     ids = [h["id"] for h in hits]
     cubes = _fetch(conn, ids)
     task_terms = _terms(task)

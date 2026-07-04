@@ -35,6 +35,9 @@ Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.s
 - **`helicon reconcile`** -- timely forgetting. Re-scans sources and retires cubes reality no longer contains (dry-run by default, never touches human decisions). On the live DB it retired 20 superseded memories in its first run.
 - **`helicon fix-skills`** -- write-back: Qwen writes missing descriptions into your agent skill files (dry-run by default, `.bak` backups). It fixed 7 of this project's own skills.
 - **`helicon doctor`** -- five checks (PATH, config, key, DB, last scan), exit 1 on failure. The front door to a daily loop.
+- **`helicon rule "<natural language>"`** -- prompted rules. Qwen compiles your sentence to a restricted predicate (whitelisted fields, never code); before approval you see coverage, samples, empirical precision against YOUR past decisions, and conflicts with other rules. One approved rule governs hundreds of items; applied rules are never counted as human evidence.
+- **The regret ledger** -- killed memories become a ghost list (LeCaR cache-eviction mechanics). When retrieval wants one back, a time-decayed regret event blames the exact decision that killed it, and FINDINGS shows "you retired this, retrieval wanted it 2x since -- restore?". Wrong forgetting is measured, not assumed.
+- **`helicon_flag` over MCP** -- point-of-use correction. Injected memories carry id + last_verified + used_count; the agent (or you, through it) flags stale/wrong/useful in one call. Flags become findings the human confirms -- the agent proposes, it never deletes.
 
 ## Three Layers
 
@@ -54,7 +57,7 @@ Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.s
 
 All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
-## MCP Server (11 tools)
+## MCP Server (12 tools)
 
 Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
@@ -74,7 +77,8 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 | `helicon_contradictions` | Active factual conflicts |
 | `helicon_recent_reviews` | What the human approved/killed |
 | `helicon_patterns` | Learned behavioral patterns |
-| `helicon_context` | Proactive memory injection for a task |
+| `helicon_context` | Proactive memory injection for a task -- every memory carries its id, last_verified, used_count |
+| `helicon_flag` | Point-of-use correction: flag a memory stale/wrong/useful by id; stale/wrong become findings the human confirms |
 | `helicon_playbook` | Task playbooks from review patterns |
 | `helicon_compile` | Compile reviewed memory to injectable files |
 | `helicon_triage` | Trigger auto-triage |
@@ -82,9 +86,9 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (21 commands)
+## CLI (22 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
@@ -114,7 +118,7 @@ Everything destructive is dry-run by default and takes `--apply`.
 
 ## Architecture
 
-- **Backend:** Python 3.12, FastAPI (72 endpoints), SQLite + FTS5 (19 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
+- **Backend:** Python 3.12, FastAPI (72 endpoints), SQLite + FTS5 (21 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
 - **Frontend:** React 19, TypeScript, Vite, findings-first dashboard -- HEALTH (the mountain: one tile per battery task, a terracotta crack per broken one), FINDINGS (every failed check with why, evidence, action), LOG (receipts), plus Graph and Projects
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. Proof-of-run on Alibaba Cloud via Cloud Shell (`scripts/cloudshell-run.sh`)

@@ -106,6 +106,32 @@ CREATE TABLE IF NOT EXISTS scan_log (
     errors TEXT DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nl_text TEXT NOT NULL,
+    predicate TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status TEXT DEFAULT 'proposed',
+    model TEXT DEFAULT '',
+    prompt_version TEXT DEFAULT '',
+    trust REAL DEFAULT 1.0,
+    frozen_examples TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    approved_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS regret_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cube_id TEXT NOT NULL,
+    kill_review_id INTEGER,
+    task TEXT NOT NULL,
+    wanted_at TEXT NOT NULL,
+    weight REAL NOT NULL,
+    source TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_regret_cube ON regret_events(cube_id);
+
 CREATE TABLE IF NOT EXISTS battery_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     recorded_at TEXT NOT NULL,

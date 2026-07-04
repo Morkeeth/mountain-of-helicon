@@ -602,6 +602,85 @@ def cmd_battery(args):
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
 
 
+def cmd_rule(args):
+    """Prompted rules: state a triage rule in natural language, see exactly
+    what it would do (coverage, samples, precision vs your own history,
+    conflicts), then approve. Applied rules are never human evidence."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import rules as R
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    if args.list:
+        rs = R.list_rules(conn)
+        if not rs:
+            print("No rules yet. Author one: helicon rule \"kill code edits older than 30 days\"")
+            return
+        for r in rs:
+            print(f"  #{r['id']} [{r['status']:<8}] {r['action']:<7} \"{r['nl_text'][:70]}\""
+                  f"  {json.dumps(r['predicate']['match'])}")
+        return
+
+    if args.approve:
+        ok = R.approve_rule(conn, args.approve)
+        print(f"Rule #{args.approve} approved." if ok
+              else f"Rule #{args.approve} not found or not in 'proposed'.")
+        return
+
+    if args.retire:
+        ok = R.retire_rule(conn, args.retire)
+        print(f"Rule #{args.retire} retired." if ok else f"Rule #{args.retire} not found.")
+        return
+
+    if args.run:
+        res = R.apply_rules(conn, dry_run=not args.apply)
+        mode = "APPLY" if args.apply else "dry-run"
+        print(f"Rules run ({mode}): {res['total']} cube(s) matched\n")
+        for r in res["rules"]:
+            verb = "acted on" if args.apply else "would act on"
+            print(f"  #{r['rule_id']} {r['action']:<7} {verb} {r['matched']:>4}  \"{r['nl_text'][:60]}\"")
+        if not args.apply and res["total"]:
+            print("\nDry-run: nothing written. Run with --run --apply to execute.")
+        return
+
+    if not args.text:
+        print('usage: helicon rule "<natural language rule>" | --list | --approve N | --run [--apply]')
+        return
+
+    from helicon.qwen import get_client, resolve_model, set_cache_db
+    set_cache_db(conn)
+    client = get_client(config)
+    if client is None:
+        print("Rule compilation needs a Qwen key (BYOK — set QWEN_API_KEY).")
+        return
+    model = resolve_model("default", config)
+
+    pred = R.compile_rule(client, args.text, model=model)
+    if "error" in pred:
+        print(f"Could not compile: {pred['error']}")
+        return
+
+    print(f"Compiled: {pred['action']} WHERE {json.dumps(pred['match'])}\n")
+    prev = R.preview(conn, pred)
+    print(f"  would affect {prev['pending_matches']} pending cube(s)")
+    if prev["precision_vs_history"] is not None:
+        print(f"  precision vs your history: {prev['precision_vs_history']:.0%} "
+              f"({prev['history_agree']}/{prev['history_n']} past decisions agree)")
+    else:
+        print("  no reviewed history matches this predicate — precision unmeasured")
+    for s in prev["samples"]:
+        print(f"    ~ {s['title'][:64]}  (conf {s['confidence']:.2f})")
+    for d in prev["disagreeing_samples"]:
+        print(f"    ! you decided '{d['review_status']}' on: {d['title'][:56]}")
+    for c in prev["conflicts"]:
+        print(f"    ! conflicts with rule #{c['rule_id']} \"{c['nl_text'][:44]}\" on {c['overlap']} cube(s)")
+
+    rule_id = R.save_rule(conn, args.text, pred, model, prev)
+    print(f"\nSaved as rule #{rule_id} (proposed). Approve: helicon rule --approve {rule_id}")
+
+
 def cmd_doctor(_args):
     """Health check: PATH, config, Qwen key, DB, last scan. The front door —
     if any line here is broken, nothing else enters a daily loop."""
@@ -1074,6 +1153,14 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    rule_p = sub.add_parser("rule", help="Prompted rules: author a triage rule in natural language, preview, approve, run")
+    rule_p.add_argument("text", nargs="?", help='the rule, e.g. "kill code edits older than 30 days"')
+    rule_p.add_argument("--list", action="store_true", help="list all rules")
+    rule_p.add_argument("--approve", type=int, metavar="N", help="approve proposed rule N")
+    rule_p.add_argument("--retire", type=int, metavar="N", help="retire rule N")
+    rule_p.add_argument("--run", action="store_true", help="run approved rules (dry-run unless --apply)")
+    rule_p.add_argument("--apply", action="store_true", help="with --run: actually write decisions")
+
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("score", help="Show current Helicon Score")
@@ -1111,6 +1198,7 @@ def main():
         "snapshot": cmd_snapshot,
         "battery": cmd_battery,
         "report": cmd_report,
+        "rule": cmd_rule,
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,
         "score": cmd_score,

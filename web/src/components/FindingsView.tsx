@@ -6,9 +6,11 @@ import type { Finding, FindingsResponse } from '../api';
    a check, unified across audit / skills / battery. The WHY sentence leads;
    the title is context. Every row carries its fix. Real data only. */
 
-const KIND_ORDER = ['temporal', 'decay', 'factual', 'logical', 'skill', 'battery'];
+const KIND_ORDER = ['regret', 'agent-flag', 'temporal', 'decay', 'factual', 'logical', 'skill', 'battery'];
 
 const KIND_LABEL: Record<string, string> = {
+  regret: 'Regret',
+  'agent-flag': 'Flagged',
   temporal: 'Temporal',
   decay: 'Decay',
   factual: 'Factual',
@@ -18,6 +20,8 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 const KIND_HINT: Record<string, string> = {
+  regret: 'you retired it, retrieval keeps wanting it back',
+  'agent-flag': 'an agent flagged this at point of use',
   temporal: 'time-relative wording gone stale',
   decay: 'confidence below the keep threshold',
   factual: 'contradicts another memory',
