@@ -24,9 +24,107 @@ exists, selection/coverage gap) · **GAP** (no check yet; on the roadmap).
 | R9 | **Self-generated evidence loops** | A system learns rules from its own outputs and reinforces its own mistakes | An early triage rule's evidence was ~88% self-generated | Human-evidence guard: `auto-triage`, `agent-flag`, `rule:%` sessions excluded from all learning | **TESTED** |
 | R10 | **Instruction-file drift** | Agent rules files (CLAUDE.md, .cursorrules, AGENTS.md) drift from reality; agents obey stale law | 20 retired sections detected across live rules files on first reconcile | Rules files split into section-level cubes; snapshot + reconcile cover them | **TESTED** |
 
-Public evidence per class (research citations, lab statements, GitHub incidents)
-is being compiled and will extend this file — every class above already has
-documented instances beyond this repo's own stack.
+## Public evidence per class
+
+The classes are not this repo's invention — they are the documented failure
+record of the field. Selected evidence (papers, the labs' own docs, measured
+numbers):
+
+- **R1 cross-source contradiction** — GPT-4 flags a conflict between two
+  contradicting passages **6.3%** of the time; it otherwise picks one and
+  answers confidently ([WikiContradict, NeurIPS 2024](https://arxiv.org/pdf/2406.13805)).
+  LLMs override their own *correct* prior with wrong retrieved content **>60%**
+  of the time ([ClashEval, NeurIPS 2024](https://arxiv.org/abs/2404.10198)).
+  Which fact wins is set by frequency and popularity, not correctness — a wrong
+  fact duplicated across files beats a right fact stated once
+  ([ICLR 2024](https://arxiv.org/pdf/2506.06485)). Alibaba names it "context
+  conflict" ([AnalyticDB blog](https://www.alibabacloud.com/blog/is-your-ai-agent-getting-dumber-alibaba-cloud-analyticdb-unveils-ai-context-engineering_602803)).
+- **R2 doc-drift** — appears in **zero** academic papers as a class (white
+  space). Its ripple-effect cousin is measured: knowledge edits fail to
+  propagate to entailed facts (MEMIT logical generalization **0.188**,
+  [RippleEdits, TACL 2024](https://arxiv.org/pdf/2307.12976)).
+- **R3 staleness/expiry** — best frontier model detects an invalidated memory
+  **55.2%** of the time ([STALE, 2026](https://arxiv.org/pdf/2605.06527));
+  **64%** of memory-agent recommendation errors trace to outdated memory never
+  forgotten, penalty growing weekly→quarterly ([Memora, 2026](https://arxiv.org/html/2604.20006v1));
+  49% effective accuracy after 30 days in independent production testing of a
+  popular OSS store ([RankSquire, 2026](https://ranksquire.com/2026/05/06/long-term-memory-for-ai-agents/)).
+  OpenAI's Agents SDK: *"Memory can become stale... treat memories as guidance
+  only."* Anthropic's memory tool: expire by access time. Model Studio:
+  memories have "no expiration date"; users should "periodically review and
+  clean."
+- **R4 supersession** — accuracy on superseded facts collapses **68% → 28%**
+  as history grows 2→48 sessions; 24x more memory recovers zero points
+  ([Supersede, 2026](https://arxiv.org/html/2606.27472)). LLM code completion
+  uses deprecated APIs at **25-38%** ([ICSE 2025](https://arxiv.org/abs/2406.09834)).
+- **R5 duplicate/echo** — "context confusion" in Alibaba's taxonomy; evidence
+  frequency drives which fact wins (see R1), so duplicates amplify themselves.
+- **R6 title-only grounding** — retrieval precision of **0.05–0.08** can look
+  competitive on answer-level metrics; existing benchmarks can't see junk
+  injection at all ([PrecisionMemBench, 2026](https://arxiv.org/html/2605.11325)).
+- **R7 wrong eviction** — the inverse failure; cache literature measures it as
+  miss-after-evict and learns from it ([LeCaR, HotStorage'18](https://github.com/sylab/LeCaR)),
+  which is the mechanism this repo's regret ledger implements.
+- **R8 retrieval regression** — one irrelevant sentence drops solve rates by
+  double digits ([GSM-IC, ICML 2023](https://openreview.net/pdf?id=JSZmoN03Op));
+  answer position alone moves multi-doc QA accuracy **30%+**
+  ([Lost in the Middle, TACL 2024](https://arxiv.org/abs/2307.03172)).
+- **R9 self-evidence loops** — one poisoned memory entry reaches **≥80%**
+  attack success at <0.1% poison rate ([AgentPoison, NeurIPS 2024](https://arxiv.org/abs/2407.12784));
+  the benign version is a triage engine grading its own decisions.
+- **R10 instruction-file drift** — commercial assistants drop **30-60%** on
+  long-term memory with knowledge updates ([LongMemEval, ICLR 2025](https://arxiv.org/abs/2410.10813));
+  Qwen3.7-Max is marketed as *"resilient to context rot and instruction
+  drift"* with no published way to verify it
+  ([Qwen3.7 launch](https://www.alibabacloud.com/blog/qwen3-7-the-agent-frontier_603154)).
+
+## In the wild — verified public incidents
+
+Real, linkable issues (each fetched and verified 2026-07-04); the classes ship
+in production today:
+
+- **R1** — [mem0#4536](https://github.com/mem0ai/mem0/issues/4536): "I love
+  Chinese food" then "I hate Chinese food" → conflict resolver deletes BOTH;
+  the agent now knows nothing. [claude-code#23769](https://github.com/anthropics/claude-code/issues/23769):
+  partial memory summary contradicts project docs, corrections compound the
+  corruption across sessions.
+- **R2** — [claude-code#57200](https://github.com/anthropics/claude-code/issues/57200)
+  (open): an infra decision never written back to the architecture doc; the
+  next session's agent believed the doc and burned "days" re-deriving a
+  settled decision. [python-genai#1606](https://github.com/googleapis/python-genai/issues/1606)
+  (open, p2): every AI tool — including Google's own — keeps generating a
+  deleted API; broken output scares devs off, so fresh correct examples never
+  appear, so the training data stays wrong.
+- **R3** — [mem0#4573](https://github.com/mem0ai/mem0/issues/4573): production
+  audit of 10,134 memories found **97.8% junk**; a small model hallucinated
+  "User prefers Vim" once and the pipeline re-extracted it from its own recall
+  **808 times** — one lie laundered into the store's most confident fact.
+  [letta#3146](https://github.com/letta-ai/letta/issues/3146): dashboard shows
+  today, the prompt the model sees says yesterday — auto-closed with the label
+  "stale". [claude-code#34776](https://github.com/anthropics/claude-code/issues/34776):
+  a user describes 30 days of accumulating, contradicting, self-referential
+  memories with no audit mechanism — closed "not planned".
+  [Cursor forum#149416](https://forum.cursor.com/t/cursorrules-getting-ignored/149416):
+  rules silently evicted mid-session; staff: "a known one".
+- **R4** — [mem0#4896](https://github.com/mem0ai/mem0/issues/4896): "my name is
+  LGY" → "my name is LGS" stored as two co-equal facts forever — **closed as
+  not planned**. [graphiti#1489](https://github.com/getzep/graphiti/issues/1489)
+  (open): deleted episodes leave stale references and orphaned entities; the
+  dead entity lives on in the graph.
+
+Two of those were closed by the vendors as *not planned* and one as *stale*.
+The rot classes are known, reported, and declined — which is why the test
+layer has to live outside the stores.
+
+## Where this sits vs existing benchmarks
+
+MemoryAgentBench, Memora, STALE, PrecisionMemBench, AgentAssay and kin score a
+memory *capability* once, on a curated corpus, in a lab. AgentAssay regression-
+tests agent *workflows*, not memory content. Nothing in the literature runs
+continuously against a live production memory store, regression-tests memory
+content between versions, or covers doc-drift as a class. Capability benchmarks
+exist; **CI for a production memory store does not.** That is the claim this
+repo makes, and the catalogue above is its test plan.
 
 ## The loop
 
