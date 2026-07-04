@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, type BatteryReport, type BatteryTask, type SnapshotReport } from '../api';
+import { api, type BatteryHistory, type BatteryHistoryPoint, type BatteryReport, type BatteryTask, type SnapshotReport } from '../api';
 
 /* Mountain-of-tesserae renderer, ported from web/helicon-tesserae.html.
    Memory renders as a summit of tonal stone tiles; terracotta appears ONLY on
@@ -110,6 +110,99 @@ const DOT: Record<string, string> = {
   DEGRADED: 'var(--helicon-stale)',
 };
 
+/* Degradation-over-time: % of benchmark tasks serving healthy context, one
+   real point per battery run (dashboard load or `helicon report`). No
+   interpolation, no backfill — the curve is as long as the tool has run.
+   This is the on-screen answer to "Is your AI agent getting dumber?" */
+function DegradationCurve({ history }: { history: BatteryHistory }) {
+  const [hover, setHover] = useState<BatteryHistoryPoint | null>(null);
+  const pts = history.points.filter((p) => p.healthy_share !== null);
+  if (!pts.length) return null;
+
+  const CW = 360;
+  const CH = 110;
+  const PAD = { l: 34, r: 12, t: 10, b: 18 };
+  const plotW = CW - PAD.l - PAD.r;
+  const plotH = CH - PAD.t - PAD.b;
+  const ts = (p: BatteryHistoryPoint) => new Date(p.recorded_at + 'Z').getTime();
+  const t0 = ts(pts[0]);
+  const span = Math.max(1, ts(pts[pts.length - 1]) - t0);
+  const px = (p: BatteryHistoryPoint) =>
+    pts.length === 1 ? PAD.l + plotW / 2 : PAD.l + ((ts(p) - t0) / span) * plotW;
+  const py = (share: number) => PAD.t + (1 - share) * plotH;
+  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${px(p).toFixed(1)} ${py(p.healthy_share!).toFixed(1)}`).join(' ');
+  const fmt = (iso: string) => {
+    const d = new Date(iso + 'Z');
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  const latest = pts[pts.length - 1];
+
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div className="flex items-baseline justify-between" style={{ marginBottom: 4 }}>
+        <span style={{ fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--helicon-muted)' }}>
+          Is your agent getting dumber?
+        </span>
+        <b style={{ fontFamily: 'var(--helicon-serif)', fontSize: 18, fontWeight: 400, fontVariationSettings: "'opsz' 144" }}>
+          {Math.round((latest.healthy_share ?? 0) * 100)}
+          <i style={{ fontStyle: 'normal', color: 'var(--helicon-accent)', fontSize: 13 }}>%</i>
+          <span style={{ fontSize: 10, color: 'var(--helicon-muted)', letterSpacing: '0.08em', marginLeft: 6 }}>healthy now</span>
+        </b>
+      </div>
+      <div style={{ position: 'relative', background: 'var(--helicon-panel)', border: '1px solid var(--helicon-line)', borderRadius: 10, padding: '6px 4px 2px' }}>
+        <svg style={{ display: 'block', width: '100%' }} viewBox={`0 0 ${CW} ${CH}`}>
+          {[0, 0.5, 1].map((g) => (
+            <g key={g}>
+              <line x1={PAD.l} x2={CW - PAD.r} y1={py(g)} y2={py(g)} stroke="var(--helicon-line)" strokeWidth={0.6} />
+              <text x={PAD.l - 5} y={py(g) + 3} textAnchor="end" fontSize={7.5} fill="var(--helicon-muted)">
+                {Math.round(g * 100)}%
+              </text>
+            </g>
+          ))}
+          <path d={line} fill="none" stroke="var(--helicon-ink)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+          {pts.map((p, i) => (
+            <g key={p.recorded_at + i}>
+              <circle cx={px(p)} cy={py(p.healthy_share!)} r={i === pts.length - 1 ? 3.4 : 2.6}
+                fill={i === pts.length - 1 ? 'var(--helicon-accent)' : 'var(--helicon-ink)'}
+                stroke="var(--helicon-panel)" strokeWidth={1} />
+              <circle cx={px(p)} cy={py(p.healthy_share!)} r={9} fill="transparent" style={{ cursor: 'pointer' }}
+                onMouseEnter={() => setHover(p)} onMouseLeave={() => setHover(null)} />
+            </g>
+          ))}
+          <text x={PAD.l} y={CH - 5} fontSize={7.5} fill="var(--helicon-muted)">{fmt(pts[0].recorded_at)}</text>
+          {pts.length > 1 && (
+            <text x={CW - PAD.r} y={CH - 5} textAnchor="end" fontSize={7.5} fill="var(--helicon-muted)">
+              {fmt(latest.recorded_at)}
+            </text>
+          )}
+        </svg>
+        {hover && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${(px(hover) / CW) * 100}%`,
+              top: `${(py(hover.healthy_share!) / CH) * 100}%`,
+              transform: 'translate(-50%, calc(-100% - 8px))',
+              background: 'var(--helicon-ink)', color: 'var(--helicon-bg)',
+              borderRadius: 8, padding: '6px 9px', fontSize: 11, lineHeight: 1.5,
+              whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10,
+              boxShadow: '0 6px 18px rgba(43,40,37,.28)',
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>{fmt(hover.recorded_at)}</div>
+            <div style={{ opacity: 0.8 }}>
+              {hover.healthy}/{hover.total} healthy · {hover.degraded} degraded · {hover.broken} broken · ~{hover.mean_tokens} tok/query
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 6 }}>
+        One real point per battery run — no interpolation, no backfill. The curve is as young as the habit.
+      </div>
+    </div>
+  );
+}
+
 function failSummary(t: BatteryTask): string {
   const fails = t.results.filter((r) => r.status === 'FAIL');
   if (!fails.length) return t.verdict.toLowerCase();
@@ -118,6 +211,7 @@ function failSummary(t: BatteryTask): string {
 
 export default function HeliconMountain() {
   const [battery, setBattery] = useState<BatteryReport | null>(null);
+  const [history, setHistory] = useState<BatteryHistory | null>(null);
   const [snapshots, setSnapshots] = useState<SnapshotReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,6 +225,8 @@ export default function HeliconMountain() {
       .then((b) => {
         if (!alive) return;
         setBattery(b);
+        // fetch AFTER the battery run so the point it just recorded is included
+        api.getBatteryHistory().then((h) => alive && setHistory(h)).catch(() => {});
       })
       .catch((e) => alive && setError(String(e)))
       .finally(() => alive && setLoading(false));
@@ -280,6 +376,8 @@ export default function HeliconMountain() {
               <span style={{ color: 'var(--helicon-muted)' }}>· {failSummary(t)}</span>
             </div>
           ))}
+
+          {history && <DegradationCurve history={history} />}
 
           {snapshots && snapshots.total > 0 && (
             <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 18 }}>

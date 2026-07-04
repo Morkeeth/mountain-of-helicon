@@ -106,6 +106,17 @@ CREATE TABLE IF NOT EXISTS scan_log (
     errors TEXT DEFAULT '[]'
 );
 
+CREATE TABLE IF NOT EXISTS battery_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recorded_at TEXT NOT NULL,
+    total INTEGER NOT NULL,
+    healthy INTEGER NOT NULL,
+    degraded INTEGER NOT NULL,
+    broken INTEGER NOT NULL,
+    mean_tokens INTEGER DEFAULT 0,
+    source TEXT DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS entities (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -302,6 +313,22 @@ def log_scan_complete(conn: sqlite3.Connection, scan_id: int, added: int = 0,
            cubes_merged = ?, errors = ? WHERE id = ?""",
         (datetime.utcnow().isoformat(), added, skipped, merged,
          json.dumps(errors or []), scan_id),
+    )
+    conn.commit()
+
+
+def record_battery_point(conn: sqlite3.Connection, total: int, healthy: int,
+                         degraded: int, broken: int, mean_tokens: int = 0,
+                         source: str = "") -> None:
+    """One row per full battery run — the time axis of the degradation curve.
+    Every dashboard load and report run adds a real point; nothing is
+    interpolated or backfilled."""
+    conn.execute(
+        """INSERT INTO battery_history
+           (recorded_at, total, healthy, degraded, broken, mean_tokens, source)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (datetime.utcnow().isoformat(), total, healthy, degraded, broken,
+         mean_tokens, source),
     )
     conn.commit()
 

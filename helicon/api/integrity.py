@@ -65,8 +65,15 @@ async def integrity_battery(llm: bool = False):
             "verdict": res["verdict"],
             "results": res["results"],
             "retrieved": res["retrieved"],
+            "context_tokens": res["context_tokens"],
         })
     total = len(tasks)
+    if total:
+        from helicon.db import record_battery_point
+        record_battery_point(
+            conn, total, counts["HEALTHY"], counts["DEGRADED"], counts["BROKEN"],
+            mean_tokens=sum(t["context_tokens"] for t in tasks) // total,
+            source="dashboard")
     return {
         "top_k": K,
         "total": total,
@@ -77,6 +84,22 @@ async def integrity_battery(llm: bool = False):
         },
         "tasks": tasks,
     }
+
+
+@router.get("/integrity/history")
+async def integrity_history():
+    """The degradation-over-time curve: every recorded battery run, oldest
+    first. Real points only — one per dashboard load or report run; no
+    interpolation, no backfill."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT recorded_at, total, healthy, degraded, broken, mean_tokens, source "
+        "FROM battery_history ORDER BY recorded_at"
+    ).fetchall()
+    points = [dict(r) for r in rows]
+    for p in points:
+        p["healthy_share"] = round(p["healthy"] / p["total"], 3) if p["total"] else None
+    return {"points": points, "total": len(points)}
 
 
 @router.get("/integrity/snapshots")

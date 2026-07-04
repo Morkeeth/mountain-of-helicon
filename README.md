@@ -114,7 +114,7 @@ Everything destructive is dry-run by default and takes `--apply`.
 
 ## Architecture
 
-- **Backend:** Python 3.12, FastAPI (71 endpoints), SQLite + FTS5 (18 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
+- **Backend:** Python 3.12, FastAPI (72 endpoints), SQLite + FTS5 (19 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
 - **Frontend:** React 19, TypeScript, Vite, findings-first dashboard -- HEALTH (the mountain: one tile per battery task, a terracotta crack per broken one), FINDINGS (every failed check with why, evidence, action), LOG (receipts), plus Graph and Projects
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. Proof-of-run on Alibaba Cloud via Cloud Shell (`scripts/cloudshell-run.sh`)

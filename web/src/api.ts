@@ -226,6 +226,7 @@ export const api = {
   getProjectRecommendations: () => get<{ recommendations: ProjectRecommendation[]; weekly: WeeklySummary }>('/projects/recommend'),
   getContextSwitches: (weeks = 4) => get<ContextSwitchData>(`/projects/context-switches?weeks=${weeks}`),
   getBattery: () => get<BatteryReport>('/integrity/battery'),
+  getBatteryHistory: () => get<BatteryHistory>('/integrity/history'),
   getSnapshots: () => get<SnapshotReport>('/integrity/snapshots'),
   getSkillsAudit: () => get<SkillsAudit>('/integrity/skills'),
   runEval: () => post<EvalResult>('/eval/run'),
@@ -261,6 +262,22 @@ export interface BatteryReport {
   total: number;
   summary: { healthy: number; degraded: number; broken: number };
   tasks: BatteryTask[];
+}
+
+export interface BatteryHistoryPoint {
+  recorded_at: string;
+  total: number;
+  healthy: number;
+  degraded: number;
+  broken: number;
+  mean_tokens: number;
+  source: string;
+  healthy_share: number | null;
+}
+
+export interface BatteryHistory {
+  points: BatteryHistoryPoint[];
+  total: number;
 }
 
 export interface SnapshotResult {

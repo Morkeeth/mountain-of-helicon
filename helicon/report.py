@@ -136,6 +136,12 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "note": None if snaps else "no baselines captured — run: helicon snapshot add \"<task>\"",
     }
 
+    from helicon.db import record_battery_point
+    if runs:
+        record_battery_point(conn, len(runs), verdicts["HEALTHY"],
+                             verdicts["DEGRADED"], verdicts["BROKEN"],
+                             mean_tokens=mean_tokens, source="report")
+
     sub_verdicts = [storage["verdict"], timely_forgetting["verdict"],
                     limited_context["verdict"], cross_session["verdict"]]
     overall = ("BROKEN" if "BROKEN" in sub_verdicts
