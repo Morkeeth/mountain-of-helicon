@@ -602,6 +602,23 @@ def cmd_battery(args):
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
 
 
+def cmd_rot(args):
+    """The rot exam: ROT.md's 10 documented failure classes checked live
+    against the real store. Deterministic, zero LLM calls, free to run daily."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.rot import format_rot, run_rot_exam
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    res = run_rot_exam(conn)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+    print(format_rot(res))
+
+
 def cmd_rule(args):
     """Prompted rules: state a triage rule in natural language, see exactly
     what it would do (coverage, samples, precision vs your own history,
@@ -1153,6 +1170,9 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
+    rot_p.add_argument("--json", action="store_true", help="machine-readable result")
+
     rule_p = sub.add_parser("rule", help="Prompted rules: author a triage rule in natural language, preview, approve, run")
     rule_p.add_argument("text", nargs="?", help='the rule, e.g. "kill code edits older than 30 days"')
     rule_p.add_argument("--list", action="store_true", help="list all rules")
@@ -1198,6 +1218,7 @@ def main():
         "snapshot": cmd_snapshot,
         "battery": cmd_battery,
         "report": cmd_report,
+        "rot": cmd_rot,
         "rule": cmd_rule,
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,

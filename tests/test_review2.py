@@ -166,3 +166,18 @@ def test_battery_expiry_flags_cube_past_half_life(conn):
     # fixture's killed ECS cube also gets retrieved here and trips the
     # critical Freshness test, so the overall verdict is Freshness's call.)
     assert expiry["critical"] is False
+
+
+# ------------------------------------------------------------- the rot exam
+def test_rot_exam_runs_all_ten_classes(conn):
+    from helicon.rot import run_rot_exam
+    res = run_rot_exam(conn, repo_root="/Users/morkeeth/CODE/helicon")
+    assert res["classes"] == 10
+    assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 11)}
+    assert all(c["verdict"] in ("CLEAN", "ROT FOUND", "UNMEASURED") for c in res["checks"])
+    # fixture has a killed cube with a regret event? no — but R5 dupes must be CLEAN
+    r5 = next(c for c in res["checks"] if c["id"] == "R5")
+    assert r5["verdict"] == "CLEAN"
+    # R9 guard: fixture reviews are human sessions only until we add automated ones
+    r9 = next(c for c in res["checks"] if c["id"] == "R9")
+    assert "leaked" in r9["receipt"]

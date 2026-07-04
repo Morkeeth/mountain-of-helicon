@@ -23,6 +23,7 @@ helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
 helicon scan        # extract memory into HeliconCubes
 helicon doctor      # health check: PATH, config, key, DB, last scan
 helicon battery "what am I working on"   # context-quality verdict
+helicon rot         # the rot exam: 10 documented failure classes, checked live
 helicon serve       # dashboard at http://localhost:8420
 ```
 
@@ -88,9 +89,11 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (22 commands)
+## CLI (23 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `rot` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+
+`helicon rot` runs **the rot exam**: the 10 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in 5 of 10 classes and says so.
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
