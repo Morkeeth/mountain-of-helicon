@@ -158,6 +158,12 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     else:
         add("Thinness", False, "no cubes to measure")
 
+    # Tokens-per-query (BEAM-style): what this retrieval costs in context budget.
+    # Accuracy without a token price is a half-finished score.
+    context_tokens = sum(
+        len(f"{c.get('title','')} {c.get('content','')}") for c in cubes.values()
+    ) // 4
+
     # Qwen-judged tests (Contradiction/Grounding), folded in if a client is given.
     llm_results = run_llm_tests(client, task, hits, model=model)
     results.extend(llm_results)
@@ -182,6 +188,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
         "llm_ran": bool(llm_results),
         "llm_tests": [t["name"] for t in CONTEXT_TESTS if t["mode"] == "llm"],
         "retrieved": [h["title"] for h in hits],
+        "context_tokens": context_tokens,
         "last_scan": last_scan,
     }
 

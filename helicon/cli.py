@@ -583,6 +583,7 @@ def cmd_battery(args):
         judged = " (qwen)" if r.get("judged_by") == "qwen" else ""
         print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}{judged}")
 
+    print(f"\n  context cost: ~{res['context_tokens']} tokens for top-{res['top_k']}")
     scan = res["last_scan"]
     if scan["hours_ago"] is None:
         print("\n  ! no completed scan logged — this verdict may reflect a stale "
@@ -674,6 +675,33 @@ def cmd_mcp(_args):
     silent server."""
     from helicon.mcp_server import main as mcp_main
     mcp_main()
+
+
+def cmd_report(args):
+    """MemoryAgent compliance report: existing checks grouped under the track's
+    four sub-goals. Numbers live from the DB, thresholds printed with them."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.report import format_report, memoryagent_report
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    client = None
+    model = "qwen3.6-plus"
+    if getattr(args, "llm", False):
+        from helicon.qwen import get_client, resolve_model, set_cache_db
+        set_cache_db(conn)
+        client = get_client(config)
+        model = resolve_model("default", config)
+        if client is None:
+            print("No Qwen key; running deterministic-only.\n")
+
+    rep = memoryagent_report(conn, client=client, model=model)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(rep, indent=2, default=str))
+        return
+    print(format_report(rep))
 
 
 def cmd_score(args):
@@ -1042,6 +1070,10 @@ def main():
     battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live Qwen judging")
     battery_p.add_argument("--json", action="store_true", help="machine-readable result (for scripts/CI)")
 
+    report_p = sub.add_parser("report", help="MemoryAgent compliance report: checks grouped under the track's four sub-goals")
+    report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
+    report_p.add_argument("--json", action="store_true", help="machine-readable result")
+
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("score", help="Show current Helicon Score")
@@ -1078,6 +1110,7 @@ def main():
         "review": cmd_review,
         "snapshot": cmd_snapshot,
         "battery": cmd_battery,
+        "report": cmd_report,
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,
         "score": cmd_score,
