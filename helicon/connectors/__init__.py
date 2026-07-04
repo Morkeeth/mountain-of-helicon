@@ -1,4 +1,4 @@
-from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, agent_rules, letta_memfs, graphiti
+from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, agent_rules, letta_memfs, graphiti, mem0
 from helicon.models import ConnectorResult
 
 CONNECTORS = {
@@ -9,9 +9,11 @@ CONNECTORS = {
     "cursor": cursor.scan,
     "agent-rules": agent_rules.scan,
     # Store adapters — opt-in: they return [] unless their key config
-    # ("memfs_dir" / "uri") is present in config["connectors"][name].
+    # ("memfs_dir" / "uri" / "api_key" / "local") is present in
+    # config["connectors"][name].
     "letta-memfs": letta_memfs.scan,
     "graphiti": graphiti.scan,
+    "mem0": mem0.scan,
 }
 
 
