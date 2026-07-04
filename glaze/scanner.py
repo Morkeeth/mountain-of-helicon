@@ -4,7 +4,7 @@ from datetime import datetime
 
 from glaze.models import ConnectorResult, GlazeCube
 from glaze.connectors import scan_all
-from glaze.db import init_db, insert_cube
+from glaze.db import init_db, insert_cube, log_scan_complete, log_scan_start
 from glaze.qwen import get_client, summarize_cube, check_novelty, resolve_model
 
 
@@ -88,6 +88,10 @@ def enrich_with_qwen(cube: GlazeCube, qwen_client, existing_titles: list[str], c
 def run_scan(config: dict, use_qwen: bool = False) -> dict:
     db_path = config.get("db_path", "data/glaze.db")
     conn = init_db(db_path)
+    # A scan_log row per scan: an incomplete row (no completed_at) marks a
+    # crashed scan, and battery verdicts read the last completed row to say
+    # whether memory is stale or the scan is.
+    scan_id = log_scan_start(conn, list(config.get("connectors", {}).keys()))
 
     qwen_client = None
     if use_qwen:
@@ -116,8 +120,10 @@ def run_scan(config: dict, use_qwen: bool = False) -> dict:
             skipped += 1
 
     conn.commit()
+    log_scan_complete(conn, scan_id, added=added, skipped=skipped)
 
     stats = {
+        "scan_id": scan_id,
         "total_raw": len(results),
         "added": added,
         "skipped": skipped,

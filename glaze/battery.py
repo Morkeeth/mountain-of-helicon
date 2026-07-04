@@ -104,10 +104,14 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plu
 
 
 def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
-                model: str = "qwen3.6-plus") -> dict:
+                model: str = "qwen3.6-plus", stale_after_hours: float | None = None) -> dict:
     """Run the battery on what `task` retrieves. Deterministic tests always run;
     if a Qwen `client` is given, Contradiction/Grounding are judged live by Qwen
-    and folded into the verdict (non-critical: they degrade, never break)."""
+    and folded into the verdict (non-critical: they degrade, never break).
+
+    Every verdict carries `last_scan` (age of the last completed ingest): a
+    DEGRADED verdict is uninterpretable without knowing whether memory is stale
+    or the scan is. Annotation only — it never flips the verdict."""
     hits = _retrieve(conn, task, k)
     ids = [h["id"] for h in hits]
     cubes = _fetch(conn, ids)
@@ -162,12 +166,23 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     crit_fail = any(r["critical"] for r in fails)
     verdict = "BROKEN" if crit_fail else ("DEGRADED" if fails else "HEALTHY")
 
+    from glaze.db import last_scan_info
+    scan = last_scan_info(conn)
+    last_scan = {
+        "completed_at": scan["completed_at"] if scan else None,
+        "hours_ago": scan["hours_ago"] if scan else None,
+        "stale_after_hours": stale_after_hours,
+        "stale": scan is None or (stale_after_hours is not None
+                                  and scan["hours_ago"] > stale_after_hours),
+    }
+
     return {
         "task": task, "top_k": k, "verdict": verdict,
         "results": results,
         "llm_ran": bool(llm_results),
         "llm_tests": [t["name"] for t in CONTEXT_TESTS if t["mode"] == "llm"],
         "retrieved": [h["title"] for h in hits],
+        "last_scan": last_scan,
     }
 
 

@@ -8,6 +8,8 @@ Usage:
   glaze fix-skills    Write descriptions into SKILL.md files missing one (dry-run by default)
   glaze serve         Start the web UI
   glaze triage        Run auto-triage (autonomous decisions)
+  glaze doctor        Health check: PATH, config, Qwen key, DB, last scan
+  glaze mcp           Run the MCP server on stdio (for agent clients)
   glaze score         Show current Helicon Score
   glaze stack         Audit your AI stack setup
   glaze optimize      LLM-powered optimization suggestions
@@ -562,7 +564,12 @@ def cmd_battery(args):
         set_cache_db(conn)
         client = get_client(config)
     model = resolve_model("default", config) if client else "qwen3.6-plus"
-    res = run_battery(conn, args.task, k=args.k, client=client, model=model)
+    # Freshness half-life = the fastest-decaying cube type's stability. Scans
+    # older than that make any verdict ambiguous (stale memory vs stale scan).
+    stability = config.get("forgetting", {}).get("stability", {})
+    half_life_days = min(stability.values()) if stability else 7.0
+    res = run_battery(conn, args.task, k=args.k, client=client, model=model,
+                      stale_after_hours=half_life_days * 24)
 
     if getattr(args, "json", False):
         import json as _json
@@ -575,11 +582,98 @@ def cmd_battery(args):
         crit = " *" if r.get("critical") and r["status"] == "FAIL" else ""
         judged = " (qwen)" if r.get("judged_by") == "qwen" else ""
         print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}{judged}")
+
+    scan = res["last_scan"]
+    if scan["hours_ago"] is None:
+        print("\n  ! no completed scan logged — this verdict may reflect a stale "
+              "scan, not stale memory. Run: glaze scan")
+    else:
+        age = scan["hours_ago"]
+        age_str = f"{age:.1f}h ago" if age < 48 else f"{age / 24:.1f}d ago"
+        print(f"\n  last scan: {age_str}")
+        if scan["stale"]:
+            print(f"  ! scan age exceeds the freshness half-life ({half_life_days:.0f}d) — "
+                  "this verdict may reflect a stale scan, not stale memory. Run: glaze scan")
     if not res.get("llm_ran") and res["llm_tests"]:
         print(f"\n  llm-judged (needs a Qwen key): {', '.join(res['llm_tests'])}")
     if getattr(args, "prompt", False):
         print("\n--- LLM battery prompt ---")
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
+
+
+def cmd_doctor(_args):
+    """Health check: PATH, config, Qwen key, DB, last scan. The front door —
+    if any line here is broken, nothing else enters a daily loop."""
+    import shutil
+    from glaze.config import CONFIG_FILE, load_config
+
+    checks = []  # (level, message) where level is OK / WARN / FAIL
+
+    path_hit = shutil.which("glaze")
+    if path_hit:
+        checks.append(("OK", f"glaze on PATH ({path_hit})"))
+    else:
+        checks.append(("FAIL", "glaze not on PATH — run: pip install -e ."))
+
+    config = load_config()
+    if not config:
+        checks.append(("FAIL", f"no config.json at {CONFIG_FILE} — run: glaze init"))
+    else:
+        n = len(config.get("connectors", {}))
+        level = "OK" if n else "WARN"
+        checks.append((level, f"config.json loaded ({n} connector(s))"))
+
+    if config.get("qwen_api_key"):
+        src = "QWEN_API_KEY env" if os.environ.get("QWEN_API_KEY") else "config.json"
+        checks.append(("OK", f"Qwen key configured ({src})"))
+    else:
+        checks.append(("WARN", "no Qwen key — deterministic tests still run; "
+                               "Contradiction/Grounding won't (BYOK: set QWEN_API_KEY)"))
+
+    db_path = config.get("db_path", "data/glaze.db")
+    if not os.path.exists(db_path):
+        checks.append(("FAIL", f"no DB at {db_path} — run: glaze scan"))
+    else:
+        from glaze.db import init_db, last_scan_info
+        conn = init_db(db_path)
+        total = conn.execute("SELECT COUNT(*) FROM glaze_cubes").fetchone()[0]
+        retired = conn.execute(
+            "SELECT COUNT(*) FROM glaze_cubes WHERE review_status IN ('killed', 'superseded')"
+        ).fetchone()[0]
+        checks.append(("OK", f"DB {db_path} — {total} cubes ({total - retired} live, {retired} retired)"))
+
+        scan = last_scan_info(conn)
+        stability = config.get("forgetting", {}).get("stability", {})
+        half_life_days = min(stability.values()) if stability else 7.0
+        if scan is None:
+            checks.append(("WARN", "no completed scan logged — run: glaze scan"))
+        elif scan["hours_ago"] > half_life_days * 24:
+            checks.append(("WARN", f"last scan {scan['hours_ago'] / 24:.1f}d ago, past the "
+                                   f"freshness half-life ({half_life_days:.0f}d) — run: glaze scan"))
+        else:
+            age = scan["hours_ago"]
+            age_str = f"{age:.1f}h" if age < 48 else f"{age / 24:.1f}d"
+            checks.append(("OK", f"last scan {age_str} ago "
+                                 f"({len(scan['connectors'])} connectors, +{scan['cubes_added']} cubes)"))
+        conn.close()
+
+    print("Mount Helicon doctor\n")
+    for level, msg in checks:
+        print(f"  [{level:<4}] {msg}")
+    fails = sum(1 for level, _ in checks if level == "FAIL")
+    warns = sum(1 for level, _ in checks if level == "WARN")
+    if fails:
+        print(f"\n{fails} check(s) failed.")
+        sys.exit(1)
+    print(f"\nAll checks passed." if not warns else f"\n{warns} warning(s).")
+
+
+def cmd_mcp(_args):
+    """Run the MCP server on stdio (for agent clients). Kept behind a
+    subcommand so `python -m glaze` / bare `glaze` stay a CLI, never a
+    silent server."""
+    from glaze.mcp_server import main as mcp_main
+    mcp_main()
 
 
 def cmd_score(args):
@@ -948,6 +1042,8 @@ def main():
     battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live Qwen judging")
     battery_p.add_argument("--json", action="store_true", help="machine-readable result (for scripts/CI)")
 
+    sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
+    sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
@@ -982,6 +1078,8 @@ def main():
         "review": cmd_review,
         "snapshot": cmd_snapshot,
         "battery": cmd_battery,
+        "doctor": cmd_doctor,
+        "mcp": cmd_mcp,
         "score": cmd_score,
         "stack": cmd_stack,
         "optimize": cmd_optimize,

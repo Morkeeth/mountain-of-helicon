@@ -39,7 +39,9 @@ glaze triage --dry-run     # preview what would be triaged
 glaze score                # show Helicon Score + decay by type
 glaze stack                # audit your AI tool setup
 glaze optimize             # LLM-powered optimization suggestions
-glaze battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding)
+glaze battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding); every verdict prints last-scan age
+glaze doctor               # health check: PATH, config, Qwen key, DB, last scan
+glaze mcp                  # run the MCP server on stdio (bare `glaze` stays a CLI)
 ```
 
 ## Dev Commands
@@ -68,7 +70,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - ~1,900 cubes from 5 connectors (Claude Code, Git, Obsidian, Cursor AI tracking, ChatGPT)
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 65 entities, 546 edges in knowledge graph
-- 14 routers, 11 MCP tools, 13 CLI commands
+- 14 routers, 11 MCP tools, 20 CLI commands
 - 6 task playbooks
 - Q-value utility learning (MemRL-inspired) wired into retrieval ranking
 - Entity-boosted retrieval (Mem0 pattern, 65 entities wired)

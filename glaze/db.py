@@ -1,6 +1,7 @@
 import json
 import os
 import sqlite3
+from datetime import datetime
 
 from glaze.models import GlazeCube, Review, AuditResult, Pattern
 
@@ -260,6 +261,46 @@ def insert_review(conn: sqlite3.Connection, review: Review) -> int:
         (review.decision, review.reviewed_at, review.cube_id),
     )
     return cursor.lastrowid
+
+
+def log_scan_start(conn: sqlite3.Connection, connectors: list[str]) -> int:
+    cursor = conn.execute(
+        "INSERT INTO scan_log (started_at, connectors_used) VALUES (?, ?)",
+        (datetime.utcnow().isoformat(), json.dumps(connectors)),
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def log_scan_complete(conn: sqlite3.Connection, scan_id: int, added: int = 0,
+                      skipped: int = 0, merged: int = 0, errors: list | None = None):
+    conn.execute(
+        """UPDATE scan_log SET completed_at = ?, cubes_added = ?, cubes_skipped = ?,
+           cubes_merged = ?, errors = ? WHERE id = ?""",
+        (datetime.utcnow().isoformat(), added, skipped, merged,
+         json.dumps(errors or []), scan_id),
+    )
+    conn.commit()
+
+
+def last_scan_info(conn: sqlite3.Connection) -> dict | None:
+    """Most recent completed scan, with its age in hours. None if never logged.
+    A started-but-never-completed scan doesn't count — only finished ingests
+    say anything about memory freshness."""
+    row = conn.execute(
+        """SELECT completed_at, connectors_used, cubes_added FROM scan_log
+           WHERE completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1"""
+    ).fetchone()
+    if not row:
+        return None
+    completed = datetime.fromisoformat(row["completed_at"])
+    hours = (datetime.utcnow() - completed).total_seconds() / 3600
+    return {
+        "completed_at": row["completed_at"],
+        "hours_ago": round(hours, 1),
+        "connectors": json.loads(row["connectors_used"] or "[]"),
+        "cubes_added": row["cubes_added"],
+    }
 
 
 def insert_audit(conn: sqlite3.Connection, result: AuditResult) -> int:
