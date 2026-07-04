@@ -20,7 +20,7 @@
     ════════════════════════════╪════════════════════════════════════
                                 │
                     ┌───────────▼───────────┐
-                    │      GlazeCubes       │
+                    │      HeliconCubes       │
                     │  1,268 versioned      │
                     │  memory units         │
                     │  (MemOS-inspired)     │
@@ -83,7 +83,7 @@
                                 │
     ┌───────────────────────────▼───────────────────────────────────┐
     │                      SQLite (13 tables)                      │
-    │  glaze_cubes | reviews | patterns | audit_log | retrieval_log│
+    │  helicon_cubes | reviews | patterns | audit_log | retrieval_log│
     │  scan_log | entities | edges | consolidations | qwen_cache   │
     │  session_summaries | triage_log | cubes_fts (FTS5)           │
     └───────────────────────────┬───────────────────────────────────┘
@@ -96,14 +96,14 @@
     │ 12 routers    │   │ JSON-RPC 2.0   │   │ routing          │
     │               │   │ stdio          │   │                  │
     │               │   │                │   │ turbo: extract   │
-    │               │   │ glaze_health   │   │ plus: patterns   │
-    │               │   │ glaze_stale    │   │ max: audit       │
-    │               │   │ glaze_search   │   │                  │
-    │               │   │ glaze_contra   │   │ Response cache   │
-    │               │   │ glaze_reviews  │   │ Cost tracking    │
-    │               │   │ glaze_patterns │   │ Route learning   │
-    │               │   │ glaze_context  │   │                  │
-    │               │   │ glaze_triage   │   │                  │
+    │               │   │ helicon_health   │   │ plus: patterns   │
+    │               │   │ helicon_stale    │   │ max: audit       │
+    │               │   │ helicon_search   │   │                  │
+    │               │   │ helicon_contra   │   │ Response cache   │
+    │               │   │ helicon_reviews  │   │ Cost tracking    │
+    │               │   │ helicon_patterns │   │ Route learning   │
+    │               │   │ helicon_context  │   │                  │
+    │               │   │ helicon_triage   │   │                  │
     └────┬──────────┘   └────────────────┘   └──────────────────┘
          │
     ┌────▼──────────────────────────────────────────────────────────┐
@@ -117,13 +117,13 @@
          │
     ┌────▼──────────────────────────────────────────────────────────┐
     │                         CLI                                   │
-    │  glaze init      Auto-detect Claude Code, Cursor, Obsidian   │
-    │  glaze scan      Extract memory into GlazeCubes              │
-    │  glaze serve     Start web UI on :8420                        │
-    │  glaze triage    Auto-triage from learned patterns            │
-    │  glaze score     Show Helicon Score + decay by type             │
-    │  glaze stack     Audit AI tool setup                          │
-    │  glaze optimize  LLM-powered optimization                    │
+    │  helicon init      Auto-detect Claude Code, Cursor, Obsidian   │
+    │  helicon scan      Extract memory into HeliconCubes              │
+    │  helicon serve     Start web UI on :8420                        │
+    │  helicon triage    Auto-triage from learned patterns            │
+    │  helicon score     Show Helicon Score + decay by type             │
+    │  helicon stack     Audit AI tool setup                          │
+    │  helicon optimize  LLM-powered optimization                    │
     └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -133,7 +133,7 @@
 Agent output (any platform)
   > Connector extracts structured items
   > SAGE novelty gate: ADD / NOOP / MERGE (qwen-turbo)
-  > GlazeCube stored with content hash, confidence, type
+  > HeliconCube stored with content hash, confidence, type
   > Weibull decay applied per-type (kappa shapes forgetting curve)
   > AUTO-TRIAGE: rules from review history kill/approve high-confidence matches
   > Remaining items surface in review feed sorted by urgency
@@ -153,7 +153,7 @@ Agent output (any platform)
 
 | Technique | Source | What Mount Helicon Uses |
 |-----------|--------|-----------------|
-| GlazeCube | MemOS (SJTU, 2025) | Versioned memory units with metadata |
+| HeliconCube | MemOS (SJTU, 2025) | Versioned memory units with metadata |
 | Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
 | Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting: kappa per type |
 | Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |

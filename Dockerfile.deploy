@@ -9,9 +9,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY glaze/ glaze/
+COPY helicon/ helicon/
 COPY scripts/ scripts/
 COPY web/dist/ static/
 
 EXPOSE 8420
-CMD ["python3", "-m", "uvicorn", "glaze.api.app:app", "--host", "0.0.0.0", "--port", "8420"]
+CMD ["python3", "-m", "uvicorn", "helicon.api.app:app", "--host", "0.0.0.0", "--port", "8420"]

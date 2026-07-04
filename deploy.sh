@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # One-shot deploy to an Alibaba Simple Application Server (SWAS) box.
 # Usage: ./deploy.sh root@<public-ip>
-# Ships code + prebuilt web/dist + real config.json + seeded glaze.db, then
+# Ships code + prebuilt web/dist + real config.json + seeded helicon.db, then
 # builds and runs the container on the server. Requires: web/dist built locally
 # (cd web && npx vite build) and a working config.json in this dir.
 set -euo pipefail
 
 TARGET="${1:?usage: ./deploy.sh root@<public-ip>}"
-REMOTE_DIR="/opt/glaze"
+REMOTE_DIR="/opt/helicon"
 
 echo "==> Checking local prerequisites"
 [ -d web/dist ] || { echo "web/dist missing - run: (cd web && npx vite build)"; exit 1; }
 [ -f config.json ] || { echo "config.json missing"; exit 1; }
-[ -f data/glaze.db ] || { echo "data/glaze.db missing"; exit 1; }
+[ -f data/helicon.db ] || { echo "data/helicon.db missing"; exit 1; }
 
 echo "==> Ensuring Docker on $TARGET"
 ssh "$TARGET" 'command -v docker >/dev/null 2>&1 || (curl -fsSL https://get.docker.com | sh)'

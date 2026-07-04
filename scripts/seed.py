@@ -6,8 +6,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from glaze.config import load_config
-from glaze.scanner import run_scan
+from helicon.config import load_config
+from helicon.scanner import run_scan
 
 
 def main():

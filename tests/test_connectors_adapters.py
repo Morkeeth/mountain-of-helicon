@@ -11,8 +11,8 @@ import subprocess
 
 import pytest
 
-from glaze.connectors import CONNECTORS, letta_memfs, graphiti
-from glaze.models import ConnectorResult
+from helicon.connectors import CONNECTORS, letta_memfs, graphiti
+from helicon.models import ConnectorResult
 
 
 # ---------------------------------------------------------------- letta-memfs

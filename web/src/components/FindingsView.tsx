@@ -102,12 +102,12 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
 
   const actions = (() => {
     if (f.suggested_action === 'fix_skill') {
-      return <CopyChip cmd="glaze fix-skills --apply" title="writes descriptions back with .bak backups" />;
+      return <CopyChip cmd="helicon fix-skills --apply" title="writes descriptions back with .bak backups" />;
     }
     if (f.suggested_action === 'reconcile') {
       return (
         <>
-          <CopyChip cmd="glaze reconcile --apply" title="retires cubes a re-scan no longer sees" />
+          <CopyChip cmd="helicon reconcile --apply" title="retires cubes a re-scan no longer sees" />
           {auditId !== null && <ActionButton label="Skip" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />}
         </>
       );

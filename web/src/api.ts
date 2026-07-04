@@ -1,6 +1,6 @@
 const BASE = '/api';
 
-// When the server sets GLAZE_PASSWORD, pass it via ?token=... once; it is
+// When the server sets HELICON_PASSWORD, pass it via ?token=... once; it is
 // kept in localStorage and sent as a Bearer header on every call.
 const urlToken = new URLSearchParams(window.location.search).get('token');
 if (urlToken) localStorage.setItem('helicon_token', urlToken);

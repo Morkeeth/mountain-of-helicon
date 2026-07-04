@@ -2,9 +2,9 @@
 #   docker compose -f docker-compose.deploy.yml up -d --build
 # Serves the app on port 80 so the demo URL is just http://<public-ip>/
 # Mounts the real config.json (with the working Qwen key) and the seeded
-# glaze.db, so the live site shows a full system, not an empty one.
+# helicon.db, so the live site shows a full system, not an empty one.
 services:
-  glaze:
+  helicon:
     build:
       context: .
       dockerfile: Dockerfile.deploy

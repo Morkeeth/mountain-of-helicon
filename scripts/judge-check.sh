@@ -38,15 +38,15 @@ else
   python3 -m venv --system-site-packages "$TMP/venv"
 fi
 "$TMP/venv/bin/pip" install --quiet -e . || fail "pip install -e ."
-"$TMP/venv/bin/glaze" --help >/dev/null 2>&1 || fail "CLI entry point missing after install"
+"$TMP/venv/bin/helicon" --help >/dev/null 2>&1 || fail "CLI entry point missing after install"
 ok "pip install -e . gives a working CLI"
 
 echo "== boot (the Cloud Shell path: web/dist -> static, keyless config) =="
 mkdir -p static && cp -r web/dist/. static/
 cat > config.json <<JSON
-{"db_path": "data/glaze.db", "connectors": {}, "server": {"host": "127.0.0.1", "port": ${PORT}}}
+{"db_path": "data/helicon.db", "connectors": {}, "server": {"host": "127.0.0.1", "port": ${PORT}}}
 JSON
-"$TMP/venv/bin/python" -m uvicorn glaze.api.app:app --port "$PORT" >"$TMP/server.log" 2>&1 &
+"$TMP/venv/bin/python" -m uvicorn helicon.api.app:app --port "$PORT" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 30); do
   curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break

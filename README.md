@@ -2,7 +2,7 @@
 
 **Agent-agnostic memory audit system.** Most memory systems store what you said. Helicon watches what you did, checks its own work, and flags when memory goes stale.
 
-> Mount Helicon is the product name. The CLI, Python package, and MCP tools are still `glaze` / `glaze_*` (`pip install glaze-audit`) — the rename is branding only.
+> Mount Helicon is the product name. The CLI, Python package, and MCP tools are still `helicon` / `helicon_*` (`pip install helicon-audit`) — the rename is branding only.
 
 Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
 
@@ -20,7 +20,7 @@ Five pluggable connectors scan agent output from any platform:
 - **ChatGPT** -- Export parser for `conversations.json`
 - **Cursor** -- Memory banks and `.cursorrules` files
 
-Each item becomes a **GlazeCube** -- a versioned memory unit (inspired by MemOS) with source, confidence, content hash, review status, and decay parameters. SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage at ingestion.
+Each item becomes a **HeliconCube** -- a versioned memory unit (inspired by MemOS) with source, confidence, content hash, review status, and decay parameters. SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage at ingestion.
 
 ### Layer 2: Review Pattern Learning
 Helicon learns *how you review*, not what you say:
@@ -65,33 +65,33 @@ Helicon exposes itself as an MCP tool so AI agents can audit their own memory mi
 
 | Tool | Description |
 |------|-------------|
-| `glaze_health` | Memory score and stats |
-| `glaze_stale` | Find decayed memories below threshold |
-| `glaze_search` | FTS5 full-text search across all cubes |
-| `glaze_contradictions` | Active factual conflicts |
-| `glaze_recent_reviews` | What the human approved/killed |
-| `glaze_patterns` | Learned behavioral patterns |
-| `glaze_context` | Proactive memory injection -- describe your task, get ranked memories |
-| `glaze_triage` | Trigger auto-triage from agent context |
+| `helicon_health` | Memory score and stats |
+| `helicon_stale` | Find decayed memories below threshold |
+| `helicon_search` | FTS5 full-text search across all cubes |
+| `helicon_contradictions` | Active factual conflicts |
+| `helicon_recent_reviews` | What the human approved/killed |
+| `helicon_patterns` | Learned behavioral patterns |
+| `helicon_context` | Proactive memory injection -- describe your task, get ranked memories |
+| `helicon_triage` | Trigger auto-triage from agent context |
 
 ### CLI (plug-and-play)
 
 ```bash
 pip install -e .
-glaze init          # auto-detect Claude Code, Cursor, Obsidian, git repos
-glaze scan          # extract memory into GlazeCubes
-glaze serve         # start web UI on :8420
-glaze triage        # run auto-triage from learned patterns
-glaze score         # show Helicon Score + decay by type
-glaze stack         # audit your AI tool setup
-glaze optimize      # LLM-powered optimization suggestions
+helicon init          # auto-detect Claude Code, Cursor, Obsidian, git repos
+helicon scan          # extract memory into HeliconCubes
+helicon serve         # start web UI on :8420
+helicon triage        # run auto-triage from learned patterns
+helicon score         # show Helicon Score + decay by type
+helicon stack         # audit your AI tool setup
+helicon optimize      # LLM-powered optimization suggestions
 ```
 
 ## Research Foundation
 
 | Technique | Source | How Helicon Uses It |
 |-----------|--------|-------------------|
-| GlazeCube schema | MemOS (SJTU, 2025) | Versioned memory units with metadata |
+| HeliconCube schema | MemOS (SJTU, 2025) | Versioned memory units with metadata |
 | Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
 | Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting: kappa per type |
 | Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |
@@ -117,21 +117,21 @@ glaze optimize      # LLM-powered optimization suggestions
 ### Option A: CLI (recommended)
 
 ```bash
-git clone https://github.com/MorkeethHQ/glaze.git
-cd glaze
+git clone https://github.com/MorkeethHQ/mount-helicon.git
+cd helicon
 pip install -e .
 
-glaze init                    # auto-detects your AI tools
+helicon init                    # auto-detects your AI tools
 # Edit config.json: add your Qwen API key
-glaze scan                    # extracts memory into GlazeCubes
-glaze serve                   # opens web UI at http://localhost:8420
+helicon scan                    # extracts memory into HeliconCubes
+helicon serve                   # opens web UI at http://localhost:8420
 ```
 
 ### Option B: Manual
 
 ```bash
-git clone https://github.com/MorkeethHQ/glaze.git
-cd glaze
+git clone https://github.com/MorkeethHQ/mount-helicon.git
+cd helicon
 
 cp config.example.json config.json
 # Edit config.json: add Qwen API key, adjust paths
@@ -141,14 +141,14 @@ cd web && npm install && npm run build && cd ..
 cp -r web/dist static
 
 python3 scripts/seed.py
-python3 -m uvicorn glaze.api.app:app --port 8420
+python3 -m uvicorn helicon.api.app:app --port 8420
 ```
 
 ### Option C: Docker
 
 ```bash
 docker compose up -d
-# Pre-seed: copy your local data/glaze.db into the container volume
+# Pre-seed: copy your local data/helicon.db into the container volume
 ```
 
 ### MCP Server
@@ -158,16 +158,16 @@ Add to your Claude Code config (`.claude.json`):
 ```json
 {
   "mcpServers": {
-    "glaze": {
+    "helicon": {
       "command": "python3",
-      "args": ["-m", "glaze.mcp_server"],
-      "cwd": "/path/to/glaze"
+      "args": ["-m", "helicon.mcp_server"],
+      "cwd": "/path/to/helicon"
     }
   }
 }
 ```
 
-Then ask Claude Code: "What's my memory health?" and it will call `glaze_health`.
+Then ask Claude Code: "What's my memory health?" and it will call `helicon_health`.
 
 ## API (42 endpoints)
 

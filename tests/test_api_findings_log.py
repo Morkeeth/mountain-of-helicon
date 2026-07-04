@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from glaze.audit import audit_decay, audit_temporal
-from glaze.db import init_db, insert_audit, insert_cube, insert_review
-from glaze.models import GlazeCube, Review
-from glaze.triage import init_triage_table
+from helicon.audit import audit_decay, audit_temporal
+from helicon.db import init_db, insert_audit, insert_cube, insert_review
+from helicon.models import HeliconCube, Review
+from helicon.triage import init_triage_table
 
 NOW = datetime.utcnow()
 STALE_CONTENT = (
@@ -29,9 +29,9 @@ FINDING_FIELDS = {
 
 
 def _cube(cid: str, title: str, content: str, *, age_days: float = 0.0,
-          confidence: float = 1.0, source: str = "claude-code") -> GlazeCube:
+          confidence: float = 1.0, source: str = "claude-code") -> HeliconCube:
     created = (NOW - timedelta(days=age_days)).isoformat()
-    return GlazeCube(
+    return HeliconCube(
         id=cid,
         source=source,
         source_ref=f"{source}/{cid}",
@@ -70,7 +70,7 @@ def _seed(conn):
                                 f"rule text that was edited away {i}",
                                 age_days=10, source="agent-rules"))
     conn.execute(
-        "UPDATE glaze_cubes SET review_status = 'superseded' "
+        "UPDATE helicon_cubes SET review_status = 'superseded' "
         "WHERE id IN ('cube-super-1', 'cube-super-2')"
     )
 
@@ -86,18 +86,18 @@ def _seed(conn):
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    db_path = str(tmp_path / "glaze.db")
+    db_path = str(tmp_path / "helicon.db")
     conn = init_db(db_path)
     init_triage_table(conn)
     _seed(conn)
     conn.close()
 
-    monkeypatch.delenv("GLAZE_PASSWORD", raising=False)
-    monkeypatch.setattr("glaze.api.app.load_config", lambda: {"db_path": db_path})
+    monkeypatch.delenv("HELICON_PASSWORD", raising=False)
+    monkeypatch.setattr("helicon.api.app.load_config", lambda: {"db_path": db_path})
     # hermetic: don't scan the host machine's real skills library
-    monkeypatch.setattr("glaze.api.findings._SKILL_ROOTS", [])
+    monkeypatch.setattr("helicon.api.findings._SKILL_ROOTS", [])
 
-    from glaze.api.app import create_app
+    from helicon.api.app import create_app
     with TestClient(create_app()) as c:
         yield c
 

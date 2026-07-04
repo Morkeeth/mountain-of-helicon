@@ -8,7 +8,7 @@ End-to-end, zero fake data:
      valid_at taken from the file's actual git history. Sections that
      existed in the first committed CLAUDE.md but are gone from HEAD are
      seeded as genuinely invalidated edges (invalid_at = last edit date).
-  3. Run glaze.connectors.graphiti.scan() against it and print the
+  3. Run helicon.connectors.graphiti.scan() against it and print the
      retrieved ConnectorResults, bi-temporal metadata included.
   4. Remove the container.
 
@@ -26,8 +26,8 @@ import uuid as uuidlib
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from glaze.connectors import graphiti
-from glaze.connectors.agent_rules import _split_sections
+from helicon.connectors import graphiti
+from helicon.connectors.agent_rules import _split_sections
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTAINER = "helicon-neo4j"
@@ -173,7 +173,7 @@ def main():
                 )
     print(f"   seeded {len(edges)} RELATES_TO edges")
 
-    banner("3. RUN glaze.connectors.graphiti.scan() against the live graph")
+    banner("3. RUN helicon.connectors.graphiti.scan() against the live graph")
     results = graphiti.scan({
         "uri": BOLT_URI, "user": AUTH[0], "password": AUTH[1],
         "group_id": GROUP_ID,

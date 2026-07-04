@@ -289,7 +289,7 @@ export default function HeliconMountain() {
           )}
           {snapshots && snapshots.total === 0 && (
             <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 18 }}>
-              No context snapshots captured yet — run <code>glaze snapshot add "&lt;task&gt;"</code> to baseline retrieval and catch regressions.
+              No context snapshots captured yet — run <code>helicon snapshot add "&lt;task&gt;"</code> to baseline retrieval and catch regressions.
             </div>
           )}
         </>

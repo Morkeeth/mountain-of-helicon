@@ -480,7 +480,7 @@ function ProjectsGrid({ projects, score, connectors, triageCount, onSelect, onRe
         </button>
       </div>
 
-      {/* Glaze explanation */}
+      {/* Helicon explanation */}
       <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-indigo-50 px-5 py-4 qwen-shimmer">
         <div className="flex items-center justify-between">
           <div>

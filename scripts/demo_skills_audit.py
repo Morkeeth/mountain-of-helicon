@@ -22,9 +22,9 @@ from itertools import combinations
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from glaze.connectors import skills
-from glaze.scanner import result_to_cube
-from glaze.db import init_db, insert_cube, rebuild_fts
+from helicon.connectors import skills
+from helicon.scanner import result_to_cube
+from helicon.db import init_db, insert_cube, rebuild_fts
 
 DEFAULT_ROOTS = [
     "~/.claude/skills",

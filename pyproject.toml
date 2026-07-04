@@ -3,9 +3,9 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "glaze-audit"
+name = "mount-helicon"
 version = "0.1.0"
-description = "Agent-agnostic memory audit system"
+description = "Mount Helicon - test and trust layer for AI agent memory"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-glaze = "glaze.cli:main"
+helicon = "helicon.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["glaze*"]
+include = ["helicon*"]

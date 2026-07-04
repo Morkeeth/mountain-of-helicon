@@ -7,7 +7,7 @@ data/compiled/
 node_modules/
 .vite/
 *.egg-info/
-dist/
+/dist/
 build/
 config.json
 .DS_Store

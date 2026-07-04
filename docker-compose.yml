@@ -1,5 +1,5 @@
 services:
-  glaze:
+  helicon:
     build: .
     ports:
       - "8420:8420"
@@ -7,5 +7,5 @@ services:
       - ./data:/app/data
     environment:
       - QWEN_API_KEY=${QWEN_API_KEY:-}
-      - GLAZE_PASSWORD=${GLAZE_PASSWORD:-}
+      - HELICON_PASSWORD=${HELICON_PASSWORD:-}
     restart: unless-stopped

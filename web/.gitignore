@@ -8,7 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# dist is tracked: built assets ship in git so a fresh clone serves the dashboard
 dist-ssr
 *.local
 

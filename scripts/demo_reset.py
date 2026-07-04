@@ -7,17 +7,17 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 os.chdir(os.path.dirname(os.path.dirname(__file__)))
 
-from glaze.config import load_config
-from glaze.db import init_db
-from glaze.scanner import run_scan
-from glaze.forgetting import apply_decay
-from glaze.audit import run_audit
-from glaze.patterns import extract_patterns_from_sql, save_patterns
-from glaze.score import compute_score
-from glaze.qwen import get_client
+from helicon.config import load_config
+from helicon.db import init_db
+from helicon.scanner import run_scan
+from helicon.forgetting import apply_decay
+from helicon.audit import run_audit
+from helicon.patterns import extract_patterns_from_sql, save_patterns
+from helicon.score import compute_score
+from helicon.qwen import get_client
 
 config = load_config()
-db_path = config.get("db_path", "data/glaze.db")
+db_path = config.get("db_path", "data/helicon.db")
 
 if os.path.exists(db_path):
     os.remove(db_path)

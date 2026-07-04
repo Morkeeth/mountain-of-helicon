@@ -1,5 +1,5 @@
 {
-  "db_path": "data/glaze.db",
+  "db_path": "data/helicon.db",
   "qwen_api_key": "sk-your-qwen-api-key",
   "qwen_model": "qwen-plus",
   "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",

@@ -1,4 +1,4 @@
-"""glaze reconcile CLI: dry-run reports orphans without writing; --apply retires
+"""helicon reconcile CLI: dry-run reports orphans without writing; --apply retires
 them as 'superseded'; human-reviewed (approved/killed) cubes are never touched.
 
 Runs cmd_reconcile end-to-end against a temp SQLite DB with the connector
@@ -10,10 +10,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from glaze import cli
-from glaze.db import init_db, insert_cube
-from glaze.models import ConnectorResult
-from glaze.scanner import collect_present_hashes, content_hash, result_to_cube
+from helicon import cli
+from helicon.db import init_db, insert_cube
+from helicon.models import ConnectorResult
+from helicon.scanner import collect_present_hashes, content_hash, result_to_cube
 
 SOURCE = "agent-rules"
 SCOPE = "repo/CLAUDE.md"
@@ -39,7 +39,7 @@ def env(tmp_path, monkeypatch):
     approved  - human-approved, content gone -> never touched
     killed    - human-killed, content gone -> never touched
     """
-    db_path = str(tmp_path / "glaze.db")
+    db_path = str(tmp_path / "helicon.db")
     conn = init_db(db_path)
 
     results = {
@@ -53,19 +53,19 @@ def env(tmp_path, monkeypatch):
         cube = result_to_cube(r)  # ingestion path: hash computed by result_to_cube
         assert insert_cube(conn, cube)
         ids[name] = cube.id
-    conn.execute("UPDATE glaze_cubes SET review_status='approved' WHERE id=?",
+    conn.execute("UPDATE helicon_cubes SET review_status='approved' WHERE id=?",
                  (ids["approved"],))
-    conn.execute("UPDATE glaze_cubes SET review_status='killed' WHERE id=?",
+    conn.execute("UPDATE helicon_cubes SET review_status='killed' WHERE id=?",
                  (ids["killed"],))
     conn.commit()
 
     config = {"db_path": db_path, "connectors": {SOURCE: {"enabled": True}}}
-    monkeypatch.setattr("glaze.config.load_config", lambda path=None: config)
+    monkeypatch.setattr("helicon.config.load_config", lambda path=None: config)
     # fake re-scan: only the 'kept' section is still present
-    monkeypatch.setattr("glaze.scanner.scan_all", lambda cfg: [results["kept"]])
+    monkeypatch.setattr("helicon.scanner.scan_all", lambda cfg: [results["kept"]])
 
     def status(name):
-        return conn.execute("SELECT review_status FROM glaze_cubes WHERE id=?",
+        return conn.execute("SELECT review_status FROM helicon_cubes WHERE id=?",
                             (ids[name],)).fetchone()["review_status"]
 
     return SimpleNamespace(conn=conn, ids=ids, results=results, status=status,
@@ -77,7 +77,7 @@ def test_collect_present_hashes_matches_ingestion(env):
     assert set(scopes) == {(SOURCE, SCOPE)}
     # the crux: the re-scan hash must equal the hash stored at ingestion
     stored = env.conn.execute(
-        "SELECT content_hash FROM glaze_cubes WHERE id=?", (env.ids["kept"],)
+        "SELECT content_hash FROM helicon_cubes WHERE id=?", (env.ids["kept"],)
     ).fetchone()["content_hash"]
     assert scopes[(SOURCE, SCOPE)] == {stored}
     assert stored == content_hash(env.results["kept"].content)
@@ -105,7 +105,7 @@ def test_apply_retires_orphan_never_touches_reviewed(env, capsys):
 
     assert "Retired 1" in out
     assert env.status("stale") == "superseded"
-    conf = env.conn.execute("SELECT confidence FROM glaze_cubes WHERE id=?",
+    conf = env.conn.execute("SELECT confidence FROM helicon_cubes WHERE id=?",
                             (env.ids["stale"],)).fetchone()["confidence"]
     assert conf <= 0.05
     # present cube and human-reviewed cubes untouched

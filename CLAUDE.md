@@ -25,40 +25,40 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 - Web Speech API (voice input for reviews)
 - MCP Server (11 tools for agent self-audit + context injection)
 - Auto-triage engine (autonomous kill/keep from patterns learned on HUMAN reviews only)
-- CLI (`glaze init/scan/serve/triage/score/stack/optimize/embed/compile/playbooks/consolidate`)
+- CLI (`helicon init/scan/serve/triage/score/stack/optimize/embed/compile/playbooks/consolidate`)
 
 ## CLI (plug-and-play)
 
 ```bash
 pip install -e .           # install with CLI entry point
-glaze init                 # auto-detect Claude Code, Cursor, Obsidian, git
-glaze scan                 # extract memory items into GlazeCubes
-glaze serve                # start web UI on :8420
-glaze triage               # run auto-triage from learned patterns
-glaze triage --dry-run     # preview what would be triaged
-glaze score                # show Helicon Score + decay by type
-glaze stack                # audit your AI tool setup
-glaze optimize             # LLM-powered optimization suggestions
-glaze battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding); every verdict prints last-scan age
-glaze doctor               # health check: PATH, config, Qwen key, DB, last scan
-glaze mcp                  # run the MCP server on stdio (bare `glaze` stays a CLI)
+helicon init                 # auto-detect Claude Code, Cursor, Obsidian, git
+helicon scan                 # extract memory items into HeliconCubes
+helicon serve                # start web UI on :8420
+helicon triage               # run auto-triage from learned patterns
+helicon triage --dry-run     # preview what would be triaged
+helicon score                # show Helicon Score + decay by type
+helicon stack                # audit your AI tool setup
+helicon optimize             # LLM-powered optimization suggestions
+helicon battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding); every verdict prints last-scan age
+helicon doctor               # health check: PATH, config, Qwen key, DB, last scan
+helicon mcp                  # run the MCP server on stdio (bare `helicon` stays a CLI)
 ```
 
 ## Dev Commands
 
 ```bash
 # Backend (dev mode)
-python3 -m uvicorn glaze.api.app:app --port 8420
+python3 -m uvicorn helicon.api.app:app --port 8420
 
 # Frontend (dev mode)
 cd web && npx vite --port 5173
 
 # MCP Server
-python3 -m glaze.mcp_server
+python3 -m helicon.mcp_server
 
 # Full pipeline (legacy)
 python3 scripts/seed.py
-python3 -c "from glaze.config import load_config; from glaze.db import init_db, rebuild_fts; from glaze.graph import build_graph; c=load_config(); conn=init_db(c['db_path']); rebuild_fts(conn); build_graph(conn)"
+python3 -c "from helicon.config import load_config; from helicon.db import init_db, rebuild_fts; from helicon.graph import build_graph; c=load_config(); conn=init_db(c['db_path']); rebuild_fts(conn); build_graph(conn)"
 ```
 
 ## Key constraint
@@ -90,4 +90,4 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 
 - Q-value loop is wired but dormant (few cubes moved); surface->reward cycle not yet exercised in production
 - context_impact is display-only; not fed back into ranking
-- Write-back to ~/.claude/skills/ (inject_into_claude_code) is not wired to any surface; the pull path (glaze_context MCP) is the working half of the loop
+- Write-back to ~/.claude/skills/ (inject_into_claude_code) is not wired to any surface; the pull path (helicon_context MCP) is the working half of the loop

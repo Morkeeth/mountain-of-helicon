@@ -1,4 +1,4 @@
-"""glaze fix-skills / glaze.writeback: dry-run proposes without writing; --apply
+"""helicon fix-skills / helicon.writeback: dry-run proposes without writing; --apply
 writes the description into frontmatter with a .bak backup; files that already
 have a description are never touched; a second run is a no-op; no Qwen key
 degrades to a skip. The Qwen call is mocked throughout."""
@@ -6,9 +6,9 @@ import os
 
 import pytest
 
-from glaze import cli, writeback
-from glaze.connectors.skills import _parse_frontmatter
-from glaze.writeback import fix_skills, insert_description
+from helicon import cli, writeback
+from helicon.connectors.skills import _parse_frontmatter
+from helicon.writeback import fix_skills, insert_description
 
 DESC = "Trigger when the user asks to deploy; runs the deploy checklist."
 
@@ -113,7 +113,7 @@ def test_insert_description_variants():
 
 def test_cli_fix_skills_no_key(skills_dir, monkeypatch, capsys):
     from types import SimpleNamespace
-    monkeypatch.setattr("glaze.config.load_config", lambda path=None: {})
+    monkeypatch.setattr("helicon.config.load_config", lambda path=None: {})
     cli.cmd_fix_skills(SimpleNamespace(apply=False, skills_dir=str(skills_dir)))
     out = capsys.readouterr().out
     assert "no Qwen key" in out
@@ -123,9 +123,9 @@ def test_cli_fix_skills_no_key(skills_dir, monkeypatch, capsys):
 
 def test_cli_fix_skills_dry_run_prints_proposals(skills_dir, monkeypatch, capsys):
     from types import SimpleNamespace
-    monkeypatch.setattr("glaze.config.load_config",
+    monkeypatch.setattr("helicon.config.load_config",
                         lambda path=None: {"qwen_api_key": "test"})
-    monkeypatch.setattr("glaze.qwen.get_client", lambda config: FakeClient())
+    monkeypatch.setattr("helicon.qwen.get_client", lambda config: FakeClient())
     cli.cmd_fix_skills(SimpleNamespace(apply=False, skills_dir=str(skills_dir)))
     out = capsys.readouterr().out
     assert "[would fix] deployer/SKILL.md" in out

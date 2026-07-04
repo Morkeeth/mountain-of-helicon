@@ -23,13 +23,13 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from glaze.connectors import agent_rules
-from glaze.scanner import result_to_cube, content_hash
-from glaze.db import init_db, insert_cube, rebuild_fts
-from glaze.snapshots import capture_snapshot, check_all
-from glaze.reconcile import reconcile_scan, source_ref_scope
+from helicon.connectors import agent_rules
+from helicon.scanner import result_to_cube, content_hash
+from helicon.db import init_db, insert_cube, rebuild_fts
+from helicon.snapshots import capture_snapshot, check_all
+from helicon.reconcile import reconcile_scan, source_ref_scope
 
-REPO = os.path.expanduser(os.environ.get("DEMO_REPO", "~/CODE/glaze"))
+REPO = os.path.expanduser(os.environ.get("DEMO_REPO", "~/CODE/helicon"))
 RULES_FILE = os.environ.get("DEMO_RULES_FILE", "CLAUDE.md")
 TASK = os.environ.get("DEMO_TASK", "what memory sources does layer 1 extract from")
 K = 3

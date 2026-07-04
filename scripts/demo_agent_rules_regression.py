@@ -16,12 +16,12 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from glaze.connectors import agent_rules
-from glaze.scanner import result_to_cube
-from glaze.db import init_db, insert_cube, rebuild_fts
-from glaze.snapshots import capture_snapshot, check_all
+from helicon.connectors import agent_rules
+from helicon.scanner import result_to_cube
+from helicon.db import init_db, insert_cube, rebuild_fts
+from helicon.snapshots import capture_snapshot, check_all
 
-REPO = os.path.expanduser(os.environ.get("DEMO_REPO", "~/CODE/glaze"))
+REPO = os.path.expanduser(os.environ.get("DEMO_REPO", "~/CODE/helicon"))
 TASK = "how do I run the backend dev server"
 K = 3
 
@@ -57,8 +57,8 @@ def main():
     # 3. DRIFT: a consolidation pass kills the top rule (as happens for real
     #    when memory is merged/pruned, or the rule file is edited).
     banner("3. DRIFT — a consolidation pass kills the top-ranked rule")
-    conn.execute("UPDATE glaze_cubes SET review_status='killed' WHERE id=?", (top["id"],))
-    conn.execute("DELETE FROM glaze_cubes WHERE id=?", (top["id"],))
+    conn.execute("UPDATE helicon_cubes SET review_status='killed' WHERE id=?", (top["id"],))
+    conn.execute("DELETE FROM helicon_cubes WHERE id=?", (top["id"],))
     conn.commit()
     rebuild_fts(conn)
     print(f"   killed + removed: {top['title']}")

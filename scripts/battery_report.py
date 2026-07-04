@@ -13,10 +13,10 @@ from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from glaze.config import load_config
-from glaze.db import init_db
-from glaze.eval import _build_test_queries
-from glaze.battery import run_battery
+from helicon.config import load_config
+from helicon.db import init_db
+from helicon.eval import _build_test_queries
+from helicon.battery import run_battery
 
 K = 5
 
