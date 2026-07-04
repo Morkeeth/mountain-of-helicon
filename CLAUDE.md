@@ -18,10 +18,10 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 ## Stack
 
 - Python (CLI scanner + FastAPI backend)
-- Qwen Cloud API (qwen-plus via OpenAI-compatible SDK)
-- Alibaba Cloud ECS (deployment)
-- SQLite + FTS5 + numpy embeddings (14 tables: cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, consolidations, qwen_cache, session_summaries, triage_log, cube_embeddings)
-- React/Vite (desktop-first web UI, 5 tabs: Focus, Review, Audit, Graph, System)
+- Qwen Cloud API (qwen3.6-flash/plus + qwen3.7-max via OpenAI-compatible SDK)
+- Distribution: BYOK + local-first; Alibaba Cloud proof via Cloud Shell (ECS dead: KYC, decided Jul 3)
+- SQLite + FTS5 + numpy embeddings (18 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, playbooks, memory_utility, cube_embeddings, context_snapshots)
+- React/Vite (findings-first dashboard: HEALTH / FINDINGS / LOG primary, Graph + Projects secondary)
 - Web Speech API (voice input for reviews)
 - MCP Server (11 tools for agent self-audit + context injection)
 - Auto-triage engine (autonomous kill/keep from patterns learned on HUMAN reviews only)

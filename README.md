@@ -1,259 +1,119 @@
 # Mount Helicon
 
-**Agent-agnostic memory audit system.** Most memory systems store what you said. Helicon watches what you did, checks its own work, and flags when memory goes stale.
-
-> Mount Helicon is the product name. The CLI, Python package, and MCP tools are still `helicon` / `helicon_*` (`pip install helicon-audit`) — the rename is branding only.
+**The test and trust layer for AI agent memory.** Memory systems store what your agent said. Mount Helicon regression-tests what it retrieves, scores whether that context is still true, and retires what isn't. CI for memory.
 
 Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
 
 ## The Problem
 
-Production memory accuracy drops to **49% after 30 days** at 38% staleness rate (Mem0 ECAI 2025 research). AI agents accumulate memory files, transcripts, and decisions without review. Mem0 ($24M raised, 48K stars) stores. Letta ($10M) organizes. Zep timestamps. **Nobody audits.** Helicon does.
+Production memory accuracy drops to **49% after 30 days** at a 38% staleness rate (Mem0 ECAI 2025 research). Qwen3.7-Max runs autonomously for 35 hours making 1000+ tool calls -- and nobody audits what accumulates in its memory over those 35 hours. Mem0 ($24M raised) stores. Letta ($10M) organizes. Zep timestamps. **Nobody tests.** Stale context presented as current fact breaks workflows silently: retrieval benchmarks measure whether memory is *found*, never whether it is still *true*.
+
+Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live 2,800-cube memory, and it has failed its own audits more than once (see receipts in the demo).
+
+## Quick Start (60 seconds, $0)
+
+```bash
+git clone https://github.com/MorkeethHQ/mount-helicon.git
+cd mount-helicon
+pip install -e .
+
+helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
+helicon scan        # extract memory into HeliconCubes
+helicon doctor      # health check: PATH, config, key, DB, last scan
+helicon battery "what am I working on"   # context-quality verdict
+helicon serve       # dashboard at http://localhost:8420
+```
+
+**Bring your own Qwen key (BYOK).** Get one free on the [Alibaba Cloud Model Studio free tier](https://www.alibabacloud.com/en/product/modelstudio), set `QWEN_API_KEY` or put it in `config.json`. The OpenAI-compatible endpoint is `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`. **Keyless degrade:** without a key every deterministic test still runs; only the two LLM-judged tests (Contradiction, Grounding) switch off -- the battery says so instead of faking a verdict.
+
+Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.sh` clones, installs, boots, and fails loudly on any crack. `scripts/cloudshell-run.sh` is the same flow inside Alibaba Cloud Shell.
+
+## Headline Features
+
+- **`helicon snapshot`** -- regression tests for retrieved context. Capture what a task retrieves today; `snapshot check` fails when tomorrow's retrieval drifts. CI for memory.
+- **`helicon battery "<task>"`** -- context-quality battery on what a task retrieves: Relevance, Freshness, Redundancy, Thinness (deterministic) + Contradiction, Grounding (judged live by Qwen). Verdict: HEALTHY / DEGRADED / BROKEN. Every verdict prints the age of the last scan, because a DEGRADED verdict is uninterpretable if the scan itself is stale. `--json` for scripts and CI.
+- **`helicon reconcile`** -- timely forgetting. Re-scans sources and retires cubes reality no longer contains (dry-run by default, never touches human decisions). On the live DB it retired 20 superseded memories in its first run.
+- **`helicon fix-skills`** -- write-back: Qwen writes missing descriptions into your agent skill files (dry-run by default, `.bak` backups). It fixed 7 of this project's own skills.
+- **`helicon doctor`** -- five checks (PATH, config, key, DB, last scan), exit 1 on failure. The front door to a daily loop.
 
 ## Three Layers
 
-### Layer 1: Extraction
-Five pluggable connectors scan agent output from any platform:
-- **Claude Code** -- JSONL transcripts + memory `.md` files
-- **Obsidian** -- Vault markdown with YAML frontmatter
-- **Git** -- Commit history across repositories
-- **ChatGPT** -- Export parser for `conversations.json`
-- **Cursor** -- Memory banks and `.cursorrules` files
+**Layer 1 -- Extraction.** Seven pluggable connectors: Claude Code (JSONL transcripts + memory files), Obsidian, git history, ChatGPT exports, Cursor, plus read-side adapters for **Letta MemFS** and **Graphiti** (bi-temporal metadata mapped into cubes; 17 tests). Agent *rules* files (CLAUDE.md, AGENTS.md, .cursorrules) are split into section-level cubes so regression catches a single rule drifting. Every item becomes a **HeliconCube**: versioned memory unit with source, confidence, content hash, review status, decay parameters (MemOS-inspired). A SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage.
 
-Each item becomes a **HeliconCube** -- a versioned memory unit (inspired by MemOS) with source, confidence, content hash, review status, and decay parameters. SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage at ingestion.
+**Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On first run it handled 585 of 1,268 cubes autonomously. Spin detection, kill prediction, Helicon Score.
 
-### Layer 2: Review Pattern Learning
-Helicon learns *how you review*, not what you say:
-- **Weibull forgetting curves** -- `w(t) = exp(-(t/eta)^kappa)` with per-type shape. kappa>1 = cliff decay (code, drafts). kappa<1 = long tail (decisions, archives). From SSGM/LiCoMemory.
-- **Auto-triage** -- after enough reviews, Helicon derives rules and makes its own kill/approve decisions. Human only reviews uncertain items.
-- **Spin detection** -- topics discussed in 4+ sessions without file changes
-- **Kill prediction** -- historical kill rate by type and age
-- **Helicon Score** -- percentage of memory reviewed and acted on
+**Layer 3 -- Meta-audit.** The system audits its own stored patterns: temporal staleness ("this week" in a 27-day-old file), factual contradictions (Qwen-judged), decay, pattern staleness, anti-confabulation challenges. The human reviews the memory review.
 
-### Layer 3: Meta-Audit
-The system checks its own stored patterns:
-- **Temporal audit** -- "this week" in a 27-day-old file
-- **Factual audit** -- contradicting memories about the same topic (Qwen-enhanced)
-- **Decay audit** -- cubes below 5% confidence, never reviewed
-- **Pattern staleness** -- patterns with low data points going stale
-- **Anti-confabulation** -- challenge oldest patterns against fresh evidence (Honest Lying, 2025)
-- **SSGM consistency gates** -- verify updates don't create new contradictions
+## Qwen Cloud API usage (where the LLM is load-bearing)
 
-## Project Intelligence
+| Tier | Model | Used for |
+|------|-------|----------|
+| fast | `qwen3.6-flash` | Cube summarization, novelty gate, skill descriptions |
+| default | `qwen3.6-plus` | Battery judging (Contradiction, Grounding), factual audit |
+| deep | `qwen3.7-max` | Consolidation synthesis, optimization reports |
 
-Helicon groups cubes by project tag and computes per-project metrics:
-- **Spin score** = sessions / shipped items. Over 3x = pure spin.
-- **Ship rate** = approved / reviewed. 0% = no output.
-- **Decay velocity** = how fast a project's memory is decaying
-- **Urgency scoring** = weighted combination of spin + staleness + backlog + decay + momentum
+All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
-The Focus tab shows ranked projects with one-line actions: "Stop planning, start shipping. 4 sessions per shipped item." or "Stale 62d. Either push a commit or archive."
+## MCP Server (11 tools)
 
-## Advanced Features
-
-### Knowledge Graph
-Entity extraction from all cubes (projects, tools, concepts). Force-directed visualization with co-occurrence edges and contradiction edges (red). 65 entities, 546 edges from real data.
-
-### Memory Consolidation ("Sleep" Cycles)
-Neuroscience-inspired batch consolidation. Groups related cubes by topic overlap, merges them into higher-level consolidated memories. Raw cubes become episodes become schemas.
-
-### Auto-Triage Engine
-After enough human reviews, Helicon derives triage rules from behavior. If 97% of code items get killed and confidence is below 10%, auto-kill. On first run, auto-triage handled 585 out of 1,268 cubes autonomously, pushing the Helicon Score from 7% to 53.6% without a single human decision.
-
-### MCP Server (8 tools)
-Helicon exposes itself as an MCP tool so AI agents can audit their own memory mid-conversation:
-
-| Tool | Description |
-|------|-------------|
-| `helicon_health` | Memory score and stats |
-| `helicon_stale` | Find decayed memories below threshold |
-| `helicon_search` | FTS5 full-text search across all cubes |
-| `helicon_contradictions` | Active factual conflicts |
-| `helicon_recent_reviews` | What the human approved/killed |
-| `helicon_patterns` | Learned behavioral patterns |
-| `helicon_context` | Proactive memory injection -- describe your task, get ranked memories |
-| `helicon_triage` | Trigger auto-triage from agent context |
-
-### CLI (plug-and-play)
-
-```bash
-pip install -e .
-helicon init          # auto-detect Claude Code, Cursor, Obsidian, git repos
-helicon scan          # extract memory into HeliconCubes
-helicon serve         # start web UI on :8420
-helicon triage        # run auto-triage from learned patterns
-helicon score         # show Helicon Score + decay by type
-helicon stack         # audit your AI tool setup
-helicon optimize      # LLM-powered optimization suggestions
-```
-
-## Research Foundation
-
-| Technique | Source | How Helicon Uses It |
-|-----------|--------|-------------------|
-| HeliconCube schema | MemOS (SJTU, 2025) | Versioned memory units with metadata |
-| Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
-| Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting: kappa per type |
-| Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |
-| Consistency gates | SSGM Framework (Mar 2026) | Verify before committing updates |
-| Anti-confabulation | Honest Lying (May 2026) | Challenge patterns against evidence |
-| Retrieval learning | MetaMem (ACL 2026) | Track surfaced vs acted-on |
-| Session summaries | Hermes Agent (Feb 2026) | Structured docs from completed sessions |
-| Self-evolution | Hermes (Feb 2026) | Auto-triage from learned patterns |
-| Context injection | Lossless-Claw/OpenClaw | Proactive MCP memory delivery |
-
-## Tech Stack
-
-- **Backend**: Python 3.12, FastAPI, SQLite + FTS5 (13 tables)
-- **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS
-- **AI**: Qwen Cloud API (turbo/plus/max) via OpenAI-compatible SDK
-- **Deploy**: Alibaba Cloud ECS, Docker
-- **Voice**: Web Speech API for review input
-- **MCP**: JSON-RPC 2.0 stdio server (8 tools)
-- **CLI**: pip-installable with 7 commands
-
-## Quick Start
-
-### Option A: CLI (recommended)
-
-```bash
-git clone https://github.com/MorkeethHQ/mount-helicon.git
-cd helicon
-pip install -e .
-
-helicon init                    # auto-detects your AI tools
-# Edit config.json: add your Qwen API key
-helicon scan                    # extracts memory into HeliconCubes
-helicon serve                   # opens web UI at http://localhost:8420
-```
-
-### Option B: Manual
-
-```bash
-git clone https://github.com/MorkeethHQ/mount-helicon.git
-cd helicon
-
-cp config.example.json config.json
-# Edit config.json: add Qwen API key, adjust paths
-
-pip install -r requirements.txt
-cd web && npm install && npm run build && cd ..
-cp -r web/dist static
-
-python3 scripts/seed.py
-python3 -m uvicorn helicon.api.app:app --port 8420
-```
-
-### Option C: Docker
-
-```bash
-docker compose up -d
-# Pre-seed: copy your local data/helicon.db into the container volume
-```
-
-### MCP Server
-
-Add to your Claude Code config (`.claude.json`):
+Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 ```json
 {
   "mcpServers": {
-    "helicon": {
-      "command": "python3",
-      "args": ["-m", "helicon.mcp_server"],
-      "cwd": "/path/to/helicon"
-    }
+    "helicon": { "command": "helicon", "args": ["mcp"], "cwd": "/path/to/mount-helicon" }
   }
 }
 ```
 
-Then ask Claude Code: "What's my memory health?" and it will call `helicon_health`.
+| Tool | Description |
+|------|-------------|
+| `helicon_health` | Memory score and stats |
+| `helicon_stale` | Decayed memories below threshold |
+| `helicon_search` | Hybrid FTS5 + semantic search |
+| `helicon_contradictions` | Active factual conflicts |
+| `helicon_recent_reviews` | What the human approved/killed |
+| `helicon_patterns` | Learned behavioral patterns |
+| `helicon_context` | Proactive memory injection for a task |
+| `helicon_playbook` | Task playbooks from review patterns |
+| `helicon_compile` | Compile reviewed memory to injectable files |
+| `helicon_triage` | Trigger auto-triage |
+| `helicon_consolidate` | Run a consolidation (sleep) cycle |
 
-## API (42 endpoints)
+The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-### Core
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/health` | Health check + cube count |
-| GET | `/api/cubes` | List cubes with filters and sorting |
-| GET | `/api/cubes/{id}` | Single cube detail |
-| POST | `/api/scan` | Trigger fresh scan |
+## CLI (20 commands)
 
-### Review
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/review` | Submit review decision + voice notes |
-| GET | `/api/reviews` | Review history |
-| GET | `/api/score` | Helicon Score with breakdown |
-| POST | `/api/decay` | Run Weibull decay pass |
-| GET | `/api/decay/stats` | Confidence stats by type |
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
-### Patterns
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/patterns` | Learned behavioral patterns |
-| POST | `/api/patterns/extract` | Extract new patterns |
-| GET | `/api/patterns/spin` | Spin detection results |
-| GET | `/api/patterns/kill-candidates` | Kill candidates by type/age |
-| GET | `/api/patterns/shipping-rates` | Ship/kill rates by type |
+Everything destructive is dry-run by default and takes `--apply`.
 
-### Audit
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/audit` | Audit findings (245 real findings) |
-| POST | `/api/audit/run` | Run four-axis audit |
-| POST | `/api/audit/confirm` | Confirm/reject finding |
+## Honest eval numbers
 
-### Auto-Triage
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/triage/run` | Execute auto-triage |
-| GET | `/api/triage/stats` | Triage statistics |
-| GET | `/api/triage/rules` | Derived triage rules |
+- Composite: **74.2** (retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
+- Retrieval: P@3 0.692, MRR 0.615. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
+- **Decay predicts human kills at rank-AUC 0.877** (mean confidence of killed cubes 0.017 vs approved 0.256). A real, independent signal.
+- Consolidation: ~9-10x fewer tokens; Qwen-judged quality favors synthesis (self-graded, shown as direction, not proof).
+- Zero fake data anywhere: the demo DB is the author's real Claude Code transcripts (210+), Obsidian vault, and git repos.
 
-### Knowledge Graph
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/graph` | Full graph (nodes + edges) |
-| POST | `/api/graph/build` | Build graph from cubes |
-| GET | `/api/graph/entity/{id}` | Entity detail + related cubes |
+## Research foundation
 
-### Search & Sessions
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/search` | FTS5 full-text search |
-| POST | `/api/search/rebuild` | Rebuild FTS index |
-| GET | `/api/sessions` | Session summaries |
+| Technique | Source | How Mount Helicon uses it |
+|-----------|--------|---------------------------|
+| Versioned memory cubes | MemOS (SJTU, 2025) | HeliconCube schema |
+| Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
+| Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting, kappa per type |
+| Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |
+| Anti-confabulation | Honest Lying (May 2026) | Challenge patterns against evidence |
+| Retrieval learning | MetaMem (ACL 2026) | Track surfaced vs acted-on |
+| Utility-aware ranking | MemRL-inspired | Q-value learning wired into retrieval |
 
-### Consolidation
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/consolidations` | Consolidated memories |
-| GET | `/api/consolidations/clusters` | Topic clusters |
-| POST | `/api/consolidations/run` | Run sleep cycle |
+## Architecture
 
-### Project Intelligence
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/projects` | All projects with rollup stats |
-| GET | `/api/projects/recommend` | Ranked recommendations by urgency |
-| GET | `/api/projects/weekly` | Weekly touch/ship summary |
-| GET | `/api/projects/context-switches` | Context-switch analysis |
-
-### System
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/connectors` | Connector status |
-| GET | `/api/timeline` | Ingestion timeline |
-| GET | `/api/report` | Qwen-powered health report |
-
-## Design
-
-Scandinavian-minimal dark UI. Inter typeface, monochromatic zinc palette with restrained amber accent. Typography-driven hierarchy, generous whitespace, ghost buttons.
-
-5 tabs: **Focus** (project intelligence + recommendations) | **Review** (card-by-card memory review with voice) | **Audit** (4-axis findings) | **Graph** (force-directed knowledge graph) | **System** (connectors, triage, tokens, setup)
-
-Keyboard shortcuts: `j`/`k` navigate, `a` approve, `r` revise, `k` kill, `/` search.
+- **Backend:** Python 3.12, FastAPI (71 endpoints), SQLite + FTS5 (18 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
+- **Frontend:** React 19, TypeScript, Vite, findings-first dashboard -- HEALTH (the mountain: one tile per battery task, a terracotta crack per broken one), FINDINGS (every failed check with why, evidence, action), LOG (receipts), plus Graph and Projects
+- **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
+- **Distribution:** BYOK + local-first. Proof-of-run on Alibaba Cloud via Cloud Shell (`scripts/cloudshell-run.sh`)
 
 ## License
 
