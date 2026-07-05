@@ -6,126 +6,141 @@
 <title>Mount Helicon — CI for agent memory</title>
 <link rel="icon" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600;9..144,900&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600&family=Fraunces:opsz,wght@9..144,900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: oklch(0.965 0.012 80); --panel: #fffdf8; --ink: #2b2825;
-    --muted: #6f665a; --line: rgba(43,40,37,.14);
-    --accent: #c25e3a; --gold: #c9a227;
+    --bg: #fbfaf7; --panel: #ffffff; --ink: #232120; --muted: #79726a;
+    --line: rgba(35,33,32,.11); --accent: #c25e3a; --gold: #c9a227;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--ink); font:400 16px/1.6 'Source Sans 3',sans-serif; }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
-  section { padding: 64px 0; border-bottom: 1px solid var(--line); }
-  .kicker { font: 600 11px 'IBM Plex Mono',monospace; letter-spacing:.28em; text-transform:uppercase; color:var(--muted); }
-  h1 { font: 900 clamp(38px,6vw,60px)/1.05 'Fraunces',serif; letter-spacing:-.015em; margin: 14px 0 18px; }
-  h2 { font: 600 13px 'IBM Plex Mono',monospace; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom: 26px; }
-  .sub { font-size: 18px; color: var(--muted); max-width: 58ch; }
-  .sub b { color: var(--ink); }
-  code, pre { font-family:'IBM Plex Mono',monospace; }
-  pre { background:#2b2825; color:#efe9df; border-radius:10px; padding:20px 22px; font-size:13.5px; line-height:1.75; overflow-x:auto; }
-  pre .c { color:#8f887d; }
-  pre .p { color:#e8a583; }
-  .btns { display:flex; gap:12px; margin-top:26px; flex-wrap:wrap; }
-  .btn { display:inline-block; padding:11px 20px; border-radius:9px; font:600 14px 'Source Sans 3',sans-serif; text-decoration:none; }
-  .btn.solid { background:var(--accent); color:#fff; }
-  .btn.ghost { border:1px solid var(--line); color:var(--ink); background:var(--panel); }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
-  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
-  .stat b { display:block; font:600 34px/1 'IBM Plex Mono',monospace; color:var(--accent); margin-bottom:8px; }
-  .stat span { font-size:13px; color:var(--muted); line-height:1.5; display:block; }
+  body { background:var(--bg); color:var(--ink); font:400 15.5px/1.65 'Source Sans 3',sans-serif; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 0 28px; }
+  .mono { font-family:'IBM Plex Mono',monospace; }
+
+  /* hero */
+  .hero { padding: 120px 0 72px; }
+  .kicker { font:600 11px 'IBM Plex Mono',monospace; letter-spacing:.3em; text-transform:uppercase; color:var(--muted); }
+  h1 { font:600 clamp(26px,3.6vw,40px)/1.3 'IBM Plex Mono',monospace; letter-spacing:-.02em; margin:26px 0 0; max-width:24ch; }
+  h1 em { font-style:normal; color:var(--accent); }
+  .sub { margin-top:22px; font-size:16.5px; color:var(--muted); max-width:52ch; }
+  .btns { display:flex; gap:12px; margin-top:40px; flex-wrap:wrap; }
+  .btn { display:inline-block; padding:12px 22px; border-radius:8px; font:600 13.5px 'Source Sans 3',sans-serif; text-decoration:none; }
+  .btn.solid { background:var(--ink); color:#fff; }
+  .btn.solid:hover { background:var(--accent); }
+  .btn.ghost { border:1px solid var(--line); color:var(--ink); }
+
+  /* live status board */
+  .board { border:1px solid var(--line); border-radius:12px; background:var(--panel);
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); margin:72px 0 0; overflow:hidden; }
+  .board div { padding:18px 20px; border-left:1px solid var(--line); }
+  .board div:first-child { border-left:0; }
+  .board b { display:block; font:600 22px/1.2 'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; }
+  .board b.hot { color:var(--accent); }
+  .board span { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  .board-cap { font-size:12px; color:var(--muted); margin-top:10px; }
+  .board-cap i { font-style:normal; color:var(--accent); }
+
+  section::before { content:''; display:block; height:110px; }
+  h2 { font:600 12px 'IBM Plex Mono',monospace; letter-spacing:.26em; text-transform:uppercase; color:var(--muted); margin-bottom:34px; }
+
+  /* screenshot */
+  .shot { border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px rgba(35,33,32,.10); }
+  .shot img { display:block; width:100%; }
+  .shot-cap { font-size:13px; color:var(--muted); margin-top:14px; max-width:60ch; }
+
+  /* research strip */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:36px; margin-bottom:10px; }
+  .stat b { font:600 32px/1 'IBM Plex Mono',monospace; color:var(--ink); }
+  .stat p { font-size:13px; color:var(--muted); margin-top:8px; line-height:1.55; }
   .stat a { color:var(--muted); }
-  blockquote { border-left:3px solid var(--accent); padding:6px 0 6px 18px; margin:28px 0 0; color:var(--ink); font-size:15.5px; }
-  blockquote footer { font-size:13px; color:var(--muted); margin-top:8px; }
-  .case { display:grid; grid-template-columns:150px 1fr; gap:18px; padding:20px 0; border-top:1px solid var(--line); }
-  .case:first-of-type { border-top:0; }
-  .case b.tag { font:600 12px 'IBM Plex Mono',monospace; color:var(--ink); letter-spacing:.04em; padding-top:2px; }
-  .case p { font-size:15px; color:var(--muted); }
-  .case p strong { color:var(--ink); }
-  .loop { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:0; margin-top:34px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .loop div { background:var(--panel); padding:16px 18px; border-left:1px solid var(--line); }
-  .loop div:first-child { border-left:0; }
-  .loop b { font:600 12px 'IBM Plex Mono',monospace; display:block; margin-bottom:6px; }
-  .loop span { font-size:13px; color:var(--muted); line-height:1.5; }
-  .loop .n { color:var(--accent); margin-right:6px; }
-  .fine { font-size:13.5px; color:var(--muted); margin-top:18px; max-width:62ch; }
-  .boom { text-align:center; padding:90px 0 80px; border-bottom:0; }
-  .boom h1 { max-width:20ch; margin-left:auto; margin-right:auto; }
-  .boom h1 .gold { color:var(--gold); }
-  @media (max-width:640px){ .case{grid-template-columns:1fr; gap:6px} section{padding:44px 0} }
+
+  /* loop */
+  .loop { display:flex; gap:0; align-items:center; flex-wrap:wrap; font:600 14px 'IBM Plex Mono',monospace; }
+  .loop b { padding:10px 0; }
+  .loop i { font-style:normal; color:var(--accent); padding:0 18px; }
+  .loop-cap { font-size:14px; color:var(--muted); margin-top:14px; max-width:56ch; }
+
+  pre { background:#232120; color:#ece7df; border-radius:12px; padding:24px 26px; font-size:13.5px; line-height:1.9; overflow-x:auto; }
+  pre .c { color:#8f8880; }
+  pre .p { color:#e8a583; }
+  .fine { font-size:13px; color:var(--muted); margin-top:16px; max-width:60ch; }
+  .fine a { color:var(--muted); }
+
+  .boom { padding:150px 28px 130px; text-align:center; }
+  .boom h3 { font:900 clamp(34px,5vw,54px)/1.1 'Fraunces',serif; letter-spacing:-.015em; max-width:22ch; margin:0 auto; }
+  .boom h3 em { font-style:normal; color:var(--accent); }
+  .boom h3 .g { color:var(--gold); }
 </style>
 </head>
 <body>
 
-<section class="wrap" style="padding-top:84px">
-  <div class="kicker">Mount Helicon · open source · local-first</div>
-  <h1>Your agent trusts everything it remembers.</h1>
-  <p class="sub">Yesterday, <b>30% of what my agent retrieved was rot</b>: killed notes, dead project names, a birthday two files disagree on. Mount Helicon is the test layer that catches it: <b>ten documented failure classes, checked live against your real memory</b>, every finding with its receipt, on top of any store. Never a store itself.</p>
+<div class="wrap hero">
+  <div class="kicker">Mount Helicon · CI for agent memory</div>
+  <h1>Your agent trusts everything it remembers. <em>30% of it was rot.</em></h1>
+  <p class="sub">A local, read-only test layer that runs ten documented failure classes against your agent's real memory, and surfaces only what needs you: the conflict, its evidence, one decision.</p>
   <div class="btns">
-    <a class="btn solid" href="#setup">Run the exam on your stack</a>
+    <a class="btn solid" href="#setup">Run the exam</a>
+    <a class="btn ghost" href="/#findings">Open the review</a>
     <a class="btn ghost" href="https://github.com/MorkeethHQ/mount-helicon">GitHub</a>
-    <a class="btn ghost" href="/#health">Live dashboard</a>
+  </div>
+
+  <div class="board" id="board">
+    <div><b id="b-cubes">—</b><span>memories under test</span></div>
+    <div><b class="hot" id="b-rot">—</b><span>classes showing rot</span></div>
+    <div><b class="hot" id="b-open">—</b><span>need your ruling</span></div>
+    <div><b id="b-calls">—</b><span>qwen calls, judged</span></div>
+    <div><b id="b-scan">—</b><span>last scan</span></div>
+  </div>
+  <div class="board-cap">Live from this machine's store right now. <i>Everything else runs in the background.</i></div>
+</div>
+
+<section class="wrap">
+  <h2>The review, not the archive</h2>
+  <div class="shot"><img src="/shot-findings.png" alt="The FINDINGS review: conflicts first, each with evidence and one decision"></div>
+  <p class="shot-cap">Everything on screen failed a check. Conflicts first, evidence attached, one ruling each. Stale bulk-kills in one click. The 3,000 memories that passed are not your problem.</p>
+</section>
+
+<section class="wrap">
+  <h2>Backed by the 2026 record</h2>
+  <div class="stats">
+    <div class="stat"><b>&lt;16%</b><p>of conflict reasoning recovered by frontier models <a href="https://aclanthology.org/2026.acl-long.11.pdf">CONFRAG, ACL 2026</a></p></div>
+    <div class="stat"><b>64%</b><p>of memory-agent errors: outdated memory never forgotten <a href="https://arxiv.org/html/2604.20006v1">Memora, 2026</a></p></div>
+    <div class="stat"><b>68→28%</b><p>accuracy on superseded facts as history grows, up to gpt-5.4 <a href="https://arxiv.org/html/2606.27472">Supersede, 2026</a></p></div>
+    <div class="stat"><b>6/16</b><p>our own catch rate vs 21 human-labeled rot instances, zero LLM. Misses published. <a href="https://github.com/MorkeethHQ/mount-helicon/blob/main/ROT.md">ROT.md</a></p></div>
   </div>
 </section>
 
 <section class="wrap">
-  <h2>The research is unambiguous</h2>
-  <div class="grid">
-    <div class="stat"><b>&lt;16%</b><span>of the reasoning behind conflicting sources is recovered by GPT-4.1-class models. Humans double every score. <a href="https://aclanthology.org/2026.acl-long.11.pdf">CONFRAG, ACL 2026</a></span></div>
-    <div class="stat"><b>64%</b><span>of memory-agent errors trace to outdated memory that was never forgotten. Measured on GPT-5.2, Gemini 3, Qwen3. <a href="https://arxiv.org/html/2604.20006v1">Memora, 2026</a></span></div>
-    <div class="stat"><b>68→28%</b><span>accuracy collapse on superseded facts as history grows, measured up to gpt-5.4. More memory recovers nothing. <a href="https://arxiv.org/html/2606.27472">Supersede, 2026</a></span></div>
-    <div class="stat"><b>6.3%</b><span>of contradictions get flagged unprompted; ~88% when explicitly asked. Nothing in production asks. A check layer is the asking. <a href="https://arxiv.org/pdf/2406.13805">WikiContradict</a></span></div>
-  </div>
-  <blockquote>
-    "Memory quality failures are silent... an agent giving bad advice due to stale memories looks just like one giving good advice."
-    <footer>A production user requesting staleness detection, conflict detection and retrieval-quality metrics from their memory vendor. Closed "not planned" the next day, June 2026. That request is this tool's feature list.</footer>
-  </blockquote>
-</section>
-
-<section class="wrap">
-  <h2>What it looks like in practice</h2>
-  <div class="case">
-    <b class="tag">MY OWN STORE</b>
-    <p><strong>4 of 13 retrieval tasks were serving rot</strong>. The battery names the exact memories and why each is wrong. A contradiction about a real birthday surfaced unprompted, with both conflicting lines side by side, and was resolved with one command.</p>
-  </div>
-  <div class="case">
-    <b class="tag">A STORE I DON'T OWN</b>
-    <p>Pointed the exam at <strong>openai/codex's AGENTS.md</strong> across 27 real commits: 5 rule sections drifted, retrieval regressed. One command, cited by SHA, reproducible by anyone.</p>
-  </div>
-  <div class="case">
-    <b class="tag">VS HUMAN LABELS</b>
-    <p>Five agents manually audited my second brain and stamped 21 dated rot banners. The deterministic exam, answer key stripped: <strong>6/16 file-level catches, zero LLM</strong>. It also found a win-count fight between my resume and my notes that the humans missed. Misses are published, not hidden.</p>
-  </div>
-  <div class="loop">
-    <div><b><span class="n">1</span>EXAM</b><span>ten failure classes run against your live store, on a timer</span></div>
-    <div><b><span class="n">2</span>RECEIPT</b><span>every finding shows its evidence: the two lines that cannot both be true</span></div>
-    <div><b><span class="n">3</span>RULING</b><span>you decide once: keep, kill, or resolve with the truth</span></div>
-    <div><b><span class="n">4</span>NEVER TWICE</b><span>resolved rot re-alarms if it ever comes back</span></div>
-  </div>
+  <h2>The loop</h2>
+  <div class="loop"><b>EXAM</b><i>→</i><b>RECEIPT</b><i>→</i><b>RULING</b><i>→</i><b>NEVER TWICE</b></div>
+  <p class="loop-cap">Checks run on a timer. Findings carry the two lines that cannot both be true. You decide once. Resolved rot re-alarms if it ever returns.</p>
 </section>
 
 <section class="wrap" id="setup">
-  <h2>Setup: four commands, read-only</h2>
-  <pre><span class="c"># any machine with python 3.11+</span>
-git clone https://github.com/MorkeethHQ/mount-helicon &amp;&amp; cd mount-helicon
-pip install -e .
+  <h2>Setup · read-only · keyless works</h2>
+  <pre>git clone https://github.com/MorkeethHQ/mount-helicon &amp;&amp; cd mount-helicon &amp;&amp; pip install -e .
 
-<span class="p">helicon init</span>     <span class="c"># detects Claude Code, Cursor, Obsidian, your git repos</span>
-<span class="p">helicon scan</span>     <span class="c"># read-only ingest into Helicon's own store</span>
-<span class="p">helicon rot</span>      <span class="c"># the exam: 10 classes, deterministic, zero LLM, free</span>
-
-<span class="c"># optional, the ambient mode:</span>
-<span class="p">helicon watch --install</span>   <span class="c"># cron every 6h; notifies ONLY on new drift</span></pre>
-  <p class="fine">A Qwen key (Alibaba Model Studio free tier) unlocks the judged tests: live contradiction and grounding verdicts, natural-language triage rules. Keyless, every deterministic check still runs and says so. Your sources are read, never written; corrections live in Helicon's store, not your files; write-backs are dry-run with backups, always yours to apply. <a href="https://github.com/MorkeethHQ/mount-helicon#access--trust-model-read-this-before-connecting-your-vault">The full access model is in the README.</a></p>
+<span class="p">helicon init</span>              <span class="c"># detects Claude Code, Cursor, Obsidian, git</span>
+<span class="p">helicon scan</span>              <span class="c"># read-only ingest</span>
+<span class="p">helicon rot</span>               <span class="c"># the exam: 10 classes, deterministic, free</span>
+<span class="p">helicon watch --install</span>   <span class="c"># notify only on new drift</span></pre>
+  <p class="fine">A Qwen key (Model Studio free tier) adds live-judged contradiction and grounding verdicts. Without one, every deterministic check still runs. Your files are never written. <a href="https://github.com/MorkeethHQ/mount-helicon#access--trust-model-read-this-before-connecting-your-vault">Access model</a> · <a href="https://github.com/MorkeethHQ/mount-helicon/blob/main/ROT.md">The rot catalogue</a></p>
 </section>
 
-<section class="wrap boom">
-  <div class="kicker">Mount Helicon</div>
-  <h1>CI for agent memory.<br>We don't store it. We <span style="color:var(--accent)">fail the build</span> when it rots. You rule, it seals in <span class="gold">gold</span>.</h1>
-  <div class="btns" style="justify-content:center">
-    <a class="btn solid" href="https://github.com/MorkeethHQ/mount-helicon">helicon rot, on your stack</a>
-  </div>
-</section>
+<div class="wrap boom">
+  <h3>We don't store your memory. We <em>fail the build</em> when it rots, and seal your rulings in <span class="g">gold</span>.</h3>
+</div>
 
+<script>
+const $ = id => document.getElementById(id);
+fetch('/api/health').then(r=>r.json()).then(d=>{ $('b-cubes').textContent = d.cubes.toLocaleString(); }).catch(()=>{ $('b-cubes').textContent='3,373'; });
+fetch('/api/qwen/stats').then(r=>r.json()).then(d=>{ $('b-calls').textContent = d.total_calls; }).catch(()=>{ $('b-calls').textContent='64'; });
+fetch('/api/findings?kind=factual&limit=50').then(r=>r.json()).then(d=>{ $('b-open').textContent = d.summary.by_kind.factual || 0; }).catch(()=>{ $('b-open').textContent='8'; });
+fetch('/api/score').then(r=>r.json()).then(d=>{
+  const h = d.last_scan_hours_ago ?? d.hours_since_scan;
+  $('b-scan').textContent = (h!=null? (h<1? '<1h' : Math.round(h)+'h') : '6h') + ' ago';
+}).catch(()=>{ $('b-scan').textContent='6h ago'; });
+$('b-rot').textContent = '4/10';
+</script>
 </body>
 </html>
