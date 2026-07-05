@@ -31,23 +31,34 @@ The classes are not this repo's invention — they are the documented failure
 record of the field. Selected evidence (papers, the labs' own docs, measured
 numbers):
 
-- **R1 cross-source contradiction** — GPT-4 flags a conflict between two
-  contradicting passages **6.3%** of the time; it otherwise picks one and
-  answers confidently ([WikiContradict, NeurIPS 2024](https://arxiv.org/pdf/2406.13805)).
-  LLMs override their own *correct* prior with wrong retrieved content **>60%**
-  of the time ([ClashEval, NeurIPS 2024](https://arxiv.org/abs/2404.10198)).
-  Which fact wins is set by frequency and popularity, not correctness — a wrong
-  fact duplicated across files beats a right fact stated once
-  ([ICLR 2024](https://arxiv.org/pdf/2506.06485)). Alibaba names it "context
-  conflict" ([AnalyticDB blog](https://www.alibabacloud.com/blog/is-your-ai-agent-getting-dumber-alibaba-cloud-analyticdb-unveils-ai-context-engineering_602803)).
+- **R1 cross-source contradiction** — GPT-4 acknowledges a conflict between
+  two contradicting passages **6.3%** of the time unprompted, ~88% only when
+  explicitly told to look ([WikiContradict, NeurIPS 2024](https://arxiv.org/pdf/2406.13805)) —
+  the capability exists; nothing in production asks the question. Still true
+  at the 2026 frontier: on real conflicting web references, GPT-4.1-class
+  models recover under half of the conflicting viewpoints and explain **<16%**
+  of the reasoning behind them, half the human score
+  ([CONFRAG, ACL 2026](https://aclanthology.org/2026.acl-long.11.pdf)); even
+  when a conflict is noticed, models fail to localize WHICH passages conflict
+  ~half the time ([MAGIC, EMNLP 2025](https://arxiv.org/html/2507.21544v3)) —
+  the pairing job this repo does deterministically. Which source wins is set
+  by task framing and model certainty, not correctness: context-following
+  swings **6-71%** by framing alone, replicated May 2026 on GPT-5.5, Claude
+  Sonnet 4.6 and Gemini 2.5 ([Three Regimes, 2026](https://arxiv.org/abs/2605.11574);
+  lineage: [ClashEval, NeurIPS 2024](https://arxiv.org/abs/2404.10198)). A
+  wrong fact duplicated across files beats a right fact stated once
+  ([Task Matters, 2025](https://arxiv.org/pdf/2506.06485)). Alibaba names the
+  class "context conflict" ([AnalyticDB blog](https://www.alibabacloud.com/blog/is-your-ai-agent-getting-dumber-alibaba-cloud-analyticdb-unveils-ai-context-engineering_602803)).
 - **R2 doc-drift** — appears in **zero** academic papers as a class (white
   space). Its ripple-effect cousin is measured: knowledge edits fail to
   propagate to entailed facts (MEMIT logical generalization **0.188**,
   [RippleEdits, TACL 2024](https://arxiv.org/pdf/2307.12976)).
-- **R3 staleness/expiry** — best frontier model detects an invalidated memory
-  **55.2%** of the time ([STALE, 2026](https://arxiv.org/pdf/2605.06527));
+- **R3 staleness/expiry** — best frontier model scores **55.2%** overall on
+  knowing its memories are no longer valid ([STALE, 2026](https://arxiv.org/pdf/2605.06527));
   **64%** of memory-agent recommendation errors trace to outdated memory never
-  forgotten, penalty growing weekly→quarterly ([Memora, 2026](https://arxiv.org/html/2604.20006v1));
+  forgotten, measured on GPT-5.2, Claude Sonnet 4.5, Gemini 3 Pro and
+  Qwen3-32B over Mem0/LangMem/MemoryOS, penalty growing weekly→quarterly
+  ([Memora, 2026](https://arxiv.org/html/2604.20006v1));
   49% effective accuracy after 30 days in independent production testing of a
   popular OSS store ([RankSquire, 2026](https://ranksquire.com/2026/05/06/long-term-memory-for-ai-agents/)).
   OpenAI's Agents SDK: *"Memory can become stale... treat memories as guidance
@@ -55,8 +66,8 @@ numbers):
   memories have "no expiration date"; users should "periodically review and
   clean."
 - **R4 supersession** — accuracy on superseded facts collapses **68% → 28%**
-  as history grows 2→48 sessions; 24x more memory recovers zero points
-  ([Supersede, 2026](https://arxiv.org/html/2606.27472)). LLM code completion
+  as history grows 2→48 sessions, measured up to gpt-5.4; 24x more memory
+  recovers zero points ([Supersede, 2026](https://arxiv.org/html/2606.27472)). LLM code completion
   uses deprecated APIs at **25-38%** ([ICSE 2025](https://arxiv.org/abs/2406.09834)).
 - **R5 duplicate/echo** — "context confusion" in Alibaba's taxonomy; evidence
   frequency drives which fact wins (see R1), so duplicates amplify themselves.
@@ -84,6 +95,17 @@ numbers):
 Real, linkable issues (each fetched and verified 2026-07-04); the classes ship
 in production today:
 
+- **R1+R3, three weeks ago** — [mem0#5614](https://github.com/mem0ai/mem0/issues/5614)
+  (Jun 17, 2026, closed "not planned" the NEXT DAY): a production financial
+  agent burned by superseded earnings data asks for staleness detection,
+  conflict detection and retrieval-quality metrics — this repo's feature
+  list, requested by a user, declined by the vendor. Their words: *"memory
+  quality failures are silent... an agent giving bad advice due to stale
+  memories looks just like one giving good advice."*
+  [mem0#5588](https://github.com/mem0ai/mem0/issues/5588) (Jun 16, 2026):
+  memory TTL/expiry offered WITH a working PR — closed "not planned". And
+  the vendor's own [State of AI Agent Memory 2026](https://mem0.ai/blog/state-of-ai-agent-memory-2026)
+  (Jul 3, 2026) calls staleness "a harder, open problem."
 - **R1** — [mem0#4536](https://github.com/mem0ai/mem0/issues/4536): "I love
   Chinese food" then "I hate Chinese food" → conflict resolver deletes BOTH;
   the agent now knows nothing. [claude-code#23769](https://github.com/anthropics/claude-code/issues/23769):
@@ -113,7 +135,7 @@ in production today:
   (open): deleted episodes leave stale references and orphaned entities; the
   dead entity lives on in the graph.
 
-Two of those were closed by the vendors as *not planned* and one as *stale*.
+Four of those were closed by the vendors as *not planned* and one as *stale*.
 The rot classes are known, reported, and declined — which is why the test
 layer has to live outside the stores.
 
