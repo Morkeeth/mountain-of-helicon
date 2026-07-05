@@ -479,22 +479,22 @@ function ProjectsGrid({ projects, score, connectors, triageCount, onSelect, onRe
         </div>
         <button
           onClick={onRefresh}
-          className="text-[12px] px-3 py-1.5 rounded-lg border border-zinc-800/60 text-zinc-500 hover:text-violet-600 hover:border-violet-300 transition-all active:scale-95 shadow-sm bg-white"
+          className="text-[12px] px-3 py-1.5 rounded-lg border border-zinc-800/60 text-zinc-500 hover:text-zinc-800 hover:border-zinc-400 transition-all active:scale-95 shadow-sm bg-white"
         >
           Refresh
         </button>
       </div>
 
       {/* Helicon explanation */}
-      <div className="rounded-xl border border-violet-200 bg-gradient-to-r from-violet-50 to-indigo-50 px-5 py-4 qwen-shimmer">
+      <div className="rounded-xl border border-zinc-300 bg-gradient-to-r from-zinc-50 to-zinc-100 px-5 py-4 qwen-shimmer">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-[13px] text-zinc-300 font-medium">Select a project to start glazing</p>
+            <p className="text-[13px] text-zinc-300 font-medium">Select a project</p>
             <p className="text-[11px] text-zinc-500 mt-0.5">
               View consolidated knowledge, then inject context into your next agent session.
             </p>
           </div>
-          <span className="text-[10px] px-2.5 py-1 rounded-full bg-violet-100 text-violet-600 font-medium">
+          <span className="text-[10px] px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 font-medium">
             {score?.score || 0}% reviewed
           </span>
         </div>
@@ -529,7 +529,7 @@ function ProjectCard({ project, index, onClick }: { project: ProjectRollup; inde
   return (
     <motion.button
       onClick={onClick}
-      className="text-left p-4 rounded-xl border border-zinc-800/60 bg-white hover:border-violet-300 hover:shadow-md hover:shadow-violet-100/50 transition-all group shadow-sm"
+      className="text-left p-4 rounded-xl border border-zinc-800/60 bg-white hover:border-zinc-400 hover:shadow-md hover:shadow-zinc-200/60 transition-all group shadow-sm"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03, duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
@@ -539,7 +539,7 @@ function ProjectCard({ project, index, onClick }: { project: ProjectRollup; inde
           {isActive && (
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-subtle" />
           )}
-          <h3 className="text-[13px] font-medium text-zinc-200 group-hover:text-violet-600 transition-colors">
+          <h3 className="text-[13px] font-medium text-zinc-200 group-hover:text-zinc-800 transition-colors">
             {project.name}
           </h3>
         </div>
@@ -550,10 +550,10 @@ function ProjectCard({ project, index, onClick }: { project: ProjectRollup; inde
       <div className="flex items-center gap-3 text-[11px] mb-3">
         <span className="text-zinc-500">{shipPct}% shipped</span>
         {project.pending > 0 && (
-          <span className="text-violet-500">{project.pending} pending</span>
+          <span className="text-zinc-600">{project.pending} pending</span>
         )}
         {project.spin_score > 0 && (
-          <span className="text-amber-600">{project.spin_score.toFixed(1)} spin</span>
+          <span className="text-amber-600" title="spin = sessions spent per item shipped. Above 3, this project is circling: lots of activity, nothing landing.">{project.spin_score.toFixed(1)} spin</span>
         )}
       </div>
 
@@ -563,7 +563,7 @@ function ProjectCard({ project, index, onClick }: { project: ProjectRollup; inde
           className="h-full rounded-full transition-all duration-500"
           style={{
             width: `${project.avg_confidence * 100}%`,
-            background: `linear-gradient(90deg, #7C3AED ${Math.max(0, 100 - project.avg_confidence * 100)}%, #6366F1 100%)`,
+            background: 'var(--helicon-accent)', opacity: 0.75,
           }}
         />
       </div>
@@ -597,7 +597,7 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
     return (
       <div className="py-20 text-center">
         <p className="text-zinc-500">Project not found.</p>
-        <button onClick={onBack} className="text-violet-500 text-sm mt-2 hover:text-violet-400">Back to projects</button>
+        <button onClick={onBack} className="text-zinc-600 text-sm mt-2 hover:text-zinc-700">Back to projects</button>
       </div>
     );
   }
@@ -621,7 +621,7 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="text-[12px] text-zinc-500 hover:text-violet-500 transition-colors flex items-center gap-1"
+            className="text-[12px] text-zinc-500 hover:text-zinc-600 transition-colors flex items-center gap-1"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M19 12H5M12 19l-7-7 7-7" />
@@ -636,7 +636,7 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
           <button
             onClick={handleConsolidate}
             disabled={running}
-            className="text-[12px] px-3 py-1.5 rounded-lg border border-zinc-800/60 text-zinc-500 hover:text-violet-500 hover:border-violet-300 transition-all disabled:opacity-30 shadow-sm bg-white"
+            className="text-[12px] px-3 py-1.5 rounded-lg border border-zinc-800/60 text-zinc-500 hover:text-zinc-600 hover:border-zinc-400 transition-all disabled:opacity-30 shadow-sm bg-white"
           >
             {running ? 'Consolidating...' : 'Run Sleep Cycle'}
           </button>
@@ -666,7 +666,7 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
       {/* Source breakdown */}
       <div className="flex items-center gap-2 flex-wrap">
         {project.sources.map(s => (
-          <span key={s} className="text-[11px] px-2.5 py-1 rounded-full bg-violet-50 text-violet-600 border border-violet-100">
+          <span key={s} className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-100 text-zinc-700 border border-violet-100">
             {s}
           </span>
         ))}
@@ -695,7 +695,7 @@ function ProjectDetail({ project, consolidations, allConsolidations, onBack, onI
             <button
               onClick={() => onInject(project)}
               title="Paste into your agent (CLAUDE.md, system prompt)"
-              className="text-[11px] px-3 py-1 rounded-md text-violet-600 hover:bg-violet-50 border border-violet-200 transition-colors"
+              className="text-[11px] px-3 py-1 rounded-md text-zinc-700 hover:bg-zinc-100 border border-zinc-300 transition-colors"
             >
               {copied ? 'Copied!' : 'Copy compiled context'}
             </button>
@@ -740,11 +740,11 @@ function StatCard({ label, value, sub, highlight }: { label: string; value: stri
   return (
     <div className={`rounded-xl border px-4 py-3 text-center shadow-sm ${
       highlight
-        ? 'border-violet-200 bg-violet-50'
+        ? 'border-zinc-300 bg-zinc-100'
         : 'border-zinc-800/60 bg-white'
     }`}>
       <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">{label}</span>
-      <span className={`text-[18px] font-light tabular-nums ${highlight ? 'text-violet-600' : 'text-zinc-200'}`}>{value}</span>
+      <span className={`text-[18px] font-light tabular-nums ${highlight ? 'text-zinc-700' : 'text-zinc-200'}`}>{value}</span>
       {sub && <span className="text-[10px] text-zinc-600 block">{sub}</span>}
     </div>
   );
@@ -765,7 +765,7 @@ function ConsolidationDetailRow({ consolidation }: { consolidation: Consolidatio
 
   return (
     <div className="group">
-      <button onClick={() => setExpanded(!expanded)} className="w-full text-left px-5 py-3.5 hover:bg-violet-50/50 transition-colors">
+      <button onClick={() => setExpanded(!expanded)} className="w-full text-left px-5 py-3.5 hover:bg-zinc-100/50 transition-colors">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className="text-[13px] text-zinc-300 truncate">{consolidation.title}</span>
@@ -777,7 +777,7 @@ function ConsolidationDetailRow({ consolidation }: { consolidation: Consolidatio
             </span>
             <button
               onClick={handleCopy}
-              className="text-[10px] text-zinc-600 hover:text-violet-500 transition-colors opacity-0 group-hover:opacity-100"
+              className="text-[10px] text-zinc-600 hover:text-zinc-600 transition-colors opacity-0 group-hover:opacity-100"
             >
               {itemCopied ? 'Copied' : 'Copy'}
             </button>

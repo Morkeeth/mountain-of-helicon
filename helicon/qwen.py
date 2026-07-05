@@ -163,32 +163,67 @@ def complete_json(client, system: str, user: str, model: str = "qwen3.6-plus", o
         return None
 
 
-def get_call_stats() -> dict:
-    if not _call_log:
-        return {"total_calls": 0, "by_model": {}, "cache": _cache_stats, "total_cost_usd": 0}
-    by_model = {}
-    total_cost = 0
+def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
+    """Token/cost stats for the dashboard.
+
+    Durable usage (calls, tokens, cost) comes from the qwen_cache table, which
+    every live Qwen call in ANY process writes to. The in-process _call_log only
+    ever sees this process's calls (CLI runs like `helicon report --llm` happen
+    in other processes), so it is used only for session-local data the DB does
+    not have: cache hits and latency. Falls back to _call_log-only accounting
+    when no DB connection is available.
+    """
+    conn = conn if conn is not None else _db_conn
+    by_model: dict[str, dict] = {}
+
+    def _bucket(model: str) -> dict:
+        return by_model.setdefault(model, {
+            "calls": 0, "cached_calls": 0, "input_tokens": 0,
+            "output_tokens": 0, "avg_latency": 0, "cost_usd": 0.0,
+        })
+
+    db_ok = False
+    if conn is not None:
+        try:
+            rows = conn.execute(
+                "SELECT model, COUNT(*) AS calls, "
+                "COALESCE(SUM(input_tokens), 0) AS in_tok, "
+                "COALESCE(SUM(output_tokens), 0) AS out_tok "
+                "FROM qwen_cache GROUP BY model"
+            ).fetchall()
+            for r in rows:
+                b = _bucket(r["model"])
+                b["calls"] = r["calls"]
+                b["input_tokens"] = r["in_tok"]
+                b["output_tokens"] = r["out_tok"]
+                b["cost_usd"] = (r["in_tok"] + r["out_tok"]) / 1000 * TIER_COST_PER_1K.get(r["model"], 0.001)
+            db_ok = True
+        except Exception:
+            by_model = {}
+
     for call in _call_log:
-        m = call["model"]
-        if m not in by_model:
-            by_model[m] = {"calls": 0, "cached_calls": 0, "input_tokens": 0, "output_tokens": 0, "avg_latency": 0, "cost_usd": 0}
-        by_model[m]["calls"] += 1
+        b = _bucket(call["model"])
         if call.get("cached"):
-            by_model[m]["cached_calls"] += 1
-        by_model[m]["input_tokens"] += call["input_tokens"]
-        by_model[m]["output_tokens"] += call["output_tokens"]
-        by_model[m]["cost_usd"] += call.get("cost_usd", 0)
-        total_cost += call.get("cost_usd", 0)
-    for m in by_model:
+            b["cached_calls"] += 1
+        elif not db_ok:
+            # No DB: fall back to in-memory accounting for live calls.
+            b["calls"] += 1
+            b["input_tokens"] += call["input_tokens"]
+            b["output_tokens"] += call["output_tokens"]
+            b["cost_usd"] += call.get("cost_usd", 0)
+
+    for m, b in by_model.items():
         live_calls = [c for c in _call_log if c["model"] == m and not c.get("cached")]
-        by_model[m]["avg_latency"] = round(sum(c["elapsed"] for c in live_calls) / max(len(live_calls), 1), 2)
-        by_model[m]["cost_usd"] = round(by_model[m]["cost_usd"], 6)
+        if live_calls:
+            b["avg_latency"] = round(sum(c["elapsed"] for c in live_calls) / len(live_calls), 2)
+        b["cost_usd"] = round(b["cost_usd"], 6)
+
     cache_rate = _cache_stats["hits"] / max(_cache_stats["hits"] + _cache_stats["misses"], 1)
     return {
-        "total_calls": len(_call_log),
+        "total_calls": sum(b["calls"] + b["cached_calls"] for b in by_model.values()),
         "by_model": by_model,
         "cache": {**_cache_stats, "rate": round(cache_rate, 3), "entries": len(_cache)},
-        "total_cost_usd": round(total_cost, 6),
+        "total_cost_usd": round(sum(b["cost_usd"] for b in by_model.values()), 6),
     }
 
 

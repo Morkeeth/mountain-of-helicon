@@ -64,7 +64,7 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
   return (
     <div className={`group relative py-3.5 border-b transition-all duration-200 ${
       focused
-        ? 'border-violet-200 bg-violet-50/50'
+        ? 'border-zinc-300 bg-zinc-100/50'
         : 'border-zinc-800/30 hover:border-zinc-700/50'
     }`}>
       {focused && (
@@ -140,7 +140,7 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
           <button
             onClick={() => handleReview('revised')}
             disabled={reviewing}
-            className="text-[12px] px-3 py-1.5 rounded-lg text-zinc-500 hover:text-violet-600 hover:bg-violet-50 active:scale-95 transition-all disabled:opacity-30"
+            className="text-[12px] px-3 py-1.5 rounded-lg text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 active:scale-95 transition-all disabled:opacity-30"
           >
             Revise
           </button>

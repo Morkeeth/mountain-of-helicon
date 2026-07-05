@@ -163,44 +163,46 @@ def _skill_findings(now: str) -> list[dict]:
     by_name: dict[str, list[dict]] = {}
     for m in meta:
         by_name.setdefault(m["name"].lower(), []).append(m)
-    for group in by_name.values():
-        if len(group) > 1:
-            first = group[0]
-            findings.append({
-                "id": f"skill-dup-{first['name'].lower()}",
-                "kind": "skill",
-                "severity": "warning",
-                "title": f"Duplicate skill: {first['name']}",
-                "why": (f"Skills integrity: '{first['name']}' is installed "
-                        f"{len(group)} times; the agent can load either copy"),
-                "evidence_preview": _preview(first["desc"] or first["content"]),
-                "source": "skills",
-                "source_ref": first["path"],
-                "cube_id": None,
-                "suggested_action": "fix_skill",
-                "created_at": now,
-            })
+    # ONE grouped finding per issue class — 19 rows of "X installed twice"
+    # reads as hours of work; one row with the list reads as one fix.
+    dup_groups = [g for g in by_name.values() if len(g) > 1]
+    if dup_groups:
+        names = sorted(g[0]["name"] for g in dup_groups)
+        findings.append({
+            "id": "skill-dups",
+            "kind": "skill",
+            "severity": "warning",
+            "title": f"{len(dup_groups)} skills installed more than once",
+            "why": (f"Skills integrity: {len(dup_groups)} skills exist in two "
+                    f"places; the agent can load either copy"),
+            "evidence_preview": _preview(", ".join(names)),
+            "source": "skills",
+            "source_ref": dup_groups[0][0]["path"],
+            "cube_id": None,
+            "suggested_action": "fix_skill",
+            "created_at": now,
+        })
 
     uniq = list({m["name"].lower(): m for m in meta}.values())
 
-    for m in uniq:
-        if m["desc_len"] < 40:
-            label = ("has no description" if m["desc_len"] == 0
-                     else f"has a {m['desc_len']}-char description")
-            findings.append({
-                "id": f"skill-thin-{m['name'].lower()}",
-                "kind": "skill",
-                "severity": "warning" if m["desc_len"] == 0 else "info",
-                "title": f"Thin skill: {m['name']}",
-                "why": (f"Skills integrity: '{m['name']}' {label}, "
-                        f"too thin for the agent to know when to trigger it"),
-                "evidence_preview": _preview(m["desc"] or m["content"]),
-                "source": "skills",
-                "source_ref": m["path"],
-                "cube_id": None,
-                "suggested_action": "fix_skill",
-                "created_at": now,
-            })
+    thin = [m for m in uniq if m["desc_len"] < 40]
+    if thin:
+        names = sorted(m["name"] for m in thin)
+        findings.append({
+            "id": "skill-thin",
+            "kind": "skill",
+            "severity": "warning" if any(m["desc_len"] == 0 for m in thin) else "info",
+            "title": f"{len(thin)} skills with no usable description",
+            "why": (f"Skills integrity: {len(thin)} skills are too thin for "
+                    f"the agent to know when to trigger them — one command "
+                    f"fixes all: helicon fix-skills --apply"),
+            "evidence_preview": _preview(", ".join(names)),
+            "source": "skills",
+            "source_ref": thin[0]["path"],
+            "cube_id": None,
+            "suggested_action": "fix_skill",
+            "created_at": now,
+        })
 
     for a, b in combinations(uniq, 2):
         t1, t2 = a["trigger_terms"], b["trigger_terms"]

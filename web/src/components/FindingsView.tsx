@@ -6,7 +6,38 @@ import type { Finding, FindingsResponse } from '../api';
    a check, unified across audit / skills / battery. The WHY sentence leads;
    the title is context. Every row carries its fix. Real data only. */
 
-const KIND_ORDER = ['factual', 'supersession', 'regret', 'agent-flag', 'temporal', 'decay', 'logical', 'skill', 'battery'];
+// Four groups a human can hold in their head, not nine taxonomy classes.
+const GROUPS: { key: string; label: string; kinds: string[]; hint: string }[] = [
+  { key: 'conflicts', label: 'Conflicts', kinds: ['factual', 'supersession'],
+    hint: 'two sources cannot both be true — rule on the evidence' },
+  { key: 'evictions', label: 'Evictions', kinds: ['regret', 'agent-flag'],
+    hint: 'memory that was retired or flagged and wants a second look' },
+  { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical'],
+    hint: 'past its useful life — bulk-kill is safe, decisions are reversible' },
+  { key: 'setup', label: 'Setup', kinds: ['skill'],
+    hint: 'your tool configuration, not your memory — usually one command to fix' },
+];
+const KIND_ORDER = GROUPS.flatMap(g => g.kinds);
+
+function HowItWorks() {
+  const [hidden, setHidden] = useState(localStorage.getItem('hm-guide') === '1');
+  if (hidden) return null;
+  return (
+    <div className="rounded-xl border border-zinc-300 bg-white px-5 py-4 mb-5 shadow-sm">
+      <div className="flex items-baseline justify-between">
+        <b className="text-[13px] text-zinc-800">How Mount Helicon works</b>
+        <button className="text-[11px] text-zinc-500 hover:text-zinc-800"
+          onClick={() => { localStorage.setItem('hm-guide', '1'); setHidden(true); }}>got it, hide</button>
+      </div>
+      <ol className="mt-2 text-[12.5px] leading-relaxed text-zinc-600 list-decimal ml-4 space-y-0.5">
+        <li><b className="text-zinc-800">It reads your memory</b> — transcripts, vault, rules files, git — read-only, into its own store.</li>
+        <li><b className="text-zinc-800">Checks run on a timer</b> — ten documented failure classes (contradictions, staleness, dead names…). No LLM needed for the core.</li>
+        <li><b className="text-zinc-800">Everything below failed a check</b> — each row carries its evidence. Nothing here is a suggestion; it is a receipt.</li>
+        <li><b className="text-zinc-800">You rule, once</b> — keep, kill, or resolve with the truth. Rulings stick: the same rot re-alarms if it returns. Stale items are safe to bulk-kill; every decision is reversible.</li>
+      </ol>
+    </div>
+  );
+}
 
 const KIND_LABEL: Record<string, string> = {
   factual: 'Contradiction',
@@ -213,8 +244,10 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
   const warning = summary.by_severity.warning || 0;
   const info = summary.by_severity.info || 0;
 
-  const kinds = KIND_ORDER.filter(k => (summary.by_kind[k] || 0) > 0);
-  const visible = findings.filter(f => kindFilter === 'all' || f.kind === kindFilter);
+  const groupCount = (g: { kinds: string[] }) => g.kinds.reduce((n, k) => n + (summary.by_kind[k] || 0), 0);
+  const groups = GROUPS.filter(g => groupCount(g) > 0);
+  const activeKinds = GROUPS.find(g => g.key === kindFilter)?.kinds;
+  const visible = findings.filter(f => kindFilter === 'all' || (activeKinds ? activeKinds.includes(f.kind) : f.kind === kindFilter));
 
   return (
     <div>
@@ -254,6 +287,7 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         </div>
       </div>
 
+      <HowItWorks />
       {/* Kind filter chips — the old rules/projects/content confusion, resolved into clean kinds */}
       <div className="flex items-center gap-1.5 mb-4 flex-wrap">
         <button
@@ -264,16 +298,16 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         >
           All<span className="ml-1 text-zinc-700 tabular-nums">{summary.total}</span>
         </button>
-        {kinds.map(k => (
+        {groups.map(g => (
           <button
-            key={k}
-            onClick={() => setKindFilter(k)}
-            title={KIND_HINT[k]}
+            key={g.key}
+            onClick={() => setKindFilter(g.key)}
+            title={g.hint}
             className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
-              kindFilter === k ? 'bg-zinc-800/60 text-zinc-300' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/20'
+              kindFilter === g.key ? 'bg-zinc-800/60 text-zinc-300' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/20'
             }`}
           >
-            {KIND_LABEL[k]}<span className="ml-1 text-zinc-700 tabular-nums">{summary.by_kind[k]}</span>
+            {g.label}<span className="ml-1 text-zinc-700 tabular-nums">{groupCount(g)}</span>
           </button>
         ))}
         {!batteryIncluded && !batteryLoading && (

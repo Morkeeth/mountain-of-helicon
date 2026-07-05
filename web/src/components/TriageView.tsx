@@ -50,7 +50,7 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
             <button
               onClick={handleExecute}
               disabled={running || (preview !== null && preview.length === 0)}
-              className="text-[12px] px-3 py-1.5 rounded-md border border-violet-200 text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-30 shadow-sm bg-white"
+              className="text-[12px] px-3 py-1.5 rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors disabled:opacity-30 shadow-sm bg-white"
             >
               Execute
             </button>

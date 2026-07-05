@@ -351,7 +351,7 @@ export function Graph3D() {
         <button
           onClick={handleBuild}
           disabled={building}
-          className="text-[12px] px-3 py-1.5 rounded-md border border-violet-200 text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-30 shadow-sm bg-white"
+          className="text-[12px] px-3 py-1.5 rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors disabled:opacity-30 shadow-sm bg-white"
         >
           {building ? 'Building...' : 'Rebuild Graph'}
         </button>
@@ -363,7 +363,7 @@ export function Graph3D() {
             <div className="text-center">
               <p className="text-zinc-500 text-sm mb-2">{loading ? 'Loading graph...' : 'No graph data yet.'}</p>
               {!loading && (
-                <button onClick={handleBuild} className="text-[12px] text-violet-600 hover:text-violet-500">
+                <button onClick={handleBuild} className="text-[12px] text-zinc-700 hover:text-zinc-600">
                   Build graph from memories
                 </button>
               )}

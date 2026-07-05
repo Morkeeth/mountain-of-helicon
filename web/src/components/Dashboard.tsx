@@ -92,11 +92,11 @@ export function Dashboard({ score, findings, connectors, triageCount, onNavigate
         <button
           onClick={runSleepCycle}
           disabled={running}
-          className="text-[12px] px-4 py-2 rounded-lg border border-violet-200 text-violet-600 hover:bg-violet-50 transition-all active:scale-95 disabled:opacity-30 flex items-center gap-2 shadow-sm bg-white"
+          className="text-[12px] px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-all active:scale-95 disabled:opacity-30 flex items-center gap-2 shadow-sm bg-white"
         >
           {running ? (
             <>
-              <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-zinc-1000 animate-pulse" />
               Consolidating...
             </>
           ) : (

@@ -36,12 +36,12 @@ export function ConsolidationView() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-baseline gap-3">
           <h2 className="text-[15px] font-medium text-zinc-200">Memory Consolidation</h2>
-          <span className="text-[11px] text-zinc-600">neuroscience-inspired "sleep" cycles</span>
+          <span className="text-[11px] text-zinc-600" title="A sleep cycle finds clusters of near-duplicate memories (by embedding similarity) and merges each cluster into one consolidated note — fewer, denser memories, ~9x fewer tokens per retrieval. Nothing is deleted; originals are marked merged.">what is a sleep cycle? — hover</span>
         </div>
         <button
           onClick={runConsolidation}
           disabled={running}
-          className="text-[12px] px-3 py-1.5 rounded-md border border-violet-200 text-violet-600 hover:bg-violet-50 transition-colors disabled:opacity-30 shadow-sm bg-white"
+          className="text-[12px] px-3 py-1.5 rounded-md border border-zinc-300 text-zinc-700 hover:bg-zinc-100 transition-colors disabled:opacity-30 shadow-sm bg-white"
         >
           {running ? 'Consolidating...' : 'Run Sleep Cycle'}
         </button>
@@ -50,13 +50,13 @@ export function ConsolidationView() {
       <div className="flex gap-1 mb-6">
         <button
           onClick={() => setTab('clusters')}
-          className={`px-3 py-1.5 text-[12px] rounded-md transition-colors ${tab === 'clusters' ? 'bg-violet-50 text-violet-600 border border-violet-200' : 'text-zinc-500 hover:text-zinc-400'}`}
+          className={`px-3 py-1.5 text-[12px] rounded-md transition-colors ${tab === 'clusters' ? 'bg-zinc-100 text-zinc-700 border border-zinc-300' : 'text-zinc-500 hover:text-zinc-400'}`}
         >
           Clusters ({clusters.length})
         </button>
         <button
           onClick={() => setTab('consolidated')}
-          className={`px-3 py-1.5 text-[12px] rounded-md transition-colors ${tab === 'consolidated' ? 'bg-violet-50 text-violet-600 border border-violet-200' : 'text-zinc-500 hover:text-zinc-400'}`}
+          className={`px-3 py-1.5 text-[12px] rounded-md transition-colors ${tab === 'consolidated' ? 'bg-zinc-100 text-zinc-700 border border-zinc-300' : 'text-zinc-500 hover:text-zinc-400'}`}
         >
           Consolidated ({consolidations.length})
         </button>
@@ -79,7 +79,7 @@ export function ConsolidationView() {
           {consolidations.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-zinc-600 text-sm mb-1">No consolidations yet.</p>
-              <p className="text-zinc-700 text-[12px]">Run a sleep cycle to merge related memories into consolidated knowledge.</p>
+              <p className="text-zinc-700 text-[12px]">A sleep cycle merges clusters of near-duplicate memories into one consolidated note (originals kept, marked merged). Fewer, denser memories; ~9x fewer tokens per retrieval.</p>
             </div>
           ) : (
             consolidations.map(c => (

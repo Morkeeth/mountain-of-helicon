@@ -133,7 +133,9 @@ async def score_snapshot(event_label: str = None):
 
 @router.get("/qwen/stats")
 async def qwen_stats():
-    stats = get_call_stats()
+    # Pass the DB conn so stats cover Qwen usage from ALL processes
+    # (CLI report/battery/rule runs), not just this server process.
+    stats = get_call_stats(get_conn())
     return stats
 
 

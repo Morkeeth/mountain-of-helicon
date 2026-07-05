@@ -1066,10 +1066,11 @@ def cmd_optimize(args):
     from helicon.score import compute_score
     from helicon.forgetting import get_decay_stats
     from helicon.triage import compute_triage_rules, init_triage_table
-    from helicon.qwen import get_client, complete
+    from helicon.qwen import get_client, complete, set_cache_db
 
     config = load_config()
     conn = init_db(config["db_path"])
+    set_cache_db(conn)
     init_triage_table(conn)
 
     score = compute_score(conn)
@@ -1200,7 +1201,8 @@ def cmd_consolidate(args):
     max_clusters = args.max if hasattr(args, "max") else 10
     qwen_client = None
     if hasattr(args, "qwen") and args.qwen:
-        from helicon.qwen import get_client
+        from helicon.qwen import get_client, set_cache_db
+        set_cache_db(conn)
         qwen_client = get_client(config)
 
     print(f"\nConsolidating top {max_clusters} clusters...\n")
@@ -1262,7 +1264,8 @@ def cmd_consolidation_eval(args):
 
     qwen_client = None
     if getattr(args, "qwen", False):
-        from helicon.qwen import get_client
+        from helicon.qwen import get_client, set_cache_db
+        set_cache_db(conn)
         qwen_client = get_client(config)
 
     sample = getattr(args, "sample", 12)

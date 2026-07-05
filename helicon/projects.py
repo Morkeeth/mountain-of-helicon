@@ -16,10 +16,29 @@ from datetime import datetime, timedelta
 PROJECT_ALIASES: dict[str, str] = {}
 
 # Generic tags that are not projects, so they don't get grouped as one.
+# Two levels get mixed otherwise: file formats / tools / cube-type tags
+# ('markdown', 'commit', 'dashboard') are not projects and never were —
+# a project is something you'd say you are building.
 _NON_PROJECT_TAGS = {
     "code", "memory", "note", "notes", "misc", "general", "todo", "draft",
     "idea", "review", "task", "update", "wip", "doc", "docs", "test",
+    "markdown", "commit", "commits", "git", "html", "css", "json", "yaml",
+    "config", "script", "file", "files", "session", "sessions",
+    "dashboard", "content", "project", "projects", "obsidian", "cursor",
+    "claude-code", "lifeos", "archive", "personal", "resume", "roadmap",
+    "strategy", "booking", "feedback", "uncommitted",
 }
+
+
+def load_alias_map(conn) -> dict[str, str]:
+    """Declared renames (entity_aliases) applied to project buckets: a
+    'glaze' card next to a 'helicon' card is the tool ignoring its own R4
+    machinery. Dead names roll up into their current name."""
+    try:
+        return {r["old_name"].strip().lower(): r["new_name"].strip().lower()
+                for r in conn.execute("SELECT old_name, new_name FROM entity_aliases")}
+    except Exception:
+        return {}
 
 
 def _normalize_project(tag: str) -> str | None:
@@ -58,9 +77,10 @@ def get_project_rollup(conn) -> list[dict]:
         reviews[r["cube_id"]] = r["decision"]
 
     projects: dict[str, dict] = {}
+    alias_map = load_alias_map(conn)
 
     for row in rows:
-        cube_projects = _extract_projects(row["tags"])
+        cube_projects = {alias_map.get(p, p) for p in _extract_projects(row["tags"])}
         if not cube_projects:
             continue
 

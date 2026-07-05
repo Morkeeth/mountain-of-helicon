@@ -255,12 +255,9 @@ function Tick({ to, ms = 900 }: { to: number; ms?: number }) {
 }
 
 const HERO_CSS = `
-@keyframes hmShard { 0%{transform:translate(0,0) rotate(0); opacity:1}
-  25%{transform:translate(1px,1px) rotate(4deg)}
-  100%{transform:translate(5px,52px) rotate(26deg); opacity:0} }
-.hm-shard { animation: hmShard 1.4s cubic-bezier(.5,0,.9,.4) both; }
-@keyframes hmPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
-.hm-pulse { animation: hmPulse 2.6s ease-in-out 2s infinite; }
+.hm-shard { display: none; }
+@keyframes hmPulse { 0%,100%{opacity:1} 50%{opacity:.62} }
+.hm-pulse { animation: hmPulse 3s ease-in-out 2s infinite; }
 @keyframes hmGold { from { stroke-dashoffset: 60; } to { stroke-dashoffset: 0; } }
 .hm-gold { stroke: #c9a227; stroke-width: 2.6; fill: none;
   stroke-linecap: round; stroke-dasharray: 60;
@@ -343,32 +340,32 @@ export default function HeliconMountain() {
       }}
     >
       <style>{HERO_CSS}</style>
-      <em style={{ fontFamily: 'var(--helicon-serif)', fontStyle: 'italic', fontSize: 15, color: 'var(--helicon-muted)' }}>
-        Mount Helicon
-      </em>
-      <h1
-        style={{
-          fontFamily: 'var(--helicon-serif)',
-          fontWeight: 900,
-          fontVariationSettings: "'opsz' 144",
-          fontSize: 'clamp(28px, 3.6vw, 46px)',
-          lineHeight: 1.06,
-          letterSpacing: '-0.015em',
-          maxWidth: '22ch',
-          margin: '6px 0 10px',
-        }}
-      >
-        Your agent's memory is a mosaic. It has started to{' '}
-        <span style={{ color: 'var(--helicon-accent)' }}>flake</span>.
-      </h1>
+      <div style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'var(--helicon-muted)' }}>
+        Mount Helicon · memory CI
+      </div>
       {battery && (
-        <div style={{ fontSize: 14, lineHeight: 1.6, color: '#6f665a', maxWidth: '52ch', marginBottom: 14 }}>
-          <b style={{ color: 'var(--helicon-accent)', fontVariantNumeric: 'tabular-nums' }}>
+        <h1
+          style={{
+            fontFamily: 'var(--helicon-serif)',
+            fontWeight: 900,
+            fontVariationSettings: "'opsz' 144",
+            fontSize: 'clamp(28px, 3.4vw, 42px)',
+            lineHeight: 1.06,
+            letterSpacing: '-0.015em',
+            maxWidth: '26ch',
+            margin: '8px 0 8px',
+          }}
+        >
+          <span style={{ color: 'var(--helicon-accent)', fontVariantNumeric: 'tabular-nums' }}>
             <Tick to={broken} /> of {battery.total}
-          </b>{' '}
-          retrieval tasks are serving rotten memory right now. Falling shards are real failures; the{' '}
-          <b style={{ color: 'oklch(0.62 0.12 85)' }}>gold seams</b> are your verdicts — once you rule, the crack is
-          sealed and re-alarms if it ever reopens.
+          </span>{' '}
+          retrieval tasks served rot today.
+        </h1>
+      )}
+      {battery && (
+        <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6f665a', maxWidth: '58ch', marginBottom: 14 }}>
+          Killed notes, dead names, contradicted facts — still being retrieved. Hover a crack for the receipt.
+          Rulings are final: resolved rot re-alarms if it ever comes back.
         </div>
       )}
       {tickerItems.length > 0 && (
@@ -462,9 +459,9 @@ export default function HeliconMountain() {
               })()}
             </div>
             <div className="flex flex-wrap" style={{ gap: '10px 26px', fontSize: 11, color: 'var(--helicon-muted)', marginTop: 10 }}>
-              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(150 18% 68%)', marginRight: 6, verticalAlign: '-1px' }} />holding — context verified fresh</span>
-              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(22 62% 52%)', marginRight: 6, verticalAlign: '-1px' }} />flaking — rot found, awaiting your ruling</span>
-              <span><i style={{ display: 'inline-block', width: 10, height: 3, background: 'oklch(0.72 0.13 85)', marginRight: 6, verticalAlign: '2px', borderRadius: 2 }} />gold — {verdicts} human verdict{verdicts === 1 ? '' : 's'}, sealed, never twice</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(150 18% 68%)', marginRight: 6, verticalAlign: '-1px' }} />tile — one retrieval task, context fresh</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(22 62% 52%)', marginRight: 6, verticalAlign: '-1px' }} />cracked — serving rot, hover for the receipt</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 3, background: '#c9a227', marginRight: 6, verticalAlign: '2px', borderRadius: 2 }} />gold — {verdicts} ruling{verdicts === 1 ? '' : 's'} recorded, guarded against recurrence</span>
             </div>
           </div>
 

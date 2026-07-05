@@ -117,7 +117,7 @@ function ContradictionCard({ pair, onResolved }: { pair: ContradictionPair; onRe
         <button
           onClick={() => resolve('keep_both')}
           disabled={resolving}
-          className="text-[12px] px-3 py-1.5 rounded-md text-zinc-500 hover:text-violet-600 hover:bg-violet-50 border border-zinc-800/60 transition-colors disabled:opacity-30"
+          className="text-[12px] px-3 py-1.5 rounded-md text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100 border border-zinc-800/60 transition-colors disabled:opacity-30"
         >
           Keep Both
         </button>

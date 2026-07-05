@@ -158,9 +158,9 @@ export function TokenDashboard() {
           <h3 className="text-[11px] uppercase tracking-wider text-zinc-600 mb-4">Routing Recommendations</h3>
           <div className="space-y-2">
             {routing.recommendations.map((rec, i) => (
-              <div key={i} className="border border-violet-200 bg-violet-50 rounded-lg p-3">
+              <div key={i} className="border border-zinc-300 bg-zinc-100 rounded-lg p-3">
                 <div className="flex items-baseline justify-between mb-1">
-                  <span className="text-[13px] text-violet-600 font-mono">{rec.operation}</span>
+                  <span className="text-[13px] text-zinc-700 font-mono">{rec.operation}</span>
                   <span className="text-[11px] text-green-500/60">save ~${rec.estimated_savings_usd.toFixed(4)}</span>
                 </div>
                 <p className="text-[12px] text-zinc-500">
