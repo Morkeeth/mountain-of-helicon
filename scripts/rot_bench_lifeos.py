@@ -206,7 +206,7 @@ def main():
           "the active corpus by the human audit)")
 
     banner("4. BEYOND the answer key — what the humans missed")
-    labeled_files = {rel.split("/")[-1] for rel, _, _ in LABELS}
+    labeled_files = {l[0].split("/")[-1] for l in LABELS}
     extras = []
     for f in sorted(r1_files):
         if f.split("/")[-1] not in labeled_files:
@@ -222,6 +222,86 @@ def main():
     r3_extra = sum(1 for f in r3_files if f.split("/")[-1] not in labeled_files)
     print(f"   R3: {r3_extra} additional file(s) past half-life the audit "
           f"did not banner (staleness beyond the human pass)")
+
+
+    banner("5. QWEN SECOND PASS — the misses, judged (with un-bannered controls)")
+    from helicon.config import load_config
+    from helicon.qwen import get_client, complete_json, set_cache_db
+    client = get_client(load_config())
+    if client is None:
+        print("   no Qwen key configured; the deterministic numbers above stand alone")
+        return
+    set_cache_db(conn)
+    from helicon.snapshots import _retrieve
+
+    root_map = {os.path.basename(os.path.normpath(r)): r for r in roots}
+
+    def judge(rel):
+        """Qwen reads the stripped doc + 5 related memories from the same
+        store, and rules conservatively. The answer key never enters."""
+        label, _, sub = rel.partition("/")
+        try:
+            text = open(os.path.join(root_map.get(label, ""), sub),
+                        encoding="utf-8").read()
+        except OSError:
+            return None
+        text = "\n".join(l for l in text.splitlines()
+                         if not l.startswith("> **LOUPE"))[:2600]
+        q = os.path.splitext(os.path.basename(rel))[0].replace("-", " ")
+        related = []
+        for h in _retrieve(conn, q, 5):
+            row = conn.execute("SELECT title, content, created_at FROM helicon_cubes "
+                               "WHERE id=?", (h["id"],)).fetchone()
+            if row:
+                related.append(f"- [{(row['created_at'] or '')[:10]}] {row['title']}: "
+                               f"{(row['content'] or '')[:180]}")
+        return complete_json(
+            client,
+            "You are a memory-rot auditor. Be conservative: flag only claims "
+            "you can ground in the provided material or in the date.",
+            f"Today is 2026-07-05.\n\nDOC ({rel}):\n{text}\n\n"
+            "RELATED MEMORIES (same store):\n" + "\n".join(related) +
+            "\n\nDoes the DOC assert anything likely STALE (time passed), "
+            "SUPERSEDED (a decision or status changed since), or CONTRADICTED "
+            "by the related memories? Return ONLY JSON: "
+            '{"rot_found": true|false, "findings": [{"claim": "...", '
+            '"why": "...", "class": "R1|R3|R4"}]}',
+            model="qwen3.6-plus", operation="second_pass")
+
+    caught2 = []
+    for rel, classes, what, _h, _f in missed:
+        v = judge(rel)
+        ok = bool(v and v.get("rot_found") and v.get("findings"))
+        if ok:
+            f0 = v["findings"][0]
+            caught2.append(rel)
+            print(f"   CAUGHT [{f0.get('class','?')}] {rel}")
+            print(f"          qwen: {str(f0.get('claim',''))[:95]}")
+        else:
+            print(f"   miss   {rel} — {what}")
+
+    # Controls: files the human audit did NOT banner. A flag here is either a
+    # false positive or rot the humans missed — printed either way, never
+    # counted as a catch.
+    labeled_names = {l[0].split("/")[-1] for l in LABELS}
+    pool = [f for f in sorted(files) if f.split("/")[-1] not in labeled_names]
+    controls = pool[:: max(1, len(pool) // 3)][:3]
+    flagged = []
+    for cf in controls:
+        v = judge(cf)
+        if v and v.get("rot_found") and v.get("findings"):
+            flagged.append(cf)
+            print(f"   control FLAGGED {cf}")
+            print(f"          qwen: {str(v['findings'][0].get('claim',''))[:95]}")
+        else:
+            print(f"   control clean   {cf}")
+
+    print(f"\n   second pass: +{len(caught2)}/{len(missed)} deterministic "
+          f"misses caught by Qwen")
+    print(f"   un-bannered controls flagged: {len(flagged)}/{len(controls)} "
+          f"(false positive OR human miss — review the claims above)")
+    print(f"   layered result: {len(caught)}/{denom} keyless, "
+          f"{len(caught) + len(caught2)}/{denom} with a Qwen key")
 
     print(f"\nReproduce: python3 scripts/rot_bench_lifeos.py  "
           f"(read-only; throwaway DB; banners stripped as answer key)")
