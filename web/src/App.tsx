@@ -31,7 +31,12 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 
 function App() {
-  const [tab, setTab] = useState<Tab>('findings');
+  // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
+  const initialTab = (): Tab => {
+    const h = window.location.hash.replace('#', '') as Tab;
+    return ALL_TABS.includes(h) ? h : 'findings';
+  };
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
   const [connectors, setConnectors] = useState<Connector[]>([]);
   const [triageCount, setTriageCount] = useState(0);

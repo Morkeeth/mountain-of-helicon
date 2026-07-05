@@ -76,7 +76,9 @@ function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], s
 
   const tiles: TaskTile[] = [];
 
-  // cracked tiles near the summit ridge — ONE per flagged task, terracotta fracture
+  // cracked tiles near the summit ridge — ONE per flagged task. BROKEN tasks
+  // flake: the tile turns terracotta, pulses, and sheds a shard that falls
+  // off the mountain on load (the one dramatic animation on this page).
   const groundL = 98;
   for (let k = 0; k < crackTasks.length; k++) {
     const c = Math.floor(cols * (0.3 + rand() * 0.5));
@@ -84,10 +86,17 @@ function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], s
     const r = startRow + Math.floor(rand() * 3);
     const x = g + c * (size + g);
     const y = g + r * (size + g);
-    s += `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="0" fill="${hsl(40, 22, Math.min(97, groundL))}"/>`;
+    const broken = crackTasks[k].verdict === 'BROKEN';
+    const delay = (0.6 + k * 0.35).toFixed(2);
+    if (broken) {
+      s += `<rect class="hm-pulse" style="animation-delay:${delay}s" x="${x}" y="${y}" width="${size}" height="${size}" fill="hsl(22 62% 52%)"/>`;
+      s += `<polygon class="hm-shard" style="animation-delay:${delay}s" points="${x + size * 0.55},${y + size * 0.4} ${x + size},${y + size * 0.15} ${x + size},${y + size * 0.7}" fill="hsl(22 62% 44%)"/>`;
+    } else {
+      s += `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="${hsl(30, 42, 74)}"/>`;
+    }
     s += `<path d="M${x + 1.5} ${y + size - 1.5} L${x + size * 0.55} ${y + 1.5} M${x + size * 0.42} ${
       y + size - 1.5
-    } L${x + size - 1.5} ${y + 2.5}" stroke="var(--helicon-accent)" stroke-width="0.8"/>`;
+    } L${x + size - 1.5} ${y + 2.5}" stroke="${broken ? 'hsl(24 55% 30%)' : 'var(--helicon-accent)'}" stroke-width="0.8"/>`;
     tiles.push({ x, y, size, task: crackTasks[k] });
   }
 
@@ -102,7 +111,26 @@ function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], s
   const d = 'M' + ridgePts.map((p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L');
   const ridgeLine = `<path d="${d}" fill="none" stroke="${hsl(210, 14, 40)}" stroke-width="0.8" opacity="0.6" stroke-linejoin="round"/>`;
   const viewH = g + rows * (size + g);
-  return { svg: ridgeLine + s, viewH, tiles };
+  return { svg: ridgeLine + s, viewH, tiles, ridgePts };
+}
+
+// Gold seams — kintsugi. One per human verdict (resolve/dismiss): the crack
+// was ruled on, the repair is visible, and never-twice guards it. Drawn along
+// the ridge where the rot lived.
+function goldSeams(ridgePts: [number, number][], count: number): string {
+  if (!count || ridgePts.length < 10) return '';
+  let s = '';
+  const n = Math.min(count, 6);
+  for (let k = 0; k < n; k++) {
+    const at = Math.floor(ridgePts.length * (0.25 + (0.5 * (k + 0.5)) / n));
+    const [x, y] = ridgePts[at];
+    const dx = 16 + (k % 3) * 6;
+    const d = `M ${x - dx} ${y + 16} q ${dx * 0.7} -9 ${dx} 2 q ${dx * 0.4} 10 ${dx * 0.9} 4`;
+    const delay = (1.4 + k * 0.4).toFixed(2);
+    s += `<path class="hm-gold" style="animation-delay:${delay}s" d="${d}"/>`;
+    s += `<path class="hm-gold-glow" style="animation-delay:${delay}s" d="${d}"/>`;
+  }
+  return s;
 }
 
 const DOT: Record<string, string> = {
@@ -209,6 +237,42 @@ function failSummary(t: BatteryTask): string {
   return fails.map((f) => f.name).join(' · ').toLowerCase();
 }
 
+// ticking number (stolen from the Seismograph direction): live values count up
+function Tick({ to, ms = 900 }: { to: number; ms?: number }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const t0 = performance.now();
+    const step = (t: number) => {
+      const p = Math.min(1, (t - t0) / ms);
+      setN(Math.round(to * p));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [to, ms]);
+  return <>{n}</>;
+}
+
+const HERO_CSS = `
+@keyframes hmShard { 0%{transform:translate(0,0) rotate(0); opacity:1}
+  25%{transform:translate(1px,1px) rotate(4deg)}
+  100%{transform:translate(5px,52px) rotate(26deg); opacity:0} }
+.hm-shard { animation: hmShard 1.4s cubic-bezier(.5,0,.9,.4) both; }
+@keyframes hmPulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+.hm-pulse { animation: hmPulse 2.6s ease-in-out 2s infinite; }
+@keyframes hmGold { from { stroke-dashoffset: 60; } to { stroke-dashoffset: 0; } }
+.hm-gold { stroke: #c9a227; stroke-width: 2.6; fill: none;
+  stroke-linecap: round; stroke-dasharray: 60;
+  animation: hmGold 1.2s ease-out both; }
+.hm-gold-glow { stroke: #ffe9a3; stroke-width: 0.9; fill: none;
+  stroke-linecap: round; stroke-dasharray: 60;
+  animation: hmGold 1.2s ease-out both; }
+@keyframes hmTicker { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+.hm-ticker { display:inline-block; white-space:nowrap; animation:hmTicker 42s linear infinite; }
+.hm-ticker:hover { animation-play-state: paused; }
+`;
+
 export default function HeliconMountain() {
   const [battery, setBattery] = useState<BatteryReport | null>(null);
   const [history, setHistory] = useState<BatteryHistory | null>(null);
@@ -216,6 +280,18 @@ export default function HeliconMountain() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [hovered, setHovered] = useState<TaskTile | null>(null);
+  const [tickerItems, setTickerItems] = useState<string[]>([]);
+  const [verdicts, setVerdicts] = useState(0);
+
+  useEffect(() => {
+    // real open contradictions for the ticker; real human verdicts for the gold
+    api.getFindings({ kind: 'factual', limit: 8 }).then((r) =>
+      setTickerItems(r.findings.map((f) => f.why.replace(/^Contradiction: /, '')))
+    ).catch(() => {});
+    api.getLog(120).then((r) =>
+      setVerdicts(r.entries.filter((e) => e.actor === 'human' && e.action.startsWith('audit_')).length)
+    ).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -250,10 +326,12 @@ export default function HeliconMountain() {
   const healthy = useMemo(() => (battery?.tasks || []).filter((t) => t.verdict === 'HEALTHY'), [battery]);
 
   const intact = battery && battery.total ? Math.round((battery.summary.healthy / battery.total) * 100) : 0;
-  const { svg, viewH, tiles } = useMemo(
+  const { svg, viewH, tiles, ridgePts } = useMemo(
     () => buildMountain(flagged, healthy, (battery?.total || 0) * 100 + flagged.length),
     [flagged, healthy, battery?.total]
   );
+  const seams = useMemo(() => goldSeams(ridgePts || [], verdicts), [ridgePts, verdicts]);
+  const broken = battery?.summary.broken ?? 0;
 
   return (
     <div
@@ -264,27 +342,53 @@ export default function HeliconMountain() {
         boxShadow: '0 20px 60px rgba(50,40,28,.14)',
       }}
     >
-      <div className="flex items-baseline gap-3 mb-1">
-        <b
+      <style>{HERO_CSS}</style>
+      <em style={{ fontFamily: 'var(--helicon-serif)', fontStyle: 'italic', fontSize: 15, color: 'var(--helicon-muted)' }}>
+        Mount Helicon
+      </em>
+      <h1
+        style={{
+          fontFamily: 'var(--helicon-serif)',
+          fontWeight: 900,
+          fontVariationSettings: "'opsz' 144",
+          fontSize: 'clamp(28px, 3.6vw, 46px)',
+          lineHeight: 1.06,
+          letterSpacing: '-0.015em',
+          maxWidth: '22ch',
+          margin: '6px 0 10px',
+        }}
+      >
+        Your agent's memory is a mosaic. It has started to{' '}
+        <span style={{ color: 'var(--helicon-accent)' }}>flake</span>.
+      </h1>
+      {battery && (
+        <div style={{ fontSize: 14, lineHeight: 1.6, color: '#6f665a', maxWidth: '52ch', marginBottom: 14 }}>
+          <b style={{ color: 'var(--helicon-accent)', fontVariantNumeric: 'tabular-nums' }}>
+            <Tick to={broken} /> of {battery.total}
+          </b>{' '}
+          retrieval tasks are serving rotten memory right now. Falling shards are real failures; the{' '}
+          <b style={{ color: 'oklch(0.62 0.12 85)' }}>gold seams</b> are your verdicts — once you rule, the crack is
+          sealed and re-alarms if it ever reopens.
+        </div>
+      )}
+      {tickerItems.length > 0 && (
+        <div
           style={{
-            fontFamily: 'var(--helicon-serif)',
-            fontWeight: 300,
-            fontSize: 26,
-            letterSpacing: '0.02em',
-            textTransform: 'uppercase',
-            fontVariationSettings: "'opsz' 144",
+            overflow: 'hidden', borderTop: '1px solid var(--helicon-line)', borderBottom: '1px solid var(--helicon-line)',
+            margin: '0 0 18px', padding: '7px 0', fontSize: 11.5, fontVariantNumeric: 'tabular-nums',
+            color: '#5d564b', whiteSpace: 'nowrap',
           }}
+          title="open contradictions in your memory, live — rule on them in FINDINGS"
         >
-          Mount Helicon
-        </b>
-        <em style={{ fontStyle: 'normal', fontSize: 9.5, letterSpacing: '0.36em', textTransform: 'uppercase', color: 'var(--helicon-accent)', opacity: 0.85 }}>
-          tesserae
-        </em>
-      </div>
-      <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#6f665a', maxWidth: '42ch', margin: '10px 0 22px' }}>
-        Your agent's memory is a mountain built of tiles. Helicon shows you the moment one starts to crack. Every crack
-        below is a real benchmark task whose retrieved context is degraded or broken.
-      </div>
+          <div className="hm-ticker">
+            {[...tickerItems, ...tickerItems].map((t, i) => (
+              <span key={i} style={{ marginRight: 38 }}>
+                <b style={{ color: 'var(--helicon-accent)', fontWeight: 600 }}>▌rot</b> {t}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && <div style={{ fontSize: 12, color: 'var(--helicon-accent)' }}>Could not load integrity data: {error}</div>}
       {loading && !battery && (
@@ -309,7 +413,7 @@ export default function HeliconMountain() {
             </div>
             <div style={{ position: 'relative' }}>
               <svg style={{ display: 'block', width: '100%' }} viewBox={`0 0 ${W} ${viewH}`}>
-                <g dangerouslySetInnerHTML={{ __html: svg }} />
+                <g dangerouslySetInnerHTML={{ __html: svg + seams }} />
                 {tiles.map((tile, i) => (
                   <rect
                     key={`${tile.task.task}-${i}`}
@@ -357,8 +461,10 @@ export default function HeliconMountain() {
                 );
               })()}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 10 }}>
-              Each tessera is a retrieval task. Cracks mark tasks serving broken memory.
+            <div className="flex flex-wrap" style={{ gap: '10px 26px', fontSize: 11, color: 'var(--helicon-muted)', marginTop: 10 }}>
+              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(150 18% 68%)', marginRight: 6, verticalAlign: '-1px' }} />holding — context verified fresh</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(22 62% 52%)', marginRight: 6, verticalAlign: '-1px' }} />flaking — rot found, awaiting your ruling</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 3, background: 'oklch(0.72 0.13 85)', marginRight: 6, verticalAlign: '2px', borderRadius: 2 }} />gold — {verdicts} human verdict{verdicts === 1 ? '' : 's'}, sealed, never twice</span>
             </div>
           </div>
 
