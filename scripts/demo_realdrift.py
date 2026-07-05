@@ -152,6 +152,14 @@ def main():
         print("\n-> No retrieval change for this task across the real history. Try a "
               "DEMO_TASK\n   that touches a section the commits actually edited.\n")
 
+    banner("5. THE ROT EXAM on this store (helicon rot, same 10 classes)")
+    from helicon.rot import run_rot_exam, format_rot
+    print(format_rot(run_rot_exam(conn)))
+    print(f"\nReproduce: repo={REPO}  file={RULES_FILE}  old={old_sha}  head={new_sha}")
+    print("Real commits, real edits, zero staging — any judge can rerun this on any "
+          "public repo\nwith an agent-rules file: "
+          "DEMO_REPO=<clone> DEMO_RULES_FILE=AGENTS.md python3 scripts/demo_realdrift.py")
+
 
 if __name__ == "__main__":
     main()

@@ -99,6 +99,16 @@ The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercise
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
+## Audit a store you don't own
+
+The exam is not limited to your own memory. Any repo with a committed agent-rules file (AGENTS.md, CLAUDE.md, .cursorrules, ...) is a memory store someone's agent obeys every session — so it can be examined:
+
+```bash
+bash scripts/demo_public_store.sh          # default: openai/codex AGENTS.md
+```
+
+This replays the file across its REAL git history (no staging): ingests an old commit, snapshots retrieval, replays to HEAD, reconciles, runs the rot exam. On openai/codex (27 real commits of AGENTS.md edits, cited by SHA in the output): 5 sections retired as drifted, 1/1 retrieval snapshot regressed — R10 and R8, live, on a store we don't own. Reproducible by anyone.
+
 Doc honesty is enforced: `python3 -m helicon.docdrift` compares this README's numeric claims against counts computed from source, and it runs in the test suite — stale docs fail the build. (It caught this very README claiming 20 commands the hour the 21st landed.)
 
 Everything destructive is dry-run by default and takes `--apply`.
