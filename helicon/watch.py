@@ -57,9 +57,10 @@ def collect_drift(conn: sqlite3.Connection, state: dict,
     last_id = state.get("last_audit_id", 0)
     rows = conn.execute(
         "SELECT id, audit_type, finding, severity FROM audit_log "
-        "WHERE id > ? ORDER BY id", (last_id,),
+        "WHERE id > ? AND human_decision IS NULL ORDER BY id", (last_id,),
     ).fetchall()
-    max_id = rows[-1]["id"] if rows else last_id
+    max_row = conn.execute("SELECT MAX(id) m FROM audit_log").fetchone()
+    max_id = max(max_row["m"] or 0, last_id)
 
     exam = run_rot_exam(conn, repo_root)
     old = state.get("rot_verdicts", {})
