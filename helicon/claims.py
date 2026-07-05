@@ -59,7 +59,12 @@ _STOP = {"this", "that", "with", "from", "have", "been", "will", "were",
          "wins", "win", "episode", "episodes", "merge", "merged", "merging",
          "pending", "patched", "hackathon.", "released", "recording",
          # per-corpus generic nouns that lump unrelated clusters together
-         "radio", "wave", "audience", "project", "projects"}
+         "radio", "wave", "audience", "project", "projects",
+         # generic adjectives that fragment one fact into many clusters
+         # ('episode [edited]', 'episode [live]', 'episode [real]' were all
+         # the same ep25-vs-ep29 conflict on the live store)
+         "live", "real", "final", "edited", "next", "last", "first", "new",
+         "old", "tonight", "today", "queued", "guest", "week", "month"}
 WINDOW = 60
 
 
