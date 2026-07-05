@@ -14,6 +14,8 @@ const GROUPS: { key: string; label: string; kinds: string[]; hint: string }[] = 
     hint: 'memory that was retired or flagged and wants a second look' },
   { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical'],
     hint: 'past its useful life — bulk-kill is safe, decisions are reversible' },
+  { key: 'stack', label: 'Stack', kinds: ['routine', 'output', 'context'],
+    hint: 'the harness itself: silent routines, dead paths, context bloat' },
   { key: 'setup', label: 'Setup', kinds: ['skill'],
     hint: 'your tool configuration, not your memory — usually one command to fix' },
 ];

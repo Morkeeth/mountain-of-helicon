@@ -681,6 +681,8 @@ def cmd_evolve(args):
     pair_scan(conn, client=client)
     claim_scan(conn, config)
     alias_scan(conn)
+    from helicon.stackwatch import stack_scan
+    stack = stack_scan(conn)
     exam = run_rot_exam(conn)
 
     hist = gold_history(config, limit=2)
@@ -696,6 +698,8 @@ def cmd_evolve(args):
     print(f"  new findings        +{max(0, after_open - before_open)}  "
           f"(open now: {after_open})")
     print(f"  rot classes firing  {exam['rot_found']}/10")
+    print(f"  stack surfaces      +{stack['routine']} routine, "
+          f"+{stack['output']} dead-path, +{stack['context']} context finding(s)")
     print(f"  golden rules        {prev_rules} -> {gold['total']}"
           + (f"  (+{gold['total'] - prev_rules} learned)"
              if gold["total"] > prev_rules else "  (holding)"))
