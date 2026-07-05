@@ -59,3 +59,25 @@ def test_stack_scan_files_once(conn, tmp_path):
     n = conn.execute("SELECT COUNT(*) FROM audit_log "
                      "WHERE audit_type='output'").fetchone()[0]
     assert n == 1
+
+
+def test_cron_interval_skips_dow_dom_restricted_jobs():
+    """P1: weekly/monthly jobs were being called daily -> false dead-limb
+    findings every Thursday."""
+    assert _cron_interval_minutes("0 0 * * 0 job") is None       # weekly
+    assert _cron_interval_minutes("0 0 1 * * job") is None       # monthly
+    assert _cron_interval_minutes("15 3 * * 1-5 job") is None    # weekdays
+    assert _cron_interval_minutes("*/30 * * * * job") == 30      # still works
+
+
+def test_concurrent_double_file_blocked_by_unique_index(conn, tmp_path):
+    """P1: watch cron + evolve racing the same selector must not double-file.
+    The read-then-insert dedup loses the race; the unique index wins it."""
+    import sqlite3 as s3
+    from helicon.db import insert_audit
+    from helicon.models import AuditResult
+    a = AuditResult(audit_type="output", target_type="stack", target_id="k",
+                    finding="x", severity="warning",
+                    details={"key": "output|/race"}, audited_at="2026-07-06")
+    assert insert_audit(conn, a) is not None
+    assert insert_audit(conn, a) is None  # second filer rejected, no raise

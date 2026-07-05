@@ -37,9 +37,13 @@ def _cron_interval_minutes(spec: str) -> float | None:
     """Rough interval from the first two cron fields. Good enough to know
     whether a log has been silent for ~3 intervals."""
     parts = spec.split()
-    if len(parts) < 2:
+    if len(parts) < 5:
         return None
     minute, hour = parts[0], parts[1]
+    # restricted day-of-month or day-of-week (weekly/monthly/weekday jobs):
+    # interval estimation would call them daily and cry wolf — skip them
+    if parts[2] != "*" or parts[4] != "*":
+        return None
     m = re.match(r"\*/(\d+)$", minute)
     if m:
         return float(m.group(1))
@@ -76,7 +80,9 @@ def routine_findings() -> list[dict]:
         cdm = re.search(r"cd\s+(\S+)", line)
         if not os.path.isabs(log_path) and cdm:
             log_path = os.path.join(os.path.expanduser(cdm.group(1)), log_path)
-        name = (re.search(r"#\s*(.+)$", line) or ["", log_path])[1]
+        cmdm = re.search(r"&&\s*(\S+(?:\s+\S+)?)", line)
+        fallback = cmdm.group(1) if cmdm else line.split()[5] if len(line.split()) > 5 else log_path
+        name = (re.search(r"#\s*(.+)$", line) or ["", fallback])[1]
         if not os.path.exists(log_path):
             out.append({"key": f"routine|{log_path}|missing",
                         "finding": f"Routine '{name.strip()}' has never written its "
@@ -133,13 +139,14 @@ def output_findings(conn: sqlite3.Connection, since_days: int = 2,
 def context_findings() -> list[dict]:
     """Standing context weight vs the measured completion tax."""
     out = []
-    for path in (os.path.expanduser("~/.claude/CLAUDE.md"), "CLAUDE.md"):
+    for path in (os.path.expanduser("~/.claude/CLAUDE.md"),
+                 os.path.abspath("CLAUDE.md")):
         if not os.path.exists(path):
             continue
         chars = len(open(path, encoding="utf-8", errors="replace").read())
         tokens = chars // 4
         if tokens > CONTEXT_BUDGET_TOKENS:
-            out.append({"key": f"context|{path}",
+            out.append({"key": f"context|{os.path.abspath(path)}",
                         "finding": f"Standing context {path} is ~{tokens:,} "
                                    f"tokens (budget {CONTEXT_BUDGET_TOKENS:,}). "
                                    f"Context bloat is measured at 91.6% -> 71% "

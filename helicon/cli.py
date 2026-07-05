@@ -639,9 +639,12 @@ def cmd_gold(args):
           f"{res['resolutions']} rulings, {res['triage']} triage, "
           f"{res['precedents']} precedents, {res['feedback']} feedback) "
           f"-> {res['path']}")
-    inj = inject(conn, config, apply=getattr(args, "inject", False))
+    inj = inject(conn, config, apply=getattr(args, "inject", False),
+                 md=res.get("md"))
     if inj["applied"]:
-        print(f"injected -> {inj['target']} (.bak kept). {inj['hint']}")
+        print(f"injected -> {inj['target']}"
+              + (" (.bak kept)" if inj.get("bak") else "")
+              + f". {inj['hint']}")
     else:
         print(f"not injected (dry-run). {inj['hint']}")
 
@@ -693,10 +696,11 @@ def cmd_evolve(args):
         "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
 
     print("\nSTACK EVOLUTION — while you were away")
-    print(f"  memories ingested   +{added}  (store: {before_cubes} -> "
-          f"{before_cubes + added})")
-    print(f"  new findings        +{max(0, after_open - before_open)}  "
-          f"(open now: {after_open})")
+    after_cubes = conn.execute("SELECT COUNT(*) FROM helicon_cubes").fetchone()[0]
+    delta_open = after_open - before_open
+    print(f"  memories ingested   +{added}  (store: {before_cubes} -> {after_cubes})")
+    print(f"  findings delta      {'+' if delta_open >= 0 else ''}{delta_open}  "
+          f"(open now: {after_open}; negative = rulings landed mid-run)")
     print(f"  rot classes firing  {exam['rot_found']}/10")
     print(f"  stack surfaces      +{stack['routine']} routine, "
           f"+{stack['output']} dead-path, +{stack['context']} context finding(s)")

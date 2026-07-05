@@ -168,3 +168,32 @@ def test_claim_scan_files_once_and_shows_in_rot(conn):
     assert claim_scan(conn)["filed"] == []
     r1 = next(c for c in run_rot_exam(conn)["checks"] if c["id"] == "R1")
     assert r1["verdict"] == "ROT FOUND" and "claim" in r1["receipt"]
+
+
+def test_line_matching_both_poles_yields_no_status_claim():
+    """P0 from the night audit: the LOUPE banner that CLOSES a decision was
+    filed as evidence the decision was still open. A line matching both
+    poles asserts neither."""
+    line = "> **LOUPE STATUS FLIP: rebrand EXECUTED Jul 2. Section 1 'open decisions' are DONE.**"
+    got = [c for c in extract_status_claims(line) if c["metric"] == "decision-status"]
+    assert got == []
+    # single-pole lines still assert
+    assert extract_status_claims("rebrand executed Jul 2")[0]["value"] == "executed"
+
+
+def test_canonical_omitted_when_canon_file_asserts_both_values(conn):
+    config = {"claims": {"canonical": {"episode": "ep29.md"}}}
+    _cube(conn, "released as ep29; the raw session was labeled ep25", "ep29.md")
+    _cube(conn, "promo clip refers to ep25", "notes.md")
+    for c in find_claim_conflicts(conn, config):
+        if c["metric"] == "episode":
+            assert c.get("canonical") is None
+
+
+def test_canonical_requires_exact_basename_match(conn):
+    config = {"claims": {"canonical": {"wins": "mindmap.md"}}}
+    _cube(conn, "archive copy: 12 hackathon wins", "old-mindmap.md")
+    _cube(conn, "site: 9 hackathon wins", "site.md")
+    for c in find_claim_conflicts(conn, config):
+        if c["metric"] == "wins":
+            assert c.get("canonical") is None  # near-name must not hijack truth

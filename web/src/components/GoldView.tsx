@@ -14,7 +14,7 @@ function renderLine(l: string, i: number) {
   if (l.startsWith('## '))
     return <h2 key={i} style={{ fontSize: 11, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--helicon-accent)', margin: '26px 0 10px' }}>{l.slice(3)}</h2>;
   if (l.startsWith('- '))
-    return <div key={i} style={{ fontSize: 13.5, color: '#443e36', padding: '5px 0 0 14px', textIndent: -14 }}>◆ {l.slice(2).replace(/\*\*/g, '')}</div>;
+    return <div key={i} style={{ fontSize: 13.5, color: '#443e36', padding: '5px 0 0 14px', textIndent: -14 }}>◆ {l.slice(2).replace(/\*\*/g, '').replace(/`/g, '')}</div>;
   if (l.startsWith('  _') || l.startsWith('_'))
     return <div key={i} style={{ fontSize: 11, color: 'var(--helicon-muted)', paddingLeft: 14 }}>{l.trim().replace(/^_|_$/g, '')}</div>;
   if (l.startsWith('---')) return <hr key={i} style={{ border: 0, borderTop: '1px solid var(--helicon-line)', margin: '22px 0' }} />;

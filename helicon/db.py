@@ -84,6 +84,18 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log(target_id);
 CREATE INDEX IF NOT EXISTS idx_audit_pending ON audit_log(human_decision);
+-- concurrency backstop: two processes (watch cron at 00:00 + evolve) racing
+-- the same selectors must not double-file. Selectors read-then-insert; these
+-- make the insert itself the arbiter.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_pair_key
+    ON audit_log(json_extract(details, '$.pair_key'))
+    WHERE json_extract(details, '$.pair_key') IS NOT NULL AND human_decision IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_stack_key
+    ON audit_log(json_extract(details, '$.key'))
+    WHERE json_extract(details, '$.key') IS NOT NULL AND human_decision IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_alias_key
+    ON audit_log(json_extract(details, '$.alias_key'))
+    WHERE json_extract(details, '$.alias_key') IS NOT NULL AND human_decision IS NULL;
 
 CREATE TABLE IF NOT EXISTS retrieval_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -403,8 +415,11 @@ def last_scan_info(conn: sqlite3.Connection) -> dict | None:
     }
 
 
-def insert_audit(conn: sqlite3.Connection, result: AuditResult) -> int:
-    cursor = conn.execute(
+def insert_audit(conn: sqlite3.Connection, result: AuditResult) -> int | None:
+    """Returns the new row id, or None if the unique-key backstop rejected a
+    concurrent duplicate (watch cron and evolve racing the same selector)."""
+    try:
+        cursor = conn.execute(
         """INSERT INTO audit_log
         (audit_type, target_type, target_id, finding, severity,
          proposed_action, human_decision, details, audited_at, resolved_at)
@@ -415,8 +430,10 @@ def insert_audit(conn: sqlite3.Connection, result: AuditResult) -> int:
             result.human_decision, json.dumps(result.details),
             result.audited_at, result.resolved_at,
         ),
-    )
-    return cursor.lastrowid
+        )
+        return cursor.lastrowid
+    except sqlite3.IntegrityError:
+        return None
 
 
 def get_cubes(

@@ -62,7 +62,7 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
                 "prov": f"ruling on finding #{r['id']}, {when}"})
         elif r["human_decision"] == "dismissed" and d.get("dismiss_reason"):
             g["precedents"].append({
-                "rule": f"NOT rot: {r['finding'][:90]}",
+                "rule": "NOT rot: " + (r["finding"][:118].rsplit(" ", 1)[0] if len(r["finding"]) > 118 else r["finding"]),
                 "why": d["dismiss_reason"][:140],
                 "prov": f"dismissed finding #{r['id']}, {when}"})
 
@@ -84,7 +84,10 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
 
 
 def compile_gold(conn: sqlite3.Connection, config: dict) -> str:
-    g = gather(conn, config)
+    return _compile_from(gather(conn, config))
+
+
+def _compile_from(g: dict) -> str:
     total = sum(len(v) for v in g.values())
     now = datetime.utcnow().isoformat()[:16].replace("T", " ")
     L = [
@@ -116,7 +119,7 @@ def compile_gold(conn: sqlite3.Connection, config: dict) -> str:
     section("Precedents — what is NOT rot here", g["precedents"],
             lambda it: f"- {it['rule']}  \n  _why: {it['why']}_  \n  _[{it['prov']}]_")
     section("Standing feedback — the operator's law", g["feedback"],
-            lambda it: f"- {it['rule']} _[{it['prov']}]_")
+            lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
 
     L.append("---")
     L.append("_A rule without provenance is a vibe. Everything above has a "
@@ -129,17 +132,24 @@ def _history_path(config: dict) -> str:
 
 
 def write_gold(conn: sqlite3.Connection, config: dict) -> dict:
-    md = compile_gold(conn, config)
+    """ONE gather per run: the written file, the history point and the
+    returned counts must describe the same compile. History appends only
+    when counts CHANGE — the growth curve records growth, not invocations."""
+    g = gather(conn, config)
+    md = _compile_from(g)
     out = os.path.join(os.path.dirname(config["db_path"]), "GOLDEN_RULES.md")
     with open(out, "w", encoding="utf-8") as f:
         f.write(md)
-    g = gather(conn, config)
     point = {"ts": datetime.utcnow().isoformat(),
              **{k: len(v) for k, v in g.items()},
              "total": sum(len(v) for v in g.values())}
-    with open(_history_path(config), "a", encoding="utf-8") as f:
-        f.write(json.dumps(point) + "\n")
-    return {"path": out, "chars": len(md), **point}
+    hist = gold_history(config, limit=1)
+    counts_changed = not hist or any(
+        hist[-1].get(k) != point[k] for k in point if k != "ts")
+    if counts_changed:
+        with open(_history_path(config), "a", encoding="utf-8") as f:
+            f.write(json.dumps(point) + "\n")
+    return {"path": out, "chars": len(md), "md": md, **point}
 
 
 def gold_history(config: dict, limit: int = 60) -> list[dict]:
@@ -151,24 +161,27 @@ def gold_history(config: dict, limit: int = 60) -> list[dict]:
         return []
 
 
-def inject(conn: sqlite3.Connection, config: dict, apply: bool = False) -> dict:
+def inject(conn: sqlite3.Connection, config: dict, apply: bool = False,
+           md: str | None = None) -> dict:
     """Write GOLDEN_RULES.md to ~/.claude/ so every session can obey it.
     Dry-run by default; --inject writes with a .bak of any previous version.
     The CLAUDE.md import line is printed, never auto-appended — standing
     context is the operator's budget to spend."""
-    md = compile_gold(conn, config)
+    md = md if md is not None else compile_gold(conn, config)
     target = os.path.join(os.path.expanduser("~"), ".claude", "GOLDEN_RULES.md")
     os.makedirs(os.path.dirname(target), exist_ok=True)
     if not apply:
         return {"applied": False, "target": target, "chars": len(md),
                 "hint": "run with --inject to write; then add "
                         "'@GOLDEN_RULES.md' to ~/.claude/CLAUDE.md"}
+    baked = False
     if os.path.exists(target):
         with open(target, encoding="utf-8") as f:
             old = f.read()
         with open(target + ".bak", "w", encoding="utf-8") as f:
             f.write(old)
+        baked = True
     with open(target, "w", encoding="utf-8") as f:
         f.write(md)
-    return {"applied": True, "target": target, "chars": len(md),
+    return {"applied": True, "target": target, "chars": len(md), "bak": baked,
             "hint": "add '@GOLDEN_RULES.md' to ~/.claude/CLAUDE.md if not present"}

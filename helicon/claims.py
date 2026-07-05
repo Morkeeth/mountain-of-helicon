@@ -52,8 +52,9 @@ STATUS_POLES = {
                                r"NOT patched|awaiting merge)\b", re.IGNORECASE),
     },
     "decision-status": {
-        "executed": re.compile(r"\b(?:EXECUTED|shipped|launched|went live|"
-                               r"decision:?\s*(?:done|made|final))\b"),
+        "executed": re.compile(r"\b(?:executed|shipped|launched|went live|"
+                               r"decision:?\s*(?:done|made|final))\b",
+                               re.IGNORECASE),
         "open": re.compile(r"\b(?:open decisions?|undecided|decision pending|"
                            r"not (?:yet )?decided|to be decided)\b", re.IGNORECASE),
     },
@@ -142,8 +143,16 @@ def extract_status_claims(content: str, title: str = "",
     for line in f"{title}\n{content or ''}".splitlines():
         for metric, poles in (statuses if statuses is not None
                               else STATUS_POLES).items():
-            for pole, rx in poles.items():
-                for m in rx.finditer(line):
+            # A line matching BOTH poles is a correction or a comparison
+            # ("was open, now EXECUTED") — it asserts neither pole. The
+            # LOUPE banners that CLOSE decisions were being filed as
+            # evidence the decisions were still open.
+            hits = {pole: list(rx.finditer(line))
+                    for pole, rx in poles.items()}
+            if sum(1 for v in hits.values() if v) > 1:
+                continue
+            for pole, ms in hits.items():
+                for m in ms:
                     q = _qualifier(line, m.start(), m.end())
                     if not q:
                         continue
@@ -243,8 +252,15 @@ def find_claim_conflicts(conn: sqlite3.Connection,
             canon_file = (config.get("claims", {})
                           .get("canonical", {}).get(metric))
             if canon_file:
-                canon_vals = {c["value"] for c in members
-                              if canon_file in c["scope"]}
+                import os as _os
+                def _is_canon(scope):
+                    return _os.path.basename(
+                        scope.split(":", 1)[-1]) == canon_file
+                # judge canon against ALL of the metric's claims, not just
+                # cluster members: a canon file that asserts both values
+                # (or an archived near-name copy) must never pre-decide
+                canon_vals = {c["value"] for c in claims
+                              if _is_canon(c["scope"])}
                 if len(canon_vals) == 1:
                     truth = canon_vals.pop()
                     conflict["canonical"] = {
