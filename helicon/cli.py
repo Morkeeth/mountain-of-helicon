@@ -619,6 +619,90 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def cmd_gold(args):
+    """GOLDEN RULES: compile the stack's law from human judgment — rulings,
+    precedents, approved rules, renames, canon, standing feedback. Every
+    rule carries its provenance. --inject writes ~/.claude/GOLDEN_RULES.md
+    (with .bak) so every session can obey it."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.gold import write_gold, inject, compile_gold
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    if getattr(args, "show", False):
+        print(compile_gold(conn, config))
+        return
+    res = write_gold(conn, config)
+    print(f"GOLDEN_RULES.md compiled: {res['total']} rules "
+          f"({res['canon']} canon, {res['renames']} renames, "
+          f"{res['resolutions']} rulings, {res['triage']} triage, "
+          f"{res['precedents']} precedents, {res['feedback']} feedback) "
+          f"-> {res['path']}")
+    inj = inject(conn, config, apply=getattr(args, "inject", False))
+    if inj["applied"]:
+        print(f"injected -> {inj['target']} (.bak kept). {inj['hint']}")
+    else:
+        print(f"not injected (dry-run). {inj['hint']}")
+
+
+def cmd_evolve(args):
+    """The night command: scan everything, run every selector and the rot
+    exam, recompile the golden rules, and report the DELTA — what your
+    stack learned while you slept."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.gold import write_gold, gold_history
+    from helicon.rot import run_rot_exam
+    from helicon.pairing import pair_scan
+    from helicon.claims import claim_scan
+    from helicon.aliases import alias_scan
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    before_open = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
+    before_cubes = conn.execute("SELECT COUNT(*) FROM helicon_cubes").fetchone()[0]
+
+    added = 0
+    if not getattr(args, "no_scan", False) and config.get("connectors"):
+        from helicon.scanner import run_scan
+        stats = run_scan(config)
+        added = stats.get("added", 0)
+
+    client = None
+    try:
+        from helicon.qwen import get_client, set_cache_db
+        set_cache_db(conn)
+        client = get_client(config)
+    except Exception:
+        pass
+    pair_scan(conn, client=client)
+    claim_scan(conn, config)
+    alias_scan(conn)
+    exam = run_rot_exam(conn)
+
+    hist = gold_history(config, limit=2)
+    prev_rules = hist[-1]["total"] if hist else 0
+    gold = write_gold(conn, config)
+
+    after_open = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
+
+    print("\nSTACK EVOLUTION — while you were away")
+    print(f"  memories ingested   +{added}  (store: {before_cubes} -> "
+          f"{before_cubes + added})")
+    print(f"  new findings        +{max(0, after_open - before_open)}  "
+          f"(open now: {after_open})")
+    print(f"  rot classes firing  {exam['rot_found']}/10")
+    print(f"  golden rules        {prev_rules} -> {gold['total']}"
+          + (f"  (+{gold['total'] - prev_rules} learned)"
+             if gold["total"] > prev_rules else "  (holding)"))
+    print(f"\n  rule on what needs you:  helicon resolve --list")
+    print(f"  the law, current:        data/GOLDEN_RULES.md")
+
+
 def cmd_resolve(args):
     """Close a cross-source contradiction with the truth. Files the human
     decision, writes a correction cube (approved, full provenance) so
@@ -1344,6 +1428,13 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    gold_p = sub.add_parser("gold", help="Compile GOLDEN_RULES.md: the stack's law from your rulings, with provenance")
+    gold_p.add_argument("--inject", action="store_true", help="write to ~/.claude/GOLDEN_RULES.md (.bak kept)")
+    gold_p.add_argument("--show", action="store_true", help="print the compiled rules, write nothing")
+
+    evolve_p = sub.add_parser("evolve", help="The night command: scan + exams + gold recompile + the morning delta")
+    evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
+
     resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction cube + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
     resolve_p.add_argument("--truth", help="the true value, one of the asserted dates/values")
@@ -1411,6 +1502,8 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "gold": cmd_gold,
+        "evolve": cmd_evolve,
         "resolve": cmd_resolve,
         "watch": cmd_watch,
         "alias": cmd_alias,
