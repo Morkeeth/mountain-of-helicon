@@ -133,6 +133,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
 
     # The selectors file new findings idempotently; the diff picks them up.
     from helicon.pairing import pair_scan
+    from helicon.claims import claim_scan
     from helicon.aliases import alias_scan
     client = None
     try:
@@ -142,6 +143,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
     except Exception:
         pass
     pair_scan(conn, client=client)
+    claim_scan(conn)
     alias_scan(conn)
 
     drift = collect_drift(conn, state, repo_root)

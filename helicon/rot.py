@@ -40,14 +40,20 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     ).fetchone()[0]
     try:
         from helicon.pairing import find_conflicts
+        from helicon.claims import find_claim_conflicts
         conflicts = find_conflicts(conn)
+        claim_conflicts = find_claim_conflicts(conn)
         sample = "; ".join(
-            f"{c['person'].title()} {c['topic']}: {' vs '.join(c['dates'])}"
-            for c in conflicts[:3])
+            [f"{c['person'].title()} {c['topic']}: {' vs '.join(c['dates'])}"
+             for c in conflicts[:2]]
+            + [f"{c['metric']}[{c['subject']}]: {' vs '.join(c['values'])}"
+               for c in claim_conflicts[:2]])
+        total = len(conflicts) + len(claim_conflicts)
         checks.append(_check(
             "R1", "Cross-source contradiction", "TESTED",
-            bool(conflicts) or open_pairing > 0,
-            f"{len(conflicts)} live cross-source conflict(s) from the pair selector"
+            total > 0 or open_pairing > 0,
+            f"{total} live cross-source conflict(s) "
+            f"({len(conflicts)} dated-fact, {len(claim_conflicts)} claim)"
             + (f" ({sample})" if sample else "")
             + f"; {open_pairing} unresolved pairing finding(s)"))
     except Exception as e:

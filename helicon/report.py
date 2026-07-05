@@ -126,7 +126,9 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
     # files new conflicts into the audit log — the contradiction surfaces
     # here whether or not anyone asked about it.
     from helicon.pairing import pair_scan
+    from helicon.claims import claim_scan
     pairing = pair_scan(conn, client=client, model=model)
+    claims = claim_scan(conn)
     open_pairs = conn.execute(
         "SELECT COUNT(*) FROM audit_log WHERE audit_type = 'factual' "
         "AND details LIKE '%pair_key%' AND human_decision IS NULL"
@@ -137,8 +139,8 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "ORDER BY audited_at DESC LIMIT 1"
     ).fetchone()
     cross_source = {
-        "conflicts_live": pairing["conflicts_found"],
-        "new_findings": len(pairing["filed"]),
+        "conflicts_live": pairing["conflicts_found"] + claims["conflicts_found"],
+        "new_findings": len(pairing["filed"]) + len(claims["filed"]),
         "judge_rejected": len(pairing["judge_rejected"]),
         "open_findings": open_pairs,
         "sample": sample_row["finding"] if sample_row else None,
