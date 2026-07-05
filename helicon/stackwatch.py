@@ -13,9 +13,9 @@ Three deterministic checks, zero LLM:
   outputs   agents claim 'Created: X' all day. A claimed file that does not
             exist on disk is output drift — the fake-done catalogue's most
             checkable entry.
-  context   standing context is a tax on every turn (measured: 91.6% -> 71%
-            task completion from bloat alone). CLAUDE.md over budget files
-            a finding with the exact token weight.
+  context   context bloat is a measured tax: 91.6% -> 71% task completion,
+            full-history vs pruned (arXiv 2606.10209, verified). Standing
+            CLAUDE.md over budget files a finding with its token weight.
 
 All findings are idempotent by a stable key in details, same as pairing.
 """
@@ -142,8 +142,9 @@ def context_findings() -> list[dict]:
             out.append({"key": f"context|{path}",
                         "finding": f"Standing context {path} is ~{tokens:,} "
                                    f"tokens (budget {CONTEXT_BUDGET_TOKENS:,}). "
-                                   f"Measured cost of bloat: 91.6% -> 71% task "
-                                   f"completion. Every turn pays this",
+                                   f"Context bloat is measured at 91.6% -> 71% "
+                                   f"task completion (full-history vs pruned, "
+                                   f"arXiv 2606.10209). Every turn pays this",
                         "severity": "info",
                         "evidence": f"{chars:,} chars; prune or split with "
                                     f"@imports; helicon's superseded-section "
