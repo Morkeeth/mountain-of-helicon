@@ -10,16 +10,18 @@ import HeliconMountain from './components/HeliconMountain';
 import SkillsAudit from './components/SkillsAudit';
 import FindingsView from './components/FindingsView';
 import LogView from './components/LogView';
+import GoldView from './components/GoldView';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone — findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'health' | 'findings' | 'log' | 'graph' | 'projects';
+type Tab = 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects';
 
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'health', label: 'Health' },
   { key: 'findings', label: 'Findings' },
+  { key: 'gold', label: 'Gold' },
   { key: 'log', label: 'Log' },
 ];
 
@@ -336,7 +338,8 @@ function App() {
           </>
         )}
 
-        {tab === 'log' && (
+        {tab === 'gold' && <GoldView />}
+          {tab === 'log' && (
           <>
           <TabPurpose>What Helicon did and what you decided — every action is a receipt.</TabPurpose>
           <LogView />

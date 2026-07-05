@@ -167,3 +167,15 @@ async def qwen_cache():
 @router.get("/qwen/routing")
 async def qwen_routing():
     return get_route_stats()
+
+@router.get("/gold")
+async def golden_rules(fresh: int = 0):
+    """The compiled law + its growth history. ?fresh=1 recompiles first."""
+    from helicon.config import load_config
+    from helicon.gold import compile_gold, gold_history, write_gold
+    conn = get_conn()
+    config = load_config()
+    if fresh:
+        write_gold(conn, config)
+    return {"markdown": compile_gold(conn, config),
+            "history": gold_history(config)}
