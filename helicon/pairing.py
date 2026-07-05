@@ -171,13 +171,16 @@ def _parse_label(label: str) -> tuple[str, str]:
 
 
 def load_resolutions(conn: sqlite3.Connection) -> dict:
-    """(person, topic) -> {'truth', 'resolved_at'} from resolved pairing
-    findings. The truth is what the human said when they closed the finding."""
+    """(person, topic) -> {'truth', 'resolved_at', 'audit_id'} from resolved
+    pairing findings. The truth is what the human said when they closed the
+    finding; with several resolutions for one fact, the LATEST wins (ordered
+    explicitly — table scan order is not a contract)."""
+    from helicon.timeutil import ts_norm
     out = {}
     for row in conn.execute(
-        "SELECT details, human_decision, resolved_at FROM audit_log "
+        "SELECT id, details, human_decision, resolved_at FROM audit_log "
         "WHERE audit_type = 'factual' AND human_decision LIKE 'resolved:%' "
-        "AND details LIKE '%pair_key%'"
+        "AND details LIKE '%pair_key%' ORDER BY resolved_at, id"
     ):
         try:
             d = json.loads(row["details"])
@@ -185,7 +188,9 @@ def load_resolutions(conn: sqlite3.Connection) -> dict:
             continue
         truth = row["human_decision"].split(":", 1)[1]
         out[(d.get("person"), d.get("topic"))] = {
-            "truth": truth, "resolved_at": row["resolved_at"] or ""}
+            "truth": truth,
+            "resolved_at": ts_norm(row["resolved_at"]) or (row["resolved_at"] or ""),
+            "audit_id": row["id"]}
     return out
 
 
@@ -228,6 +233,7 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
         res = resolutions.get((person, topic))
         resurfaced = False
         if res:
+            from helicon.timeutil import ts_norm
             truth_iv = _parse_label(res["truth"])
             by_iv = {
                 iv: {"scopes": {c["scope"] for c in cubes},
@@ -235,16 +241,29 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
                 for iv, d in by_iv.items()
                 if _disjoint(iv, truth_iv)
                 and (cubes := [c for c in d["cubes"]
-                               if (c["created_at"] or "") > res["resolved_at"]])
+                               if ts_norm(c["created_at"]) > res["resolved_at"]])
             }
             if not by_iv:
                 continue  # resolved, and nothing new contradicts the truth
-            by_iv[truth_iv] = {"scopes": {"resolution"},
-                               "cubes": [{"id": f"resolution:{person}|{topic}",
-                                          "title": f"human resolution: {res['truth']}",
-                                          "scope": "resolution",
-                                          "created_at": res["resolved_at"],
-                                          "line": f"resolved {res['truth']}"}]}
+            # The truth's representative is the CORRECTION CUBE resolve_pair
+            # wrote — a real DB row, so the Qwen judge downstream always has
+            # real content to rule on (a synthetic marker here crashed
+            # pair_scan the moment the guard fired with a client configured).
+            crow = conn.execute(
+                "SELECT id, title, created_at FROM helicon_cubes "
+                "WHERE source = 'human-resolution' AND source_ref = ?",
+                (f"audit:{res['audit_id']}",)).fetchone()
+            truth_cube = ({"id": crow["id"], "title": crow["title"],
+                           "scope": "human-resolution",
+                           "created_at": crow["created_at"],
+                           "line": f"resolved {res['truth']}"} if crow else
+                          {"id": f"resolution:{person}|{topic}",
+                           "title": f"human resolution: {res['truth']}",
+                           "scope": "human-resolution",
+                           "created_at": res["resolved_at"],
+                           "line": f"resolved {res['truth']}"})
+            by_iv[truth_iv] = {"scopes": {"human-resolution"},
+                               "cubes": [truth_cube]}
             resurfaced = True
         if len(by_iv) < 2:
             continue
@@ -262,36 +281,54 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
                 sa, sb = by_iv[a], by_iv[b]
                 if len(sa["scopes"] | sb["scopes"]) < 2:
                     continue  # one file arguing with itself is not cross-source
-                support = (min(len(sa["cubes"]), len(sb["cubes"])),
-                           len(sa["cubes"]) + len(sb["cubes"]))
+                # Support counts only single-side cubes: a cube quoting BOTH
+                # dates documents the conflict, it doesn't take a side — and
+                # each side needs at least one genuine asserter, or the
+                # "conflict" is just meta-memory talking about itself.
+                ids_a = {c["id"] for c in sa["cubes"]}
+                ids_b = {c["id"] for c in sb["cubes"]}
+                only_a, only_b = ids_a - ids_b, ids_b - ids_a
+                if not only_a or not only_b:
+                    continue
+                support = (min(len(only_a), len(only_b)),
+                           len(only_a) + len(only_b))
                 if best is None or support > best[0]:
-                    best = (support, a, b)
+                    best = (support, a, b, only_a, only_b)
         if best is None:
             continue
-        _, iv_a, iv_b = best
+        _, iv_a, iv_b, only_a, only_b = best
         # Representatives: each side speaks from its most-attested file (the
-        # scope repeating that date hardest), newest cube within it — and the
-        # two sides must come from different files where the store allows it.
-        # The pair handed to the judge should BE the cross-source
-        # disagreement, not one diff cube quoting both versions of itself.
-        def _rep(cubes, avoid_scope=None):
-            pool = [c for c in cubes if c["scope"] != avoid_scope] or cubes
+        # scope repeating that date hardest), newest single-side cube within
+        # it — and the two sides must come from different files where the
+        # store allows it. The pair handed to the judge should BE the
+        # cross-source disagreement, not one diff cube quoting both versions.
+        from helicon.timeutil import ts_norm as _tsn
+
+        def _rep(cubes, only_ids, avoid_scope=None):
+            pool = ([c for c in cubes if c["id"] in only_ids] or cubes)
+            pool = ([c for c in pool if c["scope"] != avoid_scope] or pool)
             per_scope = Counter(c["scope"] for c in pool)
             top = max(per_scope, key=lambda s: per_scope[s])
             return max((c for c in pool if c["scope"] == top),
-                       key=lambda c: c["created_at"] or "")
-        rep_a = _rep(by_iv[iv_a]["cubes"])
+                       key=lambda c: _tsn(c["created_at"]))
+        rep_a = _rep(by_iv[iv_a]["cubes"], only_a)
         reps = {_iv_label(iv_a): rep_a,
-                _iv_label(iv_b): _rep(by_iv[iv_b]["cubes"], avoid_scope=rep_a["scope"])}
+                _iv_label(iv_b): _rep(by_iv[iv_b]["cubes"], only_b,
+                                      avoid_scope=rep_a["scope"])}
         labels = sorted(reps.keys())
+        # A resurfaced key carries the resolution it violates, so a SECOND
+        # resurface after a second resolution files again — never-twice must
+        # not decay into never-only-once-more.
+        key = f"{person}|{topic}|{'/'.join(labels)}"
+        if resurfaced:
+            key += f"|resurfaced:{res['resolved_at']}"
         conflicts.append({
             "person": person, "topic": topic,
             "dates": labels,
             "all_dates": sorted(_iv_label(iv) for iv in by_iv),
-            "pair_key": f"{person}|{topic}|{'/'.join(labels)}"
-                        + ("|resurfaced" if resurfaced else ""),
+            "pair_key": key,
             "representatives": reps,
-            "support": {_iv_label(iv): len(by_iv[iv]["cubes"]) for iv in (iv_a, iv_b)},
+            "support": {_iv_label(iv_a): len(only_a), _iv_label(iv_b): len(only_b)},
             "cube_count": sum(len(d["cubes"]) for d in by_iv.values()),
             "scopes": sorted(by_iv[iv_a]["scopes"] | by_iv[iv_b]["scopes"]),
             "resurfaced": resurfaced,
@@ -352,18 +389,26 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
             "person": d["person"], "topic": d["topic"]}
 
 
-def _existing_pair_keys(conn: sqlite3.Connection) -> set[str]:
-    keys = set()
+def _existing_pair_keys(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
+    """(exact pair_keys ever filed, 'person|topic' of still-OPEN findings).
+    Exact keys stop the same finding refiling forever (incl. dismissed FPs);
+    the open set stops a sibling finding for the same fact when the best
+    pair's dates shift while the first finding is still undecided — one open
+    finding per fact, not one per date combination."""
+    exact, open_facts = set(), set()
     for row in conn.execute(
-        "SELECT details FROM audit_log WHERE audit_type = 'factual' AND details LIKE '%pair_key%'"
+        "SELECT details, human_decision FROM audit_log "
+        "WHERE audit_type = 'factual' AND details LIKE '%pair_key%'"
     ):
         try:
-            k = json.loads(row["details"]).get("pair_key")
-            if k:
-                keys.add(k)
+            d = json.loads(row["details"])
         except (json.JSONDecodeError, TypeError):
-            pass
-    return keys
+            continue
+        if d.get("pair_key"):
+            exact.add(d["pair_key"])
+        if row["human_decision"] is None and d.get("person") and d.get("topic"):
+            open_facts.add(f"{d['person']}|{d['topic']}")
+    return exact, open_facts
 
 
 def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus") -> dict:
@@ -373,12 +418,13 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
     without one, the disjoint-interval mismatch is the verdict. Idempotent:
     a pair_key already in audit_log is never filed twice."""
     conflicts = find_conflicts(conn)
-    existing = _existing_pair_keys(conn)
+    existing, open_facts = _existing_pair_keys(conn)
     now = datetime.utcnow().isoformat()
     filed, rejected, skipped = [], [], []
 
     for c in conflicts:
-        if c["pair_key"] in existing:
+        if (c["pair_key"] in existing
+                or f"{c['person']}|{c['topic']}" in open_facts):
             skipped.append(c["pair_key"])
             continue
         (date_a, rep_a), (date_b, rep_b) = sorted(c["representatives"].items())
@@ -392,8 +438,12 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                                  (rep_a["id"],)).fetchone()
             row_b = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
                                  (rep_b["id"],)).fetchone()
-            verdict = detect_contradictions(
+            # A representative without a DB row (synthetic resolution marker
+            # fallback) has nothing for the judge to read — keep the
+            # deterministic verdict instead of crashing the watch tick.
+            verdict = (detect_contradictions(
                 client, row_a["content"], row_b["content"], model=model)
+                if row_a is not None and row_b is not None else None)
             if verdict is not None:
                 if not verdict.get("contradicts"):
                     rejected.append(c["pair_key"])

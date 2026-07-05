@@ -2,6 +2,8 @@ import json
 import sqlite3
 from datetime import datetime
 
+from helicon.db import human_evidence_sql
+
 
 def init_score_history(conn: sqlite3.Connection):
     conn.execute("""CREATE TABLE IF NOT EXISTS score_history (
@@ -56,7 +58,7 @@ def backfill_score_history(conn: sqlite3.Connection):
 
     human_reviews = conn.execute(
         "SELECT MIN(reviewed_at) as last_at, COUNT(*) as cnt "
-        "FROM reviews WHERE session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%'"
+        "FROM reviews WHERE " + human_evidence_sql()
     ).fetchone()
 
     behavioral_triage = conn.execute(

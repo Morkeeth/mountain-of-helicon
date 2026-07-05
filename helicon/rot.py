@@ -31,9 +31,12 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     # R1 cross-source contradiction — the pair selector (helicon.pairing)
     # finds disjoint dated facts about the same person across source files;
     # the Qwen detector rules on what it finds.
-    open_factual = conn.execute(
-        "SELECT COUNT(*) FROM audit_log WHERE audit_type IN ('factual', 'agent-flag') "
-        "AND human_decision IS NULL"
+    # Verdict scope: live conflicts + open PAIRING findings only. An open
+    # agent-flag about something else must not pin R1 at ROT FOUND forever
+    # (that would mute watch's flip alert for real contradictions).
+    open_pairing = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE audit_type = 'factual' "
+        "AND details LIKE '%pair_key%' AND human_decision IS NULL"
     ).fetchone()[0]
     try:
         from helicon.pairing import find_conflicts
@@ -43,10 +46,10 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
             for c in conflicts[:3])
         checks.append(_check(
             "R1", "Cross-source contradiction", "TESTED",
-            bool(conflicts) or open_factual > 0,
+            bool(conflicts) or open_pairing > 0,
             f"{len(conflicts)} live cross-source conflict(s) from the pair selector"
             + (f" ({sample})" if sample else "")
-            + f"; {open_factual} unresolved contradiction/flag finding(s)"))
+            + f"; {open_pairing} unresolved pairing finding(s)"))
     except Exception as e:
         checks.append(_check("R1", "Cross-source contradiction", "TESTED", None,
                              f"unmeasured: {e}"))
@@ -158,14 +161,15 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         checks.append(_check("R8", "Retrieval regression", "TESTED", None, f"unmeasured: {e}"))
 
     # R9 self-evidence loops — the guard must hold: no non-human session may
-    # appear in what the rule learner counts as human evidence.
+    # appear in what the rule learner counts as human evidence. The guard is
+    # ONE written predicate (db.human_evidence_sql); this check audits it.
+    from helicon.db import human_evidence_sql
     leaked = conn.execute(
-        "SELECT COUNT(*) FROM reviews WHERE session_id NOT IN ('auto-triage', 'agent-flag') "
-        "AND session_id NOT LIKE 'rule:%' AND (session_id LIKE 'auto%' OR session_id LIKE 'agent%')"
+        f"SELECT COUNT(*) FROM reviews WHERE {human_evidence_sql()} "
+        "AND (session_id LIKE 'auto%' OR session_id LIKE 'agent%')"
     ).fetchone()[0]
     non_human = conn.execute(
-        "SELECT COUNT(*) FROM reviews WHERE session_id IN ('auto-triage', 'agent-flag') "
-        "OR session_id LIKE 'rule:%'"
+        f"SELECT COUNT(*) FROM reviews WHERE NOT ({human_evidence_sql()})"
     ).fetchone()[0]
     checks.append(_check(
         "R9", "Self-evidence loops", "TESTED", leaked > 0,

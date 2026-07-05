@@ -50,10 +50,11 @@ def _audit_entries(conn, limit: int) -> list[dict]:
 
 
 def _review_entries(conn, limit: int) -> list[dict]:
+    from helicon.db import human_evidence_sql
     rows = conn.execute(
-        """SELECT r.decision, r.notes, r.reviewed_at, r.cube_id, c.title
+        f"""SELECT r.decision, r.notes, r.reviewed_at, r.cube_id, c.title
            FROM reviews r LEFT JOIN helicon_cubes c ON c.id = r.cube_id
-           WHERE r.session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%'
+           WHERE {human_evidence_sql("r.")}
            ORDER BY r.reviewed_at DESC LIMIT ?""",
         (limit,),
     ).fetchall()

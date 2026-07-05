@@ -84,6 +84,37 @@ def test_clean_alias_files_nothing(conn):
     assert res["filed"] == [] and res["clean"] == ["glaze->helicon"]
 
 
+def test_triage_handles_z_and_offset_stamps_vs_naive_renamed_at(conn):
+    """P1 from the audit: raw string compare misfiled the ±2h band around
+    the rename for the store's 2,309 'Z' and 500 '+HH:MM' stamps. All
+    comparisons now happen in UTC-naive space (naive renamed_at = UTC)."""
+    # RENAME is 2026-07-04T17:05:45 (UTC). This Z-stamp is 24 min AFTER.
+    _cube(conn, "ship the glaze fix tonight", "z-after.md",
+          "2026-07-04T17:30:00.000Z")
+    # This +02:00 stamp is 18:00 local = 16:00 UTC — BEFORE the rename.
+    _cube(conn, "glaze notes from the afternoon", "local-before.md",
+          "2026-07-04T18:00:00+02:00")
+    t = alias_rot(conn)[0]
+    assert t["current_claims"] == 1   # the Z-stamped post-rename cube
+    assert t["history"] == 1          # the +02:00 pre-rename cube
+
+
+def test_template_created_at_is_history_not_current_claim(conn):
+    """The live store has a literal '{{date}}' created_at (an ingested
+    Obsidian template). '{' sorts after digits, so string compare filed it
+    as the future forever; unparseable now normalizes to oldest = history."""
+    _cube(conn, "glaze template mention", "template.md", "{{date}}")
+    t = alias_rot(conn)[0]
+    assert t["current_claims"] == 0 and t["history"] == 1
+
+
+def test_alias_name_with_nonword_edge_still_matches(conn):
+    add_alias(conn, "glaze++", "helicon", RENAME)
+    _cube(conn, "the glaze++ pipeline is live", "cpp.md", "2026-07-05T09:00:00")
+    t = next(x for x in alias_rot(conn) if x["old_name"] == "glaze++")
+    assert t["live_refs"] == 1 and t["current_claims"] == 1
+
+
 def test_rot_r4_tested_and_reads_the_triage(conn):
     _cube(conn, "polish the glaze demo video", "stale.md", "2026-07-05T09:00:00")
     r4 = next(c for c in run_rot_exam(conn)["checks"] if c["id"] == "R4")

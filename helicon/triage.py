@@ -9,6 +9,8 @@ import json
 import sqlite3
 from datetime import datetime
 
+from helicon.db import human_evidence_sql
+
 
 def _get_type_kill_rates(conn: sqlite3.Connection) -> dict[str, dict]:
     # Only learn from HUMAN reviews. Including auto-triage's own kills would let
@@ -17,7 +19,7 @@ def _get_type_kill_rates(conn: sqlite3.Connection) -> dict[str, dict]:
     # rule evidence was self-generated.)
     rows = conn.execute(
         "SELECT cube_type, decision, COUNT(*) as cnt "
-        "FROM reviews WHERE session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%' "
+        "FROM reviews WHERE " + human_evidence_sql() + " " +
         "GROUP BY cube_type, decision"
     ).fetchall()
 
@@ -42,7 +44,7 @@ def _get_source_kill_rates(conn: sqlite3.Connection) -> dict[str, dict]:
     # the engine doesn't grade its own decisions.
     rows = conn.execute(
         "SELECT cube_source, decision, COUNT(*) as cnt "
-        "FROM reviews WHERE session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%' "
+        "FROM reviews WHERE " + human_evidence_sql() + " " +
         "GROUP BY cube_source, decision"
     ).fetchall()
 

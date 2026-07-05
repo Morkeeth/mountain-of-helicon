@@ -55,7 +55,13 @@ def list_aliases(conn: sqlite3.Connection) -> list[dict]:
 
 
 def _word(name: str) -> re.Pattern:
-    return re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+    """Whole-word match that survives names with non-word edges ('C++',
+    'x-'): \\b between '+' and space never matches, so fall back to
+    whitespace lookarounds on non-word boundaries."""
+    name = name.strip()
+    pre = r"\b" if re.match(r"\w", name[:1] or "") else r"(?<!\S)"
+    suf = r"\b" if re.match(r"\w", name[-1:] or "") else r"(?!\S)"
+    return re.compile(pre + re.escape(name) + suf, re.IGNORECASE)
 
 
 def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5) -> dict:
@@ -69,12 +75,19 @@ def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5) -> dict:
         (f"%{alias['old_name']}%", f"%{alias['old_name']}%"),
     ).fetchall()
 
+    # All comparisons in UTC-naive space: the store mixes naive, 'Z' and
+    # '+HH:MM' stamps (raw string compare misfiled the ±2h band around the
+    # rename). Unparseable stamps ('{{date}}' template garbage) normalize to
+    # "" = oldest = history — the safe side.
+    from helicon.timeutil import ts_norm
+    renamed_norm = ts_norm(alias["renamed_at"]) or alias["renamed_at"]
+
     history, rename_aware, current_claims = [], [], []
     for r in rows:
         text = f"{r['title'] or ''}\n{r['content'] or ''}"
         if not old_rx.search(text):
             continue  # LIKE prefilter caught a substring ('glazed'), not the name
-        if (r["created_at"] or "") < alias["renamed_at"]:
+        if ts_norm(r["created_at"]) < renamed_norm:
             history.append(r)
         elif new_rx.search(text):
             rename_aware.append(r)

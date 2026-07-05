@@ -122,6 +122,29 @@ def test_notification_failure_does_not_crash(env, monkeypatch):
     assert W.watch_once(conn, config)["spoke"] is True
 
 
+def test_watch_tick_with_missing_report_dir_does_not_crashloop(env, tmp_path):
+    """P1 from the audit: a bad report_dir crashed the tick after findings
+    were filed but before the cursor advanced -> every cron tick re-crashed
+    on the same drift. The dir is now created; a write failure is recorded
+    and the cursor still advances."""
+    conn, config, _ = env
+    config["watch"] = {"report_dir": str(tmp_path / "does" / "not" / "exist")}
+    W.watch_once(conn, config)
+    _cube(conn, "| Birthday gift | Avery (May 13) | order |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | dinner |", "trips.md")
+    fired = W.watch_once(conn, config)
+    assert fired["spoke"] is True
+    assert fired["report_path"] and os.path.exists(fired["report_path"])
+    assert W.watch_once(conn, config)["spoke"] is False  # cursor advanced
+
+
+def test_state_file_write_is_atomic(env):
+    conn, config, _ = env
+    W.watch_once(conn, config)
+    assert not os.path.exists(W._state_path(config) + ".tmp")
+    assert json.load(open(W._state_path(config)))["rot_verdicts"]
+
+
 def test_cron_line_is_tagged_and_parameterized():
     line = W._cron_line("/repo", 6)
     assert line.startswith("0 */6 * * * cd /repo && ")

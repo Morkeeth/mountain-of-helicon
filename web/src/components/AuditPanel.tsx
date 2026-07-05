@@ -92,7 +92,7 @@ export function AuditPanel({ findings, onRefresh }: Props) {
     <div>
       {/* Filter row */}
       <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-        {(['all', 'temporal', 'factual', 'decay', 'logical'] as const).map(f => {
+        {(['all', 'factual', 'supersession', 'temporal', 'decay', 'logical'] as const).map(f => {
           const count = counts[f];
           if (f !== 'all' && count === 0) return null;
           return (

@@ -31,7 +31,14 @@ router = APIRouter()
 PREVIEW_CHARS = 300
 BATTERY_K = 5
 
-_SEVERITY_RANK = {"critical": 3, "warning": 2, "info": 1}
+_SEVERITY_RANK = {"critical": 4, "high": 3, "warning": 2, "medium": 2, "info": 1}
+
+# Rare, actionable classes outrank bulk housekeeping regardless of severity:
+# one cross-source contradiction matters more than the 166th stale note.
+# Order: contradictions / supersession / wrong evictions / agent flags first,
+# then the recurring hygiene kinds.
+_KIND_RANK = {"factual": 0, "supersession": 0, "regret": 1, "agent-flag": 1,
+              "battery": 2, "skill": 2, "logical": 2, "temporal": 3, "decay": 3}
 
 # Which named check an audit_type corresponds to, for the human "why" sentence.
 _AUDIT_CHECK = {
@@ -284,7 +291,9 @@ async def list_findings(kind: str | None = None, limit: int = 100, include: str 
         findings = [f for f in findings if f["kind"] == kind]
 
     findings.sort(
-        key=lambda f: (_SEVERITY_RANK.get(f["severity"], 0), f["created_at"] or ""),
+        key=lambda f: (-_KIND_RANK.get(f["kind"], 2),
+                       _SEVERITY_RANK.get(f["severity"], 0),
+                       f["created_at"] or ""),
         reverse=True,
     )
 

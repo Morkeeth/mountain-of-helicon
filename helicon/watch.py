@@ -39,8 +39,13 @@ def load_state(config: dict) -> dict:
 
 
 def save_state(config: dict, state: dict):
-    with open(_state_path(config), "w") as f:
+    # atomic: a crash mid-write must not corrupt the cursor (a corrupt state
+    # file silently re-baselines and swallows pending drift)
+    path = _state_path(config)
+    tmp = f"{path}.tmp"
+    with open(tmp, "w") as f:
         json.dump(state, f, indent=2)
+    os.replace(tmp, path)
 
 
 def collect_drift(conn: sqlite3.Connection, state: dict,
@@ -145,14 +150,20 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
     baseline = state.get("last_run") is None
     spoke = (not baseline) and bool(drift["new_findings"] or drift["flips"])
 
-    report_path = None
+    report_path, report_error = None, None
     if spoke:
-        report_dir = os.path.expanduser(
-            config.get("watch", {}).get("report_dir")
-            or os.path.dirname(config["db_path"]))
-        report_path = os.path.join(report_dir, "drift-report.md")
-        with open(report_path, "w") as f:
-            f.write(format_drift_report(drift, ran_scan, now))
+        try:
+            report_dir = os.path.expanduser(
+                config.get("watch", {}).get("report_dir")
+                or os.path.dirname(config["db_path"]))
+            os.makedirs(report_dir, exist_ok=True)
+            report_path = os.path.join(report_dir, "drift-report.md")
+            with open(report_path, "w") as f:
+                f.write(format_drift_report(drift, ran_scan, now))
+        except OSError as e:
+            # a bad report_dir must not crashloop the cron tick before the
+            # cursor advances — record the failure, keep the tick alive
+            report_path, report_error = None, str(e)
         if notify:
             flips = len(drift["flips"])
             notify_macos(
@@ -175,6 +186,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
         "rot_found": drift["rot_found"],
         "spoke": spoke,
         "report_path": report_path,
+        "report_error": report_error,
     }
 
 

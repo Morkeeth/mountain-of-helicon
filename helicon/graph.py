@@ -92,10 +92,14 @@ def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
 
         # Person-event assertions (the R1 pair selector's extractor) name the
         # people the generic regex misses — "Avery (May 13)" is a person even
-        # though she never 'said' or 'reviewed' anything.
+        # though she never 'said' or 'reviewed' anything. Dedupe across both
+        # extractors: the same name from regex + assertion must not
+        # double-count mentions or create a self co_occurs edge.
         from helicon.pairing import extract_assertions
         for a in extract_assertions(row["content"], row["title"]):
             entities.append({"name": a["person"], "type": "person"})
+        entities = list({(e["name"].lower(), e["type"]): e
+                         for e in entities}.values())
 
         for ent in entities:
             key = ent["name"].lower()

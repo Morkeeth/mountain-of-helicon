@@ -244,6 +244,20 @@ def _migrate_glaze_era(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def human_evidence_sql(prefix: str = "") -> str:
+    """The human-evidence guard (rot class R9), as one written predicate.
+
+    Sessions whose reviews may teach rules/patterns/score. Quarantined:
+    auto-triage and agent-flag (automation), rule:% (applied rules), and
+    seed% (scripted bulk decisions — 90 byte-identical rows from Jun 25
+    were counting as human judgment until the Jul 5 audit caught it).
+    """
+    p = prefix
+    return (f"{p}session_id NOT IN ('auto-triage', 'agent-flag') "
+            f"AND {p}session_id NOT LIKE 'rule:%' "
+            f"AND {p}session_id NOT LIKE 'seed%'")
+
+
 def init_db(db_path: str) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = sqlite3.connect(db_path)

@@ -10,7 +10,7 @@ import json
 import sqlite3
 from datetime import datetime
 
-from helicon.db import search_cubes
+from helicon.db import search_cubes, human_evidence_sql
 from helicon.score import compute_score
 
 
@@ -184,13 +184,13 @@ def _run_forgetting_benchmark(conn: sqlite3.Connection) -> dict:
     """
     killed = [r["confidence"] for r in conn.execute(
         "SELECT c.confidence FROM reviews r JOIN helicon_cubes c ON r.cube_id = c.id "
-        "WHERE r.decision = 'killed' AND r.session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%' "
+        "WHERE r.decision = 'killed' AND " + human_evidence_sql("r.") + " " +
         "ORDER BY r.reviewed_at DESC LIMIT 200"
     ).fetchall()]
 
     approved = [r["confidence"] for r in conn.execute(
         "SELECT c.confidence FROM reviews r JOIN helicon_cubes c ON r.cube_id = c.id "
-        "WHERE r.decision = 'approved' AND r.session_id NOT IN ('auto-triage', 'agent-flag') AND session_id NOT LIKE 'rule:%' "
+        "WHERE r.decision = 'approved' AND " + human_evidence_sql("r.") + " " +
         "ORDER BY r.reviewed_at DESC LIMIT 200"
     ).fetchall()]
 

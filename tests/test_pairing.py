@@ -205,6 +205,110 @@ def test_pre_resolution_stale_cubes_stay_closed(conn):
     assert find_conflicts(conn) == []
 
 
+# --- audit regressions (Jul 5 adversarial review) ------------------------
+
+def test_resurfaced_pair_scan_with_judge_does_not_crash(conn, monkeypatch):
+    """P0 from the audit: with a Qwen client, the resurfaced conflict's truth
+    side used a synthetic representative with no DB row -> TypeError inside
+    pair_scan, killing helicon report and every watch cron tick the moment
+    the never-twice guard fired. The truth side now speaks through the real
+    correction cube; a missing row skips the judge, never crashes."""
+    from helicon import qwen
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    pair_scan(conn)
+    resolve_pair(conn, _filed_finding_id(conn), "05-18")
+    _cube(conn, "reminder: Avery birthday May 13", "fresh.md",
+          created_at="2027-01-01T00:00:00")
+
+    seen = {}
+    def fake_judge(client, a, b, model="m", audit_context=""):
+        seen["contents"] = (a, b)
+        return {"contradicts": True, "severity": "critical", "explanation": "x"}
+    monkeypatch.setattr(qwen, "detect_contradictions", fake_judge)
+
+    res = pair_scan(conn, client=object())  # crashed before the fix
+    assert len(res["filed"]) == 1
+    # the judge read the real correction cube, not a synthetic marker
+    assert any("human resolution" in c or "05-18" in c for c in seen["contents"])
+
+
+def test_realarm_fires_again_after_second_resolution(conn):
+    """P1: the resurfaced pair_key was constant, so never-twice decayed into
+    never-only-once-more — a third wave of the wrong date went unfiled and
+    unresolvable. The key now carries the resolution it violates."""
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    pair_scan(conn)
+    resolve_pair(conn, _filed_finding_id(conn), "05-18")
+
+    _cube(conn, "reminder: Avery birthday May 13", "wave2.md",
+          created_at="2027-01-01T00:00:00")
+    assert len(pair_scan(conn)["filed"]) == 1          # first re-alarm
+    resolve_pair(conn, _filed_finding_id(conn), "05-18")
+
+    _cube(conn, "note: Avery birthday is May 13, order cake", "wave3.md",
+          created_at="2027-02-01T00:00:00")
+    assert len(pair_scan(conn)["filed"]) == 1          # second re-alarm, was 0
+
+
+def test_best_pair_shift_does_not_file_orphan_sibling(conn):
+    """P1: when the best-supported pair's dates shift while the first finding
+    is open, a sibling finding for the same fact must not pile up — one open
+    finding per (person, topic)."""
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    assert len(pair_scan(conn)["filed"]) == 1
+    # a third date gains majority support -> best pair changes
+    for i, ref in enumerate(["a.md", "b.md", "c.md"]):
+        _cube(conn, f"Avery birthday: Jul 20 (v{i})", ref)
+    res = pair_scan(conn)
+    assert res["filed"] == []  # skipped: fact already has an open finding
+    open_rows = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE audit_type='factual' "
+        "AND details LIKE '%pair_key%' AND human_decision IS NULL").fetchone()[0]
+    assert open_rows == 1
+
+
+def test_never_twice_respects_timezone_offsets(conn):
+    """P1: created_at vs resolved_at compared as raw strings; a +02:00 stamp
+    from before the resolution compared as after -> false re-alarm."""
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    pair_scan(conn)
+    resolve_pair(conn, _filed_finding_id(conn), "05-18")
+    row = conn.execute("SELECT resolved_at FROM audit_log WHERE "
+                       "human_decision='resolved:05-18'").fetchone()
+    # stamp is +02:00 local, 90 min BEFORE the resolution in UTC
+    from datetime import datetime, timedelta, timezone
+    res_utc = datetime.fromisoformat(row["resolved_at"])
+    local = (res_utc - timedelta(minutes=90)).replace(
+        tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=2)))
+    _cube(conn, "old draft: Avery birthday May 13", "predates.md",
+          created_at=local.isoformat())
+    assert find_conflicts(conn) == []  # pre-resolution memory stays closed
+
+
+def test_meta_cube_quoting_both_dates_is_not_support(conn):
+    """Receipt-verification finding: 5 live cubes sat on BOTH sides of the
+    Avery pair, inflating support. A cube quoting both dates documents the
+    conflict; it doesn't take a side."""
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "trips.md")
+    _cube(conn, "CONFLICT NOTE: Avery birthday May 13 vs May 18, confirm",
+          "meta.md")
+    c = find_conflicts(conn)[0]
+    assert c["support"] == {"05-13": 1, "05-18": 1}  # meta cube counts neither
+    # and a "conflict" made ONLY of meta cubes is no conflict at all
+    conn.execute("UPDATE helicon_cubes SET review_status='killed' "
+                 "WHERE source_ref IN ('mindmap.md', 'trips.md')")
+    conn.commit()
+    assert find_conflicts(conn) == []
+
+
 # --- rot exam -----------------------------------------------------------
 
 def test_rot_r1_is_tested_and_finds_the_pair(conn):

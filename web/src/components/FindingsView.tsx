@@ -6,33 +6,35 @@ import type { Finding, FindingsResponse } from '../api';
    a check, unified across audit / skills / battery. The WHY sentence leads;
    the title is context. Every row carries its fix. Real data only. */
 
-const KIND_ORDER = ['regret', 'agent-flag', 'temporal', 'decay', 'factual', 'logical', 'skill', 'battery'];
+const KIND_ORDER = ['factual', 'supersession', 'regret', 'agent-flag', 'temporal', 'decay', 'logical', 'skill', 'battery'];
 
 const KIND_LABEL: Record<string, string> = {
+  factual: 'Contradiction',
+  supersession: 'Dead name',
   regret: 'Regret',
   'agent-flag': 'Flagged',
   temporal: 'Temporal',
   decay: 'Decay',
-  factual: 'Factual',
   logical: 'Logical',
   skill: 'Skill',
   battery: 'Battery',
 };
 
 const KIND_HINT: Record<string, string> = {
+  factual: 'two sources assert facts that cannot both be true',
+  supersession: 'a renamed entity still asserted as current',
   regret: 'you retired it, retrieval keeps wanting it back',
   'agent-flag': 'an agent flagged this at point of use',
   temporal: 'time-relative wording gone stale',
   decay: 'confidence below the keep threshold',
-  factual: 'contradicts another memory',
   logical: 'pattern no longer supported',
   skill: 'skills library rot',
   battery: 'retrieval task serving broken context',
 };
 
 function sevColor(sev: string): string {
-  if (sev === 'critical') return 'var(--helicon-accent)';
-  if (sev === 'warning') return 'var(--helicon-stale)';
+  if (sev === 'critical' || sev === 'high') return 'var(--helicon-accent)';
+  if (sev === 'warning' || sev === 'medium') return 'var(--helicon-stale)';
   return '#a1a1aa';
 }
 
