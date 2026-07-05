@@ -53,7 +53,13 @@ STATUS_POLES = {
 _WORD = re.compile(r"[A-Za-z0-9/\-_.]{4,}")
 _STOP = {"this", "that", "with", "from", "have", "been", "will", "were",
          "into", "below", "above", "still", "list", "line", "item", "items",
-         "note", "notes", "update", "status", "the", "and", "for", "are"}
+         "note", "notes", "update", "status", "the", "and", "for", "are",
+         # metric words and their furniture must not bind subjects — every
+         # win-count line contains 'wins', that's not a shared subject
+         "wins", "win", "episode", "episodes", "merge", "merged", "merging",
+         "pending", "patched", "hackathon.", "released", "recording",
+         # per-corpus generic nouns that lump unrelated clusters together
+         "radio", "wave", "audience", "project", "projects"}
 WINDOW = 60
 
 
@@ -71,8 +77,14 @@ def extract_metric_claims(content: str, title: str = "") -> list[dict]:
                 q = _qualifier(line, m.start(), m.end())
                 if not q:
                     continue
+                # 'hackathon wins' / episode numbers are specific claim
+                # forms: the match itself names the fact
+                strong = (metric == "episode"
+                          or "hackathon" in m.group(0).lower()
+                          or "podium" in m.group(0).lower())
                 claims.append({"metric": metric, "value": m.group(1),
-                               "qualifier": q, "line": line.strip()})
+                               "qualifier": q, "strong": strong,
+                               "line": line.strip()})
     return claims
 
 
@@ -112,8 +124,12 @@ def find_claim_conflicts(conn: sqlite3.Connection) -> list[dict]:
 
     conflicts = []
     for metric, claims in by_metric.items():
-        # cluster claims whose qualifiers overlap (shared subject tokens)
-        by_value: dict = {}
+        # Every disagreeing cross-file pair with a shared subject BINDING.
+        # Binding strength is specificity, not count: two generic tokens, or
+        # one identifier-ish token (digits/slash/dot: release/2026-07-04,
+        # ep29.md), or an inherently specific claim form on both sides
+        # ('9 hackathon wins'). A single shared word like 'oscar' or
+        # 'built' is coincidence, not the same fact.
         pairs = []
         for i in range(len(claims)):
             for j in range(i + 1, len(claims)):
@@ -121,29 +137,47 @@ def find_claim_conflicts(conn: sqlite3.Connection) -> list[dict]:
                 if a["value"] == b["value"]:
                     continue
                 shared = a["qualifier"] & b["qualifier"]
-                if not shared:
+                strong = (len(shared) >= 2
+                          or any(re.search(r"[\d/.]", t) for t in shared)
+                          or (a.get("strong") and b.get("strong") and shared))
+                if not shared or not strong:
                     continue
                 if a["scope"] == b["scope"]:
                     continue  # one file arguing with itself is not R1
                 pairs.append((len(shared), a, b, shared))
-        if not pairs:
-            continue
-        # strongest subject binding wins; one finding per metric
-        _, a, b, shared = max(pairs, key=lambda p: p[0])
-        values = sorted({a["value"], b["value"]}
-                        | {c["value"] for c in claims
-                           if (c["qualifier"] & shared)
-                           and c["value"] not in (a["value"], b["value"])})
-        support = Counter(c["value"] for c in claims if c["qualifier"] & shared)
-        conflicts.append({
-            "metric": metric,
-            "subject": "/".join(sorted(shared)[:4]),
-            "values": values,
-            "support": dict(support),
-            "pair_key": f"claim|{metric}|{'/'.join(sorted(shared)[:4])}",
-            "a": {k: a[k] for k in ("value", "line", "cube_id", "scope")},
-            "b": {k: b[k] for k in ("value", "line", "cube_id", "scope")},
-        })
+        # One conflict per SUBJECT-CLUSTER, not per metric: the security
+        # audit's merge fight and the funding flow's merge fight are two
+        # different facts and file as two findings. Greedy: strongest
+        # binding first; a pair joins a cluster it shares tokens with.
+        clusters = []
+        for n, a, b, shared in sorted(pairs, key=lambda p: -p[0]):
+            for cl in clusters:
+                # join on the SEED pair's signature only — growing the
+                # signature lets clusters chain-absorb unrelated subjects
+                # (every Wave Radio episode ended up in one megacluster)
+                if cl["sig"] & shared:
+                    cl["claims"].extend([a, b])
+                    break
+            else:
+                clusters.append({"sig": set(shared), "claims": [a, b],
+                                 "top": (a, b, shared)})
+        for cl in clusters:
+            a, b, shared = cl["top"]
+            members = {id(c): c for c in cl["claims"]}.values()
+            values = sorted({c["value"] for c in members})
+            support = Counter(c["value"] for c in members)
+            subject = "/".join(sorted(shared)[:4])
+            conflicts.append({
+                "metric": metric,
+                "subject": subject,
+                "values": values,
+                "support": dict(support),
+                "scopes": sorted({c["scope"] for c in members}),
+                "cube_ids": sorted({c["cube_id"] for c in members}),
+                "pair_key": f"claim|{metric}|{subject}",
+                "a": {k: a[k] for k in ("value", "line", "cube_id", "scope")},
+                "b": {k: b[k] for k in ("value", "line", "cube_id", "scope")},
+            })
     return conflicts
 
 

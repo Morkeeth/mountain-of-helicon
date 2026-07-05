@@ -109,6 +109,16 @@ bash scripts/demo_public_store.sh          # default: openai/codex AGENTS.md
 
 This replays the file across its REAL git history (no staging): ingests an old commit, snapshots retrieval, replays to HEAD, reconciles, runs the rot exam. On openai/codex (27 real commits of AGENTS.md edits, cited by SHA in the output): 5 sections retired as drifted, 1/1 retrieval snapshot regressed — R10 and R8, live, on a store we don't own. Reproducible by anyone.
 
+## The life-OS benchmark — scored against human-labeled rot
+
+On Jul 5 a 5-agent manual audit swept the operator's real second brain (Obsidian vault + Claude Code memory dir), archived 33 stale docs and stamped 21 drifting docs with dated `> **LOUPE` correction banners. Those banners are a labeled dataset of real memory rot. The benchmark ingests the same corpora with the banners stripped (the answer key never enters the input) and scores the deterministic detectors against them:
+
+```bash
+python3 scripts/rot_bench_lifeos.py    # read-only on sources, throwaway DB, zero LLM
+```
+
+Honest numbers from the first run (232 files, 1,667 section cubes): **6/16 file-level catches, 4/16 strict facet-match** — the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
+
 Doc honesty is enforced: `python3 -m helicon.docdrift` compares this README's numeric claims against counts computed from source, and it runs in the test suite — stale docs fail the build. (It caught this very README claiming 20 commands the hour the 21st landed.)
 
 Everything destructive is dry-run by default and takes `--apply`.

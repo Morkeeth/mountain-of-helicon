@@ -1,0 +1,231 @@
+"""The life-OS rot benchmark — Helicon vs a human-labeled answer key.
+
+On 2026-07-05 a 5-agent manual audit swept the operator's second brain
+(Obsidian vault + Claude Code memory dir): 33 stale docs archived, and every
+doc found drifting was stamped with a `> **LOUPE ...**` correction banner
+stating the drifted claim vs current truth. Those banners are a labeled
+dataset of real memory rot: produced by humans, dated, in the wild.
+
+This benchmark ingests the SAME corpora with the banners stripped (the
+answer key must not leak into the input), runs Helicon's deterministic
+detectors, and scores the honest catch-rate per rot class — plus whatever
+Helicon finds that the humans missed.
+
+Read-only on the vault: files are read once, never written. The bench store
+is a throwaway DB in a temp dir. Zero LLM calls.
+
+Run:  python3 scripts/rot_bench_lifeos.py
+      LIFEOS_ROOTS="dir1::dir2" python3 scripts/rot_bench_lifeos.py
+"""
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from helicon.aliases import add_alias, alias_rot
+from helicon.claims import find_claim_conflicts
+from helicon.connectors import lifeos
+from helicon.db import init_db, insert_cube, rebuild_fts
+from helicon.forgetting import DEFAULT_STABILITY
+from helicon.pairing import find_conflicts
+from helicon.rot import run_rot_exam
+from helicon.scanner import result_to_cube
+from helicon.timeutil import ts_norm
+
+VAULT = os.path.expanduser(
+    "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian LIFE")
+DEFAULT_ROOTS = [
+    os.path.expanduser("~/.claude/projects/-Users-morkeeth/memory"),
+    f"{VAULT}/00 Dashboard",
+    f"{VAULT}/01 Projects",
+    f"{VAULT}/02 Content",
+    f"{VAULT}/03 Ideas",
+]
+BANNER_PATTERN = r"^> \*\*LOUPE"
+
+# The answer key: every in-corpus LOUPE banner from the Jul 5 manual audit,
+# mapped to the rot class(es) whose detector should fire on that file.
+# 4 more banners are ARCHIVED stamps on docs already moved to Archive/ —
+# out of corpus by definition (the humans fixed them by removing them).
+# For R1 labels, `facet` tokens say what the banner is actually about, so a
+# detector firing on a DIFFERENT real conflict in the same file is reported
+# as exactly that — file-level credit, not facet credit. No silent inflation.
+LABELS = [
+    ("00 Dashboard/operating-system.md",                    {"R3"}, "stack table predates reality"),
+    ("01 Projects/People Radar/sample-radar-competitive-landscape.md", {"R3"}, "Jun 8 issues list obsolete"),
+    ("01 Projects/italy-ligurian-coast-trip.md",            {"R1"}, "route Aug 14-22 vs itinerary Aug 15-24"),
+    ("01 Projects/Bagel/hotline-architecture.md",           {"R3"}, "trigger table outdated (trimmed Jun 29)"),
+    ("01 Projects/Hackathons/summer-2026-hackathon-pipeline.md", {"R4", "R3"}, "GLAZE dead name + RAISE dates passed"),
+    ("01 Projects/Portfolio/portfolio-build-plan-2026-07-02.md", {"R3"}, "priority list superseded"),
+    ("01 Projects/Taste Machine/project-scope.md",          {"R3"}, "todo list drifted (voice-profile done)"),
+    ("01 Projects/Relay/security-audit-2026-07-04.md",      {"R1"}, "'NOT patched' vs merged Jul 4", {"merge-status"}),
+    ("01 Projects/Relay/funding-campaign-flow.md",          {"R1"}, "'pending merge' vs merged", {"merge-status"}),
+    ("01 Projects/Relay/FAVOUR-rebrand-and-roadmap.md",     {"R1", "R4"}, "open decisions vs rebrand EXECUTED"),
+    ("01 Projects/Job Hunt/upskill-positioning-plan.md",    {"R1"}, "'all repos private' vs portfolio LIVE", {"portfolio", "private", "live"}),
+    ("01 Projects/Job Hunt/companies/anthropic.md",         {"R1"}, "application checklist vs rejected at screen", {"rejected", "checklist", "application"}),
+    ("01 Projects/Wave Radio/ep25-the-revival.md",          {"R1", "R4"}, "this recording IS ep29"),
+    ("02 Content/content-strategy-2026.md",                 {"R3"}, "'Immediate Actions' dead 7+ weeks"),
+    ("02 Content/design-taste-system.md",                   {"R4"}, "superseded by design-taste skill"),
+    ("03 Ideas/davinci-resolve-mcp-ai-video-editing.md",    {"R3"}, "trigger references dead application"),
+    ("03 Ideas/backlog.md",                                 {"R1"}, "'Active Projects' vs decided/live states"),
+]
+
+# Renames the operator has declared elsewhere (decision log / memory /
+# commit history) — external facts, not derived from the banners.
+KNOWN_RENAMES = [
+    ("glaze", "helicon", "2026-07-04T15:05:45", "repo rename, commit 2823f41"),
+    ("RELAY", "FAVOUR", "2026-07-02T00:00:00", "rebrand executed Jul 2 (decision log)"),
+]
+
+
+def banner(msg):
+    print(f"\n{'=' * 70}\n{msg}\n{'=' * 70}")
+
+
+def main():
+    roots = (os.environ["LIFEOS_ROOTS"].split("::")
+             if os.environ.get("LIFEOS_ROOTS") else DEFAULT_ROOTS)
+    roots = [r for r in roots if os.path.isdir(r)]
+
+    banner("1. INGEST the life OS, banners stripped (read-only on sources)")
+    results = lifeos.scan({"roots": roots, "strip_pattern": BANNER_PATTERN})
+    db_path = os.path.join(tempfile.mkdtemp(prefix="helicon-lifeos-"), "bench.db")
+    conn = init_db(db_path)
+    inserted = sum(1 for r in results if insert_cube(conn, result_to_cube(r)))
+    rebuild_fts(conn)
+    files = {r.source_ref.split("#", 1)[0] for r in results}
+    print(f"   {len(roots)} roots, {len(files)} files, {inserted} section cubes "
+          f"-> throwaway DB {db_path}")
+    for old, new, at, note in KNOWN_RENAMES:
+        add_alias(conn, old, new, at, note=note)
+    print(f"   {len(KNOWN_RENAMES)} declared rename(s) seeded ({', '.join(o + '->' + n for o, n, _, _ in KNOWN_RENAMES)})")
+
+    banner("2. RUN the deterministic detectors (zero LLM)")
+    # R1: dated facts + claims
+    r1_files = set()
+    r1_why: dict = {}
+    conflicts = find_conflicts(conn)
+    for c in conflicts:
+        for rep in c["representatives"].values():
+            row = conn.execute("SELECT source_ref FROM helicon_cubes WHERE id=?",
+                               (rep["id"],)).fetchone()
+            if row:
+                f = row["source_ref"].split("#", 1)[0]
+                r1_files.add(f)
+                r1_why.setdefault(f, []).append(
+                    f"{c['person']}/{c['topic']} {' vs '.join(c['dates'])}")
+    claim_conflicts = find_claim_conflicts(conn)
+    for c in claim_conflicts:
+        for cid in c["cube_ids"]:
+            row = conn.execute("SELECT source_ref FROM helicon_cubes WHERE id=?",
+                               (cid,)).fetchone()
+            if row:
+                f = row["source_ref"].split("#", 1)[0]
+                r1_files.add(f)
+                r1_why.setdefault(f, []).append(
+                    f"{c['metric']}[{c['subject']}] {' vs '.join(c['values'])}")
+    print(f"   R1: {len(conflicts)} dated-fact + {len(claim_conflicts)} claim "
+          f"conflict(s) across {len(r1_files)} file(s)")
+    for c in claim_conflicts:
+        print(f"       claim {c['metric']}[{c['subject']}]: "
+              + " vs ".join(f"{v}({n})" for v, n in sorted(c["support"].items())))
+    for c in conflicts:
+        print(f"       dated {c['person']}/{c['topic']}: {' vs '.join(c['dates'])}")
+
+    # R3: live cubes past their type's half-life (file-level receipt)
+    r3_files = set()
+    now = ts_norm("2026-07-05T12:00:00")
+    for row in conn.execute(
+        "SELECT source_ref, type, created_at FROM helicon_cubes "
+        "WHERE review_status IN ('pending','revised') AND merged_into IS NULL"
+    ):
+        eta = DEFAULT_STABILITY.get(row["type"])
+        created = ts_norm(row["created_at"])
+        if not eta or not created:
+            continue
+        from datetime import datetime as _dt
+        age = (_dt.fromisoformat(now)
+               - _dt.fromisoformat(created)).total_seconds() / 86400
+        if age > eta:
+            r3_files.add(row["source_ref"].split("#", 1)[0])
+    print(f"   R3: {len(r3_files)} file(s) with live sections past their "
+          f"type's half-life")
+
+    # R4: dead-name refs, current claims + serving leaks per declared alias
+    r4_files = set()
+    for t in alias_rot(conn, k=5):
+        for s in t["current_claim_samples"]:
+            row = conn.execute("SELECT source_ref FROM helicon_cubes WHERE id=?",
+                               (s["id"],)).fetchone()
+            if row:
+                r4_files.add(row["source_ref"].split("#", 1)[0])
+        print(f"   R4 {t['old_name']}->{t['new_name']}: {t['live_refs']} refs = "
+              f"{t['history']} history + {t['rename_aware']} aware + "
+              f"{t['current_claims']} current-claim(s)")
+    exam = run_rot_exam(conn)
+    print(f"   Exam: {exam['rot_found']}/10 classes show rot on this store")
+
+    banner("3. SCORE vs the human answer key (17 in-corpus banners)")
+    caught_by = {"R1": r1_files, "R3": r3_files, "R4": r4_files}
+    ingested_names = {f.split("/")[-1] for f in files}
+    caught, missed, gone = [], [], []
+    for label in LABELS:
+        rel, classes, what = label[0], label[1], label[2]
+        facet = label[3] if len(label) > 3 else None
+        if rel.split("/")[-1] not in ingested_names:
+            gone.append((rel, what))
+            continue
+        hits = sorted(cls for cls in classes
+                      if any(f.endswith(rel.split("/")[-1]) and rel.split("/")[0] in f
+                             for f in caught_by.get(cls, set())))
+        (caught if hits else missed).append((rel, classes, what, hits, facet))
+
+    strict = 0
+    for rel, classes, what, hits, facet in caught:
+        why, facet_ok = "", True
+        if "R1" in hits:
+            whys = sorted({w for f, ws in r1_why.items()
+                           if f.endswith(rel.split("/")[-1]) for w in ws})
+            why = f"  <- fired on: {'; '.join(whys[:2])}" if whys else ""
+            if facet:
+                facet_ok = any(tok in w for tok in facet for w in whys)
+        strict += 1 if facet_ok else 0
+        tag = "" if facet_ok else "  [same file, DIFFERENT real conflict — file-level credit only]"
+        print(f"   CAUGHT [{'/'.join(hits)}] {rel} — {what}{why}{tag}")
+    for rel, classes, what, _, _ in missed:
+        print(f"   missed [{'/'.join(sorted(classes))}] {rel} — {what}")
+    for rel, what in gone:
+        print(f"   n/a    {rel} — fixed and removed by the human before the "
+              f"bench ran ({what})")
+    denom = len(caught) + len(missed)
+    print(f"\n   catch-rate: {len(caught)}/{denom} file-level "
+          f"({strict}/{denom} strict facet-match) — deterministic, zero LLM"
+          + (f"; {len(gone)} label already fixed+removed" if gone else ""))
+    print("   (+4 banners are ARCHIVED stamps on docs already moved out of "
+          "the active corpus by the human audit)")
+
+    banner("4. BEYOND the answer key — what the humans missed")
+    labeled_files = {rel.split("/")[-1] for rel, _, _ in LABELS}
+    extras = []
+    for f in sorted(r1_files):
+        if f.split("/")[-1] not in labeled_files:
+            extras.append(("R1", f))
+    for f in sorted(r4_files):
+        if f.split("/")[-1] not in labeled_files:
+            extras.append(("R4", f))
+    if extras:
+        for cls, f in extras:
+            print(f"   {cls}  {f}")
+    else:
+        print("   none — the human audit was thorough on R1/R4 today")
+    r3_extra = sum(1 for f in r3_files if f.split("/")[-1] not in labeled_files)
+    print(f"   R3: {r3_extra} additional file(s) past half-life the audit "
+          f"did not banner (staleness beyond the human pass)")
+
+    print(f"\nReproduce: python3 scripts/rot_bench_lifeos.py  "
+          f"(read-only; throwaway DB; banners stripped as answer key)")
+
+
+if __name__ == "__main__":
+    main()
