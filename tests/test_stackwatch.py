@@ -39,17 +39,23 @@ def test_dead_path_is_a_finding_ephemeral_is_not(conn, tmp_path):
     _claim_cube(conn, str(real))                      # exists -> no finding
     _claim_cube(conn, str(tmp_path / "gone.md"))      # missing -> finding
     _claim_cube(conn, "/tmp/ephemeral/scratch.md")    # ephemeral -> excluded
-    got = output_findings(conn)
+    got = output_findings(conn, ephemeral=('/tmp/',))
     assert len(got) == 1
     assert "gone.md" in got[0]["finding"]
     assert "dead path" in got[0]["finding"]
 
 
 def test_stack_scan_files_once(conn, tmp_path):
+    import helicon.stackwatch as SW
     _claim_cube(conn, str(tmp_path / "vanished.md"))
-    first = stack_scan(conn)
-    assert first["output"] == 1
-    assert stack_scan(conn)["output"] == 0  # idempotent
+    orig = SW.EPHEMERAL
+    SW.EPHEMERAL = ("/tmp/",)
+    try:
+        first = stack_scan(conn)
+        assert first["output"] == 1
+        assert stack_scan(conn)["output"] == 0  # idempotent
+    finally:
+        SW.EPHEMERAL = orig
     n = conn.execute("SELECT COUNT(*) FROM audit_log "
                      "WHERE audit_type='output'").fetchone()[0]
     assert n == 1

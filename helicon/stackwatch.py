@@ -94,7 +94,11 @@ def routine_findings() -> list[dict]:
     return out
 
 
-def output_findings(conn: sqlite3.Connection, since_days: int = 2) -> list[dict]:
+EPHEMERAL = ("/tmp/", "/scratchpad/", "/T/")
+
+
+def output_findings(conn: sqlite3.Connection, since_days: int = 2,
+                    ephemeral: tuple = EPHEMERAL) -> list[dict]:
     """Claimed-created files that do not exist. The claim is the cube; the
     filesystem is the truth."""
     out = []
@@ -111,7 +115,7 @@ def output_findings(conn: sqlite3.Connection, since_days: int = 2) -> list[dict]
         if not m:
             continue
         path = m.group(1).strip()
-        if any(seg in path for seg in ("/tmp/", "/scratchpad/", "/T/")):
+        if any(seg in path for seg in ephemeral):
             continue  # ephemeral by design, absence is not drift
         if not os.path.exists(path):
             out.append({"key": f"output|{path}",
@@ -168,7 +172,7 @@ def stack_scan(conn: sqlite3.Connection) -> dict:
     now = datetime.utcnow().isoformat()
     filed = {"routine": 0, "output": 0, "context": 0}
     for kind, items in (("routine", routine_findings()),
-                        ("output", output_findings(conn)),
+                        ("output", output_findings(conn, ephemeral=EPHEMERAL)),
                         ("context", context_findings())):
         for it in items:
             if it["key"] in existing:
