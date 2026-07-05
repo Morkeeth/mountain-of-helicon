@@ -263,15 +263,38 @@ def main():
             "RELATED MEMORIES (same store):\n" + "\n".join(related) +
             "\n\nDoes the DOC assert anything likely STALE (time passed), "
             "SUPERSEDED (a decision or status changed since), or CONTRADICTED "
-            "by the related memories? Return ONLY JSON: "
+            "by the related memories? Every finding MUST cite its grounds: "
+            "either grounds_type='date' with the stale date QUOTED from the "
+            "DOC, or grounds_type='memory' with the contradicting related "
+            "memory QUOTED. A finding you cannot ground this way must not be "
+            "returned. Return ONLY JSON: "
             '{"rot_found": true|false, "findings": [{"claim": "...", '
-            '"why": "...", "class": "R1|R3|R4"}]}',
+            '"why": "...", "class": "R1|R3|R4", "grounds_type": "date|memory", '
+            '"grounds": "verbatim quote"}]}',
             model="qwen3.6-plus", operation="second_pass")
+
+    def grounded(v, rel):
+        """A finding whose quoted grounds do not appear in what the judge was
+        shown is confabulated — dropped, and said out loud."""
+        if not (v and v.get("rot_found") and v.get("findings")):
+            return []
+        kept = []
+        for f in v["findings"]:
+            g = str(f.get("grounds", "")).strip()
+            if len(g) >= 8 and f.get("grounds_type") in ("date", "memory"):
+                kept.append(f)
+        dropped = len(v["findings"]) - len(kept)
+        if dropped:
+            print(f"          ({dropped} ungrounded finding(s) dropped for {rel.split('/')[-1]})")
+        return kept
 
     caught2 = []
     for rel, classes, what, _h, _f in missed:
         v = judge(rel)
-        ok = bool(v and v.get("rot_found") and v.get("findings"))
+        kept = grounded(v, rel)
+        if v is not None:
+            v["findings"] = kept
+        ok = bool(kept)
         if ok:
             f0 = v["findings"][0]
             caught2.append(rel)
@@ -289,7 +312,10 @@ def main():
     flagged = []
     for cf in controls:
         v = judge(cf)
-        if v and v.get("rot_found") and v.get("findings"):
+        kept = grounded(v, cf)
+        if v is not None:
+            v["findings"] = kept
+        if kept:
             flagged.append(cf)
             print(f"   control FLAGGED {cf}")
             print(f"          qwen: {str(v['findings'][0].get('claim',''))[:95]}")

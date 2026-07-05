@@ -11,6 +11,7 @@ import SkillsAudit from './components/SkillsAudit';
 import FindingsView from './components/FindingsView';
 import LogView from './components/LogView';
 import GoldView from './components/GoldView';
+import ConflictMap from './components/ConflictMap';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone — findings
@@ -26,7 +27,7 @@ const PRIMARY_TABS: { key: Tab; label: string }[] = [
 ];
 
 const SECONDARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'graph', label: 'Graph' },
+  { key: 'graph', label: 'Conflicts' },
   { key: 'projects', label: 'Projects' },
 ];
 
@@ -346,7 +347,8 @@ function App() {
           </>
         )}
 
-        {tab === 'graph' && (
+        {tab === 'graph' && <ConflictMap />}
+        {false && (
           <>
           <TabPurpose>Where the rot lives in your knowledge graph.</TabPurpose>
           <Graph3D />
