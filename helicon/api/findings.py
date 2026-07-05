@@ -15,6 +15,7 @@ Every finding has the same shape:
   {id, kind, severity, title, why, evidence_preview, source, source_ref,
    cube_id, suggested_action, created_at}
 """
+import json
 import os
 from collections import Counter
 from datetime import datetime
@@ -66,7 +67,7 @@ def _audit_findings(conn) -> list[dict]:
     """Pending audit_log rows as findings, joined to their cube for evidence."""
     rows = conn.execute(
         """SELECT a.id, a.audit_type, a.target_type, a.target_id, a.finding,
-                  a.severity, a.proposed_action, a.audited_at,
+                  a.severity, a.proposed_action, a.audited_at, a.details,
                   c.title AS cube_title, c.content AS cube_content,
                   c.source AS cube_source, c.source_ref AS cube_source_ref
            FROM audit_log a
@@ -81,13 +82,24 @@ def _audit_findings(conn) -> list[dict]:
         kind = r["audit_type"]
         check = _AUDIT_CHECK.get(kind, kind.capitalize())
         is_cube = r["target_type"] == "cube" and r["cube_title"] is not None
+        # A contradiction finding's evidence is the two conflicting LINES
+        # side by side (what lets a human verify in five seconds) — never
+        # just the target cube's content, which proves nothing by itself.
+        evidence = _preview(r["cube_content"]) if is_cube else ""
+        try:
+            details = json.loads(r["details"]) if r["details"] else {}
+        except (ValueError, TypeError):
+            details = {}
+        if details.get("pair_key"):
+            from helicon.pairing import format_pair_evidence
+            evidence = format_pair_evidence(details)
         findings.append({
             "id": f"audit-{r['id']}",
             "kind": kind,
             "severity": r["severity"],
             "title": r["cube_title"] if is_cube else r["target_id"],
             "why": f"{check}: {r['finding']}",
-            "evidence_preview": _preview(r["cube_content"]) if is_cube else "",
+            "evidence_preview": evidence,
             "source": r["cube_source"] if is_cube else "audit",
             "source_ref": r["cube_source_ref"] if is_cube else r["target_id"],
             "cube_id": r["target_id"] if r["target_type"] == "cube" else None,

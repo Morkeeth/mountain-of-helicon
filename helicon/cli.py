@@ -643,11 +643,43 @@ def cmd_resolve(args):
         print("Open cross-source contradictions:\n")
         for r in rows:
             print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
-        print("\nResolve one:  helicon resolve <id> --truth <MM-DD>")
+        print("\nInspect one:  helicon resolve <id>   "
+              "(shows the evidence, decides nothing)")
+        return
+
+    if args.dismiss is not None:
+        from helicon.pairing import dismiss_finding
+        res = dismiss_finding(conn, args.id, args.dismiss or "dismissed by human")
+        print(f"dismissed #{args.id} (reason recorded)" if res["ok"]
+              else f"error: {res['error']}")
         return
 
     if not args.truth:
-        print("--truth <MM-DD> is required (one of the asserted dates).")
+        # The verify surface: full evidence card, decides nothing.
+        import json as _json
+        from helicon.pairing import format_pair_evidence
+        row = conn.execute("SELECT * FROM audit_log WHERE id = ?",
+                           (args.id,)).fetchone()
+        if row is None:
+            print(f"no audit finding #{args.id}")
+            return
+        try:
+            d = _json.loads(row["details"])
+        except (ValueError, TypeError):
+            d = {}
+        print(f"#{row['id']}  [{row['severity']}]  filed {row['audited_at'][:16]}"
+              + (f"  decided: {row['human_decision']}" if row["human_decision"] else ""))
+        print(f"{row['finding']}\n")
+        print(format_pair_evidence(d) if d.get("pair_key")
+              else (row["finding"]))
+        if d.get("cube_count"):
+            print(f"\n   {d['cube_count']} cube(s) involved across "
+                  f"{len(d.get('scopes', []))} source file(s)")
+        if not row["human_decision"]:
+            vals = d.get("all_dates") or d.get("dates") or []
+            print(f"\nDecide:  helicon resolve {row['id']} --truth "
+                  f"<{'|'.join(str(v) for v in vals) or 'value'}>"
+                  f"\n   or:   helicon resolve {row['id']} --dismiss \"why\"")
         return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
@@ -1311,8 +1343,9 @@ def main():
 
     resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction cube + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
-    resolve_p.add_argument("--truth", help="the true date, MM-DD, one of the asserted dates")
+    resolve_p.add_argument("--truth", help="the true value, one of the asserted dates/values")
     resolve_p.add_argument("--note", help="optional context recorded on the correction cube")
+    resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
 
     watch_p = sub.add_parser("watch", help="Ambient mode: scan + exam on a timer, notify only on NEW drift")

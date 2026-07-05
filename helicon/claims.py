@@ -227,6 +227,8 @@ def claim_scan(conn: sqlite3.Connection) -> dict:
                 "all_dates": c["values"], "support": c["support"],
                 "cube_a": c["a"]["cube_id"], "cube_b": c["b"]["cube_id"],
                 "line_a": c["a"]["line"], "line_b": c["b"]["line"],
+                "value_a": c["a"]["value"], "value_b": c["b"]["value"],
+                "scope_a": c["a"]["scope"], "scope_b": c["b"]["scope"],
                 "scopes": sorted({c["a"]["scope"], c["b"]["scope"]}),
                 "judged_by": "deterministic",
             },

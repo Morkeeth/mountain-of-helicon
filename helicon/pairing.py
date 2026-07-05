@@ -336,6 +336,55 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
     return conflicts
 
 
+def format_pair_evidence(details: dict) -> str:
+    """The human-verifiable receipt for a contradiction finding: the two
+    exact lines, where each lives, and how much memory stands behind each
+    side. The finding ASSERTS; this is what lets a human VERIFY it in five
+    seconds instead of trusting it."""
+    d = details
+    support = d.get("support", {})
+    vals = list(d.get("dates") or [])
+    # explicit value<->line alignment when present — sorted date labels and
+    # A/B line order are independent, and a receipt with crossed labels is
+    # worse than no receipt
+    va = d.get("value_a") or (vals[0] if vals else "?")
+    vb = d.get("value_b") or (vals[-1] if len(vals) > 1 else "?")
+    scopes = d.get("scopes", [])
+    sa = d.get("scope_a") or (scopes[0] if scopes else "?")
+    sb = d.get("scope_b") or (scopes[-1] if len(scopes) > 1 else "?")
+    out = [
+        f"A: {va}   ({support.get(va, '?')} cube(s))   {sa}",
+        f"   | {(d.get('line_a') or '')[:160]}",
+        f"B: {vb}   ({support.get(vb, '?')} cube(s))   {sb}",
+        f"   | {(d.get('line_b') or '')[:160]}",
+    ]
+    extra = [v for v in d.get("all_dates", []) if v not in (va, vb)]
+    if extra:
+        out.append(f"   also asserted: {', '.join(str(x) for x in extra)}")
+    if d.get("explanation"):
+        out.append(f"   judge: {str(d['explanation'])[:200]}")
+    return "\n".join(out)
+
+
+def dismiss_finding(conn: sqlite3.Connection, audit_id: int, reason: str) -> dict:
+    """The other verdict: this finding is not real rot. Reason is recorded
+    (a dismissal without a why is future confusion); the pair_key stays in
+    the dedup set so the same finding never refiles."""
+    row = conn.execute("SELECT id, human_decision FROM audit_log WHERE id = ?",
+                       (audit_id,)).fetchone()
+    if row is None:
+        return {"ok": False, "error": f"no audit finding #{audit_id}"}
+    if row["human_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already decided: "
+                                      f"{row['human_decision']}"}
+    conn.execute(
+        "UPDATE audit_log SET human_decision = 'dismissed', resolved_at = ?, "
+        "details = json_set(details, '$.dismiss_reason', ?) WHERE id = ?",
+        (datetime.utcnow().isoformat(), reason, audit_id))
+    conn.commit()
+    return {"ok": True, "audit_id": audit_id}
+
+
 def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
                  note: str = "") -> dict:
     """Close a pairing finding with the human's answer. Three writes, all
@@ -470,6 +519,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                 "cube_a": rep_a["id"], "cube_b": rep_b["id"],
                 "title_a": rep_a["title"], "title_b": rep_b["title"],
                 "line_a": rep_a["line"], "line_b": rep_b["line"],
+                "scope_a": rep_a["scope"], "scope_b": rep_b["scope"],
                 "scopes": c["scopes"], "cube_count": c["cube_count"],
                 "explanation": explanation,
                 "judged_by": "qwen" if client is not None else "deterministic",

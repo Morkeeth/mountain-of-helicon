@@ -89,6 +89,25 @@ def test_one_file_arguing_with_itself_is_not_r1(conn):
     assert [c for c in find_claim_conflicts(conn) if c["metric"] == "wins"] == []
 
 
+def test_evidence_values_stay_aligned_with_their_lines(conn):
+    """Live bug caught by the first evidence card: sorted value labels were
+    paired with unsorted A/B lines — '4' displayed over the 9-wins line. A
+    receipt with crossed labels is worse than no receipt."""
+    import json
+    from helicon.pairing import format_pair_evidence
+    _cube(conn, "Track record: 9 hackathon wins, growing", "memory.md")
+    _cube(conn, "site copy: 4 hackathon wins + 2 more", "portfolio.md")
+    claim_scan(conn)
+    row = conn.execute("SELECT details FROM audit_log WHERE details LIKE "
+                       "'%claim|wins%'").fetchone()
+    d = json.loads(row["details"])
+    assert d["value_a"] in d["line_a"] and d["value_b"] in d["line_b"]
+    card = format_pair_evidence(d)
+    a_block, b_block = card.split("B:", 1)
+    assert d["value_a"] in a_block and d["line_a"][:30] in a_block
+    assert d["value_b"] in b_block and d["line_b"][:30] in b_block
+
+
 def test_claim_scan_files_once_and_shows_in_rot(conn):
     _cube(conn, "Identity: 8 hackathon wins", "mindmap.md")
     _cube(conn, "About: 9 hackathon wins", "portfolio.md")
