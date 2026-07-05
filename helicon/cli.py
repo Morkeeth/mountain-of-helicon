@@ -619,6 +619,46 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def cmd_resolve(args):
+    """Close a cross-source contradiction with the truth. Files the human
+    decision, writes a correction cube (approved, full provenance) so
+    retrieval serves the answer instead of the argument, and arms the
+    never-twice guard: the ruled-out date resurfacing in NEW memory
+    re-alarms instead of being grandfathered in."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.pairing import resolve_pair
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    if args.list or args.id is None:
+        rows = conn.execute(
+            "SELECT id, finding, severity, audited_at FROM audit_log "
+            "WHERE audit_type = 'factual' AND details LIKE '%pair_key%' "
+            "AND human_decision IS NULL ORDER BY id").fetchall()
+        if not rows:
+            print("No open cross-source contradictions.")
+            return
+        print("Open cross-source contradictions:\n")
+        for r in rows:
+            print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
+        print("\nResolve one:  helicon resolve <id> --truth <MM-DD>")
+        return
+
+    if not args.truth:
+        print("--truth <MM-DD> is required (one of the asserted dates).")
+        return
+    res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
+    if not res["ok"]:
+        print(f"error: {res['error']}")
+        return
+    print(f"resolved #{res['audit_id']}: {res['person'].title()} {res['topic']} = {res['truth']}")
+    print(f"  wrong date(s) {', '.join(res['wrong_dates'])} ruled out; "
+          f"correction cube {res['correction_cube']} (approved, provenance recorded)")
+    print("  never-twice armed: new memory asserting a ruled-out date will re-alarm")
+
+
 def cmd_watch(args):
     """Drift notifies YOU: run the full loop headlessly, speak only when
     something is NEW (fresh findings or a rot class flipping). --install
@@ -1269,6 +1309,12 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction cube + never-twice guard)")
+    resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
+    resolve_p.add_argument("--truth", help="the true date, MM-DD, one of the asserted dates")
+    resolve_p.add_argument("--note", help="optional context recorded on the correction cube")
+    resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
+
     watch_p = sub.add_parser("watch", help="Ambient mode: scan + exam on a timer, notify only on NEW drift")
     watch_p.add_argument("--install", action="store_true", help="write the crontab line (idempotent)")
     watch_p.add_argument("--uninstall", action="store_true", help="remove the crontab line")
@@ -1329,6 +1375,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "resolve": cmd_resolve,
         "watch": cmd_watch,
         "alias": cmd_alias,
         "rule": cmd_rule,

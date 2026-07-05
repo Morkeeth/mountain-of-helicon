@@ -162,6 +162,33 @@ def _cube_scope(row) -> str:
     return f"{row['source']}:{source_ref_scope(row['source_ref'] or '')}"
 
 
+def _parse_label(label: str) -> tuple[str, str]:
+    """'05-18' or '07-11..05-13' back to an interval."""
+    if ".." in label:
+        a, b = label.split("..", 1)
+        return (a, b)
+    return (label, label)
+
+
+def load_resolutions(conn: sqlite3.Connection) -> dict:
+    """(person, topic) -> {'truth', 'resolved_at'} from resolved pairing
+    findings. The truth is what the human said when they closed the finding."""
+    out = {}
+    for row in conn.execute(
+        "SELECT details, human_decision, resolved_at FROM audit_log "
+        "WHERE audit_type = 'factual' AND human_decision LIKE 'resolved:%' "
+        "AND details LIKE '%pair_key%'"
+    ):
+        try:
+            d = json.loads(row["details"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        truth = row["human_decision"].split(":", 1)[1]
+        out[(d.get("person"), d.get("topic"))] = {
+            "truth": truth, "resolved_at": row["resolved_at"] or ""}
+    return out
+
+
 def _iv_label(iv: tuple[str, str]) -> str:
     return iv[0] if iv[0] == iv[1] else f"{iv[0]}..{iv[1]}"
 
@@ -191,8 +218,34 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
                                "created_at": row["created_at"],
                                "line": a["line"]})
 
+    resolutions = load_resolutions(conn)
     conflicts = []
     for (person, topic), by_iv in groups.items():
+        # A resolved fact stays closed — unless memory written AFTER the
+        # resolution asserts a date the human already ruled out. That is the
+        # never-twice guard: the same rot resurfacing re-alarms, it does not
+        # get grandfathered in under the old resolution.
+        res = resolutions.get((person, topic))
+        resurfaced = False
+        if res:
+            truth_iv = _parse_label(res["truth"])
+            by_iv = {
+                iv: {"scopes": {c["scope"] for c in cubes},
+                     "cubes": cubes}
+                for iv, d in by_iv.items()
+                if _disjoint(iv, truth_iv)
+                and (cubes := [c for c in d["cubes"]
+                               if (c["created_at"] or "") > res["resolved_at"]])
+            }
+            if not by_iv:
+                continue  # resolved, and nothing new contradicts the truth
+            by_iv[truth_iv] = {"scopes": {"resolution"},
+                               "cubes": [{"id": f"resolution:{person}|{topic}",
+                                          "title": f"human resolution: {res['truth']}",
+                                          "scope": "resolution",
+                                          "created_at": res["resolved_at"],
+                                          "line": f"resolved {res['truth']}"}]}
+            resurfaced = True
         if len(by_iv) < 2:
             continue
         # Best-supported disjoint pair: two intervals that cannot both be
@@ -235,13 +288,68 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
             "person": person, "topic": topic,
             "dates": labels,
             "all_dates": sorted(_iv_label(iv) for iv in by_iv),
-            "pair_key": f"{person}|{topic}|{'/'.join(labels)}",
+            "pair_key": f"{person}|{topic}|{'/'.join(labels)}"
+                        + ("|resurfaced" if resurfaced else ""),
             "representatives": reps,
             "support": {_iv_label(iv): len(by_iv[iv]["cubes"]) for iv in (iv_a, iv_b)},
             "cube_count": sum(len(d["cubes"]) for d in by_iv.values()),
             "scopes": sorted(by_iv[iv_a]["scopes"] | by_iv[iv_b]["scopes"]),
+            "resurfaced": resurfaced,
         })
     return conflicts
+
+
+def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
+                 note: str = "") -> dict:
+    """Close a pairing finding with the human's answer. Three writes, all
+    with provenance: the finding is marked resolved:<truth>, a correction
+    cube (source 'human-resolution', approved, confidence 1.0) enters the
+    store so retrieval serves the answer instead of the argument, and the
+    resolution feeds the never-twice guard in find_conflicts."""
+    row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (audit_id,)).fetchone()
+    if row is None:
+        return {"ok": False, "error": f"no audit finding #{audit_id}"}
+    try:
+        d = json.loads(row["details"])
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    if row["audit_type"] != "factual" or "pair_key" not in d:
+        return {"ok": False, "error": f"finding #{audit_id} is not a pairing finding"}
+    if row["human_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already decided: "
+                                      f"{row['human_decision']}"}
+    if truth not in d.get("all_dates", d.get("dates", [])):
+        return {"ok": False,
+                "error": f"truth {truth!r} is not one of the asserted dates "
+                         f"{d.get('all_dates', d.get('dates'))} — if none of them "
+                         f"is true, dismiss the finding and fix the sources"}
+
+    now = datetime.utcnow().isoformat()
+    conn.execute(
+        "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
+        (f"resolved:{truth}", now, audit_id))
+
+    wrong = [x for x in d.get("dates", []) if x != truth]
+    from helicon.models import HeliconCube
+    from helicon.scanner import make_id, content_hash as _hash
+    content = (f"{d['person'].title()}'s {d['topic']} is {truth} "
+               f"(human resolution of finding #{audit_id}, {now[:10]}). "
+               f"The competing date(s) {', '.join(wrong)} are wrong; any memory "
+               f"asserting them predates this resolution."
+               + (f" Note: {note}" if note else ""))
+    cube = HeliconCube(
+        id=make_id(), source="human-resolution", source_ref=f"audit:{audit_id}",
+        type="decision", title=f"Resolved: {d['person'].title()} {d['topic']} = {truth}",
+        content=content, summary="", content_hash=_hash(content),
+        created_at=now, valid_from=now, last_reinforced=now,
+        confidence=1.0, review_status="approved",
+    )
+    from helicon.db import insert_cube
+    insert_cube(conn, cube)
+    conn.commit()
+    return {"ok": True, "audit_id": audit_id, "truth": truth,
+            "correction_cube": cube.id, "wrong_dates": wrong,
+            "person": d["person"], "topic": d["topic"]}
 
 
 def _existing_pair_keys(conn: sqlite3.Connection) -> set[str]:

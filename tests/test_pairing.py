@@ -129,6 +129,82 @@ def test_pair_scan_files_once_and_is_idempotent(conn):
     assert open_rows == 1
 
 
+# --- resolve: the fix loop ----------------------------------------------
+
+def _filed_finding_id(conn):
+    return conn.execute(
+        "SELECT id FROM audit_log WHERE audit_type='factual' "
+        "AND details LIKE '%pair_key%' ORDER BY id DESC LIMIT 1").fetchone()["id"]
+
+
+def test_resolve_closes_finding_and_files_correction(conn):
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    pair_scan(conn)
+    fid = _filed_finding_id(conn)
+
+    res = resolve_pair(conn, fid, "05-18", note="Oscar confirmed")
+    assert res["ok"] and res["wrong_dates"] == ["05-13"]
+
+    row = conn.execute("SELECT human_decision, resolved_at FROM audit_log "
+                       "WHERE id=?", (fid,)).fetchone()
+    assert row["human_decision"] == "resolved:05-18" and row["resolved_at"]
+
+    cube = conn.execute("SELECT * FROM helicon_cubes WHERE id=?",
+                        (res["correction_cube"],)).fetchone()
+    assert cube["review_status"] == "approved"
+    assert cube["source"] == "human-resolution"
+    assert "05-18" in cube["content"] and "05-13" in cube["content"]
+
+    # the conflict is closed: selector stays quiet, scan refiles nothing
+    assert find_conflicts(conn) == []
+    assert pair_scan(conn)["filed"] == []
+
+
+def test_resolve_rejects_bad_input(conn):
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    pair_scan(conn)
+    fid = _filed_finding_id(conn)
+    assert not resolve_pair(conn, 99999, "05-18")["ok"]        # no such finding
+    assert not resolve_pair(conn, fid, "12-25")["ok"]          # not an asserted date
+    assert resolve_pair(conn, fid, "05-18")["ok"]
+    assert not resolve_pair(conn, fid, "05-18")["ok"]          # already decided
+
+
+def test_never_twice_ruled_out_date_resurfacing_realarm(conn):
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    pair_scan(conn)
+    resolve_pair(conn, _filed_finding_id(conn), "05-18")
+    assert find_conflicts(conn) == []
+
+    # NEW memory (written after the resolution) asserts the ruled-out date
+    _cube(conn, "reminder: Avery birthday May 13, buy the gift", "fresh-note.md",
+          created_at="2027-01-01T00:00:00")
+    conflicts = find_conflicts(conn)
+    assert len(conflicts) == 1
+    assert conflicts[0]["resurfaced"] is True
+    assert "05-13" in conflicts[0]["dates"]
+    # and it files as a NEW finding (different pair_key), not grandfathered
+    assert len(pair_scan(conn)["filed"]) == 1
+
+
+def test_pre_resolution_stale_cubes_stay_closed(conn):
+    from helicon.pairing import resolve_pair
+    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    _cube(conn, "note from May: Avery birthday May 13", "old-note.md",
+          created_at="2026-05-01T00:00:00")
+    pair_scan(conn)
+    resolve_pair(conn, _filed_finding_id(conn), "05-18")
+    # the OLD wrong cubes predate the resolution: closed means closed
+    assert find_conflicts(conn) == []
+
+
 # --- rot exam -----------------------------------------------------------
 
 def test_rot_r1_is_tested_and_finds_the_pair(conn):
