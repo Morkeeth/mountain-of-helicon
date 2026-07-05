@@ -619,6 +619,65 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def cmd_alias(args):
+    """Supersession aliases (rot class R4): declare a rename, then every
+    dead-name reference in live memory triages by written rule — pre-rename
+    history is kept, post-rename current-claims are the rot, and serving the
+    dead name for a current-name query is the proof."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.aliases import add_alias, alias_rot, alias_scan, list_aliases
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    if args.add:
+        old, new = args.add
+        if not args.renamed_at:
+            print("--renamed-at YYYY-MM-DD[THH:MM:SS] is required: the triage "
+                  "rule is 'written before or after the rename', so the rename "
+                  "needs a timestamp.")
+            return
+        if add_alias(conn, old, new, args.renamed_at, note=args.note or ""):
+            print(f"alias recorded: {old} -> {new} (renamed {args.renamed_at})")
+        else:
+            print(f"alias {old} -> {new} already declared")
+        return
+
+    aliases = list_aliases(conn)
+    if not aliases:
+        print("No renames declared. Declare one:\n"
+              "  helicon alias --add <old> <new> --renamed-at <when>")
+        return
+
+    if args.scan:
+        res = alias_scan(conn)
+        for f in res["filed"]:
+            print(f"filed: {f['finding']}")
+        for k in res["already_filed"]:
+            print(f"already filed: {k}")
+        for k in res["clean"]:
+            print(f"clean: {k}")
+        return
+
+    for t in alias_rot(conn):
+        print(f"\n{t['old_name']} -> {t['new_name']}   (renamed {t['renamed_at']})")
+        print(f"  {t['live_refs']} live cube(s) still say '{t['old_name']}':")
+        print(f"    history        {t['history']:>5}  (pre-rename; true when written, kept)")
+        print(f"    rename-aware   {t['rename_aware']:>5}  (post-rename, name both names)")
+        print(f"    current-claims {t['current_claims']:>5}  (post-rename, dead name only — the rot)")
+        for s in t["current_claim_samples"]:
+            print(f"      - {s['created_at'][:10]}  {s['title']}")
+        if t["leaked"]:
+            print(f"  SERVING: {len(t['leaked'])}/{t['retrieved_for_new_name']} top-K hits "
+                  f"for '{t['new_name']}' speak only the dead name:")
+            for h in t["leaked"]:
+                print(f"      - {h['title']}")
+        else:
+            print(f"  serving: 0/{t['retrieved_for_new_name']} top-K hits for "
+                  f"'{t['new_name']}' leak the dead name")
+
+
 def cmd_rule(args):
     """Prompted rules: state a triage rule in natural language, see exactly
     what it would do (coverage, samples, precision vs your own history,
@@ -1173,6 +1232,12 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    alias_p = sub.add_parser("alias", help="Supersession aliases (R4): declare renames, triage dead-name refs into history vs current-claims")
+    alias_p.add_argument("--add", nargs=2, metavar=("OLD", "NEW"), help="declare a rename: old name, new name")
+    alias_p.add_argument("--renamed-at", help="when the rename happened (ISO date/datetime) — required with --add")
+    alias_p.add_argument("--note", help="optional note on the rename")
+    alias_p.add_argument("--scan", action="store_true", help="file one audit finding per alias showing rot (idempotent)")
+
     rule_p = sub.add_parser("rule", help="Prompted rules: author a triage rule in natural language, preview, approve, run")
     rule_p.add_argument("text", nargs="?", help='the rule, e.g. "kill code edits older than 30 days"')
     rule_p.add_argument("--list", action="store_true", help="list all rules")
@@ -1219,6 +1284,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "alias": cmd_alias,
         "rule": cmd_rule,
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,

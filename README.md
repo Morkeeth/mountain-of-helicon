@@ -89,11 +89,11 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (23 commands)
+## CLI (24 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `rot` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `rot` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
-`helicon rot` runs **the rot exam**: the 10 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in 5 of 10 classes and says so.
+`helicon rot` runs **the rot exam**: the 10 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in 4 of 10 classes and says so — and as of Jul 5 all 10 classes are fully tested, 0 partial.
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
@@ -123,7 +123,7 @@ Everything destructive is dry-run by default and takes `--apply`.
 
 ## Architecture
 
-- **Backend:** Python 3.12, FastAPI (72 endpoints), SQLite + FTS5 (21 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
+- **Backend:** Python 3.12, FastAPI (72 endpoints), SQLite + FTS5 (22 tables), numpy embeddings (all-MiniLM-L6-v2, 384-dim, hybrid 60% semantic / 40% keyword search)
 - **Frontend:** React 19, TypeScript, Vite, findings-first dashboard -- HEALTH (the mountain: one tile per battery task, a terracotta crack per broken one), FINDINGS (every failed check with why, evidence, action), LOG (receipts), plus Graph and Projects
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. Proof-of-run on Alibaba Cloud via Cloud Shell (`scripts/cloudshell-run.sh`)

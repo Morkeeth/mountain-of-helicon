@@ -172,6 +172,16 @@ CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id);
 CREATE INDEX IF NOT EXISTS idx_edges_relation ON edges(relation);
 
+CREATE TABLE IF NOT EXISTS entity_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    old_name TEXT NOT NULL,
+    new_name TEXT NOT NULL,
+    renamed_at TEXT NOT NULL,
+    note TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE(old_name, new_name)
+);
+
 CREATE TABLE IF NOT EXISTS consolidations (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

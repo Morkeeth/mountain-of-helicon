@@ -78,15 +78,35 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         f"{expired} live cube(s) past their type's half-life without reinforcement "
         "(decay runs on every scan; battery test 'Expiry' covers retrieval)"))
 
-    # R4 supersession — retired cubes exist, but rename propagation (old name
-    # asserted in CURRENT claims) is the known gap until aliases ship.
+    # R4 supersession — declared aliases triage every dead-name reference:
+    # pre-rename history is kept, post-rename current-claims are the rot,
+    # and serving the dead name for a current-name query is the proof.
     superseded = conn.execute(
         "SELECT COUNT(*) FROM helicon_cubes WHERE review_status = 'superseded'"
     ).fetchone()[0]
-    checks.append(_check(
-        "R4", "Supersession / rename", "PARTIAL", None,
-        f"{superseded} cube(s) retired by reconcile; renamed-entity propagation "
-        "(dead name in current claims vs history) is a known gap"))
+    try:
+        from helicon.aliases import alias_rot
+        triages = alias_rot(conn)
+        if not triages:
+            checks.append(_check(
+                "R4", "Supersession / rename", "TESTED", None,
+                f"{superseded} cube(s) retired by reconcile; no renames declared "
+                "yet — helicon alias add <old> <new>"))
+        else:
+            found = any(t["current_claims"] > 0 or t["leaked"] for t in triages)
+            receipt = "; ".join(
+                f"{t['old_name']}->{t['new_name']}: {t['live_refs']} live dead-name "
+                f"ref(s) = {t['history']} history + {t['rename_aware']} rename-aware "
+                f"+ {t['current_claims']} current-claim(s)"
+                + (f", {len(t['leaked'])}/{t['retrieved_for_new_name']} top-K hits "
+                   f"for '{t['new_name']}' serve the dead name" if t["leaked"] else "")
+                for t in triages)
+            checks.append(_check(
+                "R4", "Supersession / rename", "TESTED", found,
+                receipt + f" ({superseded} cube(s) retired by reconcile)"))
+    except Exception as e:
+        checks.append(_check("R4", "Supersession / rename", "TESTED", None,
+                             f"unmeasured: {e}"))
 
     # R5 duplicate/echo — identical content stored more than once, live.
     dupes = conn.execute(
