@@ -119,6 +119,22 @@ python3 scripts/rot_bench_lifeos.py    # read-only on sources, throwaway DB, zer
 
 Honest numbers from the first run (232 files, 1,667 section cubes): **6/16 file-level catches, 4/16 strict facet-match** — the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
 
+## Access & trust model (read this before connecting your vault)
+
+A tool that audits your memory reads your memory. That access is scary, so here is exactly what Mount Helicon does with it — from the code, not a promise:
+
+**Reads (always read-only):** your configured sources — Claude Code transcripts, Obsidian vault, git repos, rules files, memory stores via adapters. Connectors never write to a source. The life-OS benchmark and the rot exam open the store read-only.
+
+**Writes, exhaustively:**
+- its own SQLite DB and `data/` (findings, verdicts, drift reports, compiled context)
+- `helicon fix-skills` and other write-backs: **dry-run by default**, `--apply` required, `.bak` written next to every file before modification, second run is a no-op
+- `helicon watch --install`: one tagged line in your crontab, removed by `--uninstall`
+- `helicon compile --inject`: skill files under `~/.claude/skills/helicon-*.md` — explicitly invoked, never automatic (and our own store still carries the pre-rename `glaze-*` artifacts from the old injector as a live example of why write-backs need lifecycle discipline; the skills audit flags them)
+- your vault: **never**. Corrections are cubes in Helicon's store, not edits to your files. You stay the only writer of your second brain.
+
+**Leaves your machine:** nothing, unless you configure a Qwen key — then excerpts of candidate memories (truncated cube content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
+
+**Decisions:** every destructive or state-changing action (kill, retire, resolve, dismiss, rule application) is either made by you or made by a written rule you previewed and approved — and automated decisions are quarantined from the learning loop (rot class R9), so the tool cannot launder its own output into your evidence.
 ## Your domain, your lexicon (config, not code)
 
 The claim-conflict detectors ship with built-ins (win counts, episode numbers, merge status, decision status) and take the rest from `config.json` — an enterprise wiki or research vault declares its own counted things and polar statuses, and gets the same conflict machinery, evidence receipts and resolve loop:
