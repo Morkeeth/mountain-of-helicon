@@ -41,14 +41,56 @@ METRIC_PATTERNS = [
     ("placings", re.compile(r"\b(\d{1,3})\s+(?:podium|placings?|placements?)\b", re.IGNORECASE)),
 ]
 
-# Polar status phrases. One pair, chosen because it moves real money and
-# real deadlines: is the thing merged or not.
+# Polar status phrases. Two built-in pairs: merge status (moves real code)
+# and decision status (a decision presented as open after it was executed —
+# the FAVOUR-rebrand class from the Jul 5 vault audit).
 STATUS_POLES = {
-    "merged": re.compile(r"\b(?:merged to main|all fixes merged|is merged|MERGED)\b",
-                         re.IGNORECASE),
-    "unmerged": re.compile(r"\b(?:pending merge|not (?:yet )?merged|unmerged|"
-                           r"NOT patched|awaiting merge)\b", re.IGNORECASE),
+    "merge-status": {
+        "merged": re.compile(r"\b(?:merged to main|all fixes merged|is merged|MERGED)\b",
+                             re.IGNORECASE),
+        "unmerged": re.compile(r"\b(?:pending merge|not (?:yet )?merged|unmerged|"
+                               r"NOT patched|awaiting merge)\b", re.IGNORECASE),
+    },
+    "decision-status": {
+        "executed": re.compile(r"\b(?:EXECUTED|shipped|launched|went live|"
+                               r"decision:?\s*(?:done|made|final))\b"),
+        "open": re.compile(r"\b(?:open decisions?|undecided|decision pending|"
+                           r"not (?:yet )?decided|to be decided)\b", re.IGNORECASE),
+    },
 }
+
+
+def load_domain_patterns(config: dict | None) -> tuple[list, dict]:
+    """The domain lexicon is CONFIG, not code. A new corpus (an enterprise
+    wiki, a research vault) declares its own counted things and polar
+    statuses in config.json and gets the same conflict machinery:
+
+      "claims": {
+        "metrics": {"headcount": "\\\\b(\\\\d{2,5})\\\\s+employees\\\\b"},
+        "statuses": {"contract": {"live": "\\\\bcontract (?:is )?live\\\\b",
+                                   "expired": "\\\\bcontract expired\\\\b"}}
+      }
+
+    Built-ins always apply; config extends them. A bad regex is reported
+    once and skipped, never fatal."""
+    metrics = list(METRIC_PATTERNS)
+    statuses = dict(STATUS_POLES)
+    cc = (config or {}).get("claims", {})
+    for name, pattern in cc.get("metrics", {}).items():
+        try:
+            metrics.append((name, re.compile(pattern, re.IGNORECASE)))
+        except re.error as e:
+            print(f"  [!] claims.metrics.{name}: bad regex skipped ({e})")
+    for name, poles in cc.get("statuses", {}).items():
+        compiled = {}
+        for pole, pattern in poles.items():
+            try:
+                compiled[pole] = re.compile(pattern, re.IGNORECASE)
+            except re.error as e:
+                print(f"  [!] claims.statuses.{name}.{pole}: bad regex skipped ({e})")
+        if len(compiled) >= 2:
+            statuses[name] = compiled
+    return metrics, statuses
 
 _WORD = re.compile(r"[A-Za-z0-9/\-_.]{4,}")
 _STOP = {"this", "that", "with", "from", "have", "been", "will", "were",
@@ -74,10 +116,11 @@ def _qualifier(text: str, start: int, end: int) -> frozenset:
                      if w not in _STOP and not w.isdigit())
 
 
-def extract_metric_claims(content: str, title: str = "") -> list[dict]:
+def extract_metric_claims(content: str, title: str = "",
+                          metrics: list | None = None) -> list[dict]:
     claims = []
     for line in f"{title}\n{content or ''}".splitlines():
-        for metric, rx in METRIC_PATTERNS:
+        for metric, rx in (metrics if metrics is not None else METRIC_PATTERNS):
             for m in rx.finditer(line):
                 q = _qualifier(line, m.start(), m.end())
                 if not q:
@@ -93,16 +136,19 @@ def extract_metric_claims(content: str, title: str = "") -> list[dict]:
     return claims
 
 
-def extract_status_claims(content: str, title: str = "") -> list[dict]:
+def extract_status_claims(content: str, title: str = "",
+                          statuses: dict | None = None) -> list[dict]:
     claims = []
     for line in f"{title}\n{content or ''}".splitlines():
-        for pole, rx in STATUS_POLES.items():
-            for m in rx.finditer(line):
-                q = _qualifier(line, m.start(), m.end())
-                if not q:
-                    continue
-                claims.append({"metric": "merge-status", "value": pole,
-                               "qualifier": q, "line": line.strip()})
+        for metric, poles in (statuses if statuses is not None
+                              else STATUS_POLES).items():
+            for pole, rx in poles.items():
+                for m in rx.finditer(line):
+                    q = _qualifier(line, m.start(), m.end())
+                    if not q:
+                        continue
+                    claims.append({"metric": metric, "value": pole,
+                                   "qualifier": q, "line": line.strip()})
     return claims
 
 
@@ -110,9 +156,15 @@ def _cube_scope(row) -> str:
     return f"{row['source']}:{source_ref_scope(row['source_ref'] or '')}"
 
 
-def find_claim_conflicts(conn: sqlite3.Connection) -> list[dict]:
+def find_claim_conflicts(conn: sqlite3.Connection,
+                         config: dict | None = None) -> list[dict]:
     """Group claims by metric; report the best-supported pair of values
-    whose qualifiers overlap but whose values disagree, across >=2 files."""
+    whose qualifiers overlap but whose values disagree, across >=2 files.
+    Domain lexicon = built-ins + whatever config declares."""
+    if config is None:
+        from helicon.config import load_config
+        config = load_config()
+    metrics, statuses = load_domain_patterns(config)
     rows = conn.execute(
         "SELECT id, title, content, source, source_ref, created_at "
         "FROM helicon_cubes WHERE review_status IN ('pending', 'revised', 'approved') "
@@ -121,8 +173,8 @@ def find_claim_conflicts(conn: sqlite3.Connection) -> list[dict]:
 
     by_metric: dict = {}
     for row in rows:
-        for c in (extract_metric_claims(row["content"], row["title"])
-                  + extract_status_claims(row["content"], row["title"])):
+        for c in (extract_metric_claims(row["content"], row["title"], metrics)
+                  + extract_status_claims(row["content"], row["title"], statuses)):
             by_metric.setdefault(c["metric"], []).append({
                 **c, "cube_id": row["id"], "cube_title": row["title"],
                 "scope": _cube_scope(row)})
@@ -172,7 +224,7 @@ def find_claim_conflicts(conn: sqlite3.Connection) -> list[dict]:
             values = sorted({c["value"] for c in members})
             support = Counter(c["value"] for c in members)
             subject = "/".join(sorted(shared)[:4])
-            conflicts.append({
+            conflict = {
                 "metric": metric,
                 "subject": subject,
                 "values": values,
@@ -182,7 +234,23 @@ def find_claim_conflicts(conn: sqlite3.Connection) -> list[dict]:
                 "pair_key": f"claim|{metric}|{subject}",
                 "a": {k: a[k] for k in ("value", "line", "cube_id", "scope")},
                 "b": {k: b[k] for k in ("value", "line", "cube_id", "scope")},
-            })
+            }
+            # Canonical source: config declares WHERE a fact's truth lives
+            # ("canonical": {"wins": "mindmap.md"}). If a canon file speaks
+            # in this conflict, the direction is pre-decided: everything
+            # disagreeing with canon is the drift. The human confirms
+            # instead of adjudicating.
+            canon_file = (config.get("claims", {})
+                          .get("canonical", {}).get(metric))
+            if canon_file:
+                canon_vals = {c["value"] for c in members
+                              if canon_file in c["scope"]}
+                if len(canon_vals) == 1:
+                    truth = canon_vals.pop()
+                    conflict["canonical"] = {
+                        "file": canon_file, "truth": truth,
+                        "drifted": sorted(v for v in values if v != truth)}
+            conflicts.append(conflict)
     return conflicts
 
 
@@ -201,24 +269,30 @@ def _existing_keys(conn: sqlite3.Connection) -> set[str]:
     return keys
 
 
-def claim_scan(conn: sqlite3.Connection) -> dict:
+def claim_scan(conn: sqlite3.Connection, config: dict | None = None) -> dict:
     """File each new claim conflict once (idempotent by pair_key), same
     audit shape as pairing so FINDINGS / rot R1 / resolve work unchanged."""
     existing = _existing_keys(conn)
     now = datetime.utcnow().isoformat()
     filed, skipped = [], []
-    for c in find_claim_conflicts(conn):
+    for c in find_claim_conflicts(conn, config):
         if c["pair_key"] in existing:
             skipped.append(c["pair_key"])
             continue
+        canon = c.get("canonical")
+        text = (f"Cross-source claim conflict: {c['metric']} "
+                f"[{c['subject']}] — "
+                + " vs ".join(f"{v} ({c['support'].get(v, 0)} claim(s))"
+                              for v in c["values"]))
+        if canon:
+            text = (f"Drift from canon: {c['metric']} [{c['subject']}] — "
+                    f"canon ({canon['file']}) says {canon['truth']}; "
+                    f"{', '.join(canon['drifted'])} asserted elsewhere")
         finding = AuditResult(
             audit_type="factual",
             target_type="cube",
             target_id=c["a"]["cube_id"],
-            finding=(f"Cross-source claim conflict: {c['metric']} "
-                     f"[{c['subject']}] — "
-                     + " vs ".join(f"{v} ({c['support'].get(v, 0)} claim(s))"
-                                   for v in c["values"])),
+            finding=text,
             severity="critical",
             proposed_action="flag",
             details={
@@ -229,6 +303,7 @@ def claim_scan(conn: sqlite3.Connection) -> dict:
                 "line_a": c["a"]["line"], "line_b": c["b"]["line"],
                 "value_a": c["a"]["value"], "value_b": c["b"]["value"],
                 "scope_a": c["a"]["scope"], "scope_b": c["b"]["scope"],
+                "canonical": canon,
                 "scopes": sorted({c["a"]["scope"], c["b"]["scope"]}),
                 "judged_by": "deterministic",
             },

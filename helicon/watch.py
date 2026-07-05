@@ -143,7 +143,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
     except Exception:
         pass
     pair_scan(conn, client=client)
-    claim_scan(conn)
+    claim_scan(conn, config)
     alias_scan(conn)
 
     drift = collect_drift(conn, state, repo_root)

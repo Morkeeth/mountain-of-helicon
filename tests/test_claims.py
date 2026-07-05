@@ -89,6 +89,57 @@ def test_one_file_arguing_with_itself_is_not_r1(conn):
     assert [c for c in find_claim_conflicts(conn) if c["metric"] == "wins"] == []
 
 
+def test_decision_status_poles():
+    got = extract_status_claims("rebrand EXECUTED Jul 2, live in store")
+    assert any(c["metric"] == "decision-status" and c["value"] == "executed"
+               for c in got)
+    got = extract_status_claims("Section 1 open decisions: rebrand naming")
+    assert any(c["metric"] == "decision-status" and c["value"] == "open"
+               for c in got)
+
+
+def test_domain_lexicon_from_config(conn):
+    """The enterprise answer: a new domain's counted things and statuses are
+    CONFIG, not code."""
+    config = {"claims": {
+        "metrics": {"headcount": r"\b(\d{2,5})\s+employees\b"},
+        "statuses": {"contract": {"live": r"\bcontract (?:is )?live\b",
+                                  "expired": r"\bcontract (?:is )?expired\b"}},
+    }}
+    _cube(conn, "the Acme deal: 120 employees, contract is live", "crm.md")
+    _cube(conn, "Acme headcount 90 employees; NB contract is expired", "wiki.md")
+    got = find_claim_conflicts(conn, config)
+    metrics = {c["metric"] for c in got}
+    assert "headcount" in metrics and "contract" in metrics
+    hc = next(c for c in got if c["metric"] == "headcount")
+    assert set(hc["values"]) == {"120", "90"}
+
+
+def test_bad_config_regex_is_skipped_not_fatal(conn):
+    config = {"claims": {"metrics": {"broken": r"([unclosed"}}}
+    _cube(conn, "Track record: 9 hackathon wins", "a.md")
+    _cube(conn, "site: 8 hackathon wins", "b.md")
+    got = find_claim_conflicts(conn, config)  # must not raise
+    assert any(c["metric"] == "wins" for c in got)
+
+
+def test_canonical_source_predecides_direction(conn):
+    """Vault rule #3 as a check: canonical numbers live in ONE place; every
+    other assertion is the drift, direction pre-decided."""
+    config = {"claims": {"canonical": {"wins": "mindmap.md"}}}
+    _cube(conn, "IDENTITY: 9 hackathon wins", "mindmap.md")
+    _cube(conn, "bio: 10 hackathon wins", "content-plan.md")
+    _cube(conn, "resume blurb: 8 hackathon wins", "resume.md")
+    c = next(x for x in find_claim_conflicts(conn, config)
+             if x["metric"] == "wins")
+    assert c["canonical"]["truth"] == "9"
+    assert c["canonical"]["drifted"] == ["10", "8"] or \
+           c["canonical"]["drifted"] == sorted(["10", "8"])
+    res = claim_scan(conn, config)
+    assert any("Drift from canon" in f["finding"] and "says 9" in f["finding"]
+               for f in res["filed"])
+
+
 def test_evidence_values_stay_aligned_with_their_lines(conn):
     """Live bug caught by the first evidence card: sorted value labels were
     paired with unsorted A/B lines — '4' displayed over the 9-wins line. A

@@ -119,6 +119,20 @@ python3 scripts/rot_bench_lifeos.py    # read-only on sources, throwaway DB, zer
 
 Honest numbers from the first run (232 files, 1,667 section cubes): **6/16 file-level catches, 4/16 strict facet-match** — the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
 
+## Your domain, your lexicon (config, not code)
+
+The claim-conflict detectors ship with built-ins (win counts, episode numbers, merge status, decision status) and take the rest from `config.json` — an enterprise wiki or research vault declares its own counted things and polar statuses, and gets the same conflict machinery, evidence receipts and resolve loop:
+
+```json
+"claims": {
+  "metrics":   {"headcount": "\\b(\\d{2,5})\\s+employees\\b"},
+  "statuses":  {"contract": {"live": "contract (is )?live", "expired": "contract (is )?expired"}},
+  "canonical": {"wins": "mindmap.md"}
+}
+```
+
+`canonical` encodes the single-source-of-truth rule: declare WHERE a fact's truth lives, and a conflict files as *"Drift from canon: canon says 9; 8, 10 asserted elsewhere"* — the human confirms a pre-decided direction instead of adjudicating from scratch.
+
 Doc honesty is enforced: `python3 -m helicon.docdrift` compares this README's numeric claims against counts computed from source, and it runs in the test suite — stale docs fail the build. (It caught this very README claiming 20 commands the hour the 21st landed.)
 
 Everything destructive is dry-run by default and takes `--apply`.
