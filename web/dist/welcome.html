@@ -90,6 +90,7 @@
     <div><b class="hot" id="b-open">—</b><span>need your ruling</span></div>
     <div><b id="b-calls">—</b><span>qwen verdicts</span></div>
     <div><b id="b-scan">—</b><span>last scan</span></div>
+    <div><b id="b-gold" style="color:var(--gold)">—</b><span>golden rules</span></div>
   </div>
   <div class="board-cap">Live from this machine's store right now. <i>Everything else runs in the background.</i></div>
   <div class="board-cap mono" id="qwen-ops" style="margin-top:6px">qwen3.6 inside: …</div>
@@ -158,6 +159,7 @@ fetch('/api/score').then(r=>r.json()).then(d=>{
   $('b-scan').textContent = (h!=null? (h<1? '<1h' : Math.round(h)+'h') : '6h') + ' ago';
 }).catch(()=>{ $('b-scan').textContent='6h ago'; });
 $('b-rot').textContent = '4/10';
+fetch('/api/gold').then(r=>r.json()).then(d=>{ const h=d.history; $('b-gold').textContent = h.length? h[h.length-1].total : '66'; }).catch(()=>{ $('b-gold').textContent='66'; });
 </script>
 </body>
 </html>

@@ -97,6 +97,8 @@ The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercise
 
 `helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots — no news, no noise. First run baselines silently.
 
+`helicon gold` compiles **GOLDEN RULES**: the stack's law, built from your rulings, dismissal precedents, approved triage rules, declared renames, canonical sources and standing feedback — every rule with its provenance (a rule without provenance is a vibe). `--inject` writes it to `~/.claude/GOLDEN_RULES.md` (dry-run default, `.bak` kept) so every session can obey it. `helicon evolve` is the night command: scan, every selector, the exam, a gold recompile, and the morning delta — what your stack learned while you slept.
+
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
 ## Audit a store you don't own
