@@ -61,6 +61,16 @@ def test_question_is_not_an_assertion():
     assert extract_assertions("| Nov 13-15 | Trip back for Avery's birthday? |") == []
 
 
+def test_places_are_not_people():
+    # live false positive Jul 5: 'Avery's birthday (Paris)' filed 'Paris birthday'
+    got = extract_assertions("| May 18 | Avery's birthday (Paris) | plan dinner |")
+    assert {a["person"] for a in got} == {"Avery"}
+    got = extract_assertions("Casey's wedding in Lisbon, Apr 13")
+    assert {a["person"] for a in got} == {"Casey"}
+    got = extract_assertions("Trip to Sweden for Avery's birthday, Nov 13")
+    assert "Sweden" not in {a["person"] for a in got}
+
+
 def test_person_window_drops_far_capitalized_words():
     # 'Lisbon' sits outside PERSON_WINDOW of 'Wedding' — a place name in the
     # same sentence must not become the subject of the event.

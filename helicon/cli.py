@@ -619,6 +619,43 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def cmd_watch(args):
+    """Drift notifies YOU: run the full loop headlessly, speak only when
+    something is NEW (fresh findings or a rot class flipping). --install
+    writes the crontab line so it runs every N hours without you."""
+    import os as _os
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import watch as W
+
+    repo_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(W.__file__)))
+
+    if args.install:
+        line = W.install_cron(repo_root, every_hours=args.every)
+        print(f"installed crontab line (every {args.every}h):\n  {line}")
+        return
+    if args.uninstall:
+        print("removed" if W.uninstall_cron() else "no watch crontab line found")
+        return
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    res = W.watch_once(conn, config, scan=not args.no_scan,
+                       notify=not args.quiet, repo_root=repo_root)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+    if res["spoke"]:
+        print(f"DRIFT: {res['new_findings']} new finding(s), "
+              f"{len(res['flips'])} rot class flip(s) -> {res['report_path']}")
+        for f in res["flips"]:
+            print(f"  {f['id']} {f['name']}: {f['from']} -> {f['to']}")
+    else:
+        print(f"quiet: no new findings, no flips "
+              f"({res['rot_found']}/10 classes still showing known rot)")
+
+
 def cmd_alias(args):
     """Supersession aliases (rot class R4): declare a rename, then every
     dead-name reference in live memory triages by written rule — pre-rename
@@ -1232,6 +1269,14 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    watch_p = sub.add_parser("watch", help="Ambient mode: scan + exam on a timer, notify only on NEW drift")
+    watch_p.add_argument("--install", action="store_true", help="write the crontab line (idempotent)")
+    watch_p.add_argument("--uninstall", action="store_true", help="remove the crontab line")
+    watch_p.add_argument("--every", type=int, default=6, help="with --install: run every N hours (default 6)")
+    watch_p.add_argument("--no-scan", action="store_true", help="skip the ingest scan, just diff and report")
+    watch_p.add_argument("--quiet", action="store_true", help="no desktop notification (cron logs only)")
+    watch_p.add_argument("--json", action="store_true", help="machine-readable result")
+
     alias_p = sub.add_parser("alias", help="Supersession aliases (R4): declare renames, triage dead-name refs into history vs current-claims")
     alias_p.add_argument("--add", nargs=2, metavar=("OLD", "NEW"), help="declare a rename: old name, new name")
     alias_p.add_argument("--renamed-at", help="when the rename happened (ISO date/datetime) — required with --add")
@@ -1284,6 +1329,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "watch": cmd_watch,
         "alias": cmd_alias,
         "rule": cmd_rule,
         "doctor": cmd_doctor,

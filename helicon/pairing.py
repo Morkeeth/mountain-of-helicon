@@ -106,9 +106,26 @@ def _disjoint(a: tuple[str, str], b: tuple[str, str]) -> bool:
     return a[1] < b[0] or b[1] < a[0]
 
 
+_PAREN_RE = re.compile(r"\([^)]*\)?|\)[^(]*$")
+_PLACE_PREP_RE = re.compile(r"\b(?:in|at|near|to|via)\s+$", re.IGNORECASE)
+
+
 def _persons_in(text: str) -> list[str]:
-    return [m.group(1) for m in _PERSON_RE.finditer(text)
-            if m.group(1).lower() not in _PERSON_BLOCKLIST]
+    """Person candidates. Two location heuristics learned from live false
+    positives ('Paris birthday', 'Lisbon wedding'): a capitalized word inside
+    parentheses is an annotation ('birthday (Paris)'), and one preceded by a
+    place preposition ('wedding in Lisbon') is a venue. Neither is a subject."""
+    # strip parenthesized chunks for PERSON extraction only — dates often
+    # live in parens ('Avery (May 13)') and must stay visible to _intervals_in
+    clean = _PAREN_RE.sub(" ", text)
+    out = []
+    for m in _PERSON_RE.finditer(clean):
+        if m.group(1).lower() in _PERSON_BLOCKLIST:
+            continue
+        if _PLACE_PREP_RE.search(clean[: m.start()]):
+            continue
+        out.append(m.group(1))
+    return out
 
 
 def extract_assertions(content: str, title: str = "") -> list[dict]:
