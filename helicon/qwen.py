@@ -175,6 +175,17 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
     """
     conn = conn if conn is not None else _db_conn
     by_model: dict[str, dict] = {}
+    by_operation: dict[str, dict] = {}
+    if conn is not None:
+        try:
+            for r in conn.execute(
+                "SELECT COALESCE(NULLIF(operation, ''), 'other') op, COUNT(*) n, "
+                "SUM(COALESCE(input_tokens,0)+COALESCE(output_tokens,0)) tok "
+                "FROM qwen_cache GROUP BY op ORDER BY n DESC"
+            ):
+                by_operation[r["op"]] = {"calls": r["n"], "tokens": r["tok"] or 0}
+        except sqlite3.Error:
+            pass
 
     def _bucket(model: str) -> dict:
         return by_model.setdefault(model, {
@@ -220,6 +231,7 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
 
     cache_rate = _cache_stats["hits"] / max(_cache_stats["hits"] + _cache_stats["misses"], 1)
     return {
+        "by_operation": by_operation,
         "total_calls": sum(b["calls"] + b["cached_calls"] for b in by_model.values()),
         "by_model": by_model,
         "cache": {**_cache_stats, "rate": round(cache_rate, 3), "entries": len(_cache)},

@@ -91,6 +91,7 @@ def test_empty_everything():
     assert stats == {
         "total_calls": 0,
         "by_model": {},
+        "by_operation": {},
         "cache": {"hits": 0, "misses": 0, "rate": 0.0, "entries": 0},
         "total_cost_usd": 0,
     }

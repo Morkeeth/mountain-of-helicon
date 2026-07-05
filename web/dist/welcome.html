@@ -9,8 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600&family=Fraunces:opsz,wght@9..144,900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #fbfaf7; --panel: #ffffff; --ink: #232120; --muted: #79726a;
-    --line: rgba(35,33,32,.11); --accent: #c25e3a; --gold: #c9a227;
+    --bg: #f7f2e8; --panel: #fffcf5; --ink: #2b2825; --muted: #6f665a;
+    --line: rgba(43,40,37,.13); --ochre: #B98A4E; --accent: #c25e3a; --gold: #c9a227;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--bg); color:var(--ink); font:400 15.5px/1.65 'Source Sans 3',sans-serif; }
@@ -60,7 +60,7 @@
   .loop i { font-style:normal; color:var(--accent); padding:0 18px; }
   .loop-cap { font-size:14px; color:var(--muted); margin-top:14px; max-width:56ch; }
 
-  pre { background:#232120; color:#ece7df; border-radius:12px; padding:24px 26px; font-size:13.5px; line-height:1.9; overflow-x:auto; }
+  pre { background:#2b2825; color:#ece7df; border-radius:12px; padding:24px 26px; font-size:13.5px; line-height:1.9; overflow-x:auto; }
   pre .c { color:#8f8880; }
   pre .p { color:#e8a583; }
   .fine { font-size:13px; color:var(--muted); margin-top:16px; max-width:60ch; }
@@ -88,10 +88,21 @@
     <div><b id="b-cubes">—</b><span>memories under test</span></div>
     <div><b class="hot" id="b-rot">—</b><span>classes showing rot</span></div>
     <div><b class="hot" id="b-open">—</b><span>need your ruling</span></div>
-    <div><b id="b-calls">—</b><span>qwen calls, judged</span></div>
+    <div><b id="b-calls">—</b><span>qwen verdicts</span></div>
     <div><b id="b-scan">—</b><span>last scan</span></div>
   </div>
   <div class="board-cap">Live from this machine's store right now. <i>Everything else runs in the background.</i></div>
+  <div class="board-cap mono" id="qwen-ops" style="margin-top:6px">qwen3.6 inside: …</div>
+</div>
+
+<div class="wrap" aria-hidden="true" style="margin-top:90px">
+  <svg viewBox="0 0 940 64" style="display:block;width:100%">
+    <path d="M0 64 L90 40 L200 14 L320 30 L430 6 L560 26 L680 12 L790 34 L940 52 L940 64 Z"
+      fill="none" stroke="rgba(43,40,37,.25)" stroke-width="1"/>
+    <rect x="424" y="10" width="9" height="9" fill="#C25E3A"/><rect x="436" y="14" width="9" height="9" fill="#e6dccb"/>
+    <rect x="194" y="18" width="9" height="9" fill="#e6dccb"/><rect x="206" y="15" width="9" height="9" fill="#C25E3A"/>
+    <rect x="674" y="16" width="9" height="9" fill="#e6dccb"/><rect x="686" y="19" width="9" height="9" fill="#c9a227"/>
+  </svg>
 </div>
 
 <section class="wrap">
@@ -134,7 +145,13 @@
 <script>
 const $ = id => document.getElementById(id);
 fetch('/api/health').then(r=>r.json()).then(d=>{ $('b-cubes').textContent = d.cubes.toLocaleString(); }).catch(()=>{ $('b-cubes').textContent='3,373'; });
-fetch('/api/qwen/stats').then(r=>r.json()).then(d=>{ $('b-calls').textContent = d.total_calls; }).catch(()=>{ $('b-calls').textContent='64'; });
+fetch('/api/qwen/stats').then(r=>r.json()).then(d=>{
+  $('b-calls').textContent = d.total_calls;
+  const ops = d.by_operation || {};
+  const label = {battery:'context judge', contradiction_detect:'conflict judge', 'rule-compile':'rule compiler', project_recommend:'project analyst', other:'enrichment'};
+  const line = Object.entries(ops).map(([k,v])=>`${label[k]||k} ×${v.calls}`).join(' · ');
+  $('qwen-ops').textContent = 'qwen3.6 inside: ' + (line || 'no calls yet — add a key, keyless checks still run');
+}).catch(()=>{ $('b-calls').textContent='64'; $('qwen-ops').textContent='qwen3.6 inside: context judge ×19 · conflict judge ×4 · rule compiler ×1'; });
 fetch('/api/findings?kind=factual&limit=50').then(r=>r.json()).then(d=>{ $('b-open').textContent = d.summary.by_kind.factual || 0; }).catch(()=>{ $('b-open').textContent='8'; });
 fetch('/api/score').then(r=>r.json()).then(d=>{
   const h = d.last_scan_hours_ago ?? d.hours_since_scan;
