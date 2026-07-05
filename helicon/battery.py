@@ -185,9 +185,13 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
             continue
         anchor = c.get("last_reinforced") or c.get("created_at") or ""
         try:
-            age = (now_dt - _dt.fromisoformat(anchor.replace("Z", ""))).total_seconds() / 86400
+            anchor_dt = _dt.fromisoformat(anchor.replace("Z", "+00:00"))
         except ValueError:
             continue
+        if anchor_dt.tzinfo is not None:  # store mixes naive and tz-aware stamps
+            from datetime import timezone as _tz
+            anchor_dt = anchor_dt.astimezone(_tz.utc).replace(tzinfo=None)
+        age = (now_dt - anchor_dt).total_seconds() / 86400
         if age > eta:
             expired.append(f"{(c.get('title') or '')[:40]} ({age:.0f}d > {eta:.0f}d)")
     add("Expiry", not expired,

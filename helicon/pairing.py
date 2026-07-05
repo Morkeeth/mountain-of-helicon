@@ -1,0 +1,314 @@
+"""Cross-source contradiction pairing — the R1 selector.
+
+ROT.md R1 said it out loud: the Qwen detector was proven on the real birthday
+pair, but *production pairing across sources* was the gap — nothing selected
+which two cubes to hand the detector, so the conflict only surfaced when a
+human already knew where to look.
+
+This closes the gap deterministically. From every live cube it extracts
+(person, topic, interval) assertions — a person name and a calendar date (or
+range) inside a small window around an event keyword ("birthday", "wedding",
+...). Assertions group by (person, topic); a group where two different source
+files assert two *disjoint* intervals is a candidate contradiction ("Sep
+11-13" vs "Apr 13" overlap, so they agree; "May 13" vs "May 18" cannot both
+be true). The selector finds, the Qwen judge (detect_contradictions) rules;
+with no key the disjoint-interval mismatch itself is the verdict. Zero LLM
+calls in the selector.
+
+Findings land in audit_log as audit_type='factual' (same shape audit_factual
+writes), so the dashboard FINDINGS feed, the graph's 'contradicts' edges and
+the rot exam all pick them up with no new plumbing.
+"""
+import json
+import re
+import sqlite3
+from collections import Counter
+from datetime import datetime
+
+from helicon.models import AuditResult
+from helicon.db import insert_audit
+from helicon.reconcile import source_ref_scope
+
+# Person-anchored, date-bearing event facts. Deliberately few: precision over
+# recall — a missed pair is a gap, a false pair teaches the human to ignore
+# the feed.
+TOPIC_KEYWORDS = ("birthday", "wedding", "anniversary")
+
+# Windows (chars around the keyword) within which a person / date must sit to
+# count as the same fact. The person window is tighter: names bind to their
+# event ("Avery birthday", "Casey's wedding"), while dates ride further out
+# ("Birthday gift | Avery (May 13)").
+PERSON_WINDOW = 25
+DATE_WINDOW = 40
+
+_MONTHS = {m: i + 1 for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun",
+     "jul", "aug", "sep", "oct", "nov", "dec"])}
+
+_MON = r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?"
+_DATE_RES = [
+    # May 13 / May 13 / Apr 11-13 (optional range end)
+    re.compile(rf"\b{_MON}\s+(\d{{1,2}})(?:\s*[-–]\s*(\d{{1,2}}))?\b"),
+    # 13 May / 13 Mayy
+    re.compile(rf"\b(\d{{1,2}})\s+{_MON}\b"),
+    # 2026-05-13
+    re.compile(r"\b\d{4}-(\d{2})-(\d{2})\b"),
+]
+
+_PERSON_RE = re.compile(r"\b([A-ZÀ-Þ][a-zà-öø-ÿ]{2,})\b")
+
+# Capitalized words that are not people. Months/weekdays plus the sentence
+# furniture and vault vocabulary that shows up capitalized around event lines.
+_PERSON_BLOCKLIST = {
+    "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct",
+    "nov", "dec", "january", "february", "march", "april", "june", "july",
+    "august", "september", "october", "november", "december",
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "mon", "tue", "wed", "thu", "fri", "sat", "sun", "if", "poster",
+    "the", "this", "that", "these", "then", "when", "after", "before",
+    "with", "from", "and", "but", "his", "her", "our", "their", "your",
+    "birthday", "wedding", "anniversary", "gift", "party", "list", "week",
+    "weekend", "today", "tomorrow", "date", "conflict", "says", "order",
+    "book", "buy", "send", "plan", "confirm", "confirmed", "pending", "status",
+    "done", "next", "what", "who", "why", "how", "note", "draft", "file",
+    "edited", "created", "updated", "timeline", "trip", "trips", "hotel",
+    "summer", "romantic", "dropped",
+}
+
+
+def _fmt(month: int, day: int) -> str:
+    return f"{month:02d}-{day:02d}"
+
+
+def _intervals_in(text: str) -> list[tuple[str, str]]:
+    """Every calendar date in `text`, normalized to ('MM-DD', 'MM-DD')
+    (start, end) intervals — a single day is a zero-length interval, a range
+    like 'Apr 11-13' keeps both endpoints so overlap can mean agreement."""
+    out = []
+    for i, rx in enumerate(_DATE_RES):
+        for m in rx.finditer(text):
+            if i == 0:
+                month, day = _MONTHS[m.group(1).lower()[:3]], int(m.group(2))
+                end_day = int(m.group(3)) if m.group(3) else day
+            elif i == 1:
+                month, day = _MONTHS[m.group(2).lower()[:3]], int(m.group(1))
+                end_day = day
+            else:
+                month, day = int(m.group(1)), int(m.group(2))
+                end_day = day
+            if 1 <= month <= 12 and 1 <= day <= 31 and day <= end_day <= 31:
+                out.append((_fmt(month, day), _fmt(month, end_day)))
+    return out
+
+
+def _disjoint(a: tuple[str, str], b: tuple[str, str]) -> bool:
+    """MM-DD strings compare lexicographically, so interval logic is direct."""
+    return a[1] < b[0] or b[1] < a[0]
+
+
+def _persons_in(text: str) -> list[str]:
+    return [m.group(1) for m in _PERSON_RE.finditer(text)
+            if m.group(1).lower() not in _PERSON_BLOCKLIST]
+
+
+def extract_assertions(content: str, title: str = "") -> list[dict]:
+    """(person, topic, interval) assertions from one cube's text. An assertion
+    needs a person within PERSON_WINDOW and a date within DATE_WINDOW of an
+    event keyword, all on one line — the deterministic definition of 'this
+    line asserts a dated fact about a person'. A keyword immediately followed
+    by '?' is a question, not an assertion."""
+    assertions = []
+    for line in f"{title}\n{content or ''}".splitlines():
+        low = line.lower()
+        for topic in TOPIC_KEYWORDS:
+            for kw in re.finditer(re.escape(topic), low):
+                if "?" in line[kw.end(): kw.end() + 4]:
+                    continue  # "Trip back for Avery's birthday?" is a question
+                p_win = line[max(0, kw.start() - PERSON_WINDOW): kw.end() + PERSON_WINDOW]
+                d_win = line[max(0, kw.start() - DATE_WINDOW): kw.end() + DATE_WINDOW]
+                for p in _persons_in(p_win):
+                    for iv in _intervals_in(d_win):
+                        assertions.append({"person": p, "topic": topic,
+                                           "interval": iv, "line": line.strip()})
+    # dedupe within the cube
+    seen, out = set(), []
+    for a in assertions:
+        key = (a["person"].lower(), a["topic"], a["interval"])
+        if key not in seen:
+            seen.add(key)
+            out.append(a)
+    return out
+
+
+def _cube_scope(row) -> str:
+    """The 'source file' a cube speaks for: connector + file-level source_ref."""
+    return f"{row['source']}:{source_ref_scope(row['source_ref'] or '')}"
+
+
+def _iv_label(iv: tuple[str, str]) -> str:
+    return iv[0] if iv[0] == iv[1] else f"{iv[0]}..{iv[1]}"
+
+
+def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
+    """The pair selector. Scans live cubes, groups assertions by (person,
+    topic), and for each group picks the best-supported pair of DISJOINT
+    intervals asserted by at least two different source files. Deterministic,
+    no LLM, cheap enough to run on every report / rot exam."""
+    like = " OR ".join("lower(content) LIKE ?" for _ in TOPIC_KEYWORDS)
+    rows = conn.execute(
+        f"SELECT id, title, content, source, source_ref, created_at, review_status "
+        f"FROM helicon_cubes "
+        f"WHERE review_status IN ('pending', 'revised', 'approved') "
+        f"AND merged_into IS NULL AND ({like})",
+        [f"%{t}%" for t in TOPIC_KEYWORDS],
+    ).fetchall()
+
+    groups: dict = {}
+    for row in rows:
+        for a in extract_assertions(row["content"], row["title"]):
+            g = groups.setdefault((a["person"].lower(), a["topic"]), {})
+            d = g.setdefault(a["interval"], {"scopes": set(), "cubes": []})
+            d["scopes"].add(_cube_scope(row))
+            d["cubes"].append({"id": row["id"], "title": row["title"],
+                               "scope": _cube_scope(row),
+                               "created_at": row["created_at"],
+                               "line": a["line"]})
+
+    conflicts = []
+    for (person, topic), by_iv in groups.items():
+        if len(by_iv) < 2:
+            continue
+        # Best-supported disjoint pair: two intervals that cannot both be
+        # true, asserted by >=2 distinct files, ranked by how much memory
+        # stands behind each side (a date asserted once is probably noise;
+        # the fight is between the two well-attested versions).
+        best = None
+        ivs = list(by_iv.keys())
+        for x in range(len(ivs)):
+            for y in range(x + 1, len(ivs)):
+                a, b = ivs[x], ivs[y]
+                if not _disjoint(a, b):
+                    continue
+                sa, sb = by_iv[a], by_iv[b]
+                if len(sa["scopes"] | sb["scopes"]) < 2:
+                    continue  # one file arguing with itself is not cross-source
+                support = (min(len(sa["cubes"]), len(sb["cubes"])),
+                           len(sa["cubes"]) + len(sb["cubes"]))
+                if best is None or support > best[0]:
+                    best = (support, a, b)
+        if best is None:
+            continue
+        _, iv_a, iv_b = best
+        # Representatives: each side speaks from its most-attested file (the
+        # scope repeating that date hardest), newest cube within it — and the
+        # two sides must come from different files where the store allows it.
+        # The pair handed to the judge should BE the cross-source
+        # disagreement, not one diff cube quoting both versions of itself.
+        def _rep(cubes, avoid_scope=None):
+            pool = [c for c in cubes if c["scope"] != avoid_scope] or cubes
+            per_scope = Counter(c["scope"] for c in pool)
+            top = max(per_scope, key=lambda s: per_scope[s])
+            return max((c for c in pool if c["scope"] == top),
+                       key=lambda c: c["created_at"] or "")
+        rep_a = _rep(by_iv[iv_a]["cubes"])
+        reps = {_iv_label(iv_a): rep_a,
+                _iv_label(iv_b): _rep(by_iv[iv_b]["cubes"], avoid_scope=rep_a["scope"])}
+        labels = sorted(reps.keys())
+        conflicts.append({
+            "person": person, "topic": topic,
+            "dates": labels,
+            "all_dates": sorted(_iv_label(iv) for iv in by_iv),
+            "pair_key": f"{person}|{topic}|{'/'.join(labels)}",
+            "representatives": reps,
+            "support": {_iv_label(iv): len(by_iv[iv]["cubes"]) for iv in (iv_a, iv_b)},
+            "cube_count": sum(len(d["cubes"]) for d in by_iv.values()),
+            "scopes": sorted(by_iv[iv_a]["scopes"] | by_iv[iv_b]["scopes"]),
+        })
+    return conflicts
+
+
+def _existing_pair_keys(conn: sqlite3.Connection) -> set[str]:
+    keys = set()
+    for row in conn.execute(
+        "SELECT details FROM audit_log WHERE audit_type = 'factual' AND details LIKE '%pair_key%'"
+    ):
+        try:
+            k = json.loads(row["details"]).get("pair_key")
+            if k:
+                keys.add(k)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return keys
+
+
+def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus") -> dict:
+    """Find cross-source conflicts and file each new one as a factual audit
+    finding. With a Qwen client, every candidate pair is confirmed by
+    detect_contradictions before filing (the judge can veto the selector);
+    without one, the disjoint-interval mismatch is the verdict. Idempotent:
+    a pair_key already in audit_log is never filed twice."""
+    conflicts = find_conflicts(conn)
+    existing = _existing_pair_keys(conn)
+    now = datetime.utcnow().isoformat()
+    filed, rejected, skipped = [], [], []
+
+    for c in conflicts:
+        if c["pair_key"] in existing:
+            skipped.append(c["pair_key"])
+            continue
+        (date_a, rep_a), (date_b, rep_b) = sorted(c["representatives"].items())
+        severity = "critical"
+        explanation = (f"'{rep_a['line'][:80]}' vs '{rep_b['line'][:80]}' — "
+                       f"same {c['topic']} for {c['person'].title()}, "
+                       f"dates cannot both be true")
+        if client is not None:
+            from helicon.qwen import detect_contradictions
+            row_a = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
+                                 (rep_a["id"],)).fetchone()
+            row_b = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
+                                 (rep_b["id"],)).fetchone()
+            verdict = detect_contradictions(
+                client, row_a["content"], row_b["content"], model=model)
+            if verdict is not None:
+                if not verdict.get("contradicts"):
+                    rejected.append(c["pair_key"])
+                    continue
+                severity = verdict.get("severity", severity)
+                explanation = verdict.get("explanation", explanation)
+            # API failure: keep the deterministic verdict rather than
+            # dropping a real date mismatch on a network hiccup.
+
+        finding = AuditResult(
+            audit_type="factual",
+            target_type="cube",
+            target_id=rep_a["id"],
+            finding=(f"Cross-source contradiction: {c['person'].title()} {c['topic']} — "
+                     f"{date_a} ({rep_a['scope']}, {c['support'][date_a]} cube(s)) vs "
+                     f"{date_b} ({rep_b['scope']}, {c['support'][date_b]} cube(s))"),
+            severity=severity,
+            proposed_action="flag",
+            details={
+                "pair_key": c["pair_key"],
+                "person": c["person"], "topic": c["topic"],
+                "dates": c["dates"], "all_dates": c["all_dates"],
+                "support": c["support"],
+                "cube_a": rep_a["id"], "cube_b": rep_b["id"],
+                "title_a": rep_a["title"], "title_b": rep_b["title"],
+                "line_a": rep_a["line"], "line_b": rep_b["line"],
+                "scopes": c["scopes"], "cube_count": c["cube_count"],
+                "explanation": explanation,
+                "judged_by": "qwen" if client is not None else "deterministic",
+            },
+            audited_at=now,
+        )
+        insert_audit(conn, finding)
+        filed.append({"pair_key": c["pair_key"], "finding": finding.finding,
+                      "severity": severity})
+    conn.commit()
+
+    return {
+        "conflicts_found": len(conflicts),
+        "filed": filed,
+        "already_filed": skipped,
+        "judge_rejected": rejected,
+    }

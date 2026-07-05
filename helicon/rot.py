@@ -28,17 +28,28 @@ def _check(rid, name, coverage, found, receipt):
 def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict:
     checks = []
 
-    # R1 cross-source contradiction — detector exists (Qwen battery test);
-    # the cross-source pair SELECTOR is the known gap until it ships.
+    # R1 cross-source contradiction — the pair selector (helicon.pairing)
+    # finds disjoint dated facts about the same person across source files;
+    # the Qwen detector rules on what it finds.
     open_factual = conn.execute(
         "SELECT COUNT(*) FROM audit_log WHERE audit_type IN ('factual', 'agent-flag') "
         "AND human_decision IS NULL"
     ).fetchone()[0]
-    checks.append(_check(
-        "R1", "Cross-source contradiction", "PARTIAL",
-        open_factual > 0,
-        f"{open_factual} unresolved contradiction/flag finding(s); "
-        "cross-source pair selector is a known gap (detector proven on real pairs)"))
+    try:
+        from helicon.pairing import find_conflicts
+        conflicts = find_conflicts(conn)
+        sample = "; ".join(
+            f"{c['person'].title()} {c['topic']}: {' vs '.join(c['dates'])}"
+            for c in conflicts[:3])
+        checks.append(_check(
+            "R1", "Cross-source contradiction", "TESTED",
+            bool(conflicts) or open_factual > 0,
+            f"{len(conflicts)} live cross-source conflict(s) from the pair selector"
+            + (f" ({sample})" if sample else "")
+            + f"; {open_factual} unresolved contradiction/flag finding(s)"))
+    except Exception as e:
+        checks.append(_check("R1", "Cross-source contradiction", "TESTED", None,
+                             f"unmeasured: {e}"))
 
     # R2 doc-drift — README numeric claims vs source truth.
     try:

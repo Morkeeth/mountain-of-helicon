@@ -120,18 +120,45 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
     regressed = sum(1 for s in snaps if s["regressed"])
     contra_rate = _rate("Contradiction")  # only present when Qwen judged live
     grounding_rate = _rate("Grounding")
+
+    # Cross-source pairing (the R1 selector): every report run scans live
+    # memory for disjoint dated facts about the same person across files and
+    # files new conflicts into the audit log — the contradiction surfaces
+    # here whether or not anyone asked about it.
+    from helicon.pairing import pair_scan
+    pairing = pair_scan(conn, client=client, model=model)
+    open_pairs = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE audit_type = 'factual' "
+        "AND details LIKE '%pair_key%' AND human_decision IS NULL"
+    ).fetchone()[0]
+    sample_row = conn.execute(
+        "SELECT finding FROM audit_log WHERE audit_type = 'factual' "
+        "AND details LIKE '%pair_key%' AND human_decision IS NULL "
+        "ORDER BY audited_at DESC LIMIT 1"
+    ).fetchone()
+    cross_source = {
+        "conflicts_live": pairing["conflicts_found"],
+        "new_findings": len(pairing["filed"]),
+        "judge_rejected": len(pairing["judge_rejected"]),
+        "open_findings": open_pairs,
+        "sample": sample_row["finding"] if sample_row else None,
+    }
+
     cross_session = {
         "snapshots_total": len(snaps),
         "snapshots_regressed": regressed,
         "contradiction_pass_rate": contra_rate,
         "grounding_pass_rate": grounding_rate,
         "llm_judged": contra_rate is not None,
-        "mechanisms": "snapshot regression (CI for memory) + Qwen-judged Contradiction/Grounding",
+        "cross_source_contradictions": cross_source,
+        "mechanisms": "snapshot regression (CI for memory) + cross-source pair selector "
+                      "+ Qwen-judged Contradiction/Grounding",
         # No baselines captured = unmeasured, not broken. DEGRADED with a
         # pointer beats a fake BROKEN.
         "verdict": ("DEGRADED" if not snaps else _verdict(
             regressed <= THRESHOLDS["regression_free"]
-            and (contra_rate is None or contra_rate >= 0.8),
+            and (contra_rate is None or contra_rate >= 0.8)
+            and open_pairs == 0,
             degraded=True)),
         "note": None if snaps else "no baselines captured — run: helicon snapshot add \"<task>\"",
     }
@@ -202,6 +229,11 @@ def format_report(rep: dict) -> str:
         f"contradiction pass {fmt(g['cross_session_accuracy']['contradiction_pass_rate'])}, "
         f"grounding pass {fmt(g['cross_session_accuracy']['grounding_pass_rate'])}"
         + ("" if g["cross_session_accuracy"]["llm_judged"] else "  (LLM tests off: no key)"),
+        f"   cross-source pairing: "
+        f"{g['cross_session_accuracy']['cross_source_contradictions']['conflicts_live']} live conflict(s), "
+        f"{g['cross_session_accuracy']['cross_source_contradictions']['open_findings']} open finding(s)"
+        + (f"\n     -> {g['cross_session_accuracy']['cross_source_contradictions']['sample']}"
+           if g['cross_session_accuracy']['cross_source_contradictions']['sample'] else ""),
         "",
         f"Thresholds: {rep['thresholds']}",
     ]

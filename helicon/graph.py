@@ -18,7 +18,9 @@ ENTITY_PATTERNS = {
         r"\bproject[_\-\s](\w+)",
     ],
     "person": [
-        r"\b[A-Z][a-z]+\s(?:said|mentioned|reviewed|approved|killed|decided)\b",
+        # capture the name only; person patterns are case-SENSITIVE (matching
+        # 'nobody killed' or 'email said' fills the graph with ghost people)
+        r"\b([A-ZÀ-Þ][a-zà-öø-ÿ]+)\s(?:said|mentioned|reviewed|approved|killed|decided)\b",
     ],
     "tool": [
         r"\b(Claude Code|Obsidian|Cursor|ChatGPT|Qwen|FastAPI|React|Vite|SQLite|Docker)\b",
@@ -32,14 +34,18 @@ ENTITY_PATTERNS = {
 
 
 def extract_entities_regex(content: str, title: str = "") -> list[dict]:
+    from helicon.pairing import _PERSON_BLOCKLIST
     text = f"{title} {content}"
     entities = []
     seen = set()
     for etype, patterns in ENTITY_PATTERNS.items():
+        flags = 0 if etype == "person" else re.IGNORECASE
         for pattern in patterns:
-            for match in re.finditer(pattern, text, re.IGNORECASE):
+            for match in re.finditer(pattern, text, flags):
                 name = match.group(1) if match.lastindex else match.group(0)
                 name = name.strip()
+                if etype == "person" and name.lower() in _PERSON_BLOCKLIST:
+                    continue
                 key = (name.lower(), etype)
                 if key not in seen:
                     seen.add(key)
@@ -83,6 +89,13 @@ def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
             entities = extract_entities_qwen(qwen_client, row["content"], row["title"])
         else:
             entities = extract_entities_regex(row["content"], row["title"])
+
+        # Person-event assertions (the R1 pair selector's extractor) name the
+        # people the generic regex misses — "Avery (May 13)" is a person even
+        # though she never 'said' or 'reviewed' anything.
+        from helicon.pairing import extract_assertions
+        for a in extract_assertions(row["content"], row["title"]):
+            entities.append({"name": a["person"], "type": "person"})
 
         for ent in entities:
             key = ent["name"].lower()

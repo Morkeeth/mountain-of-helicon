@@ -5,15 +5,16 @@ grounds each in documented public evidence, and maps each to the Mount Helicon
 check that catches it — or honestly says none does yet. The origin story: four of
 these failures happened in the author's own agent stack in a single day
 (2026-07-04), and this repo's checks scored 1 caught / 3 missed on first contact.
-Two misses were fixed the same night. That loop — incident → check → never twice —
-is what "CI for agent memory" means.
+Two misses were fixed the same night; the birthday pair (R1) got its selector
+the next morning and now surfaces unprompted. That loop — incident → check →
+never twice — is what "CI for agent memory" means.
 
 Status per class: **TESTED** (a shipping check covers it) · **PARTIAL** (detector
 exists, selection/coverage gap) · **GAP** (no check yet; on the roadmap).
 
 | # | Failure class | What happens | Real instance (this repo's stack) | Helicon check | Status |
 |---|---|---|---|---|---|
-| R1 | **Cross-source contradiction** | Two sources disagree on a fact; the agent confidently serves one — often the wrong one | Two files disagreed on a birthday (Jul 13 vs Jul 18); a daily agent brief repeated the wrong date for 5 days | Battery `Contradiction` (Qwen-judged) + factual audit. Detector confirmed the real pair `critical`; production pairing across sources is the gap | **PARTIAL** |
+| R1 | **Cross-source contradiction** | Two sources disagree on a fact; the agent confidently serves one — often the wrong one | Two files disagreed on a birthday (Jul 13 vs Jul 18); a daily agent brief repeated the wrong date for 5 days | `helicon.pairing` — deterministic (person, topic, date) assertions across live cubes; disjoint intervals from two files = a candidate pair, Qwen detector rules on it, finding filed to the audit log on every `helicon report`. Found the real pair unprompted (9 cubes vs 6) | **TESTED** |
 | R2 | **Doc-drift** | Docs assert numbers/facts the source contradicts; agents read docs as truth | This README claimed 8 MCP tools while source had 11 | `helicon.docdrift` — README claims vs source counts, runs in pytest, stale docs fail the build. Caught itself 4 times in 24h | **TESTED** |
 | R3 | **Staleness / expiry** | A time-boxed artifact (plan, status, priority list) outlives its validity and is reused as current | A 6-day-old execution plan was pasted into a fresh session and rebuilt yesterday's priorities | Weibull decay (runs on every scan) + battery `Expiry` (retrieved cube past its type's half-life) + `Freshness` (killed/decayed cubes served) | **TESTED** |
 | R4 | **Supersession by rename** | An entity is renamed/replaced; the old name lives on across memory and docs | A project rename left 710 live memory items referencing the dead name | `reconcile` retires content that disappeared from sources; renamed-entity propagation (old name in *current* claims vs history) is the gap | **PARTIAL** |
