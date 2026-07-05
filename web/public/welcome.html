@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mount Helicon — CI for agent memory</title>
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,600;9..144,900&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: oklch(0.965 0.012 80); --panel: #fffdf8; --ink: #2b2825;
+    --muted: #6f665a; --line: rgba(43,40,37,.14);
+    --accent: #c25e3a; --gold: #c9a227;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--ink); font:400 16px/1.6 'Source Sans 3',sans-serif; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 64px 0; border-bottom: 1px solid var(--line); }
+  .kicker { font: 600 11px 'IBM Plex Mono',monospace; letter-spacing:.28em; text-transform:uppercase; color:var(--muted); }
+  h1 { font: 900 clamp(38px,6vw,60px)/1.05 'Fraunces',serif; letter-spacing:-.015em; margin: 14px 0 18px; }
+  h2 { font: 600 13px 'IBM Plex Mono',monospace; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin-bottom: 26px; }
+  .sub { font-size: 18px; color: var(--muted); max-width: 58ch; }
+  .sub b { color: var(--ink); }
+  code, pre { font-family:'IBM Plex Mono',monospace; }
+  pre { background:#2b2825; color:#efe9df; border-radius:10px; padding:20px 22px; font-size:13.5px; line-height:1.75; overflow-x:auto; }
+  pre .c { color:#8f887d; }
+  pre .p { color:#e8a583; }
+  .btns { display:flex; gap:12px; margin-top:26px; flex-wrap:wrap; }
+  .btn { display:inline-block; padding:11px 20px; border-radius:9px; font:600 14px 'Source Sans 3',sans-serif; text-decoration:none; }
+  .btn.solid { background:var(--accent); color:#fff; }
+  .btn.ghost { border:1px solid var(--line); color:var(--ink); background:var(--panel); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .stat b { display:block; font:600 34px/1 'IBM Plex Mono',monospace; color:var(--accent); margin-bottom:8px; }
+  .stat span { font-size:13px; color:var(--muted); line-height:1.5; display:block; }
+  .stat a { color:var(--muted); }
+  blockquote { border-left:3px solid var(--accent); padding:6px 0 6px 18px; margin:28px 0 0; color:var(--ink); font-size:15.5px; }
+  blockquote footer { font-size:13px; color:var(--muted); margin-top:8px; }
+  .case { display:grid; grid-template-columns:150px 1fr; gap:18px; padding:20px 0; border-top:1px solid var(--line); }
+  .case:first-of-type { border-top:0; }
+  .case b.tag { font:600 12px 'IBM Plex Mono',monospace; color:var(--ink); letter-spacing:.04em; padding-top:2px; }
+  .case p { font-size:15px; color:var(--muted); }
+  .case p strong { color:var(--ink); }
+  .loop { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:0; margin-top:34px; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .loop div { background:var(--panel); padding:16px 18px; border-left:1px solid var(--line); }
+  .loop div:first-child { border-left:0; }
+  .loop b { font:600 12px 'IBM Plex Mono',monospace; display:block; margin-bottom:6px; }
+  .loop span { font-size:13px; color:var(--muted); line-height:1.5; }
+  .loop .n { color:var(--accent); margin-right:6px; }
+  .fine { font-size:13.5px; color:var(--muted); margin-top:18px; max-width:62ch; }
+  .boom { text-align:center; padding:90px 0 80px; border-bottom:0; }
+  .boom h1 { max-width:20ch; margin-left:auto; margin-right:auto; }
+  .boom h1 .gold { color:var(--gold); }
+  @media (max-width:640px){ .case{grid-template-columns:1fr; gap:6px} section{padding:44px 0} }
+</style>
+</head>
+<body>
+
+<section class="wrap" style="padding-top:84px">
+  <div class="kicker">Mount Helicon · open source · local-first</div>
+  <h1>Your agent trusts everything it remembers.</h1>
+  <p class="sub">Yesterday, <b>30% of what my agent retrieved was rot</b>: killed notes, dead project names, a birthday two files disagree on. Mount Helicon is the test layer that catches it: <b>ten documented failure classes, checked live against your real memory</b>, every finding with its receipt, on top of any store. Never a store itself.</p>
+  <div class="btns">
+    <a class="btn solid" href="#setup">Run the exam on your stack</a>
+    <a class="btn ghost" href="https://github.com/MorkeethHQ/mount-helicon">GitHub</a>
+    <a class="btn ghost" href="/#health">Live dashboard</a>
+  </div>
+</section>
+
+<section class="wrap">
+  <h2>The research is unambiguous</h2>
+  <div class="grid">
+    <div class="stat"><b>&lt;16%</b><span>of the reasoning behind conflicting sources is recovered by GPT-4.1-class models. Humans double every score. <a href="https://aclanthology.org/2026.acl-long.11.pdf">CONFRAG, ACL 2026</a></span></div>
+    <div class="stat"><b>64%</b><span>of memory-agent errors trace to outdated memory that was never forgotten. Measured on GPT-5.2, Gemini 3, Qwen3. <a href="https://arxiv.org/html/2604.20006v1">Memora, 2026</a></span></div>
+    <div class="stat"><b>68→28%</b><span>accuracy collapse on superseded facts as history grows, measured up to gpt-5.4. More memory recovers nothing. <a href="https://arxiv.org/html/2606.27472">Supersede, 2026</a></span></div>
+    <div class="stat"><b>6.3%</b><span>of contradictions get flagged unprompted; ~88% when explicitly asked. Nothing in production asks. A check layer is the asking. <a href="https://arxiv.org/pdf/2406.13805">WikiContradict</a></span></div>
+  </div>
+  <blockquote>
+    "Memory quality failures are silent... an agent giving bad advice due to stale memories looks just like one giving good advice."
+    <footer>A production user requesting staleness detection, conflict detection and retrieval-quality metrics from their memory vendor. Closed "not planned" the next day, June 2026. That request is this tool's feature list.</footer>
+  </blockquote>
+</section>
+
+<section class="wrap">
+  <h2>What it looks like in practice</h2>
+  <div class="case">
+    <b class="tag">MY OWN STORE</b>
+    <p><strong>4 of 13 retrieval tasks were serving rot</strong>. The battery names the exact memories and why each is wrong. A contradiction about a real birthday surfaced unprompted, with both conflicting lines side by side, and was resolved with one command.</p>
+  </div>
+  <div class="case">
+    <b class="tag">A STORE I DON'T OWN</b>
+    <p>Pointed the exam at <strong>openai/codex's AGENTS.md</strong> across 27 real commits: 5 rule sections drifted, retrieval regressed. One command, cited by SHA, reproducible by anyone.</p>
+  </div>
+  <div class="case">
+    <b class="tag">VS HUMAN LABELS</b>
+    <p>Five agents manually audited my second brain and stamped 21 dated rot banners. The deterministic exam, answer key stripped: <strong>6/16 file-level catches, zero LLM</strong>. It also found a win-count fight between my resume and my notes that the humans missed. Misses are published, not hidden.</p>
+  </div>
+  <div class="loop">
+    <div><b><span class="n">1</span>EXAM</b><span>ten failure classes run against your live store, on a timer</span></div>
+    <div><b><span class="n">2</span>RECEIPT</b><span>every finding shows its evidence: the two lines that cannot both be true</span></div>
+    <div><b><span class="n">3</span>RULING</b><span>you decide once: keep, kill, or resolve with the truth</span></div>
+    <div><b><span class="n">4</span>NEVER TWICE</b><span>resolved rot re-alarms if it ever comes back</span></div>
+  </div>
+</section>
+
+<section class="wrap" id="setup">
+  <h2>Setup: four commands, read-only</h2>
+  <pre><span class="c"># any machine with python 3.11+</span>
+git clone https://github.com/MorkeethHQ/mount-helicon &amp;&amp; cd mount-helicon
+pip install -e .
+
+<span class="p">helicon init</span>     <span class="c"># detects Claude Code, Cursor, Obsidian, your git repos</span>
+<span class="p">helicon scan</span>     <span class="c"># read-only ingest into Helicon's own store</span>
+<span class="p">helicon rot</span>      <span class="c"># the exam: 10 classes, deterministic, zero LLM, free</span>
+
+<span class="c"># optional, the ambient mode:</span>
+<span class="p">helicon watch --install</span>   <span class="c"># cron every 6h; notifies ONLY on new drift</span></pre>
+  <p class="fine">A Qwen key (Alibaba Model Studio free tier) unlocks the judged tests: live contradiction and grounding verdicts, natural-language triage rules. Keyless, every deterministic check still runs and says so. Your sources are read, never written; corrections live in Helicon's store, not your files; write-backs are dry-run with backups, always yours to apply. <a href="https://github.com/MorkeethHQ/mount-helicon#access--trust-model-read-this-before-connecting-your-vault">The full access model is in the README.</a></p>
+</section>
+
+<section class="wrap boom">
+  <div class="kicker">Mount Helicon</div>
+  <h1>CI for agent memory.<br>We don't store it. We <span style="color:var(--accent)">fail the build</span> when it rots. You rule, it seals in <span class="gold">gold</span>.</h1>
+  <div class="btns" style="justify-content:center">
+    <a class="btn solid" href="https://github.com/MorkeethHQ/mount-helicon">helicon rot, on your stack</a>
+  </div>
+</section>
+
+</body>
+</html>
