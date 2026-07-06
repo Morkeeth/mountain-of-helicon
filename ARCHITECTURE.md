@@ -62,8 +62,8 @@
     ┌─────────▼──────┐ ┌───────▼────────┐ ┌──────▼───────┐
     │ 4-Axis Audit   │ │ Knowledge      │ │ Memory       │
     │ temporal       │ │ Graph          │ │ Consolidation│
-    │ factual        │ │ 65 entities    │ │ "sleep"      │
-    │ decay          │ │ 1,289 edges    │ │ cycles       │
+    │ factual        │ │ 41 entities    │ │ "sleep"      │
+    │ decay          │ │ 605 edges      │ │ cycles       │
     │ pattern stale  │ │ contradiction  │ │ cluster +    │
     │ (Memory Bear)  │ │ edges in red   │ │ merge        │
     │ (qwen-max)     │ │                │ │              │
