@@ -41,6 +41,31 @@ _SEVERITY_RANK = {"critical": 4, "high": 3, "warning": 2, "medium": 2, "info": 1
 _KIND_RANK = {"factual": 0, "supersession": 0, "output": 1, "routine": 1, "regret": 1, "agent-flag": 1,
               "battery": 2, "skill": 2, "logical": 2, "temporal": 3, "decay": 3}
 
+# Two lanes. DECISION findings need Oscar's judgment — only a human knows
+# whether two sources contradict, whether a kill was wrong, or which skill is
+# canonical. AMBIENT findings are age/mechanics the system can manage in bulk
+# (a note went stale, a git commit decayed, a path moved). The daily queue is
+# the decision lane; ambient is a collapsed, auto-manageable pile. This is
+# Oscar's Jul-3 verdict made real: "CI shows failing checks, not every line."
+_AMBIENT_KINDS = {"temporal", "decay", "output", "routine", "context", "logical"}
+
+
+def _lane(kind: str) -> str:
+    return "ambient" if kind in _AMBIENT_KINDS else "decision"
+
+
+def _recal_severity(kind: str, severity: str) -> str:
+    """'critical' is reserved for things that need a decision now. Pure age or
+    mechanical findings (a 104-day git commit at 0% confidence) are never
+    critical no matter what the raw audit stamped — that inflation is exactly
+    why 170/281 findings read 'critical' and the word stopped meaning anything."""
+    if kind in _AMBIENT_KINDS and severity == "critical":
+        return "warning"
+    return severity
+
+
+_LANE_RANK = {"decision": 1, "ambient": 0}
+
 # Which named check an audit_type corresponds to, for the human "why" sentence.
 _AUDIT_CHECK = {
     "routine": "Routine health",
@@ -285,10 +310,12 @@ def _battery_findings(conn, now: str) -> list[dict]:
 
 
 @router.get("/findings")
-async def list_findings(kind: str | None = None, limit: int = 100, include: str = ""):
-    """Unified findings list. ?kind= filters to one kind (temporal, decay,
-    factual, logical, skill, battery). ?include=battery adds the expensive
-    per-task battery findings. Sorted severity desc, then created_at desc."""
+async def list_findings(kind: str | None = None, lane: str | None = None,
+                        limit: int = 100, include: str = ""):
+    """Unified findings list. ?lane=decision (the default daily queue: things
+    that need your ruling) or ?lane=ambient (age/mechanics, auto-manageable).
+    ?kind= filters to one kind. ?include=battery adds the expensive per-task
+    battery findings. Sorted decision-lane first, then severity, then recency."""
     conn = get_conn()
     now = datetime.utcnow().isoformat()
 
@@ -304,11 +331,25 @@ async def list_findings(kind: str | None = None, limit: int = 100, include: str 
     if "battery" in (include or ""):
         findings.extend(_battery_findings(conn, now))
 
+    # Annotate lane + recalibrate severity once, centrally, for every source.
+    for f in findings:
+        f["lane"] = _lane(f["kind"])
+        f["severity"] = _recal_severity(f["kind"], f["severity"])
+
     if kind:
         findings = [f for f in findings if f["kind"] == kind]
 
+    # needs_you / ambient always describe the full (kind-filtered) set, so the
+    # default call reports "N need you, M ambient" before any lane slice.
+    needs_you = sum(1 for f in findings if f["lane"] == "decision")
+    ambient = sum(1 for f in findings if f["lane"] == "ambient")
+
+    if lane:
+        findings = [f for f in findings if f["lane"] == lane]
+
     findings.sort(
-        key=lambda f: (-_KIND_RANK.get(f["kind"], 2),
+        key=lambda f: (_LANE_RANK.get(f["lane"], 0),
+                       -_KIND_RANK.get(f["kind"], 2),
                        _SEVERITY_RANK.get(f["severity"], 0),
                        f["created_at"] or ""),
         reverse=True,
@@ -316,6 +357,8 @@ async def list_findings(kind: str | None = None, limit: int = 100, include: str 
 
     summary = {
         "total": len(findings),
+        "needs_you": needs_you,
+        "ambient": ambient,
         "by_kind": dict(Counter(f["kind"] for f in findings)),
         "by_severity": dict(Counter(f["severity"] for f in findings)),
     }

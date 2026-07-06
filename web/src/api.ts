@@ -136,10 +136,13 @@ export interface Finding {
   cube_id: string | null;
   suggested_action: string;   // kill_stale | fix_skill | reconcile | review
   created_at: string;
+  lane: string;               // decision (needs your ruling) | ambient (age/mechanics)
 }
 
 export interface FindingsSummary {
   total: number;
+  needs_you: number;          // decision-lane count — the real daily queue
+  ambient: number;            // age/mechanics, auto-manageable
   by_kind: Record<string, number>;
   by_severity: Record<string, number>;
 }

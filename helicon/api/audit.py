@@ -57,7 +57,7 @@ async def confirm_finding(req: ConfirmRequest):
                 )
                 killed_cubes.append(cube_id)
                 conn.execute(
-                    "INSERT OR IGNORE INTO reviews (cube_id, decision, notes, reviewed_at, time_spent) "
+                    "INSERT OR IGNORE INTO reviews (cube_id, decision, notes, reviewed_at, time_to_review_seconds) "
                     "VALUES (?, 'killed', ?, ?, 0)",
                     (cube_id, f"Killed via audit: {audit_type}", now),
                 )

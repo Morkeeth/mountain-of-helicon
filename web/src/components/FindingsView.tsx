@@ -235,7 +235,9 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
   batteryLoading: boolean;
   batteryIncluded: boolean;
 }) {
-  const [kindFilter, setKindFilter] = useState('all');
+  // Default to the decision lane — the handful that need a human ruling, not
+  // the whole pile. Oscar's Jul-3 verdict: CI shows failing checks, not every line.
+  const [kindFilter, setKindFilter] = useState('needs');
 
   if (!data) {
     return <div className="py-20 text-center text-zinc-500 text-sm">Loading findings…</div>;
@@ -249,7 +251,12 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
   const groupCount = (g: { kinds: string[] }) => g.kinds.reduce((n, k) => n + (summary.by_kind[k] || 0), 0);
   const groups = GROUPS.filter(g => groupCount(g) > 0);
   const activeKinds = GROUPS.find(g => g.key === kindFilter)?.kinds;
-  const visible = findings.filter(f => kindFilter === 'all' || (activeKinds ? activeKinds.includes(f.kind) : f.kind === kindFilter));
+  const visible = findings.filter(f => {
+    if (kindFilter === 'needs') return f.lane === 'decision';
+    if (kindFilter === 'aging') return f.lane === 'ambient';
+    if (kindFilter === 'all') return true;
+    return activeKinds ? activeKinds.includes(f.kind) : f.kind === kindFilter;
+  });
 
   return (
     <div>
@@ -261,15 +268,17 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
               className="text-[34px] tabular-nums text-zinc-100"
               style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontVariationSettings: "'opsz' 144" }}
             >
-              {summary.total}
+              {summary.needs_you}
             </span>
-            <span className="text-[13px] text-zinc-400">failed checks</span>
+            <span className="text-[13px] text-zinc-400">need your ruling</span>
           </div>
           <p className="text-[11px] text-zinc-600 mt-1 tabular-nums">
             <span style={{ color: 'var(--helicon-accent)' }}>{critical} critical</span>
             <span className="text-zinc-700"> · </span>
             <span style={{ color: 'var(--helicon-stale)' }}>{warning} warning</span>
             {info > 0 && <span className="text-zinc-600"> · {info} info</span>}
+            <span className="text-zinc-700"> · </span>
+            <span className="text-zinc-600">{summary.ambient} aging, auto-managed</span>
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -292,6 +301,25 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
       <HowItWorks />
       {/* Kind filter chips — the old rules/projects/content confusion, resolved into clean kinds */}
       <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+        <button
+          onClick={() => setKindFilter('needs')}
+          title="Findings only a human can rule on — contradictions, wrong evictions, skills"
+          className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
+            kindFilter === 'needs' ? 'bg-zinc-800/60 text-zinc-200' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/20'
+          }`}
+        >
+          Needs you<span className="ml-1 text-zinc-700 tabular-nums">{summary.needs_you}</span>
+        </button>
+        <button
+          onClick={() => setKindFilter('aging')}
+          title="Age & mechanics — stale notes, decayed commits, moved paths. Auto-manageable in bulk."
+          className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
+            kindFilter === 'aging' ? 'bg-zinc-800/60 text-zinc-300' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/20'
+          }`}
+        >
+          Aging<span className="ml-1 text-zinc-700 tabular-nums">{summary.ambient}</span>
+        </button>
+        <span className="text-zinc-800">·</span>
         <button
           onClick={() => setKindFilter('all')}
           className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${

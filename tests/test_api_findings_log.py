@@ -24,7 +24,7 @@ STALE_CONTENT = (
 
 FINDING_FIELDS = {
     "id", "kind", "severity", "title", "why", "evidence_preview",
-    "source", "source_ref", "cube_id", "suggested_action", "created_at",
+    "source", "source_ref", "cube_id", "suggested_action", "created_at", "lane",
 }
 
 
@@ -63,6 +63,16 @@ def _seed(conn):
     # real audit pipeline writes the findings the API must aggregate
     for result in audit_temporal(conn, stale_days=7) + audit_decay(conn):
         insert_audit(conn, result)
+
+    # a cross-source contradiction — the DECISION lane: only a human can rule
+    # which value is true. This is what the daily queue should surface first.
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, "
+        "severity, proposed_action, human_decision, details, audited_at) "
+        "VALUES ('factual','cube','cube-stale','Cross-source claim conflict: wins 4 vs 9',"
+        "'critical','reconcile',NULL,?,?)",
+        ('{"pair_key":"claim|wins|x","dates":["4","9"],"all_dates":["4","9"]}',
+         NOW.isoformat()))
 
     # reconciliation batch: two superseded cubes from the same source
     for i in (1, 2):
@@ -128,11 +138,44 @@ def test_findings_default_aggregates_audit_kinds(client):
 
     decay = next(f for f in findings if f["kind"] == "decay")
     assert decay["cube_id"] == "cube-decayed"
-    assert decay["severity"] == "critical"
+    # decay is ambient/age: the raw audit stamps it critical, the surface
+    # recalibrates it down — 'critical' is reserved for the decision lane.
+    assert decay["severity"] == "warning"
+    assert decay["lane"] == "ambient"
     assert decay["suggested_action"] == "kill_stale"
 
-    # sorted severity desc: the critical decay finding outranks the warning
-    assert findings[0]["severity"] == "critical"
+
+def test_findings_partition_needs_you_vs_ambient(client):
+    """The one change: the queue separates findings that need a human ruling
+    (decision lane) from age/mechanics (ambient lane), so the daily view is the
+    handful that need Oscar, not the whole pile — and age never reads critical."""
+    data = client.get("/api/findings").json()
+    summary = data["summary"]
+
+    # summary names both counts up front
+    assert summary["needs_you"] == 1          # the factual contradiction
+    assert summary["ambient"] == 2            # temporal + decay
+    assert summary["needs_you"] + summary["ambient"] == summary["total"]
+
+    # decision-lane findings sort to the top
+    assert data["findings"][0]["lane"] == "decision"
+    assert data["findings"][0]["kind"] == "factual"
+
+    # every temporal/decay finding is ambient and NOT critical after recal
+    for f in data["findings"]:
+        if f["kind"] in ("temporal", "decay"):
+            assert f["lane"] == "ambient"
+            assert f["severity"] != "critical"
+
+    # ?lane=decision returns ONLY the things that need a ruling
+    decision = client.get("/api/findings", params={"lane": "decision"}).json()
+    assert [f["kind"] for f in decision["findings"]] == ["factual"]
+    assert decision["summary"]["needs_you"] == 1
+
+    # ?lane=ambient returns the auto-manageable pile
+    ambient = client.get("/api/findings", params={"lane": "ambient"}).json()
+    assert {f["kind"] for f in ambient["findings"]} == {"temporal", "decay"}
+    assert all(f["severity"] != "critical" for f in ambient["findings"])
 
 
 def test_findings_default_excludes_battery(client):

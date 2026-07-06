@@ -6,19 +6,51 @@ is computed in Python with numpy -- no native extensions needed.
 Model: all-MiniLM-L6-v2 (384 dims, 80MB, runs on CPU in ~50ms per query).
 """
 
+import glob
+import os
 import sqlite3
 from datetime import datetime
 
 import numpy as np
 
 _model = None
+_MODEL_NAME = "all-MiniLM-L6-v2"
+
+
+def _hf_cache_dir() -> str:
+    """The huggingface hub cache, honoring HF_HUB_CACHE / HF_HOME if set."""
+    if os.environ.get("HF_HUB_CACHE"):
+        return os.environ["HF_HUB_CACHE"]
+    home = os.environ.get("HF_HOME") or os.path.expanduser("~/.cache/huggingface")
+    return os.path.join(home, "hub")
+
+
+def _configure_hf_env():
+    """Make the embedding model load fast and quiet — the cost that made
+    `helicon battery` feel broken (8.9s wall, ~4.5s of it HF network re-checks
+    of an already-cached model, plus a warning + progress bar on every call).
+    Set BEFORE sentence_transformers imports huggingface_hub. All via
+    setdefault, so an explicit user override always wins."""
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+    os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    # Only force offline when the model is already cached — a first run still
+    # needs the network to download it. Offline skips the ~4.5s hub round-trip
+    # (and the unauthenticated-requests warning it emits) on every later call.
+    cached = glob.glob(os.path.join(
+        _hf_cache_dir(), f"models--sentence-transformers--{_MODEL_NAME}"))
+    if cached:
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 
 def _get_model():
     global _model
     if _model is None:
+        _configure_hf_env()
         from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = SentenceTransformer(_MODEL_NAME)
     return _model
 
 
