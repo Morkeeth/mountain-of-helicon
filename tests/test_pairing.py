@@ -78,10 +78,34 @@ def test_person_window_drops_far_capitalized_words():
     assert all(a["person"] != "Lisbon" for a in got)
 
 
+def test_gift_and_deadline_dates_are_not_the_event_date():
+    # Regression for false positive #279: the selector must not read a
+    # gift/order/deadline date as the event's own date.
+    # (1) keyword heads a shopping item -> asserts no event date at all
+    assert extract_assertions("| Birthday gift | Avery (May 13) | order this week |") == []
+    assert extract_assertions("Wedding present for Casey -- arrives Apr 13") == []
+    # (2) a date behind a deadline/logistics cue is dropped; event date stays
+    got = extract_assertions("| May 18 | Avery's birthday (Paris) | plan gift before May 13 |")
+    assert [a["interval"][0] for a in got] == ["05-18"]      # not 05-13
+    got = extract_assertions("| Avery birthday (Paris) | May 18 | gift by May 13 |")
+    assert [a["interval"][0] for a in got] == ["05-18"]
+    # (3) a flat claim ("birthday: May 13") is still a real assertion, not logistics
+    got = extract_assertions("Avery birthday: May 13")
+    assert [(a["person"], a["interval"][0]) for a in got] == [("Avery", "05-13")]
+
+
+def test_gift_date_and_real_birthday_do_not_conflict(conn):
+    # The live #279 shape: one file has the gift errand, another the birthday.
+    # A gift date is not a competing birthday, so this is NOT a contradiction.
+    _cube(conn, "| Birthday gift | Avery (May 13) | order this week |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
+    assert find_conflicts(conn) == []
+
+
 # --- pairing ------------------------------------------------------------
 
 def test_cross_file_disjoint_dates_conflict(conn):
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     conflicts = find_conflicts(conn)
     assert len(conflicts) == 1
@@ -104,14 +128,14 @@ def test_overlapping_range_is_agreement_not_conflict(conn):
 
 
 def test_retired_memory_cannot_raise_a_conflict(conn):
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md",
           status="superseded")
     assert find_conflicts(conn) == []  # battery Freshness owns retired cubes
 
 
 def test_pair_scan_files_once_and_is_idempotent(conn):
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
 
     first = pair_scan(conn)  # no client: date mismatch is the verdict
@@ -139,7 +163,7 @@ def _filed_finding_id(conn):
 
 def test_resolve_closes_finding_and_files_correction(conn):
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     pair_scan(conn)
     fid = _filed_finding_id(conn)
@@ -164,7 +188,7 @@ def test_resolve_closes_finding_and_files_correction(conn):
 
 def test_resolve_rejects_bad_input(conn):
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     pair_scan(conn)
     fid = _filed_finding_id(conn)
@@ -176,7 +200,7 @@ def test_resolve_rejects_bad_input(conn):
 
 def test_never_twice_ruled_out_date_resurfacing_realarm(conn):
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     pair_scan(conn)
     resolve_pair(conn, _filed_finding_id(conn), "05-18")
@@ -195,7 +219,7 @@ def test_never_twice_ruled_out_date_resurfacing_realarm(conn):
 
 def test_pre_resolution_stale_cubes_stay_closed(conn):
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     _cube(conn, "note from May: Avery birthday May 13", "old-note.md",
           created_at="2026-05-01T00:00:00")
@@ -215,7 +239,7 @@ def test_resurfaced_pair_scan_with_judge_does_not_crash(conn, monkeypatch):
     correction cube; a missing row skips the judge, never crashes."""
     from helicon import qwen
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     pair_scan(conn)
     resolve_pair(conn, _filed_finding_id(conn), "05-18")
@@ -239,7 +263,7 @@ def test_realarm_fires_again_after_second_resolution(conn):
     never-only-once-more — a third wave of the wrong date went unfiled and
     unresolvable. The key now carries the resolution it violates."""
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     pair_scan(conn)
     resolve_pair(conn, _filed_finding_id(conn), "05-18")
@@ -258,7 +282,7 @@ def test_best_pair_shift_does_not_file_orphan_sibling(conn):
     """P1: when the best-supported pair's dates shift while the first finding
     is open, a sibling finding for the same fact must not pile up — one open
     finding per (person, topic)."""
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     assert len(pair_scan(conn)["filed"]) == 1
     # a third date gains majority support -> best pair changes
@@ -276,7 +300,7 @@ def test_never_twice_respects_timezone_offsets(conn):
     """P1: created_at vs resolved_at compared as raw strings; a +02:00 stamp
     from before the resolution compared as after -> false re-alarm."""
     from helicon.pairing import resolve_pair
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     pair_scan(conn)
     resolve_pair(conn, _filed_finding_id(conn), "05-18")
@@ -296,7 +320,7 @@ def test_meta_cube_quoting_both_dates_is_not_support(conn):
     """Receipt-verification finding: 5 live cubes sat on BOTH sides of the
     Avery pair, inflating support. A cube quoting both dates documents the
     conflict; it doesn't take a side."""
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "trips.md")
     _cube(conn, "CONFLICT NOTE: Avery birthday May 13 vs May 18, confirm",
           "meta.md")
@@ -312,7 +336,7 @@ def test_meta_cube_quoting_both_dates_is_not_support(conn):
 # --- rot exam -----------------------------------------------------------
 
 def test_rot_r1_is_tested_and_finds_the_pair(conn):
-    _cube(conn, "| Birthday gift | Avery (May 13) | Order this week |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "summer-trips.md")
     r1 = next(c for c in run_rot_exam(conn)["checks"] if c["id"] == "R1")
     assert r1["coverage"] == "TESTED"

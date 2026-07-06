@@ -778,9 +778,9 @@ def cmd_resolve(args):
         print(f"error: {res['error']}")
         return
     print(f"resolved #{res['audit_id']}: {res['person'].title()} {res['topic']} = {res['truth']}")
-    print(f"  wrong date(s) {', '.join(res['wrong_dates'])} ruled out; "
+    print(f"  wrong value(s) {', '.join(res['wrong_dates'])} ruled out; "
           f"correction cube {res['correction_cube']} (approved, provenance recorded)")
-    print("  never-twice armed: new memory asserting a ruled-out date will re-alarm")
+    print("  never-twice armed: new memory asserting a ruled-out value will re-alarm")
 
 
 def cmd_watch(args):

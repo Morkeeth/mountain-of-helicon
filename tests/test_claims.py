@@ -44,6 +44,17 @@ def test_status_poles():
     assert extract_status_claims("escrow gate NOT patched")[0]["value"] == "unmerged"
 
 
+def test_merge_status_needs_a_phrase_not_a_bare_token():
+    # Regression (F3): the bare word "merged" is a code variable or unrelated
+    # prose far more often than a merge claim. Only a merge PHRASE (or the
+    # deliberate all-caps stamp) counts — no more polluting the queue.
+    assert extract_status_claims("header_md = generate_markdown(merged, config)") == []
+    assert extract_status_claims("# Status 2026-07-03, two sessions merged") == []
+    assert [c["value"] for c in extract_status_claims("release/2026-07-02 merged to main")] == ["merged"]
+    assert [c["value"] for c in extract_status_claims("all fixes merged, tsc clean")] == ["merged"]
+    assert [c["value"] for c in extract_status_claims("| branch | MERGED |")] == ["merged"]
+
+
 def test_win_count_fight_across_three_files(conn):
     _cube(conn, "Identity: 8 hackathon wins", "mindmap.md")
     _cube(conn, "About: 9 hackathon wins and counting", "portfolio.md")

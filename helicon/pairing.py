@@ -80,10 +80,38 @@ def _fmt(month: int, day: int) -> str:
     return f"{month:02d}-{day:02d}"
 
 
-def _intervals_in(text: str) -> list[tuple[str, str]]:
-    """Every calendar date in `text`, normalized to ('MM-DD', 'MM-DD')
-    (start, end) intervals — a single day is a zero-length interval, a range
-    like 'Apr 11-13' keeps both endpoints so overlap can mean agreement."""
+# Date-role filter. The event keyword tells us WHICH fact a line is about, but a
+# date near it is only the event date if it is not playing a *logistics* role.
+# Learned from live false positive #279: "Birthday gift | Avery (May 13)" and
+# "plan gift before May 13" both rode a gift/deadline date into 'Avery birthday'.
+# Two guards, mirroring the person-role heuristics in _persons_in:
+#   (1) keyword immediately followed by a logistics noun ("birthday gift") is a
+#       shopping item, not a dated event — the occurrence asserts no event date.
+#   (2) a date immediately preceded by a logistics/deadline cue ("before May 13",
+#       "order ... May 13", "gift by May 13") is that errand's date, not the event.
+_EVENT_LOGISTICS_NOUNS = (
+    "gift", "gifts", "present", "presents", "party", "card", "cards",
+    "cake", "dinner", "shopping", "list", "reminder",
+)
+_DATE_ROLE_CUE_RE = re.compile(
+    r"\b(?:before|after|by|until|till|due|deadline|order|ordered|ordering|"
+    r"arriv\w+|deliver\w+|ship\w*|sent|send|sending|buy|bought|buying|"
+    r"plan|planning|book|booked|rsvp|gift|present|reminder|from)\b[\s:>|\-–]*$",
+    re.IGNORECASE)
+
+
+def _keyword_is_logistics_item(line_low: str, kw_end: int) -> bool:
+    """True when the event keyword is the head of a shopping item rather than a
+    dated event: 'birthday gift', 'wedding present'. Possessive/punctuation
+    between the keyword and the noun is skipped ("birthday's card")."""
+    after = line_low[kw_end: kw_end + 16].lstrip(" '’s:|-–\t")
+    return any(after.startswith(n) for n in _EVENT_LOGISTICS_NOUNS)
+
+
+def _intervals_with_pos(text: str) -> list[tuple[tuple[str, str], int]]:
+    """Like _intervals_in, but each interval carries the char offset where its
+    date match starts — so callers can inspect the words just before it and
+    decide whether the date is playing an event or a logistics role."""
     out = []
     for i, rx in enumerate(_DATE_RES):
         for m in rx.finditer(text):
@@ -97,7 +125,26 @@ def _intervals_in(text: str) -> list[tuple[str, str]]:
                 month, day = int(m.group(1)), int(m.group(2))
                 end_day = day
             if 1 <= month <= 12 and 1 <= day <= 31 and day <= end_day <= 31:
-                out.append((_fmt(month, day), _fmt(month, end_day)))
+                out.append(((_fmt(month, day), _fmt(month, end_day)), m.start()))
+    return out
+
+
+def _intervals_in(text: str) -> list[tuple[str, str]]:
+    """Every calendar date in `text`, normalized to ('MM-DD', 'MM-DD')
+    (start, end) intervals — a single day is a zero-length interval, a range
+    like 'Apr 11-13' keeps both endpoints so overlap can mean agreement."""
+    return [iv for iv, _ in _intervals_with_pos(text)]
+
+
+def _event_intervals_in(text: str) -> list[tuple[str, str]]:
+    """Dates in `text` that are playing the EVENT role — a date immediately
+    preceded by a logistics/deadline cue ("before May 13", "gift by May 13")
+    is dropped, so an errand's date never masquerades as the event's."""
+    out = []
+    for iv, pos in _intervals_with_pos(text):
+        if _DATE_ROLE_CUE_RE.search(text[:pos]):
+            continue
+        out.append(iv)
     return out
 
 
@@ -141,10 +188,12 @@ def extract_assertions(content: str, title: str = "") -> list[dict]:
             for kw in re.finditer(re.escape(topic), low):
                 if "?" in line[kw.end(): kw.end() + 4]:
                     continue  # "Trip back for Avery's birthday?" is a question
+                if _keyword_is_logistics_item(low, kw.end()):
+                    continue  # "Birthday gift | Avery (May 13)" is a shopping item
                 p_win = line[max(0, kw.start() - PERSON_WINDOW): kw.end() + PERSON_WINDOW]
                 d_win = line[max(0, kw.start() - DATE_WINDOW): kw.end() + DATE_WINDOW]
                 for p in _persons_in(p_win):
-                    for iv in _intervals_in(d_win):
+                    for iv in _event_intervals_in(d_win):
                         assertions.append({"person": p, "topic": topic,
                                            "interval": iv, "line": line.strip()})
     # dedupe within the cube
@@ -420,7 +469,7 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
     from helicon.scanner import make_id, content_hash as _hash
     content = (f"{d['person'].title()}'s {d['topic']} is {truth} "
                f"(human resolution of finding #{audit_id}, {now[:10]}). "
-               f"The competing date(s) {', '.join(wrong)} are wrong; any memory "
+               f"The competing value(s) {', '.join(wrong)} are wrong; any memory "
                f"asserting them predates this resolution."
                + (f" Note: {note}" if note else ""))
     cube = HeliconCube(

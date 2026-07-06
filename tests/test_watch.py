@@ -50,7 +50,7 @@ def test_first_run_baselines_a_store_with_old_findings(env):
     """A new watcher on a store with months of open findings must not greet
     the user with all of them — first run sets the cursor silently."""
     conn, config, calls = env
-    _cube(conn, "| Birthday gift | Avery (May 13) | order |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | dinner |", "trips.md")
     first = W.watch_once(conn, config)  # pair_scan files the finding here
     assert first["baseline"] is True
@@ -64,7 +64,7 @@ def test_fires_once_on_new_drift_then_silence(env):
     W.watch_once(conn, config)  # baseline cursor
 
     # drift arrives: two files disagree on a birthday (R1 material)
-    _cube(conn, "| Birthday gift | Avery (May 13) | order |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | dinner |", "trips.md")
 
     fired = W.watch_once(conn, config)
@@ -107,7 +107,7 @@ def test_report_dir_config_respected(env, tmp_path):
     target.mkdir()
     config["watch"] = {"report_dir": str(target)}
     W.watch_once(conn, config)
-    _cube(conn, "| Birthday gift | Avery (May 13) | order |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | dinner |", "trips.md")
     fired = W.watch_once(conn, config)
     assert fired["report_path"] == str(target / "drift-report.md")
@@ -117,7 +117,7 @@ def test_notification_failure_does_not_crash(env, monkeypatch):
     conn, config, _ = env
     monkeypatch.setattr(W, "notify_macos", lambda t, m: False)
     W.watch_once(conn, config)
-    _cube(conn, "| Birthday gift | Avery (May 13) | order |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | dinner |", "trips.md")
     assert W.watch_once(conn, config)["spoke"] is True
 
@@ -130,7 +130,7 @@ def test_watch_tick_with_missing_report_dir_does_not_crashloop(env, tmp_path):
     conn, config, _ = env
     config["watch"] = {"report_dir": str(tmp_path / "does" / "not" / "exist")}
     W.watch_once(conn, config)
-    _cube(conn, "| Birthday gift | Avery (May 13) | order |", "mindmap.md")
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
     _cube(conn, "| May 18 | Avery birthday (Paris) | dinner |", "trips.md")
     fired = W.watch_once(conn, config)
     assert fired["spoke"] is True

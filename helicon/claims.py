@@ -46,8 +46,13 @@ METRIC_PATTERNS = [
 # the FAVOUR-rebrand class from the Jul 5 vault audit).
 STATUS_POLES = {
     "merge-status": {
-        "merged": re.compile(r"\b(?:merged to main|all fixes merged|is merged|MERGED)\b",
-                             re.IGNORECASE),
+        # Anchored to a merge PHRASE, never the bare word "merged": a lowercase
+        # "merged" is a code variable (generate_markdown(merged, config)) or
+        # unrelated prose ("two sessions merged") far more often than a status.
+        # The all-caps MERGED stamp stays case-SENSITIVE (a deliberate label),
+        # so IGNORECASE no longer drags every "merged" token into the claim.
+        "merged": re.compile(r"\b(?:merged (?:to|into) main|all fixes merged|is merged|"
+                             r"(?-i:MERGED))\b", re.IGNORECASE),
         "unmerged": re.compile(r"\b(?:pending merge|not (?:yet )?merged|unmerged|"
                                r"NOT patched|awaiting merge)\b", re.IGNORECASE),
     },
