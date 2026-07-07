@@ -25,7 +25,7 @@ def _vault_dir(config: dict) -> str | None:
     never hardcodes a personal path; falls back to a local file when unset."""
     conns = (config or {}).get("connectors", {}) or {}
     obs = conns.get("obsidian", {}) or {}
-    path = obs.get("path") or obs.get("vault") or (config or {}).get("obsidian_path")
+    path = obs.get("vault_path") or obs.get("path") or obs.get("vault") or (config or {}).get("obsidian_path")
     if path:
         path = os.path.expanduser(path)
         if os.path.isdir(path):
