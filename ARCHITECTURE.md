@@ -47,7 +47,7 @@ flowchart TD
   CUBES -.serves.-> SURF
   subgraph SURF["Surfaces"]
     CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
-    MCP["MCP server<br/>13 tools · JSON-RPC 2.0 / stdio"]
+    MCP["MCP server<br/>12 tools · JSON-RPC 2.0 / stdio"]
     WEB["Web UI · 4 tabs<br/>Context · Reviews · Output · Routines & Skills"]
   end
 ```

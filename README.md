@@ -38,7 +38,7 @@ Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.s
 You don't have to host anything, and you don't need the browser.
 
 - **CLI** — `helicon rot`, `helicon battery "<task>"`, `helicon doctor`, `helicon gold`. The full audit, headless. `helicon watch` runs it on a cron and only pings you when something *new* rots — the ambient, no-browser daily loop.
-- **In your IDE / agent (MCP)** — `helicon mcp` exposes 13 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
+- **In your IDE / agent (MCP)** — `helicon mcp` exposes 12 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
 - **Dashboard** (`helicon serve`) — for when you want to sit down and review visually: Next Moves, findings, golden rules.
 
 Packaged as a proper CLI (a `helicon` entry point via `pyproject.toml`), so once it's on PyPI the install is `pipx install mount-helicon` (or `uvx mount-helicon` for zero-install). Today, from the clone: `pip install -e .`, then `helicon init`.
