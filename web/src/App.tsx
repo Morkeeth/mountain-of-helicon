@@ -334,7 +334,7 @@ function App() {
 
         {tab === 'gold' && (
           <>
-          <TabPurpose>What you feed the agent next — your rulings, compiled into GOLDEN RULES with provenance. Copy it into the next session.</TabPurpose>
+          <TabPurpose>Your agent's operating law. Every rule here you ruled true, and each carries its receipt — this is what your agent should already know, kept in sync as your memory changes. Not a doc you paste; infrastructure it obeys.</TabPurpose>
           <GoldView />
           </>
         )}

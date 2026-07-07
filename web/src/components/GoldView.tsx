@@ -77,7 +77,7 @@ export default function GoldView() {
         </div>
       </div>
       <p style={{ fontSize: 11, color: 'var(--helicon-muted)', margin: '0 0 14px' }}>
-        Paste these into your next agent session — or run <code style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)' }}>helicon gold --inject</code> to write them into <code style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)' }}>~/.claude</code> so the agent loads them automatically.
+Infrastructure, not a doc to copy each time. <code style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)' }}>helicon gold --inject</code> writes it into <code style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)' }}>~/.claude</code> so every session obeys it, and it recompiles itself as you rule.
       </p>
       {data.markdown.split('\n').map(renderLine)}
     </div>
