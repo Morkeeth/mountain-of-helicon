@@ -11,7 +11,7 @@
   --helicon-panel:  #FFFFFF;           /* cards */
   --helicon-line:   hsl(40 18% 90%);   /* hairline borders */
   --helicon-ink:    #2b2825;           /* primary text */
-  --helicon-muted:  #9a9184;           /* labels / secondary */
+  --helicon-muted:  #726755;           /* labels / secondary (darkened: readable ≥4.5:1 on warm paper) */
   --helicon-accent: #C25E3A;           /* terracotta — cracks & flags ONLY */
 
   /* accent supporting (flag categories) */

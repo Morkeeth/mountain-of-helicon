@@ -5,7 +5,6 @@ import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsR
 import { Graph3D } from './components/Graph3D';
 import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
-import HeliconMountain from './components/HeliconMountain';
 import SkillsAudit from './components/SkillsAudit';
 import FindingsView from './components/FindingsView';
 import LogView from './components/LogView';
@@ -22,10 +21,10 @@ type Tab = 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'project
 // Focus leads — your next moves from the state of your memory. Then your memory
 // itself, what needs ruling, what to feed the agent. Stack/evals/log secondary.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'focus', label: 'Focus' },
-  { key: 'health', label: 'Context' },
-  { key: 'findings', label: 'Reviews' },
-  { key: 'gold', label: 'Output' },
+  { key: 'focus', label: 'Next Moves' },
+  { key: 'health', label: 'Memory' },
+  { key: 'findings', label: 'Needs Ruling' },
+  { key: 'gold', label: 'Golden Rules' },
 ];
 
 const SECONDARY_TABS: { key: Tab; label: string }[] = [
@@ -234,9 +233,9 @@ function App() {
               >
                 <span className="text-zinc-600 mr-1.5 text-[11px] tabular-nums tracking-normal">{i + 1}</span>
                 {t.label}
-                {t.key === 'findings' && findingsData && findingsData.summary.total > 0 && (
+                {t.key === 'findings' && findingsData && findingsData.summary.needs_you > 0 && (
                   <span className="ml-1.5 text-[10px] tabular-nums tracking-normal" style={{ color: 'var(--helicon-accent)' }}>
-                    {findingsData.summary.total}
+                    {findingsData.summary.needs_you}
                   </span>
                 )}
                 {tab === t.key && (
@@ -295,8 +294,6 @@ function App() {
               needsYou={findingsData?.summary?.needs_you ?? 0}
               onReview={() => setTab('findings')}
             />
-
-            <HeliconMountain />
 
             <div className="border-t border-zinc-800/40 pt-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
