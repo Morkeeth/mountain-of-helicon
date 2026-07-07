@@ -6,20 +6,15 @@ import type { Finding, FindingsResponse } from '../api';
    a check, unified across audit / skills / battery. The WHY sentence leads;
    the title is context. Every row carries its fix. Real data only. */
 
-// Four groups a human can hold in their head, not nine taxonomy classes.
+// Three story lanes a human can hold in their head, not nine taxonomy classes.
 const GROUPS: { key: string; label: string; kinds: string[]; hint: string }[] = [
-  { key: 'conflicts', label: 'Conflicts', kinds: ['factual', 'supersession'],
-    hint: 'two sources cannot both be true — rule on the evidence' },
-  { key: 'evictions', label: 'Evictions', kinds: ['regret', 'agent-flag'],
-    hint: 'memory that was retired or flagged and wants a second look' },
-  { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical'],
-    hint: 'past its useful life — bulk-kill is safe, decisions are reversible' },
-  { key: 'stack', label: 'Stack', kinds: ['routine', 'output', 'context'],
-    hint: 'the harness itself: silent routines, dead paths, context bloat' },
-  { key: 'setup', label: 'Setup', kinds: ['skill'],
-    hint: 'your tool configuration, not your memory — usually one command to fix' },
+  { key: 'drift', label: 'Drift', kinds: ['factual', 'supersession'],
+    hint: 'two sources disagree, or a renamed thing is still called its old name' },
+  { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical', 'routine', 'output', 'context'],
+    hint: 'aged past its truth — memory past its half-life, dead paths, silent routines' },
+  { key: 'smartness', label: 'Smartness', kinds: ['regret', 'agent-flag', 'skill'],
+    hint: 'not an error — a memory worth restoring, or a skill worth sharpening' },
 ];
-const KIND_ORDER = GROUPS.flatMap(g => g.kinds);
 
 function HowItWorks() {
   const [hidden, setHidden] = useState(localStorage.getItem('hm-guide') === '1');
@@ -35,34 +30,22 @@ function HowItWorks() {
         <li><b className="text-zinc-800">It reads your memory</b> — transcripts, vault, rules files, git — read-only, into its own store.</li>
         <li><b className="text-zinc-800">Checks run on a timer</b> — ten documented failure classes (contradictions, staleness, dead names…). No LLM needed for the core.</li>
         <li><b className="text-zinc-800">Everything below failed a check</b> — each row carries its evidence. Nothing here is a suggestion; it is a receipt.</li>
-        <li><b className="text-zinc-800">You rule, once</b> — keep, kill, or resolve with the truth. Rulings stick: the same rot re-alarms if it returns. Stale items are safe to bulk-kill; every decision is reversible.</li>
+        <li><b className="text-zinc-800">You rule, once</b> — confirm it's still true, correct it with the truth, or retire it. Rulings stick: the same rot re-alarms if it returns. Every decision is reversible.</li>
       </ol>
     </div>
   );
 }
 
 const KIND_LABEL: Record<string, string> = {
-  factual: 'Contradiction',
+  factual: 'Drift',
   supersession: 'Dead name',
-  regret: 'Regret',
-  'agent-flag': 'Flagged',
-  temporal: 'Temporal',
-  decay: 'Decay',
-  logical: 'Logical',
+  regret: 'Worth restoring',
+  'agent-flag': 'Flagged in use',
+  temporal: 'Stale',
+  decay: 'Faded',
+  logical: 'Stale pattern',
   skill: 'Skill',
-  battery: 'Battery',
-};
-
-const KIND_HINT: Record<string, string> = {
-  factual: 'two sources assert facts that cannot both be true',
-  supersession: 'a renamed entity still asserted as current',
-  regret: 'you retired it, retrieval keeps wanting it back',
-  'agent-flag': 'an agent flagged this at point of use',
-  temporal: 'time-relative wording gone stale',
-  decay: 'confidence below the keep threshold',
-  logical: 'pattern no longer supported',
-  skill: 'skills library rot',
-  battery: 'retrieval task serving broken context',
+  battery: 'Broken context',
 };
 
 function sevColor(sev: string): string {
@@ -147,30 +130,30 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
       return (
         <>
           <CopyChip cmd="helicon reconcile --apply" title="retires cubes a re-scan no longer sees" />
-          {auditId !== null && <ActionButton label="Skip" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />}
+          {auditId !== null && <ActionButton label="Later" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />}
         </>
       );
     }
     if (f.suggested_action === 'kill_stale' && auditId !== null) {
       return (
         <>
-          <ActionButton label={acting ? '...' : 'Kill stale'} tone="kill" disabled={acting} onClick={() => confirmAudit('acted')} />
-          <ActionButton label="Skip" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />
+          <ActionButton label={acting ? '...' : 'Retire'} tone="kill" disabled={acting} onClick={() => confirmAudit('acted')} />
+          <ActionButton label="Keep" tone="keep" disabled={acting} onClick={() => confirmAudit('dismissed')} />
         </>
       );
     }
-    // review (and battery kill_stale rows, which carry a cube): keep/kill the cube itself
+    // review (and battery kill_stale rows, which carry a cube): confirm/retire the cube itself
     if (f.cube_id) {
       return (
         <>
-          <ActionButton label={acting ? '...' : 'Keep'} tone="keep" disabled={acting} onClick={() => review('approved')} />
-          <ActionButton label={acting ? '...' : 'Kill'} tone="kill" disabled={acting} onClick={() => review('killed')} />
-          {auditId !== null && <ActionButton label="Skip" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />}
+          <ActionButton label={acting ? '...' : 'Confirm'} tone="keep" disabled={acting} onClick={() => review('approved')} />
+          <ActionButton label={acting ? '...' : 'Retire'} tone="kill" disabled={acting} onClick={() => review('killed')} />
+          {auditId !== null && <ActionButton label="Later" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />}
         </>
       );
     }
     if (auditId !== null) {
-      return <ActionButton label="Skip" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />;
+      return <ActionButton label="Later" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />;
     }
     return null;
   })();

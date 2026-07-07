@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
 import { Graph3D } from './components/Graph3D';
-import { TokenDashboard } from './components/TokenDashboard';
 import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
 import HeliconMountain from './components/HeliconMountain';
@@ -17,18 +16,20 @@ import ConflictMap from './components/ConflictMap';
    Graph · Projects secondary. Review and Insights are gone — findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects';
+type Tab = 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
 
+// Four tabs, easy: your memory, what needs ruling, what to feed the agent,
+// the stack around it. Everything else moved off the primary path.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'health', label: 'Health' },
-  { key: 'findings', label: 'Findings' },
-  { key: 'gold', label: 'Gold' },
-  { key: 'log', label: 'Log' },
+  { key: 'health', label: 'Context' },
+  { key: 'findings', label: 'Reviews' },
+  { key: 'gold', label: 'Output' },
+  { key: 'routines', label: 'Routines & Skills' },
 ];
 
 const SECONDARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'graph', label: 'Conflicts' },
-  { key: 'projects', label: 'Projects' },
+  { key: 'evals', label: 'Evals · talk to your agent' },
+  { key: 'log', label: 'Log' },
 ];
 
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
@@ -86,7 +87,7 @@ function App() {
       const findings = prev.findings.filter(x => x.id !== f.id);
       const by_kind = { ...prev.summary.by_kind, [f.kind]: Math.max(0, (prev.summary.by_kind[f.kind] || 1) - 1) };
       const by_severity = { ...prev.summary.by_severity, [f.severity]: Math.max(0, (prev.summary.by_severity[f.severity] || 1) - 1) };
-      return { findings, summary: { total: Math.max(0, prev.summary.total - 1), by_kind, by_severity } };
+      return { findings, summary: { ...prev.summary, total: Math.max(0, prev.summary.total - 1), by_kind, by_severity } };
     });
     refresh(); // review decisions move the Helicon Score
   }, [refresh]);
@@ -284,23 +285,11 @@ function App() {
 
         {tab === 'health' && (
           <div className="space-y-10">
-            <TabPurpose>Live health of every retrieval task — cracks are failing tasks.</TabPurpose>
+            <TabPurpose>Your agent's memory at a glance — where it comes from, how much of it you've reviewed, where it's cracking.</TabPurpose>
 
             <HeliconMountain />
 
             <ScoreStrip score={score} />
-
-            <SkillsAudit />
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <h3 className="text-[15px] font-medium text-zinc-200 mb-4">Evaluation</h3>
-              <EvalView />
-            </div>
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <h3 className="text-[15px] font-medium text-zinc-200 mb-6">Qwen Cloud</h3>
-              <TokenDashboard />
-            </div>
 
             <div className="border-t border-zinc-800/40 pt-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -328,7 +317,7 @@ function App() {
 
         {tab === 'findings' && (
           <>
-          <TabPurpose>Every failed check in one place — the why leads, the fix is one click away.</TabPurpose>
+          <TabPurpose>What Helicon caught in your memory — drift, staleness, and things worth sharpening. You rule once; it sticks.</TabPurpose>
           <FindingsView
             data={findingsData}
             onReload={loadFindings}
@@ -339,7 +328,27 @@ function App() {
           </>
         )}
 
-        {tab === 'gold' && <GoldView />}
+        {tab === 'gold' && (
+          <>
+          <TabPurpose>What you feed the agent next — your rulings, compiled into GOLDEN RULES with provenance. Copy it into the next session.</TabPurpose>
+          <GoldView />
+          </>
+        )}
+
+        {tab === 'routines' && (
+          <>
+          <TabPurpose>The stack around your memory — the routines that feed it and the skills your agent loads. Silent crons and duplicate skills surface here.</TabPurpose>
+          <SkillsAudit />
+          </>
+        )}
+
+        {tab === 'evals' && (
+          <>
+          <TabPurpose>Talk to your agent — test what a task retrieves, run the battery, then transfer the compiled context into your next session.</TabPurpose>
+          <EvalView />
+          </>
+        )}
+
           {tab === 'log' && (
           <>
           <TabPurpose>What Helicon did and what you decided — every action is a receipt.</TabPurpose>

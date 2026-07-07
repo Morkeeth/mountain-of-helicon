@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @import "tailwindcss";
 
@@ -10,22 +10,22 @@
 
 :root {
   /* Graphite accent (frosted-light house style — no AI-purple) */
-  --qwen-purple: #3f3f46;
-  --qwen-indigo: #52525b;
-  --qwen-blue: #71717a;
-  --qwen-purple-dim: rgba(63, 63, 70, 0.08);
-  --qwen-gradient: linear-gradient(135deg, #2a2a30 0%, #3f3f46 50%, #5c5c66 100%);
+  --qwen-purple: #b5502e;
+  --qwen-indigo: #b0842f;
+  --qwen-blue: #8a7a64;
+  --qwen-purple-dim: rgba(181, 80, 46, 0.09);
+  --qwen-gradient: linear-gradient(135deg, #b5502e 0%, #c17a5e 55%, #d6a986 100%);
 
   /* Light mode base */
-  --bg: #f4f5f8;
-  --surface: rgba(255, 255, 255, 0.38);
-  --border: rgba(0,0,0,0.08);
-  --border-subtle: #e5e7f0;
-  --text-primary: #1a1a2e;
-  --text-secondary: #52525b;
-  --text-muted: #a1a1aa;
-  --accent: #3f3f46;
-  --accent-dim: rgba(63, 63, 70, 0.08);
+  --bg: #f6f1e9;
+  --surface: rgba(253, 251, 246, 0.55);
+  --border: rgba(60,40,20,0.10);
+  --border-subtle: #e8e0d2;
+  --text-primary: #241f18;
+  --text-secondary: #5c5142;
+  --text-muted: #a99e8c;
+  --accent: #b5502e;
+  --accent-dim: rgba(181, 80, 46, 0.09);
 
   /* Frosted Light tuner values (Oscar, Jul 1) */
   --glass-alpha: 0.38;
@@ -39,7 +39,7 @@
   --card-foreground: oklch(0.21 0.01 280);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.01 280);
-  --primary: oklch(0.34 0.006 285);
+  --primary: oklch(0.52 0.14 42);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.955 0.004 280);
   --secondary-foreground: oklch(0.21 0.01 280);
@@ -48,7 +48,7 @@
   --accent-foreground: oklch(0.21 0.01 280);
   --destructive: oklch(0.577 0.245 27.325);
   --input: oklch(0 0 0 / 6%);
-  --ring: oklch(0.34 0.006 285);
+  --ring: oklch(0.52 0.14 42);
   --chart-1: oklch(0.34 0.006 285);
   --chart-2: oklch(0.46 0.005 285);
   --chart-3: oklch(0.58 0.004 285);
@@ -74,17 +74,28 @@ body {
   margin: 0;
   /* faint neutral tint-wash so frosted surfaces have something to refract */
   background:
-    radial-gradient(at 12% 18%, rgba(100,116,139,0.135) 0px, transparent 46%),
-    radial-gradient(at 88% 12%, rgba(71,85,105,0.108) 0px, transparent 46%),
-    radial-gradient(at 78% 88%, rgba(148,163,184,0.095) 0px, transparent 46%),
-    radial-gradient(at 18% 92%, rgba(100,116,139,0.122) 0px, transparent 46%),
+    radial-gradient(at 12% 18%, rgba(181,140,90,0.14) 0px, transparent 46%),
+    radial-gradient(at 88% 12%, rgba(181,80,46,0.07) 0px, transparent 46%),
+    radial-gradient(at 78% 88%, rgba(176,132,47,0.10) 0px, transparent 46%),
+    radial-gradient(at 18% 92%, rgba(181,140,90,0.12) 0px, transparent 46%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text-secondary);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
   font-size: 14px;
   line-height: 1.6;
   letter-spacing: -0.01em;
+}
+
+/* Warm Editorial (chosen Jul 6): Fraunces display for headings + the score
+   number, JetBrains Mono for tabular figures — numbers are heroes. */
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+.tabular-nums, .font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
 }
 
 /* Frosted Light: every white surface becomes translucent frosted glass.
@@ -101,8 +112,8 @@ body {
 }
 
 ::selection {
-  background: rgba(63, 63, 70, 0.18);
-  color: #1a1a2e;
+  background: rgba(181, 80, 46, 0.20);
+  color: #241f18;
 }
 
 input, textarea, select {
@@ -203,39 +214,41 @@ button, a, input, select {
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Inter', sans-serif;
+  --font-heading: 'Fraunces', Georgia, serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-sans: 'Newsreader', Georgia, serif;
 
   /* Violet/indigo accent remapped to graphite (kills AI-purple across all
      components without touching component files) */
-  --color-violet-50: #f5f5f6;
-  --color-violet-100: #e9e9ec;
-  --color-violet-200: #d6d6dc;
-  --color-violet-300: #b4b4be;
-  --color-violet-400: #84848f;
-  --color-violet-500: #5c5c66;
-  --color-violet-600: #3f3f46;
-  --color-violet-700: #34343a;
-  --color-violet-800: #27272e;
-  --color-violet-900: #1c1c22;
-  --color-indigo-50: #f3f3f5;
-  --color-indigo-100: #e7e7ec;
-  --color-indigo-400: #74747f;
-  --color-indigo-500: #57575f;
-  --color-indigo-600: #3f3f46;
+  --color-violet-50: #f8efe9;
+  --color-violet-100: #f0ddd3;
+  --color-violet-200: #e3c3b4;
+  --color-violet-300: #d19e88;
+  --color-violet-400: #c17a5e;
+  --color-violet-500: #b5502e;
+  --color-violet-600: #9c4326;
+  --color-violet-700: #7e3620;
+  --color-violet-800: #5a2c1c;
+  --color-violet-900: #3e2015;
+  --color-indigo-50: #f8efe9;
+  --color-indigo-100: #f0ddd3;
+  --color-indigo-400: #c17a5e;
+  --color-indigo-500: #b5502e;
+  --color-indigo-600: #9c4326;
 
   /* Zinc palette swap: dark-on-light instead of light-on-dark */
-  --color-zinc-50: #0c0c18;
-  --color-zinc-100: #1a1a2e;
-  --color-zinc-200: #2a2a42;
-  --color-zinc-300: #3d3d58;
-  --color-zinc-400: #55556e;
-  --color-zinc-500: #717185;
-  --color-zinc-600: #9898ac;
-  --color-zinc-700: #b8b8c8;
-  --color-zinc-800: #dcdce8;
-  --color-zinc-900: #f0f0f6;
-  --color-zinc-950: #f8f8fc;
+  --color-zinc-50: #1c1710;
+  --color-zinc-100: #241f18;
+  --color-zinc-200: #3a3025;
+  --color-zinc-300: #524635;
+  --color-zinc-400: #6b5c48;
+  --color-zinc-500: #8a7a64;
+  --color-zinc-600: #ab9c86;
+  --color-zinc-700: #cbbfa8;
+  --color-zinc-800: #e6ddc9;
+  --color-zinc-900: #f3ede0;
+  --color-zinc-950: #faf6ee;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

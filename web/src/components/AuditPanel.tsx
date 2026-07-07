@@ -79,6 +79,7 @@ export function AuditPanel({ findings, onRefresh }: Props) {
     all: findings.length,
     temporal: findings.filter(f => f.audit_type === 'temporal').length,
     factual: findings.filter(f => f.audit_type === 'factual').length,
+    supersession: findings.filter(f => f.audit_type === 'supersession').length,
     decay: findings.filter(f => f.audit_type === 'decay').length,
     logical: findings.filter(f => f.audit_type === 'logical').length,
   };

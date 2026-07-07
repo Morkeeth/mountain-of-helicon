@@ -79,7 +79,6 @@ function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], s
   // cracked tiles near the summit ridge — ONE per flagged task. BROKEN tasks
   // flake: the tile turns terracotta, pulses, and sheds a shard that falls
   // off the mountain on load (the one dramatic animation on this page).
-  const groundL = 98;
   for (let k = 0; k < crackTasks.length; k++) {
     const c = Math.floor(cols * (0.3 + rand() * 0.5));
     const startRow = startRows[c];
