@@ -114,13 +114,15 @@ export default function Focus() {
 
               <div className="mt-4 flex items-center gap-2">
                 <button onClick={() => route(m, i, 'prompt')}
+                  title="Copies this move as a ready-to-paste prompt for your coding agent"
                   className="text-[12px] px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-90"
                   style={{ background: 'var(--helicon-accent)' }}>
-                  Copy for agent
+                  Copy as prompt →
                 </button>
                 <button onClick={() => route(m, i, 'vault')}
+                  title="Saves this move as a note in your vault (00 Dashboard/helicon-next-moves.md)"
                   className="text-[12px] px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-100 transition-colors" style={{ color: 'var(--helicon-ink)' }}>
-                  Send to vault
+                  Save to vault
                 </button>
                 {routed[i] && <span className="text-[11px]" style={{ color: 'var(--helicon-stale)' }}>{routed[i]} ✓</span>}
               </div>
