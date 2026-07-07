@@ -53,7 +53,7 @@ export default function Focus() {
           </h2>
           <p className="text-[12px] mt-1" style={{ color: 'var(--helicon-muted)' }}>
             {data
-              ? `Generated from ${data.grounded_in} memories that need attention. Every move cites the memory it came from.`
+              ? `Your agent's memory, read back to you as what to do next. ${data.grounded_in} flagged memories became these moves — each carries the memory it came from, so none of it is a guess.`
               : 'Reading the state of your memory…'}
           </p>
         </div>

@@ -330,6 +330,19 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         )}
       </div>
 
+      {/* Plain-English description of whatever lane is selected — so a first-time
+          reader always knows what this list is, without a tooltip. */}
+      {(() => {
+        const desc = kindFilter === 'needs'
+          ? 'Decisions only you can make — contradictions, dead names, and memory you retired that retrieval keeps pulling back.'
+          : kindFilter === 'aging'
+            ? 'Age and mechanics — notes past their freshness window, decayed commits, moved paths. Safe to accept or bulk-manage; nothing here is urgent.'
+            : kindFilter === 'all'
+              ? 'Everything flagged — the decisions that need you and the ambient age findings together.'
+              : (GROUPS.find(g => g.key === kindFilter)?.hint || '');
+        return desc ? <p className="text-[12px] mb-4" style={{ color: 'var(--helicon-muted)' }}>{desc}</p> : null;
+      })()}
+
       {/* Finding rows */}
       {visible.length === 0 ? (
         <div className="py-16 text-center">
