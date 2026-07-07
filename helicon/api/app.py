@@ -88,6 +88,7 @@ def create_app() -> FastAPI:
     from helicon.api.integrity import router as integrity_router
     from helicon.api.findings import router as findings_router
     from helicon.api.log import router as log_router
+    from helicon.api.focus import router as focus_router
 
     app.include_router(cubes_router, prefix="/api")
     app.include_router(review_router, prefix="/api")
@@ -107,6 +108,7 @@ def create_app() -> FastAPI:
     app.include_router(integrity_router, prefix="/api")
     app.include_router(findings_router, prefix="/api")
     app.include_router(log_router, prefix="/api")
+    app.include_router(focus_router, prefix="/api")
 
     @app.get("/api/health")
     async def health():

@@ -11,24 +11,26 @@ import FindingsView from './components/FindingsView';
 import LogView from './components/LogView';
 import GoldView from './components/GoldView';
 import ConflictMap from './components/ConflictMap';
+import Focus from './components/Focus';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone — findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
+type Tab = 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
 
-// Four tabs, easy: your memory, what needs ruling, what to feed the agent,
-// the stack around it. Everything else moved off the primary path.
+// Focus leads — your next moves from the state of your memory. Then your memory
+// itself, what needs ruling, what to feed the agent. Stack/evals/log secondary.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'focus', label: 'Focus' },
   { key: 'health', label: 'Context' },
   { key: 'findings', label: 'Reviews' },
   { key: 'gold', label: 'Output' },
-  { key: 'routines', label: 'Routines & Skills' },
 ];
 
 const SECONDARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'evals', label: 'Evals · talk to your agent' },
+  { key: 'routines', label: 'Routines & Skills' },
+  { key: 'evals', label: 'Evals' },
   { key: 'log', label: 'Log' },
 ];
 
@@ -38,7 +40,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'findings';
+    return ALL_TABS.includes(h) ? h : 'focus';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -283,6 +285,8 @@ function App() {
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
+
+        {tab === 'focus' && <Focus />}
 
         {tab === 'health' && (
           <div className="space-y-10">

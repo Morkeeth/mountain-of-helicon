@@ -83,7 +83,8 @@ def set_cache_db(conn: sqlite3.Connection):
     load_cache_from_db(conn)
 
 
-def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "") -> str:
+def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "",
+             response_format: dict | None = None, enable_thinking: bool | None = None) -> str:
     if client is None:
         return ""
 
@@ -103,14 +104,35 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
 
     _cache_stats["misses"] += 1
     start = time.time()
+    # Qwen structured-output flex: JSON mode / function-calling is only valid
+    # with thinking OFF, and only on some models — fall back to a plain call if
+    # the endpoint rejects the extra args so existing callers never break.
+    kwargs: dict = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+    }
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    extra_body: dict = {}
+    if enable_thinking is not None:
+        extra_body["enable_thinking"] = enable_thinking
+    if extra_body:
+        kwargs["extra_body"] = extra_body
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        )
+        try:
+            response = client.chat.completions.create(**kwargs)
+        except Exception as fmt_err:
+            if response_format is None and not extra_body:
+                raise
+            # endpoint doesn't support response_format/extra_body on this model
+            response = client.chat.completions.create(
+                model=model,
+                messages=kwargs["messages"],
+            )
+            _ = fmt_err
         elapsed = time.time() - start
         result = response.choices[0].message.content
         usage = response.usage
@@ -151,7 +173,11 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
 
 
 def complete_json(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "") -> dict | list | None:
-    raw = complete(client, system + "\n\nRespond with ONLY valid JSON. No markdown, no explanation.", user, model, operation=operation)
+    # Qwen structured output: response_format json_object requires the word
+    # "json" in a message and thinking disabled; complete() falls back cleanly
+    # if the model/endpoint rejects it, and we still parse the prose either way.
+    raw = complete(client, system + "\n\nRespond with ONLY valid JSON. No markdown, no explanation.", user, model,
+                   operation=operation, response_format={"type": "json_object"}, enable_thinking=False)
     if not raw:
         return None
     raw = raw.strip()
