@@ -14,6 +14,20 @@ The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become sta
 
 Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live 2,800-cube memory, and it has failed its own audits more than once (see receipts in the demo).
 
+## Why it fits Track 1 (MemoryAgent)
+
+**Memory stores remember. Mount Helicon judges what is still true.** It is itself a memory agent: it accumulates findings, human rulings, Golden Rules, regret events and retrieval failures across sessions, and uses them to make future agent decisions more accurate.
+
+| Track 1 criterion | Mount Helicon's answer |
+|---|---|
+| **Persistent memory / accumulates experience** | Findings, rulings, Golden Rules, regret ledger and score history persist in SQLite across every session |
+| **Remembers preferences** | Auto-triage learns keep/kill rules from *your* past rulings; Golden Rules encode your standing decisions with provenance |
+| **Improves decisions across sessions** | Rulings compile into Golden Rules the agent obeys next session; the never-twice guard stops a corrected fact silently resurfacing |
+| **Efficient store / retrieve** | Hybrid FTS5 + semantic retrieval; the battery tests what a task *actually* retrieves, not the whole store |
+| **Timely forgetting** | 10-class rot exam + per-type Weibull decay + `reconcile` retires cubes reality no longer contains |
+| **Recall within limited context** | Selectors + retrieval-quality battery + Next Moves surface only what matters, each citing its source |
+| **Qwen Cloud, load-bearing** | Contradiction + grounding judging, cross-source adjudication, rule compilation, and Next Moves synthesis — cached, cost-tracked, honest keyless degrade |
+
 ## Quick Start (60 seconds, $0)
 
 ```bash
