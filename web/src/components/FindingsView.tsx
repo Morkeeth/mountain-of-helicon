@@ -173,11 +173,13 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
         />
 
         <div className="flex-1 min-w-0">
-          {/* The WHY sentence is the finding — it leads. */}
+          {/* The WHY sentence is the finding — it leads. The title (which doc /
+              cube) is the differentiator when the why repeats across findings,
+              so keep it legible and un-truncated rather than a faint gray line. */}
           <p className="text-[13px] text-zinc-200 leading-snug">{f.why}</p>
-          <p className="text-[11px] text-zinc-600 leading-snug mt-0.5 truncate">
+          <p className="text-[12px] text-zinc-400 leading-snug mt-1">
             {f.title}
-            <span className="text-zinc-700"> · {KIND_LABEL[f.kind] || f.kind}</span>
+            <span className="text-zinc-600"> · {KIND_LABEL[f.kind] || f.kind}</span>
           </p>
         </div>
 

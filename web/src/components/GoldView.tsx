@@ -25,6 +25,15 @@ function renderLine(l: string, i: number) {
 export default function GoldView() {
   const [data, setData] = useState<GoldData | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyRules = () => {
+    if (!data) return;
+    navigator.clipboard.writeText(data.markdown).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
 
   const load = (fresh = 0) => {
     setBusy(true);
@@ -52,6 +61,13 @@ export default function GoldView() {
             </div>
           )}
           <button
+            onClick={copyRules}
+            className="text-[11px] px-3 py-1.5 rounded-md text-white transition-opacity hover:opacity-90"
+            style={{ background: 'var(--helicon-accent)' }}
+          >
+            {copied ? 'copied ✓' : 'Copy rules'}
+          </button>
+          <button
             onClick={() => load(1)}
             disabled={busy}
             className="text-[11px] px-3 py-1.5 rounded-md border border-zinc-300 bg-white hover:bg-zinc-100 disabled:opacity-40"
@@ -60,6 +76,9 @@ export default function GoldView() {
           </button>
         </div>
       </div>
+      <p style={{ fontSize: 11, color: 'var(--helicon-muted)', margin: '0 0 14px' }}>
+        Paste these into your next agent session — or run <code style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)' }}>helicon gold --inject</code> to write them into <code style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)' }}>~/.claude</code> so the agent loads them automatically.
+      </p>
       {data.markdown.split('\n').map(renderLine)}
     </div>
   );

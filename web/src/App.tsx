@@ -207,7 +207,7 @@ function App() {
                 </button>
               )}
               {score && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" title={`${score.reviewed} of ${score.total} memory items triaged — review coverage, not a health grade`}>
                   <div className="w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
                     <div
                       className="h-full rounded-full qwen-gradient-bg transition-all duration-700"
@@ -215,6 +215,7 @@ function App() {
                     />
                   </div>
                   <span className="text-[12px] text-zinc-400 tabular-nums font-medium">{score.score}%</span>
+                  <span className="text-[10px] text-zinc-600">reviewed</span>
                 </div>
               )}
             </div>
@@ -285,11 +286,13 @@ function App() {
 
         {tab === 'health' && (
           <div className="space-y-10">
-            <TabPurpose>Your agent's memory at a glance — where it comes from, how much of it you've reviewed, where it's cracking.</TabPurpose>
+            <ContextHero
+              score={score}
+              needsYou={findingsData?.summary?.needs_you ?? 0}
+              onReview={() => setTab('findings')}
+            />
 
             <HeliconMountain />
-
-            <ScoreStrip score={score} />
 
             <div className="border-t border-zinc-800/40 pt-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -405,38 +408,73 @@ function TabPurpose({ children }: { children: React.ReactNode }) {
 // Helicon Score strip (HEALTH tab)
 // ============================================================
 
-function ScoreStrip({ score }: { score: Score | null }) {
-  if (!score) return null;
-  const pct = score.score;
-  const color = pct < 20 ? 'var(--helicon-accent)' : pct < 50 ? 'var(--helicon-stale)' : '#3f3f46';
+/* The front door. States the promise, the loop, and the two honest numbers:
+   what needs a human ruling now (the alarm, terracotta) and how much of the
+   memory has been triaged (coverage — deliberately NOT framed as a health grade,
+   because it is just reviewed/total). Daily-use framing kills the "do I live
+   in this dashboard?" question up front. */
+function ContextHero({ score, needsYou, onReview }: { score: Score | null; needsYou: number; onReview: () => void }) {
+  const coverage = score?.score ?? 0;
+  const reviewed = score?.reviewed ?? 0;
+  const total = score?.total ?? 0;
+  const step = (label: string) => <b style={{ color: 'var(--helicon-ink)', fontWeight: 600 }}>{label}</b>;
 
   return (
-    <div className="border border-zinc-800/60 rounded-xl bg-white shadow-sm px-6 py-5">
-      <div className="flex items-center gap-8 flex-wrap">
-        <div className="flex items-baseline gap-2">
-          <span
-            className="text-[32px] tabular-nums"
-            style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontVariationSettings: "'opsz' 144", color }}
-          >
-            {pct}
-          </span>
-          <span className="text-[12px] text-zinc-600">/ 100</span>
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500 ml-2">Helicon Score</span>
-        </div>
-        <div className="flex-1 min-w-[160px]">
-          <div className="w-full h-[4px] bg-zinc-800/60 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${pct}%`, background: color, opacity: 0.7 }}
-            />
+    <div className="rounded-2xl bg-white shadow-sm border border-zinc-800/50 px-7 py-6">
+      <div className="text-[10px] uppercase tracking-[0.3em]" style={{ color: 'var(--helicon-muted)' }}>
+        Agent memory audit
+      </div>
+
+      <p className="mt-2.5 text-[15px] leading-relaxed" style={{ color: 'var(--helicon-ink)', maxWidth: '56ch' }}>
+        Your agent repeats corrections you already made, and its memory files rot silently.
+        Helicon tests that memory for rot and hands the corrections back so they stick.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" style={{ color: 'var(--helicon-muted)' }}>
+        {step('Reads')} <span>your memory</span>
+        <span style={{ opacity: 0.4 }}>→</span>
+        {step('tests')} <span>it on a timer</span>
+        <span style={{ opacity: 0.4 }}>→</span>
+        {step('you rule')} <span>what's rotting</span>
+        <span style={{ opacity: 0.4 }}>→</span>
+        {step('compiles')} <span>GOLDEN RULES you paste into the next session</span>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-x-10 gap-y-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-baseline gap-2">
+            <span
+              className="text-[40px] tabular-nums leading-none"
+              style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontVariationSettings: "'opsz' 144", color: needsYou > 0 ? 'var(--helicon-accent)' : 'var(--helicon-ink)' }}
+            >
+              {needsYou}
+            </span>
+            <span className="text-[13px]" style={{ color: 'var(--helicon-muted)' }}>need your ruling</span>
           </div>
+          {needsYou > 0 && (
+            <button
+              onClick={onReview}
+              className="text-[12px] font-medium px-3.5 py-1.5 rounded-lg text-white transition-opacity hover:opacity-90"
+              style={{ background: 'var(--helicon-accent)' }}
+            >
+              Review →
+            </button>
+          )}
         </div>
-        <div className="flex gap-6 text-[11px] text-zinc-600 tabular-nums">
-          <span><strong className="text-zinc-400">{score.reviewed}</strong> reviewed</span>
-          <span><strong className="text-zinc-400">{score.pending}</strong> pending</span>
-          <span><strong className="text-zinc-400">{score.total.toLocaleString()}</strong> total</span>
+
+        <div className="flex items-baseline gap-2">
+          <span className="text-[22px] tabular-nums" style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, color: 'var(--helicon-ink)' }}>
+            {coverage}%
+          </span>
+          <span className="text-[12px]" style={{ color: 'var(--helicon-muted)' }}>
+            reviewed <span style={{ opacity: 0.75 }}>({reviewed.toLocaleString()} of {total.toLocaleString()} triaged — coverage, not a health grade)</span>
+          </span>
         </div>
       </div>
+
+      <p className="mt-5 text-[11px]" style={{ color: 'var(--helicon-muted)' }}>
+        Helicon runs on a timer and pings you when something needs a call. You don't live here — you drop in when it does.
+      </p>
     </div>
   );
 }
