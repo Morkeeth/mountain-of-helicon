@@ -1,166 +1,106 @@
-# Mount Helicon Architecture
+# Mount Helicon — Architecture
 
-```
-                            ANY AI AGENT PLATFORM
-    ┌─────────────┬──────────────┬───────────┬──────────┬──────────┐
-    │ Claude Code │   Obsidian   │    Git    │ ChatGPT  │  Cursor  │
-    │   JSONL     │   Markdown   │  Commits  │   JSON   │ Memory   │
-    └──────┬──────┴──────┬───────┴─────┬─────┴────┬─────┴────┬─────┘
-           │             │             │          │          │
-           └─────────────┴──────┬──────┴──────────┴──────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │   SAGE Novelty Gate   │
-                    │   ADD / NOOP / MERGE  │
-                    │   (qwen-turbo)        │
-                    └───────────┬───────────┘
-                                │
-    ════════════════════════════╪════════════════════════════════════
-     LAYER 1: EXTRACTION       │
-    ════════════════════════════╪════════════════════════════════════
-                                │
-                    ┌───────────▼───────────┐
-                    │      HeliconCubes       │
-                    │  1,268 versioned      │
-                    │  memory units         │
-                    │  (MemOS-inspired)     │
-                    └───────────┬───────────┘
-                                │
-    ════════════════════════════╪════════════════════════════════════
-     LAYER 2: REVIEW PATTERNS  │
-    ════════════════════════════╪════════════════════════════════════
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                 │
-    ┌─────────▼──────┐ ┌───────▼────────┐ ┌──────▼───────┐
-    │ Weibull Decay  │ │ Review Feed    │ │ Auto-Triage  │
-    │ w=exp(-(t/η)^κ)│ │ sorted by      │ │ Mount Helicon makes  │
-    │ per-type shape │ │ learned urgency│ │ its own       │
-    │ (SSGM/LiCo)   │ │                │ │ decisions     │
-    └────────────────┘ └───────┬────────┘ └──────┬───────┘
-                               │                 │
-                     ┌─────────▼─────────┐       │
-                     │  Human Reviews    │       │
-                     │  only uncertain   │       │
-                     │  items remain     │◄──────┘
-                     └─────────┬─────────┘
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-    ┌─────────▼──────┐ ┌──────▼─────────┐ ┌────▼──────────┐
-    │ Pattern        │ │ Spin Detection │ │ Retrieval     │
-    │ Learning       │ │ N sessions,    │ │ Learning      │
-    │ (qwen-plus)    │ │ 0 file changes │ │ (MetaMem)     │
-    └────────────────┘ └────────────────┘ └───────────────┘
-                                │
-    ════════════════════════════╪════════════════════════════════════
-     LAYER 3: META-AUDIT       │
-    ════════════════════════════╪════════════════════════════════════
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                 │
-    ┌─────────▼──────┐ ┌───────▼────────┐ ┌──────▼───────┐
-    │ 4-Axis Audit   │ │ Knowledge      │ │ Memory       │
-    │ temporal       │ │ Graph          │ │ Consolidation│
-    │ factual        │ │ 41 entities    │ │ "sleep"      │
-    │ decay          │ │ 605 edges      │ │ cycles       │
-    │ pattern stale  │ │ contradiction  │ │ cluster +    │
-    │ (Memory Bear)  │ │ edges in red   │ │ merge        │
-    │ (qwen-max)     │ │                │ │              │
-    └────────────────┘ └────────────────┘ └──────────────┘
-              │                 │                 │
-              └─────────────────┼─────────────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │  Review Drift         │
-                    │  Detection            │
-                    │  (user model shift)   │
-                    └───────────┬───────────┘
-                                │
-    ════════════════════════════╪════════════════════════════════════
-     INFRASTRUCTURE             │
-    ════════════════════════════╪════════════════════════════════════
-                                │
-    ┌───────────────────────────▼───────────────────────────────────┐
-    │                      SQLite (13 tables)                      │
-    │  helicon_cubes | reviews | patterns | audit_log | retrieval_log│
-    │  scan_log | entities | edges | consolidations | qwen_cache   │
-    │  session_summaries | triage_log | cubes_fts (FTS5)           │
-    └───────────────────────────┬───────────────────────────────────┘
-                                │
-         ┌──────────────────────┼──────────────────────┐
-         │                      │                      │
-    ┌────▼──────────┐   ┌───────▼────────┐   ┌────────▼─────────┐
-    │ FastAPI       │   │ MCP Server     │   │ Qwen Cloud       │
-    │ 42 endpoints  │   │ 8 tools        │   │ Multi-model      │
-    │ 12 routers    │   │ JSON-RPC 2.0   │   │ routing          │
-    │               │   │ stdio          │   │                  │
-    │               │   │                │   │ turbo: extract   │
-    │               │   │ helicon_health   │   │ plus: patterns   │
-    │               │   │ helicon_stale    │   │ max: audit       │
-    │               │   │ helicon_search   │   │                  │
-    │               │   │ helicon_contra   │   │ Response cache   │
-    │               │   │ helicon_reviews  │   │ Cost tracking    │
-    │               │   │ helicon_patterns │   │ Route learning   │
-    │               │   │ helicon_context  │   │                  │
-    │               │   │ helicon_triage   │   │                  │
-    └────┬──────────┘   └────────────────┘   └──────────────────┘
-         │
-    ┌────▼──────────────────────────────────────────────────────────┐
-    │                    React / Vite Web UI                        │
-    │  5 tabs: Focus | Review | Audit | Graph | System              │
-    │  Project intelligence: rollup, spin, ship rate, recommendations│
-    │  Voice input (Web Speech API) | Keyboard shortcuts (j/k/a/r) │
-    │  Force-directed graph | Session drift | Token budget          │
-    │  Auto-triage preview + execute | Rule confidence display      │
-    └──────────────────────────────────────────────────────────────┘
-         │
-    ┌────▼──────────────────────────────────────────────────────────┐
-    │                         CLI                                   │
-    │  helicon init      Auto-detect Claude Code, Cursor, Obsidian   │
-    │  helicon scan      Extract memory into HeliconCubes              │
-    │  helicon serve     Start web UI on :8420                        │
-    │  helicon triage    Auto-triage from learned patterns            │
-    │  helicon score     Show Helicon Score + decay by type             │
-    │  helicon stack     Audit AI tool setup                          │
-    │  helicon optimize  LLM-powered optimization                    │
-    └──────────────────────────────────────────────────────────────┘
+**A test layer that lives *outside* the memory store.** It reads an AI coding agent's memory read-only, regression-tests it for rot on a timer, asks the human to rule only on what's uncertain, and compiles those rulings into GOLDEN RULES the agent loads next session — closing the loop so corrections stick.
+
+Numbers below are from the live demo database (`data/helicon.db`), not illustrative.
+
+## System diagram
+
+```mermaid
+flowchart TD
+  subgraph SRC["① Your memory — read-only"]
+    A1["Claude Code transcripts"]
+    A2["Rules files<br/>CLAUDE.md · AGENTS.md · .cursorrules"]
+    A3["Obsidian vault"]
+    A4["Git history"]
+    A5["ChatGPT · Cursor"]
+    A6["External stores it audits but doesn't own<br/>mem0 · Letta · Graphiti"]
+  end
+
+  SRC -->|"connectors (13)"| GATE
+
+  subgraph INGEST["② Ingestion"]
+    GATE["SAGE novelty gate<br/>ADD / NOOP / MERGE"]
+    CUBES[("HeliconCubes<br/>4,013 versioned memory units<br/>SQLite · 22 tables + FTS5 + embeddings")]
+    GATE --> CUBES
+  end
+
+  CUBES --> EXAM
+
+  subgraph AUDIT["③ Rot exam — 10 documented failure classes, on a timer"]
+    EXAM["contradiction · supersession (dead names)<br/>temporal · decay (Weibull per-type) · logical<br/>battery: does retrieval still serve good context?"]
+  end
+
+  EXAM -->|"LLM-judged checks (contradiction, grounding)"| QWEN
+  QWEN -->|verdicts| EXAM
+
+  subgraph QWENC["Qwen Cloud · Alibaba Cloud Model Studio (ap-southeast-1)"]
+    QWEN["3-tier routing + response cache + cost tracking<br/>qwen3.6-flash → cheap classification<br/>qwen3.6-plus → patterns, battery judge<br/>qwen3.7-max → deep audit"]
+  end
+
+  EXAM --> FIND["Findings — grouped for humans:<br/>Drift · Stale · Smartness"]
+  FIND --> HUMAN["④ Human rules once<br/>Confirm / Retire / Later<br/>(voice-dictation driven)"]
+  HUMAN --> GOLD["⑤ GOLD compiler<br/>rulings → GOLDEN RULES, each with provenance"]
+  GOLD -->|"helicon gold --inject"| INJECT["~/.claude/GOLDEN_RULES.md"]
+  INJECT -.->|"agent loads it next session — the loop closes"| SRC
+
+  CUBES -.serves.-> SURF
+  subgraph SURF["Surfaces"]
+    CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
+    MCP["MCP server<br/>13 tools · JSON-RPC 2.0 / stdio"]
+    WEB["Web UI · 4 tabs<br/>Context · Reviews · Output · Routines & Skills"]
+  end
 ```
 
-## Data Flow
+## Where Qwen Cloud does the work
+
+The core rot checks (contradiction, staleness, dead-name detection) run **without an LLM** — deterministic, offline, fast. Qwen is called only where judgment is load-bearing, and the model tier is chosen per operation:
+
+| Tier | Model | $/1K tok | Used for |
+|---|---|---|---|
+| fast | `qwen3.6-flash` | 0.0003 | novelty gate, cheap classification |
+| default | `qwen3.6-plus` | 0.0008 | pattern learning, context-quality battery (contradiction + grounding judge) |
+| deep | `qwen3.7-max` | 0.0024 | the meta-audit that challenges stored conclusions |
+
+Routing, a response cache (`qwen_cache` table), and per-operation cost tracking live in `helicon/qwen.py`. The client speaks the OpenAI-compatible API against **Alibaba Cloud Model Studio** (`token-plan.ap-southeast-1.maas.aliyuncs.com`).
+
+## Proof of Alibaba Cloud deployment
+
+`scripts/cloudshell-run.sh` runs the full backend inside **Alibaba Cloud Shell** in slim mode (skips torch/sentence-transformers so it fits the shell's disk; semantic search degrades to keyword, everything else works from the DB). The Qwen calls go to the Model Studio endpoint above. That script is the code-file proof; the short screen recording accompanies the submission.
+
+## The loop, in one pass
 
 ```
-Agent output (any platform)
-  > Connector extracts structured items
-  > SAGE novelty gate: ADD / NOOP / MERGE (qwen-turbo)
-  > HeliconCube stored with content hash, confidence, type
-  > Weibull decay applied per-type (kappa shapes forgetting curve)
-  > AUTO-TRIAGE: rules from review history kill/approve high-confidence matches
-  > Remaining items surface in review feed sorted by urgency
-  > Human reviews only uncertain items: approve / revise / kill + voice
-  > Pattern learning extracts behavioral rules (qwen-plus)
-  > Session summary generated (Hermes-inspired)
-  > 4-axis audit challenges stored patterns (qwen-max)
-  > Context-aware prompts inject past decisions (ByteRover pattern)
-  > Proactive MCP: agents request relevant context, Mount Helicon ranks and injects
-  > Knowledge graph updated (entities + edges)
-  > Drift detection flags behavior changes
-  > Consolidation merges related memories ("sleep" cycle)
-  > Cycle sharpens with each pass, triage handles more autonomously
+agent output (any platform)
+  → connector extracts section-level items
+  → SAGE novelty gate: ADD / NOOP / MERGE
+  → HeliconCube stored (content hash, confidence, type, embedding)
+  → Weibull decay applied per type (κ shapes the forgetting curve)
+  → rot exam runs on a timer: 10 failure classes, most LLM-free
+  → auto-triage clears the high-confidence rot from learned patterns
+  → only uncertain findings surface, grouped Drift / Stale / Smartness
+  → human rules once (Confirm / Retire / Later), voice-driven
+  → ruling compiles into GOLDEN RULES with provenance
+  → helicon gold --inject writes ~/.claude/GOLDEN_RULES.md
+  → agent loads it next session; the same correction never drifts back
+  → the exam re-runs nightly; a returning rot re-alarms
 ```
 
-## Research Citations
+## Storage (22 core tables + FTS5)
 
-| Technique | Source | What Mount Helicon Uses |
+`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` — plus `cubes_fts` (FTS5 full-text index).
+
+## Research the design draws on
+
+| Technique | Source | What Helicon uses |
 |-----------|--------|-----------------|
-| HeliconCube | MemOS (SJTU, 2025) | Versioned memory units with metadata |
-| Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
-| Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting: kappa per type |
-| Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |
-| Retrieval learning | MetaMem (ACL 2026) | Track surfaced vs acted-on |
-| Anti-confabulation | Honest Lying (May 2026) | Challenge stored conclusions |
-| Session summaries | Hermes Agent (Feb 2026) | Structured docs from completed sessions |
-| Context injection | OpenClaw ByteRover (2026) | Past decisions in audit prompts |
-| Efficiency | Coinbase (Jun 2026) | Cache, routing, cost visibility |
-| Self-evolution | Hermes (Feb 2026) | Auto-triage from learned patterns |
-| Context injection | Lossless-Claw/OpenClaw | Proactive MCP memory delivery |
+| Versioned memory units | MemOS (SJTU, 2025) | HeliconCubes with metadata + content hash |
+| Multi-axis consistency audit | Memory Bear (2025) | temporal / factual / logical checks |
+| Non-uniform forgetting | SSGM / LiCoMemory (2026) | Weibull decay, κ per memory type |
+| Novelty gate at ingestion | SAGE (2026) | ADD / NOOP / MERGE |
+| Retrieval learning | MetaMem (ACL 2026) | track surfaced-vs-acted, Q-value utility |
+| Anti-confabulation | Honest Lying (2026) | challenge stored conclusions |
+| Session summaries | Hermes Agent (2026) | structured docs from finished sessions |
+| Context injection | ByteRover (2026) | past decisions injected via MCP |
+
+Full pitch and failure-record citations (WikiContradict, STALE, the closed-"not planned" mem0 issues) are in `README.md` and the submission text.
