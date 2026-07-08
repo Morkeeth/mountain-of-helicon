@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
@@ -14,17 +14,21 @@ import Focus from './components/Focus';
 import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
 import StoreAudit from './components/StoreAudit';
+import Reading from './components/Reading';
+import Volatility from './components/Volatility';
+import Consistency from './components/Consistency';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
+type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
 
-// Focus leads, your next moves from the state of your memory. Then your memory
-// itself, what needs ruling, what to feed the agent. Stack/evals/log secondary.
+// One honest journey on the left: the reading opens the record, then your next
+// moves, then your memory itself (with its truth gates as sub-views), what needs
+// ruling, and the golden rules it compiles. Everything else lives under More.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'tour', label: 'Tour' },
+  { key: 'reading', label: 'The Reading' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'health', label: 'Memory' },
   { key: 'findings', label: 'Needs Ruling' },
@@ -32,9 +36,12 @@ const PRIMARY_TABS: { key: Tab; label: string }[] = [
 ];
 
 const SECONDARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'tour', label: 'Tour' },
   { key: 'routines', label: 'Routines & Skills' },
   { key: 'evals', label: 'Evals' },
   { key: 'log', label: 'Log' },
+  { key: 'graph', label: 'Graph' },
+  { key: 'projects', label: 'Projects' },
 ];
 
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
@@ -43,7 +50,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'tour';
+    return ALL_TABS.includes(h) ? h : 'reading';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -251,30 +258,12 @@ function App() {
                 )}
               </button>
             ))}
-            <div className="ml-auto flex items-stretch">
-              {SECONDARY_TABS.map((t, i) => (
-                <button
-                  key={t.key}
-                  onClick={() => { setTab(t.key); if (t.key !== 'projects') setSelectedProject(null); }}
-                  className={`px-3 py-2.5 text-[11px] transition-colors relative ${
-                    tab === t.key ? 'text-zinc-400' : 'text-zinc-600 hover:text-zinc-500'
-                  }`}
-                >
-                  <span className="text-zinc-700 mr-1 text-[10px] tabular-nums">{PRIMARY_TABS.length + i + 1}</span>
-                  {t.label}
-                  {t.key === 'projects' && projects.length > 0 && (
-                    <span className="ml-1 text-[10px] text-zinc-700 tabular-nums">{projects.length}</span>
-                  )}
-                  {tab === t.key && (
-                    <motion.span
-                      layoutId="tab-indicator"
-                      className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full qwen-gradient-bg opacity-60"
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
+            <MoreMenu
+              tabs={SECONDARY_TABS}
+              activeTab={tab}
+              projectsCount={projects.length}
+              onSelect={(key) => { setTab(key); if (key !== 'projects') setSelectedProject(null); }}
+            />
           </nav>
         </div>
       </header>
@@ -289,44 +278,19 @@ function App() {
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
 
+        {tab === 'reading' && <Reading />}
+
         {tab === 'tour' && <Landing onEnter={() => setTab('focus')} />}
 
         {tab === 'focus' && <Focus />}
 
         {tab === 'health' && (
-          <div className="space-y-10">
-            <ContextHero
-              score={score}
-              needsYou={findingsData?.summary?.needs_you ?? 0}
-              onReview={() => setTab('findings')}
-            />
-
-            <SetupReportCard />
-
-            <StoreAudit />
-
-            <div className="border-t border-zinc-800/40 pt-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                <div>
-                  <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Review coverage by source</h3>
-                  {score && (
-                    <div className="space-y-3">
-                      {Object.entries(score.by_source).map(([src, data]) => (
-                        <div key={src} className="flex items-center justify-between">
-                          <span className="text-[13px] text-zinc-400">{src}</span>
-                          <div className="flex items-center gap-4">
-                            <span className="text-[11px] text-zinc-600 tabular-nums">{data.reviewed}/{data.total}</span>
-                            <span className="text-[13px] text-zinc-300 tabular-nums w-10 text-right">{data.score}%</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <ConnectorStatus connectors={connectors} />
-              </div>
-            </div>
-          </div>
+          <MemoryTab
+            score={score}
+            connectors={connectors}
+            needsYou={findingsData?.summary?.needs_you ?? 0}
+            onReview={() => setTab('findings')}
+          />
         )}
 
         {tab === 'findings' && (
@@ -413,6 +377,156 @@ function App() {
 // One muted line under each tab's top bar stating what the screen is for.
 function TabPurpose({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] text-zinc-600 mb-5 leading-relaxed">{children}</p>;
+}
+
+// ============================================================
+// More menu: the secondary destinations, off the journey
+// ============================================================
+
+/* The journey stays a clean 5 tabs on the left; everything that is not the
+   daily loop lives here, quiet and out of the way. Shows the active label when
+   you are inside one of its destinations so you are never lost. */
+function MoreMenu({ tabs, activeTab, projectsCount, onSelect }: {
+  tabs: { key: Tab; label: string }[];
+  activeTab: Tab;
+  projectsCount: number;
+  onSelect: (key: Tab) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = tabs.find(t => t.key === activeTab);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative ml-auto flex items-stretch">
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`px-3 py-2.5 text-[11px] flex items-center gap-1.5 transition-colors relative ${
+          active ? 'text-zinc-300' : 'text-zinc-600 hover:text-zinc-500'
+        }`}
+      >
+        {active ? `More · ${active.label}` : 'More'}
+        <svg
+          width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+          className={`transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+        {active && (
+          <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full" style={{ background: 'var(--helicon-accent)', opacity: 0.6 }} />
+        )}
+      </button>
+
+      {open && (
+        <div role="menu" className="absolute right-0 top-full mt-1.5 z-30 min-w-[190px] rounded-xl bg-white shadow-lg border border-zinc-800/50 py-1.5 animate-fade-in">
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              role="menuitem"
+              onClick={() => { onSelect(t.key); setOpen(false); }}
+              className={`w-full text-left px-4 py-2 text-[12px] flex items-center justify-between gap-3 transition-colors hover:bg-black/[0.04] ${
+                activeTab === t.key ? 'text-zinc-200' : 'text-zinc-500'
+              }`}
+            >
+              <span>{t.label}</span>
+              {t.key === activeTab
+                ? <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--helicon-accent)' }} />
+                : (t.key === 'projects' && projectsCount > 0
+                    ? <span className="text-[10px] text-zinc-600 tabular-nums">{projectsCount}</span>
+                    : null)}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Memory tab: the record's health, with its truth gates as sub-views
+// ============================================================
+
+/* Volatility and Consistency are gates ON the memory, not separate journeys, so
+   they live here under a local segmented sub-nav rather than in the top bar. */
+function MemoryTab({ score, connectors, needsYou, onReview }: {
+  score: Score | null;
+  connectors: Connector[];
+  needsYou: number;
+  onReview: () => void;
+}) {
+  const SUBS: { key: 'health' | 'volatility' | 'consistency'; label: string }[] = [
+    { key: 'health', label: 'Health' },
+    { key: 'volatility', label: 'Volatility' },
+    { key: 'consistency', label: 'Consistency' },
+  ];
+  const [sub, setSub] = useState<'health' | 'volatility' | 'consistency'>('health');
+
+  return (
+    <div>
+      <nav className="flex items-stretch gap-0 border-b border-zinc-800/60 mb-8">
+        {SUBS.map(s => (
+          <button
+            key={s.key}
+            onClick={() => setSub(s.key)}
+            className={`px-4 py-2 text-[11px] uppercase tracking-[0.14em] relative transition-colors ${
+              sub === s.key ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-400'
+            }`}
+          >
+            {s.label}
+            {sub === s.key && (
+              <span className="absolute bottom-[-1px] left-3 right-3 h-[2px] rounded-full" style={{ background: 'var(--helicon-accent)' }} />
+            )}
+          </button>
+        ))}
+      </nav>
+
+      {sub === 'health' && (
+        <div className="space-y-10">
+          <ContextHero score={score} needsYou={needsYou} onReview={onReview} />
+
+          <SetupReportCard />
+
+          <StoreAudit />
+
+          <div className="border-t border-zinc-800/40 pt-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div>
+                <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Review coverage by source</h3>
+                {score && (
+                  <div className="space-y-3">
+                    {Object.entries(score.by_source).map(([src, data]) => (
+                      <div key={src} className="flex items-center justify-between">
+                        <span className="text-[13px] text-zinc-400">{src}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="text-[11px] text-zinc-600 tabular-nums">{data.reviewed}/{data.total}</span>
+                          <span className="text-[13px] text-zinc-300 tabular-nums w-10 text-right">{data.score}%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <ConnectorStatus connectors={connectors} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sub === 'volatility' && <Volatility />}
+
+      {sub === 'consistency' && <Consistency />}
+    </div>
+  );
 }
 
 // ============================================================
