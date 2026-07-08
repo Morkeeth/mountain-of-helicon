@@ -89,6 +89,10 @@ def apply_decay(conn: sqlite3.Connection, config: dict | None = None) -> dict:
             if "+" in clean:
                 clean = clean.split("+")[0]
             last_dt = datetime.fromisoformat(clean)
+            # External stores (e.g. Mem0) hand back tz-aware timestamps; `now`
+            # is naive, so normalize to naive before subtracting.
+            if last_dt.tzinfo is not None:
+                last_dt = last_dt.replace(tzinfo=None)
         except (ValueError, AttributeError):
             continue
 
