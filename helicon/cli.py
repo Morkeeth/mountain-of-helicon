@@ -619,6 +619,50 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def cmd_volatility(args):
+    """The volatility gate: truth = fact + timestamp + decay. Flags stored
+    memories that are fast facts (a %, a live count, a price, a ranking,
+    "currently") and belong in the live layer, not memory. Deterministic
+    suspects, then Qwen sentences each with a tier + when it goes wrong."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.qwen import get_client
+    from helicon.volatility import scan_volatility
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    res = scan_volatility(conn, config, client=get_client(config))
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+
+    if res["suspects"] == 0:
+        print("No fast-fact signals in your memory. Nothing volatile stored as durable.")
+        return
+    if res.get("keyless"):
+        print(f"Volatility gate (no Qwen key — suspects only, unsentenced):\n")
+        for s in res.get("unsentenced", [])[:20]:
+            print(f"  • {s['title'][:70]}")
+            print(f"      signal: {', '.join(s['signals'])}  ·  {s['source']}")
+        print(f"\n{res['suspects']} suspect(s). Add a Qwen key to sentence them (tier + stale_when).")
+        return
+
+    print(f"Volatility gate — {res['suspects']} suspects, {res['judged']} sentenced by Qwen\n")
+    fast = res["fast"]
+    print(f"FAST FACTS IN MEMORY ({len(fast)}) — these belong in the live layer, not memory:")
+    for f in fast[:20]:
+        print(f"  ✗ {f['title'][:70]}")
+        print(f"      {f['reason']}  ·  goes wrong when: {f['stale_when'] or 'soon'}")
+        print(f"      {f['source']} · {f['source_ref']}")
+    slow = res["slow_undated"]
+    if slow:
+        print(f"\nSLOW FACTS MISSING DECAY ({len(slow)}) — keep, but stamp as_of + stale_when:")
+        for f in slow[:10]:
+            print(f"  ~ {f['title'][:70]}  ·  stale when: {f['stale_when'] or 'a named event'}")
+    print(f"\n{res['static']} static fact(s) — durable, correctly in memory.")
+
+
 def cmd_ci(args):
     """CI for agent memory: scan THIS repo's committed rules files
     (CLAUDE.md / AGENTS.md / .cursorrules / .clinerules / copilot-instructions)
@@ -1492,6 +1536,9 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    vol_p = sub.add_parser("volatility", help="The volatility gate: flag fast facts stored as durable memory (truth = fact + timestamp + decay)")
+    vol_p.add_argument("--json", action="store_true", help="Emit JSON")
+
     ci_p = sub.add_parser("ci", help="CI for agent memory: scan this repo's rules files + run the rot exam (GitHub annotations, exit 1 on rot)")
     ci_p.add_argument("--path", help="repo to check (default: current directory)")
     ci_p.add_argument("--fail-on", dest="fail_on", choices=["rot", "none"], default="rot",
@@ -1571,6 +1618,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "volatility": cmd_volatility,
         "ci": cmd_ci,
         "gold": cmd_gold,
         "evolve": cmd_evolve,

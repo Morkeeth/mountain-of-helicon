@@ -120,3 +120,35 @@ async def focus_route(body: RouteBody):
         return {"routed": "vault", "path": target, "prompt": prompt}
 
     return {"routed": "prompt", "prompt": prompt}
+
+
+@router.get("/volatility/scan")
+async def volatility_scan():
+    """The volatility gate: which stored memories are fast facts that belong in
+    the live layer, not memory. Deterministic suspects, then Qwen sentences the
+    top ones with a tier + the event that would make each wrong."""
+    from helicon.qwen import get_client
+    from helicon.volatility import scan_volatility
+    cfg = get_config()
+    return scan_volatility(get_conn(), cfg, client=get_client(cfg))
+
+
+class VolatilityAct(BaseModel):
+    action: str                       # "move" | "stamp"
+    source_ref: str
+    title: str = ""
+    excerpt: str = ""
+    stale_when: str = ""
+
+
+@router.post("/volatility/act")
+async def volatility_act(body: VolatilityAct):
+    """One-click fix. move: copy the fast fact to the live layer and banner the
+    source. stamp: add as_of + stale_when to a slow fact's frontmatter."""
+    from helicon.volatility import move_to_live_layer, stamp_decay
+    cfg = get_config()
+    if body.action == "stamp":
+        return stamp_decay(body.source_ref, cfg, body.stale_when)
+    if body.action == "move":
+        return move_to_live_layer(body.source_ref, body.title, body.excerpt, cfg)
+    return {"ok": False, "reason": f"unknown action {body.action!r}"}
