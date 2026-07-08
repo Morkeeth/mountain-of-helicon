@@ -92,6 +92,20 @@ def _health(conn: sqlite3.Connection, config: dict) -> dict:
     }
 
 
+def _process_arc(conn: sqlite3.Connection) -> dict | None:
+    """The real improvement arc: how the process moved the record over time.
+    Grounded in score_history events (human rulings, auto-triage, decay)."""
+    from helicon.score import get_score_history
+    h = get_score_history(conn)
+    if len(h) < 2:
+        return None
+    return {
+        "reviewed_start": h[0]["reviewed"],
+        "reviewed_now": h[-1]["reviewed"],
+        "events": [{"label": r["event_label"], "reviewed": r["reviewed"]} for r in h],
+    }
+
+
 def build_digest(conn: sqlite3.Connection, config: dict) -> dict:
     mix = _output_mix(conn)
     total_mix = sum(n for _, n in mix) or 1
@@ -102,26 +116,33 @@ def build_digest(conn: sqlite3.Connection, config: dict) -> dict:
         "areas": [{"name": a, "n": n} for a, n in _areas(conn)],
         "recent": _recent(conn),
         "health": _health(conn, config),
+        "process": _process_arc(conn),
         "sources": [r["source"] for r in conn.execute(
             "SELECT DISTINCT source FROM helicon_cubes WHERE merged_into IS NULL").fetchall()],
     }
 
 
 _SYS = (
-    "You are the Court of record for an AI builder's memory, giving them a reading of "
-    "who the record shows they are. You are given a DIGEST of their actual stored memory: "
-    "recurring people/projects, the mix of work they produce, the areas they invest in, what "
-    "they touched recently, and the health of the record. Compose a short, grounded portrait.\n\n"
-    "Voice: quiet, precise, a little literary, like an archivist who has read everything and "
-    "respects the person. Ground every claim in the digest. Invent nothing. No hype, no "
-    "flattery, no buzzwords, and never use an em dash.\n\n"
+    "You are Mount Helicon reading someone's memory back to them. In myth, Helicon is the "
+    "mountain of the Muses, home of Mnemosyne, Memory herself, mother of the nine Muses; its "
+    "Hippocrene spring is where true recall and inspiration are drawn. You are that spring. You "
+    "have been handed a DIGEST of what this builder's memory actually holds: recurring "
+    "people and projects, the mix of work they make, the areas they invest in, the health of "
+    "the record, and the arc of how the process has improved it. Read them back to themselves.\n\n"
+    "Voice: confident, sharp, a little mythic, never precious. You are cool because you are "
+    "accurate, not because you are decorated. Ground every claim in the digest and invent "
+    "nothing. Do not narrate the mythology at the reader; let it live in the confidence of the "
+    "voice. Banned: hype words (unlock, supercharge, seamless), flattery, the word 'ledger', "
+    "and the em dash. Numbers are the heroes of the reading, so name real ones from the digest.\n\n"
     "Return JSON: {\n"
-    "  opening: one evocative line naming what this record is (<=14 words),\n"
+    "  opening: one line that names what this memory IS, sharp and evocative, no 'ledger' (<=13 words),\n"
     "  who: 2 sentences on who the record shows they are (from recurring entities + areas),\n"
     "  builder: 2 sentences on the kind of builder they are (from the output mix + areas),\n"
-    "  standing: 1 sentence, honest, on how trustworthy the record is right now (from health: "
-    "reviewed %, rot classes firing, volatile facts, golden rules),\n"
-    "  moves: array of exactly 3 {title (<=6 words), why (1 sentence, cite the digest)}\n"
+    "  standing: 1 sentence, honest and a little pointed, on how trustworthy the record is now "
+    "(from health), naming a real number,\n"
+    "  process: 1 sentence on how the process has already improved this memory (from the process "
+    "arc: human rulings taught auto-triage, decay retired stale memories), or \"\" if no arc,\n"
+    "  moves: array of exactly 3 {title (<=6 words), why (1 sentence, cite a real number from the digest)}\n"
     "}"
 )
 

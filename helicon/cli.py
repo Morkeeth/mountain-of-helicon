@@ -624,8 +624,8 @@ def _portrait_palette():
     import sys
     if sys.stdout.isatty() and os.environ.get("NO_COLOR") is None and os.environ.get("TERM") != "dumb":
         return {"acc": "\033[38;5;131m", "gold": "\033[38;5;179m", "dim": "\033[38;5;245m",
-                "ink": "\033[38;5;250m", "b": "\033[1m", "r": "\033[0m"}
-    return {k: "" for k in ("acc", "gold", "dim", "ink", "b", "r")}
+                "ink": "\033[38;5;250m", "good": "\033[38;5;108m", "b": "\033[1m", "r": "\033[0m"}
+    return {k: "" for k in ("acc", "gold", "dim", "ink", "good", "b", "r")}
 
 
 def _render_portrait(res: dict):
@@ -673,12 +673,35 @@ def _render_portrait(res: dict):
         print(f"  {c['dim']}you invest{c['r']}   {areas}")
     print()
 
+    # the process at work — grounded improvement arc, colored deltas
+    proc = d.get("process")
+    if proc and proc.get("reviewed_now"):
+        print(label("  THE PROCESS AT WORK"))
+        if reading and reading.get("process"):
+            print(wrap(reading["process"]))
+        gained = proc["reviewed_now"] - proc.get("reviewed_start", 0)
+        print(f"  {c['dim']}memories judged{c['r']}   "
+              f"{c['dim']}{proc.get('reviewed_start', 0)}{c['r']} "
+              f"{c['dim']}→{c['r']} {c['good']}{c['b']}{proc['reviewed_now']}{c['r']}"
+              f"  {c['good']}(+{gained}){c['r']}  "
+              f"{c['dim']}human rulings taught auto-triage, decay retired the stale{c['r']}")
+        print()
+
     print(label("  STANDING"))
     if reading and reading.get("standing"):
         print(wrap(reading["standing"]))
-    print(f"  {c['dim']}{h['live']} live memories · {h['reviewed_pct']}% reviewed · "
-          f"{h['rot_classes']} of {h['rot_total']} rot classes firing · "
-          f"{h['volatile']} carry volatile facts · {h['gold_rules']} golden rule{'s' if h['gold_rules'] != 1 else ''}{c['r']}")
+
+    def num(v, tone):
+        return f"{c[tone]}{c['b']}{v}{c['r']}{c['dim']}"
+    rot_tone = "acc" if h["rot_classes"] > 0 else "good"
+    rev_tone = "good" if h["reviewed_pct"] >= 50 else "gold"
+    reviewed_str = f"{h['reviewed_pct']}%"
+    gold_word = "golden rule" + ("s" if h["gold_rules"] != 1 else "")
+    print(f"  {c['dim']}{num(h['live'], 'gold')} live memories · "
+          f"{num(reviewed_str, rev_tone)} reviewed · "
+          f"{num(h['rot_classes'], rot_tone)} of {h['rot_total']} rot classes firing · "
+          f"{num(h['volatile'], 'acc')} carry volatile facts · "
+          f"{num(h['gold_rules'], 'gold')} {gold_word}{c['r']}")
     print()
 
     if reading and reading.get("moves"):
