@@ -619,6 +619,101 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def _portrait_palette():
+    import os
+    import sys
+    if sys.stdout.isatty() and os.environ.get("NO_COLOR") is None and os.environ.get("TERM") != "dumb":
+        return {"acc": "\033[38;5;131m", "gold": "\033[38;5;179m", "dim": "\033[38;5;245m",
+                "ink": "\033[38;5;250m", "b": "\033[1m", "r": "\033[0m"}
+    return {k: "" for k in ("acc", "gold", "dim", "ink", "b", "r")}
+
+
+def _render_portrait(res: dict):
+    import textwrap
+    c = _portrait_palette()
+    d = res["digest"]
+    h = d["health"]
+    reading = res.get("reading")
+
+    def label(s):
+        return f"{c['acc']}{s}{c['r']}"
+
+    def wrap(s, indent="  "):
+        return textwrap.fill(s, width=76, initial_indent=indent, subsequent_indent=indent)
+
+    print()
+    print(f"{c['dim']}       /\\{c['r']}")
+    print(f"{c['dim']}      /  \\{c['r']}      {c['b']}MOUNT HELICON{c['r']}")
+    print(f"{c['dim']}     / {c['gold']}/\\{c['dim']} \\{c['r']}     {c['dim']}the reading · who the record shows you are{c['r']}")
+    print(f"{c['dim']}    /_/  \\_\\{c['r']}")
+    print()
+
+    if reading:
+        if reading.get("opening"):
+            print(f"  {c['gold']}{reading['opening']}{c['r']}")
+            print()
+        if reading.get("who"):
+            print(label("  WHO THE RECORD SHOWS"))
+            print(wrap(reading["who"]))
+            print()
+        if reading.get("builder"):
+            print(label("  THE BUILDER"))
+            print(wrap(reading["builder"]))
+            print()
+
+    # the grounding — the digest, so the reading is never floating
+    ent = " · ".join(e["name"] for e in d["entities"][:8])
+    mix = " · ".join(f"{m['kind']} {m['pct']}%" for m in d["output_mix"][:5])
+    areas = " · ".join(a["name"] for a in d["areas"][:6])
+    if ent:
+        print(f"  {c['dim']}recurring{c['r']}    {ent}")
+    if mix:
+        print(f"  {c['dim']}you make{c['r']}     {mix}")
+    if areas:
+        print(f"  {c['dim']}you invest{c['r']}   {areas}")
+    print()
+
+    print(label("  STANDING"))
+    if reading and reading.get("standing"):
+        print(wrap(reading["standing"]))
+    print(f"  {c['dim']}{h['live']} live memories · {h['reviewed_pct']}% reviewed · "
+          f"{h['rot_classes']} of {h['rot_total']} rot classes firing · "
+          f"{h['volatile']} carry volatile facts · {h['gold_rules']} golden rule{'s' if h['gold_rules'] != 1 else ''}{c['r']}")
+    print()
+
+    if reading and reading.get("moves"):
+        print(label("  WHAT THE RECORD ARGUES FOR"))
+        for i, m in enumerate(reading["moves"], 1):
+            print(f"  {c['gold']}{i}.{c['r']} {c['b']}{m.get('title','')}{c['r']}")
+            if m.get("why"):
+                print(wrap(m["why"], indent="     "))
+        print()
+
+    if not reading:
+        print(f"  {c['dim']}(no Qwen key — the reading needs one. The record above is real.){c['r']}")
+        print(f"  {c['dim']}run helicon volatility and helicon rot for the full audit.{c['r']}")
+        print()
+
+
+def cmd_read(args):
+    """The reading: open the record and it tells you who you are. Composes a
+    grounded portrait from your memory (who recurs, what you make, the record's
+    health) and lets Qwen narrate it in the Court's voice."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.portrait import build_portrait
+    from helicon.qwen import get_client
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    res = build_portrait(conn, config, client=get_client(config))
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+    _render_portrait(res)
+
+
 def cmd_volatility(args):
     """The volatility gate: truth = fact + timestamp + decay. Flags stored
     memories that are fast facts (a %, a live count, a price, a ranking,
@@ -1536,6 +1631,9 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    read_p = sub.add_parser("read", help="The reading: open the record and it tells you who you are (portrait + Qwen narration)")
+    read_p.add_argument("--json", action="store_true", help="Emit JSON")
+
     vol_p = sub.add_parser("volatility", help="The volatility gate: flag fast facts stored as durable memory (truth = fact + timestamp + decay)")
     vol_p.add_argument("--json", action="store_true", help="Emit JSON")
 
@@ -1618,6 +1716,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "read": cmd_read,
         "volatility": cmd_volatility,
         "ci": cmd_ci,
         "gold": cmd_gold,

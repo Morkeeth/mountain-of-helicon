@@ -157,6 +157,11 @@ TOOLS = [
             },
         },
     },
+    {
+        "name": "helicon_portrait",
+        "description": "Read the record: a grounded portrait of who the memory shows this person is. Returns who and what recur, the mix of work they make, the areas they invest in, the record's health (reviewed %, rot classes firing, volatile facts, golden rules), and the three moves the record argues for. Call this at the start of a session to orient fast on who you are working with and what their memory needs.",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+    },
 ]
 
 
@@ -536,6 +541,12 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
             qwen_client = get_client(load_config())
         result = run_consolidation(conn, qwen_client, max_clusters)
         return json.dumps(result, indent=2)
+
+    elif name == "helicon_portrait":
+        from helicon.portrait import build_portrait
+        from helicon.qwen import get_client
+        cfg = load_config()
+        return json.dumps(build_portrait(conn, cfg, client=get_client(cfg)), indent=2, default=str)
 
     return json.dumps({"error": f"Unknown tool: {name}"})
 

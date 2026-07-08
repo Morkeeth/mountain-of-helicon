@@ -52,7 +52,7 @@ Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.s
 You don't have to host anything, and you don't need the browser.
 
 - **CLI** — `helicon rot`, `helicon battery "<task>"`, `helicon doctor`, `helicon gold`. The full audit, headless. `helicon watch` runs it on a cron and only pings you when something *new* rots — the ambient, no-browser daily loop.
-- **In your IDE / agent (MCP)** — `helicon mcp` exposes 12 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
+- **In your IDE / agent (MCP)** — `helicon mcp` exposes 13 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
 - **Dashboard** (`helicon serve`) — for when you want to sit down and review visually: Next Moves, findings, golden rules.
 
 Packaged as a proper CLI (a `helicon` entry point via `pyproject.toml`), so once it's on PyPI the install is `pipx install mount-helicon` (or `uvx mount-helicon` for zero-install). Today, from the clone: `pip install -e .`, then `helicon init`. Semantic search is an optional extra (`pip install "mount-helicon[embeddings]"`); the core install is slim (no torch) so the CLI, the rot exam, and CI stay fast.
@@ -107,7 +107,7 @@ Locally it's the same one command: `helicon ci` (add `--fail-on none` for report
 
 All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
-## MCP Server (12 tools)
+## MCP Server (13 tools)
 
 Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
@@ -136,7 +136,7 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (30 commands)
+## CLI (31 commands)
 
 `init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `battery` `report` `rot` `ci` `gold` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
