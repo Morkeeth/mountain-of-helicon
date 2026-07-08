@@ -509,7 +509,20 @@ def _existing_pair_keys(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
     return exact, open_facts
 
 
-def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus") -> dict:
+def _cohen_kappa(p: dict) -> float | None:
+    """Cohen's κ for the two-judge binary panel (agreement beyond chance)."""
+    n = sum(p.values())
+    if n == 0:
+        return None
+    po = (p["both_yes"] + p["both_no"]) / n
+    p1_yes = (p["both_yes"] + p["qwen_only"]) / n
+    p2_yes = (p["both_yes"] + p["judge2_only"]) / n
+    pe = p1_yes * p2_yes + (1 - p1_yes) * (1 - p2_yes)
+    return 1.0 if pe >= 1 else round((po - pe) / (1 - pe), 3)
+
+
+def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus",
+              judge2_model: str = "deepseek-v4-flash") -> dict:
     """Find cross-source conflicts and file each new one as a factual audit
     finding. With a Qwen client, every candidate pair is confirmed by
     detect_contradictions before filing (the judge can veto the selector);
@@ -519,6 +532,8 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
     existing, open_facts = _existing_pair_keys(conn)
     now = datetime.utcnow().isoformat()
     filed, rejected, skipped = [], [], []
+    # Two-judge panel confusion counts, for Cohen's κ across the scan.
+    panel = {"both_yes": 0, "both_no": 0, "qwen_only": 0, "judge2_only": 0}
 
     for c in conflicts:
         if (c["pair_key"] in existing
@@ -530,6 +545,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
         explanation = (f"'{rep_a['line'][:80]}' vs '{rep_b['line'][:80]}' — "
                        f"same {c['topic']} for {c['person'].title()}, "
                        f"dates cannot both be true")
+        judged_by = "deterministic"
         if client is not None:
             from helicon.qwen import detect_contradictions
             row_a = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
@@ -537,19 +553,47 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
             row_b = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
                                  (rep_b["id"],)).fetchone()
             # A representative without a DB row (synthetic resolution marker
-            # fallback) has nothing for the judge to read — keep the
+            # fallback) has nothing for the judges to read — keep the
             # deterministic verdict instead of crashing the watch tick.
-            verdict = (detect_contradictions(
-                client, row_a["content"], row_b["content"], model=model)
-                if row_a is not None and row_b is not None else None)
-            if verdict is not None:
-                if not verdict.get("contradicts"):
-                    rejected.append(c["pair_key"])
-                    continue
-                severity = verdict.get("severity", severity)
-                explanation = verdict.get("explanation", explanation)
-            # API failure: keep the deterministic verdict rather than
-            # dropping a real date mismatch on a network hiccup.
+            if row_a is not None and row_b is not None:
+                v1 = detect_contradictions(client, row_a["content"], row_b["content"], model=model)
+                # Second judge from a DIFFERENT model family (two Qwens share
+                # failure modes and inflate agreement). The court sits with two
+                # independent judges; a split verdict is escalated to the human.
+                v2 = (detect_contradictions(client, row_a["content"], row_b["content"], model=judge2_model)
+                      if judge2_model else None)
+                c1 = bool(v1.get("contradicts")) if v1 else None
+                c2 = bool(v2.get("contradicts")) if v2 else None
+                if c1 is not None and c2 is not None:
+                    if c1 and c2:
+                        panel["both_yes"] += 1
+                    elif not c1 and not c2:
+                        panel["both_no"] += 1
+                    elif c1 and not c2:
+                        panel["qwen_only"] += 1
+                    else:
+                        panel["judge2_only"] += 1
+                    if c1 == c2:
+                        if not c1:
+                            rejected.append(c["pair_key"])
+                            continue
+                        judged_by = f"consensus ({model} + {judge2_model})"
+                        severity = v1.get("severity", severity)
+                        explanation = v1.get("explanation", explanation)
+                    else:
+                        judged_by = f"split_decision ({model} vs {judge2_model})"
+                        severity = "warning"
+                        explanation = ("Judges disagree — "
+                                       f"{model}: {(v1 or {}).get('explanation', '')[:70]} | "
+                                       f"{judge2_model}: {(v2 or {}).get('explanation', '')[:70]}")
+                elif c1 is not None:
+                    if not c1:
+                        rejected.append(c["pair_key"])
+                        continue
+                    judged_by = model
+                    severity = v1.get("severity", severity)
+                    explanation = v1.get("explanation", explanation)
+                # both judges failed -> keep the deterministic verdict
 
         finding = AuditResult(
             audit_type="factual",
@@ -571,13 +615,13 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                 "scope_a": rep_a["scope"], "scope_b": rep_b["scope"],
                 "scopes": c["scopes"], "cube_count": c["cube_count"],
                 "explanation": explanation,
-                "judged_by": "qwen" if client is not None else "deterministic",
+                "judged_by": judged_by,
             },
             audited_at=now,
         )
         insert_audit(conn, finding)
         filed.append({"pair_key": c["pair_key"], "finding": finding.finding,
-                      "severity": severity})
+                      "severity": severity, "judged_by": judged_by})
     conn.commit()
 
     return {
@@ -585,4 +629,8 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
         "filed": filed,
         "already_filed": skipped,
         "judge_rejected": rejected,
+        "panel": panel,
+        "kappa": _cohen_kappa(panel),
+        "judge2_model": judge2_model,
+        "split_decisions": [f for f in filed if str(f.get("judged_by", "")).startswith("split")],
     }

@@ -144,6 +144,12 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "judge_rejected": len(pairing["judge_rejected"]),
         "open_findings": open_pairs,
         "sample": sample_row["finding"] if sample_row else None,
+        # Two-judge panel: an independent second judge (different model family)
+        # adjudicates each contradiction; κ is inter-judge agreement, splits go
+        # to the human. A measured court, not a single self-confirming judge.
+        "inter_judge_kappa": pairing.get("kappa"),
+        "second_judge": pairing.get("judge2_model"),
+        "split_decisions": len(pairing.get("split_decisions", [])),
     }
 
     cross_session = {
