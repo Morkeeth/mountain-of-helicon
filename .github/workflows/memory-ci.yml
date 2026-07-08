@@ -1,0 +1,25 @@
+# CI for agent memory — Mount Helicon dogfooding itself.
+# Runs the rot exam against this repo's own committed agent-memory files
+# (CLAUDE.md, AGENTS.md, rules) on every push and PR. Report-only here
+# (--fail-on none) so the badge stays green while the job summary shows exactly
+# what rotted; a team that wants a hard gate flips to --fail-on rot.
+name: memory-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  rot-exam:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Mount Helicon (slim)
+        run: pip install -e .
+      - name: Run the rot exam on our own memory
+        run: helicon ci --fail-on none

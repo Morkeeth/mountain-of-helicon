@@ -1,0 +1,30 @@
+name: "Mount Helicon — CI for agent memory"
+description: "Run the rot exam against a repo's agent-memory files (CLAUDE.md, AGENTS.md, .cursorrules, .clinerules, copilot-instructions). Fails the build when the memory your agents obey has rotted — contradictions, dead renamed names, stale instructions, drift."
+author: "Mount Helicon"
+branding:
+  icon: "shield"
+  color: "orange"
+
+inputs:
+  path:
+    description: "Path to check (default: the repo root)"
+    required: false
+    default: "."
+  fail-on:
+    description: "'rot' fails the build if any rot class fires; 'none' is report-only (annotations + summary, always green)"
+    required: false
+    default: "rot"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+    - name: Install Mount Helicon (slim — no torch, deterministic exam)
+      shell: bash
+      run: pip install "mount-helicon @ git+https://github.com/MorkeethHQ/mount-helicon.git"
+    - name: Run the rot exam
+      shell: bash
+      run: helicon ci --path "${{ inputs.path }}" --fail-on "${{ inputs.fail-on }}"

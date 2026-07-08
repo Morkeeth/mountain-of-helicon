@@ -619,6 +619,62 @@ def cmd_rot(args):
     print(format_rot(res))
 
 
+def cmd_ci(args):
+    """CI for agent memory: scan THIS repo's committed rules files
+    (CLAUDE.md / AGENTS.md / .cursorrules / .clinerules / copilot-instructions)
+    and run the deterministic rot exam. Emits GitHub Actions annotations + a job
+    summary and exits non-zero on rot. Slim: no embeddings, no Qwen, no torch."""
+    import os
+    import sys
+    import tempfile
+    from helicon.db import init_db
+    from helicon.scanner import run_scan
+    from helicon.rot import run_rot_exam, format_rot
+
+    repo = os.path.abspath(getattr(args, "path", None) or os.getcwd())
+    fail_on = getattr(args, "fail_on", "rot")
+    db = os.path.join(tempfile.gettempdir(), "helicon-ci.db")
+    try:
+        if os.path.exists(db):
+            os.remove(db)
+    except OSError:
+        pass
+
+    config = {
+        "db_path": db,
+        "connectors": {"agent-rules": {"enabled": True, "repos": [repo], "max_repos": 1}},
+    }
+    conn = init_db(db)
+    print(f"Mount Helicon CI — scanning agent-memory files in {repo}\n")
+    run_scan(config)
+    res = run_rot_exam(conn, repo_root=repo)
+
+    rot = [c for c in res["checks"] if c["verdict"] == "ROT FOUND"]
+    level = "error" if fail_on == "rot" else "warning"
+
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        for c in rot:
+            msg = (c["receipt"] or "").replace("\n", " ").replace("\r", " ")
+            print(f"::{level} title=Memory rot {c['id']} {c['name']}::{msg}")
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary_path:
+            with open(summary_path, "a", encoding="utf-8") as fh:
+                fh.write("## Mount Helicon — agent memory rot exam\n\n")
+                fh.write(f"**{res['rot_found']}/{res['classes']} rot classes firing** "
+                         f"in `{os.path.basename(repo)}`\n\n")
+                fh.write("| Class | Verdict | Detail |\n|---|---|---|\n")
+                for c in res["checks"]:
+                    d = (c["receipt"] or "")[:140].replace("|", "\\|").replace("\n", " ")
+                    fh.write(f"| {c['id']} {c['name']} | {c['verdict']} | {d} |\n")
+
+    print(format_rot(res))
+    if fail_on == "rot" and rot:
+        print(f"\n✗ CI FAIL: {len(rot)} rot class(es) firing. "
+              f"Rule on them, or set --fail-on none for report-only.")
+        sys.exit(1)
+    print(f"\n✓ CI PASS ({res['rot_found']}/{res['classes']} classes firing; fail-on={fail_on})")
+
+
 def cmd_gold(args):
     """GOLDEN RULES: compile the stack's law from human judgment — rulings,
     precedents, approved rules, renames, canon, standing feedback. Every
@@ -1436,6 +1492,11 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    ci_p = sub.add_parser("ci", help="CI for agent memory: scan this repo's rules files + run the rot exam (GitHub annotations, exit 1 on rot)")
+    ci_p.add_argument("--path", help="repo to check (default: current directory)")
+    ci_p.add_argument("--fail-on", dest="fail_on", choices=["rot", "none"], default="rot",
+                      help="'rot' (default) exits 1 if any class fires; 'none' is report-only")
+
     gold_p = sub.add_parser("gold", help="Compile GOLDEN_RULES.md: the stack's law from your rulings, with provenance")
     gold_p.add_argument("--inject", action="store_true", help="write to ~/.claude/GOLDEN_RULES.md (.bak kept)")
     gold_p.add_argument("--show", action="store_true", help="print the compiled rules, write nothing")
@@ -1510,6 +1571,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "ci": cmd_ci,
         "gold": cmd_gold,
         "evolve": cmd_evolve,
         "resolve": cmd_resolve,

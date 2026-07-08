@@ -16,8 +16,13 @@ dependencies = [
     "pyyaml>=6.0",
     "gitpython>=3.1.0",
     "numpy>=1.26",
-    "sentence-transformers>=3.0",
 ]
+
+# Semantic/hybrid retrieval is optional — without it, search degrades to FTS5
+# keyword only (the deterministic rot exam, scan, CLI, and the CI Action all
+# run slim, no torch). Full local experience: pip install "mount-helicon[embeddings]".
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=3.0"]
 
 [project.scripts]
 helicon = "helicon.cli:main"
