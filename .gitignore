@@ -15,3 +15,6 @@ static/
 
 # local-only: contains personal filter terms, never commit
 scripts/make_demo_db.py
+
+config-demo.json
+data/helicon-demo.db
