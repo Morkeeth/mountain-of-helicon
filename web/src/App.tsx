@@ -11,17 +11,19 @@ import LogView from './components/LogView';
 import GoldView from './components/GoldView';
 import ConflictMap from './components/ConflictMap';
 import Focus from './components/Focus';
+import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone — findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
+type Tab = 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
 
 // Focus leads — your next moves from the state of your memory. Then your memory
 // itself, what needs ruling, what to feed the agent. Stack/evals/log secondary.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'tour', label: 'Tour' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'health', label: 'Memory' },
   { key: 'findings', label: 'Needs Ruling' },
@@ -40,7 +42,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'focus';
+    return ALL_TABS.includes(h) ? h : 'tour';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -285,6 +287,8 @@ function App() {
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
+
+        {tab === 'tour' && <Landing onEnter={() => setTab('focus')} />}
 
         {tab === 'focus' && <Focus />}
 
