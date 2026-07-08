@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
    memory it came from. Detection is automatic; deciding what to DO is the human
    act this surfaces. A move leaves as a paste-ready agent prompt or a vault note. */
 
-interface Receipt { ref: string; kind: string; title: string; why: string; source: string; cube_id: string | null; }
+interface Receipt { ref: string; kind: string; title: string; why: string; source: string; cube_id: string | null; output_kind?: string; }
 interface Move { title: string; kind: string; body: string; rationale: string; receipts: Receipt[]; }
 interface MovesData { moves: Move[]; grounded_in: number; dropped_uncited?: number; generated_at: string; note?: string; }
 
@@ -86,6 +86,10 @@ export default function Focus() {
                 <span className="text-[10px] uppercase tracking-[0.18em] px-1.5 py-0.5 rounded" style={{ color: KIND_TONE[m.kind], border: `1px solid ${KIND_TONE[m.kind]}`, opacity: 0.9 }}>
                   {m.kind}
                 </span>
+                {(() => {
+                  const lens = m.receipts.map(r => r.output_kind).find(k => k && k !== 'default');
+                  return lens ? <span className="text-[10px] uppercase tracking-[0.14em]" style={{ color: 'var(--helicon-stale)' }}>· shaped for {lens}</span> : null;
+                })()}
               </div>
               <h3 className="text-[17px] leading-snug" style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 600, color: 'var(--helicon-ink)' }}>
                 {m.title}

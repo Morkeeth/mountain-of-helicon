@@ -20,6 +20,42 @@ async def focus_moves():
     return generate_next_moves(get_conn(), get_config())
 
 
+@router.get("/stores/audit")
+async def stores_audit():
+    """Audit a configured external memory store (Mem0 — the backend Alibaba's own
+    docs recommend) read-only, and run the rot exam on what it stored. Config:
+    a `mem0_audit` block with {api_key, user_id, rename:[old,new]}."""
+    import os
+    import tempfile
+    from helicon.db import init_db
+    from helicon.scanner import run_scan
+    from helicon.rot import run_rot_exam
+    from helicon.aliases import add_alias
+
+    cfg = get_config()
+    m = cfg.get("mem0_audit") or {}
+    if not m.get("api_key"):
+        return {"configured": False}
+    db = os.path.join(tempfile.gettempdir(), "helicon-store-audit.db")
+    if os.path.exists(db):
+        os.remove(db)
+    conn = init_db(db)
+    scfg = {"db_path": db, "embeddings": cfg.get("embeddings", {}),
+            "qwen_api_key": cfg.get("qwen_api_key", ""), "qwen_base_url": cfg.get("qwen_base_url", ""),
+            "connectors": {"mem0": {"api_key": m["api_key"], "user_id": m.get("user_id", "default"), "limit": 500}}}
+    stats = run_scan(scfg)
+    if m.get("rename") and len(m["rename"]) == 2:
+        add_alias(conn, m["rename"][0], m["rename"][1], "2026-01-01T00:00:00", note="rename the store recorded")
+    res = run_rot_exam(conn)
+    rotten = [c for c in res["checks"] if c["verdict"] == "ROT FOUND"]
+    return {
+        "configured": True, "store": "Mem0",
+        "memories": stats.get("total_in_db", 0),
+        "rot_found": res["rot_found"], "classes": res["classes"],
+        "findings": [{"id": c["id"], "name": c["name"], "receipt": c["receipt"]} for c in rotten],
+    }
+
+
 @router.get("/setup-report")
 async def setup_report():
     """The graded MemoryAgent report card — how healthy your agent's memory

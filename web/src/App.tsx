@@ -13,6 +13,7 @@ import ConflictMap from './components/ConflictMap';
 import Focus from './components/Focus';
 import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
+import StoreAudit from './components/StoreAudit';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone — findings
@@ -301,6 +302,8 @@ function App() {
             />
 
             <SetupReportCard />
+
+            <StoreAudit />
 
             <div className="border-t border-zinc-800/40 pt-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
