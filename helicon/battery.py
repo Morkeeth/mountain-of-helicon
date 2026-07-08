@@ -8,7 +8,7 @@ non-redundant?
 
 Two layers, the same split Taste Machine uses:
   - deterministic checks (run_battery): freshness, relevance, redundancy,
-    thinness — computed from the cubes + retrieval. No LLM, non-circular.
+    thinness, computed from the memories + retrieval. No LLM, non-circular.
   - LLM-judged checks (format_battery_prompt): contradiction, grounding —
     subjective, handed to a model the way Taste Machine hands drafts to Claude.
 
@@ -30,7 +30,7 @@ CONTEXT_TESTS = [
     {
         "name": "Freshness", "mode": "auto",
         "question": "Is any retrieved memory stale, decayed, or killed?",
-        "fail_signal": "A retrieved cube is killed or confidence has decayed near zero.",
+        "fail_signal": "A retrieved memory is killed or confidence has decayed near zero.",
     },
     {
         "name": "Redundancy", "mode": "auto",
@@ -40,17 +40,17 @@ CONTEXT_TESTS = [
     {
         "name": "Thinness", "mode": "auto",
         "question": "Is the retrieved context substantive?",
-        "fail_signal": "Cubes are tiny stubs with no specifics (no names, numbers, detail).",
+        "fail_signal": "Memories are tiny stubs with no specifics (no names, numbers, detail).",
     },
     {
         "name": "Expiry", "mode": "auto",
         "question": "Is any retrieved memory past its type's half-life without reinforcement?",
-        "fail_signal": "A cube older than its stability window is served as current context.",
+        "fail_signal": "A memory older than its stability window is served as current context.",
     },
     {
         "name": "Contradiction", "mode": "llm",
         "question": "Do any retrieved memories contradict each other?",
-        "fail_signal": "Two cubes assert incompatible facts for the same subject.",
+        "fail_signal": "Two memories assert incompatible facts for the same subject.",
     },
     {
         "name": "Grounding", "mode": "llm",
@@ -134,7 +134,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
         results.append({"name": name, "status": "PASS" if ok else "FAIL",
                         "reason": reason, "critical": critical})
 
-    # Relevance (critical): at least one retrieved cube shares a task term.
+    # Relevance (critical): at least one retrieved memory shares a task term.
     if not hits:
         add("Relevance", False, "retrieval returned nothing for the task", critical=True)
     else:
@@ -142,15 +142,15 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
                     for c in cubes.values()]
         shared = sum(1 for o in overlaps if o > 0)
         add("Relevance", shared > 0,
-            f"{shared}/{len(hits)} retrieved cubes share terms with the task",
+            f"{shared}/{len(hits)} retrieved memories share terms with the task",
             critical=True)
 
-    # Freshness (critical): no retrieved cube is killed or decayed near zero.
+    # Freshness (critical): no retrieved memory is killed or decayed near zero.
     bad = [c for c in cubes.values()
            if c.get("review_status") in ("killed", "superseded") or (c.get("confidence") or 1.0) < 0.10]
     add("Freshness", not bad,
-        "all retrieved cubes are live" if not bad
-        else f"{len(bad)} retrieved cube(s) killed/decayed: {[c['title'][:40] for c in bad]}",
+        "all retrieved memories are live" if not bad
+        else f"{len(bad)} retrieved memories killed/decayed: {[c['title'][:40] for c in bad]}",
         critical=True)
 
     # Redundancy: no duplicate content_hash or identical titles in top-K.
@@ -162,15 +162,15 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
 
     # Thinness: flag only genuine stubs. Section-level rules can be terse (a dev
     # command is short but useful), so this fails only when context is mostly
-    # empty — >half the retrieved cubes under 40 chars of content.
+    # empty — >half the retrieved memories under 40 chars of content.
     if cubes:
         stubs = sum(1 for c in cubes.values() if len(c.get("content") or "") < 40)
         add("Thinness", stubs <= len(cubes) // 2,
-            f"{stubs}/{len(cubes)} retrieved cubes are stubs (<40 chars)")
+            f"{stubs}/{len(cubes)} retrieved memories are stubs (<40 chars)")
     else:
-        add("Thinness", False, "no cubes to measure")
+        add("Thinness", False, "no memories to measure")
 
-    # Expiry: a cube older than its type's half-life, served without any
+    # Expiry: a memory older than its type's half-life, served without any
     # reinforcement since, is suspect context even if nobody killed it yet.
     # (Benchmark incident 3: a 6.9d-old execution plan — dashboard η=7d — was
     # reused verbatim and rebuilt yesterday's priorities.) Non-critical:
@@ -195,7 +195,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
         if age > eta:
             expired.append(f"{(c.get('title') or '')[:40]} ({age:.0f}d > {eta:.0f}d)")
     add("Expiry", not expired,
-        "no retrieved cube is past its half-life" if not expired
+        "no retrieved memory is past its half-life" if not expired
         else f"{len(expired)} past half-life: {expired[:3]}")
 
     # Tokens-per-query (BEAM-style): what this retrieval costs in context budget.

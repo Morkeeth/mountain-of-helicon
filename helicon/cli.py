@@ -229,9 +229,9 @@ def cmd_reconcile(args):
     if total == 0:
         print("\nNothing to retire. Memory matches the re-scan.")
     elif args.apply:
-        print(f"\nRetired {total} cube(s) as 'superseded'.")
+        print(f"\nRetired {total} memories as 'superseded'.")
     else:
-        print(f"\nWould retire {total} cube(s). Run with --apply to execute.")
+        print(f"\nWould retire {total} memories. Run with --apply to execute.")
 
 
 def cmd_fix_skills(args):
@@ -1029,7 +1029,7 @@ def cmd_resolve(args):
         print(format_pair_evidence(d) if d.get("pair_key")
               else (row["finding"]))
         if d.get("cube_count"):
-            print(f"\n   {d['cube_count']} cube(s) involved across "
+            print(f"\n   {d['cube_count']} memories involved across "
                   f"{len(d.get('scopes', []))} source file(s)")
         if not row["human_decision"]:
             vals = d.get("all_dates") or d.get("dates") or []
@@ -1127,7 +1127,7 @@ def cmd_alias(args):
 
     for t in alias_rot(conn):
         print(f"\n{t['old_name']} -> {t['new_name']}   (renamed {t['renamed_at']})")
-        print(f"  {t['live_refs']} live cube(s) still say '{t['old_name']}':")
+        print(f"  {t['live_refs']} live memories still say '{t['old_name']}':")
         print(f"    history        {t['history']:>5}  (pre-rename; true when written, kept)")
         print(f"    rename-aware   {t['rename_aware']:>5}  (post-rename, name both names)")
         print(f"    current-claims {t['current_claims']:>5}  (post-rename, dead name only — the rot)")
@@ -1178,7 +1178,7 @@ def cmd_rule(args):
     if args.run:
         res = R.apply_rules(conn, dry_run=not args.apply)
         mode = "APPLY" if args.apply else "dry-run"
-        print(f"Rules run ({mode}): {res['total']} cube(s) matched\n")
+        print(f"Rules run ({mode}): {res['total']} memories matched\n")
         for r in res["rules"]:
             verb = "acted on" if args.apply else "would act on"
             print(f"  #{r['rule_id']} {r['action']:<7} {verb} {r['matched']:>4}  \"{r['nl_text'][:60]}\"")
@@ -1205,7 +1205,7 @@ def cmd_rule(args):
 
     print(f"Compiled: {pred['action']} WHERE {json.dumps(pred['match'])}\n")
     prev = R.preview(conn, pred)
-    print(f"  would affect {prev['pending_matches']} pending cube(s)")
+    print(f"  would affect {prev['pending_matches']} pending memories")
     if prev["precision_vs_history"] is not None:
         print(f"  precision vs your history: {prev['precision_vs_history']:.0%} "
               f"({prev['history_agree']}/{prev['history_n']} past decisions agree)")
@@ -1216,7 +1216,7 @@ def cmd_rule(args):
     for d in prev["disagreeing_samples"]:
         print(f"    ! you decided '{d['review_status']}' on: {d['title'][:56]}")
     for c in prev["conflicts"]:
-        print(f"    ! conflicts with rule #{c['rule_id']} \"{c['nl_text'][:44]}\" on {c['overlap']} cube(s)")
+        print(f"    ! conflicts with rule #{c['rule_id']} \"{c['nl_text'][:44]}\" on {c['overlap']} memories")
 
     rule_id = R.save_rule(conn, args.text, pred, model, prev)
     print(f"\nSaved as rule #{rule_id} (proposed). Approve: helicon rule --approve {rule_id}")
@@ -1261,7 +1261,7 @@ def cmd_doctor(_args):
         retired = conn.execute(
             "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN ('killed', 'superseded')"
         ).fetchone()[0]
-        checks.append(("OK", f"DB {db_path} — {total} cubes ({total - retired} live, {retired} retired)"))
+        checks.append(("OK", f"DB {db_path} — {total} memories ({total - retired} live, {retired} retired)"))
 
         scan = last_scan_info(conn)
         stability = config.get("forgetting", {}).get("stability", {})
@@ -1275,7 +1275,7 @@ def cmd_doctor(_args):
             age = scan["hours_ago"]
             age_str = f"{age:.1f}h" if age < 48 else f"{age / 24:.1f}d"
             checks.append(("OK", f"last scan {age_str} ago "
-                                 f"({len(scan['connectors'])} connectors, +{scan['cubes_added']} cubes)"))
+                                 f"({len(scan['connectors'])} connectors, +{scan['cubes_added']} memories)"))
         conn.close()
 
     print("Mount Helicon doctor\n")
@@ -1488,7 +1488,7 @@ def cmd_embed(args):
     config = load_config()
     conn = init_db(config["db_path"])
 
-    print("Embedding all cubes with all-MiniLM-L6-v2 (384 dims)...\n")
+    print("Embedding all memories with all-MiniLM-L6-v2 (384 dims)...\n")
     result = embed_all_cubes(conn)
     print(f"  Embedded: {result['embedded']} new")
     print(f"  Skipped: {result['skipped']} (already done)")
@@ -1625,7 +1625,7 @@ def cmd_consolidation_eval(args):
         qwen_client = get_client(config)
 
     sample = getattr(args, "sample", 12)
-    print(f"Consolidation eval: raw cubes vs consolidated synthesis (sample {sample}{', Qwen-judged' if qwen_client else ', tokens only'})...\n")
+    print(f"Consolidation eval: raw memories vs consolidated synthesis (sample {sample}{', Qwen-judged' if qwen_client else ', tokens only'})...\n")
     result = run_consolidation_eval(conn, qwen_client, sample)
 
     if result.get("error"):
@@ -1639,7 +1639,7 @@ def cmd_consolidation_eval(args):
     print(f"  ── {s['avg_compression']}x more token-efficient ({s['token_reduction_pct']}% reduction) ──")
     if "avg_quality_delta" in s:
         print(f"\n  Answer quality (Qwen-judged, {s['judged']} queries):")
-        print(f"    Raw cubes:    {s['avg_raw_quality']}/100")
+        print(f"    Raw memories: {s['avg_raw_quality']}/100")
         print(f"    Consolidated: {s['avg_consolidated_quality']}/100  (delta {s['avg_quality_delta']:+})")
         print(f"    Consolidated >= raw on {s['consolidated_at_least_as_good']}/{s['judged']} queries")
 
@@ -1648,7 +1648,7 @@ def cmd_consolidation_eval(args):
         q = ""
         if "consolidated_score" in d:
             q = f"  quality {d['raw_score']:.0f}->{d['consolidated_score']:.0f}"
-        print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} cubes  {d['compression']:>5}x{q}")
+        print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
 def main():
@@ -1723,10 +1723,10 @@ def main():
     evolve_p = sub.add_parser("evolve", help="The night command: scan + exams + gold recompile + the morning delta")
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
 
-    resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction cube + never-twice guard)")
+    resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction memory + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
     resolve_p.add_argument("--truth", help="the true value, one of the asserted dates/values")
-    resolve_p.add_argument("--note", help="optional context recorded on the correction cube")
+    resolve_p.add_argument("--note", help="optional context recorded on the correction memory")
     resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
 
@@ -1759,7 +1759,7 @@ def main():
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
     sub.add_parser("eval", help="Run evaluation benchmarks (retrieval, forgetting, audit)")
 
-    sub.add_parser("embed", help="Embed all cubes for semantic search (384-dim, local)")
+    sub.add_parser("embed", help="Embed all memories for semantic search (384-dim, local)")
     sub.add_parser("playbooks", help="Build and show task playbooks from review patterns")
     compile_p = sub.add_parser("compile", help="Compile memories into injectable skill files")
     compile_p.add_argument("--output", "-o", help="Output directory (default: data/compiled)")
@@ -1768,7 +1768,7 @@ def main():
     consolidate_p.add_argument("--max", "-m", type=int, default=10, help="Max clusters to consolidate")
     consolidate_p.add_argument("--qwen", action="store_true", help="Use Qwen LLM for synthesis")
 
-    coneval_p = sub.add_parser("eval-consolidation", help="Before/after: raw cubes vs consolidated synthesis (tokens + quality)")
+    coneval_p = sub.add_parser("eval-consolidation", help="Before/after: raw memories vs consolidated synthesis (tokens + quality)")
     coneval_p.add_argument("--qwen", action="store_true", help="Qwen-judge answer quality (raw vs consolidated)")
     coneval_p.add_argument("--sample", "-n", type=int, default=12, help="Consolidations to evaluate")
 

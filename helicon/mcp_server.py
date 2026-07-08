@@ -42,7 +42,7 @@ def _send_message(msg):
 TOOLS = [
     {
         "name": "helicon_health",
-        "description": "Get the current health score of your memory system. Returns: overall score (0-100), total cubes, reviewed count, pending count, decay stats by type.",
+        "description": "Get the current health score of your memory system. Returns: overall score (0-100), total memories, reviewed count, pending count, decay stats by type.",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
     {
@@ -58,7 +58,7 @@ TOOLS = [
     },
     {
         "name": "helicon_search",
-        "description": "Full-text search across all memory cubes. Use to check if something is already stored or find related memories.",
+        "description": "Full-text search across all memories. Use to check if something is already stored or find related memories.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -90,11 +90,11 @@ TOOLS = [
     },
     {
         "name": "helicon_flag",
-        "description": "Flag a memory by its cube id (from helicon_context results). Use when a retrieved memory is stale (outdated), wrong (never true), or notably useful. stale/wrong become findings the human confirms — nothing is deleted by this call. Call it the moment you or the human notice bad context.",
+        "description": "Flag a memory by its id (from helicon_context results). Use when a retrieved memory is stale (outdated), wrong (never true), or notably useful. stale/wrong become findings the human confirms, nothing is deleted by this call. Call it the moment you or the human notice bad context.",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "memory_id": {"type": "string", "description": "Cube id, e.g. gc_ab12cd34ef56"},
+                "memory_id": {"type": "string", "description": "Memory id, e.g. gc_ab12cd34ef56"},
                 "verdict": {"type": "string", "enum": ["stale", "wrong", "useful"], "description": "stale = outdated, wrong = never true, useful = confirmed helpful"},
                 "reason": {"type": "string", "description": "One line on why (optional but valuable)"},
             },
@@ -103,7 +103,7 @@ TOOLS = [
     },
     {
         "name": "helicon_context",
-        "description": "Proactive memory injection. Describe what you're working on and Mount Helicon returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context. Every memory carries its cube id, last_verified date and used_count — if any memory is stale or wrong, call helicon_flag with that id.",
+        "description": "Proactive memory injection. Describe what you're working on and Mount Helicon returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context. Every memory carries its id, last_verified date and used_count. If any memory is stale or wrong, call helicon_flag with that id.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -356,7 +356,7 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
     clean_results = []
     for s in selected:
         # provenance the agent can act on: when this memory was last verified
-        # and how often it has been served — plus the id helicon_flag needs
+        # and how often it has been served, plus the id helicon_flag needs
         prov = conn.execute(
             "SELECT c.last_reinforced, COALESCE(u.times_surfaced, 0) AS used "
             "FROM helicon_cubes c LEFT JOIN memory_utility u ON u.cube_id = c.id "
@@ -388,7 +388,7 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
 
 def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
     """Point-of-use correction. stale/wrong become PENDING audit findings the
-    human confirms in FINDINGS — the agent proposes, it never kills. useful
+    human confirms in FINDINGS; the agent proposes, it never kills. useful
     updates the Q-value + marks the retrieval acted-on. Nothing here counts
     as human evidence for rule learning (session guard lives in triage.py)."""
     from helicon.utility import update_reward
@@ -397,7 +397,7 @@ def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
         "SELECT id, title, review_status FROM helicon_cubes WHERE id = ?", (memory_id,)
     ).fetchone()
     if cube is None:
-        return {"ok": False, "error": f"no cube with id {memory_id}"}
+        return {"ok": False, "error": f"no memory with id {memory_id}"}
 
     now = datetime.utcnow().isoformat()
     if verdict == "useful":
@@ -421,7 +421,7 @@ def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
     )
     conn.commit()
     return {"ok": True, "memory_id": memory_id, "verdict": verdict,
-            "effect": "pending finding created — human confirms in FINDINGS; nothing deleted"}
+            "effect": "pending finding created; human confirms in FINDINGS; nothing deleted"}
 
 
 def handle_tool_call(name: str, arguments: dict, conn) -> str:
