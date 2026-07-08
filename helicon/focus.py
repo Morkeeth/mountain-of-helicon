@@ -1,4 +1,4 @@
-"""Focus engine — the cherry on the iceberg.
+"""Focus engine, the cherry on the iceberg.
 
 Turns the STATE of a memory (what rotted, what stalled) into the developer's
 NEXT MOVES: the next prompt, goal, or loop. Detection is automatic; deciding
@@ -8,7 +8,7 @@ Every move must cite the exact memory it came from (Trust-Align, arXiv
 2409.11242) and the citation must point at the memory that actually justifies
 the move, not a vaguely-related one (Correctness != Faithfulness, 2412.18004).
 So we hand Qwen a fixed set of ref-ids and drop any move whose citations do not
-resolve back to one of them — no free-floating advice ever ships.
+resolve back to one of them, no free-floating advice ever ships.
 """
 
 from datetime import datetime
@@ -18,23 +18,24 @@ from helicon.lenses import detect_lens, lens_guidance
 
 
 _SYSTEM = """You are Mount Helicon's focus engine. You receive the current STATE of a
-developer's AI-agent memory: open FINDINGS (memory that failed a rot check —
+developer's AI-agent memory: open FINDINGS (memory that failed a rot check:
 contradictions, dead renamed names, stale notes, wrongly-retired memory) and
 PROJECT signals (what is stalling, spinning, or decaying). Detection already
 happened. Your job is to turn this state into 2-4 concrete NEXT MOVES.
 
-A move is the developer's actual next prompt, goal, or loop — the thing they
+A move is the developer's actual next prompt, goal, or loop, the thing they
 would paste to their coding agent or set as a goal this week.
 
 HARD RULES:
 1. Every move MUST cite one or more ref ids, drawn ONLY from the provided refs.
    Never invent an id. A move with no citation is invalid.
 2. The cited memory must be what actually JUSTIFIES the move (point at the
-   finding/cube that the move resolves), not something loosely related.
-3. "body" is the real text to paste/act on — concrete and specific to the cited
+   finding/memory that the move resolves), not something loosely related.
+3. "body" is the real text to paste/act on, concrete and specific to the cited
    memory. No generic advice ("review your memory", "stay focused").
 4. Prefer moves that resolve rot (fix a contradiction, retire a dead name,
    revive a wrongly-killed memory) or unblock a stalled project.
+5. Write in plain language: say "memories", never "cubes", and never use an em dash.
 
 Return JSON exactly: {"moves":[{"title":str,"kind":"prompt"|"goal"|"loop",
 "body":str,"rationale":str,"cites":[ref_id,...]}]}"""
@@ -52,7 +53,7 @@ def _findings_context(conn, limit: int = 14) -> list[dict]:
     except Exception:
         pass
     decision = [f for f in findings if _lane(f["kind"]) == "decision"]
-    # contradictions / dead names / regrets first — the highest-value rot
+    # contradictions / dead names / regrets first, the highest-value rot
     decision.sort(key=lambda f: (f["severity"] != "high", f["kind"]))
     return decision[:limit]
 
@@ -92,15 +93,15 @@ def generate_next_moves(conn, config: dict | None = None) -> dict:
             "why": r.get("action") or "; ".join(r.get("reasons", [])),
             "source": "project-intelligence", "cube_id": None, "output_kind": "default",
         }
-        sig = (f"{r['cube_count']} cubes, {int(r['ship_rate']*100)}% shipped, "
+        sig = (f"{r['cube_count']} memories, {int(r['ship_rate']*100)}% shipped, "
                f"spin {r['spin_score']}x, {r.get('pending',0)} pending, "
                f"{r['days_since_output']}d since output" if r.get("days_since_output") is not None
-               else f"{r['cube_count']} cubes, {int(r['ship_rate']*100)}% shipped")
-        lines.append(f"[{rid}] (project) {r['name']}: {r.get('action','')} — {sig}")
+               else f"{r['cube_count']} memories, {int(r['ship_rate']*100)}% shipped")
+        lines.append(f"[{rid}] (project) {r['name']}: {r.get('action','')}, {sig}")
 
     if not refs:
         return {"moves": [], "grounded_in": 0, "generated_at": datetime.utcnow().isoformat(),
-                "note": "No open findings or project signals — memory is clean."}
+                "note": "No open findings or project signals, memory is clean."}
 
     client = get_client(config)
     if client is None:
