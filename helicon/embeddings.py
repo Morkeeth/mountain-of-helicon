@@ -258,6 +258,33 @@ def semantic_search(
     return results
 
 
+def rerank(query: str, documents: list[str], top_n: int):
+    """Two-stage retrieval: reorder candidates with qwen3-rerank (Alibaba Model
+    Studio, native rerank endpoint — flat OpenAI SDK has no rerank, so raw POST).
+    Returns [(orig_index, relevance_score), ...] or None if reranking isn't
+    configured/available, in which case the caller keeps the hybrid order."""
+    kind, _c, _m, _d = _embed_provider()
+    if kind != "qwen" or not documents:
+        return None
+    try:
+        import requests
+        from helicon.config import load_config
+        e = load_config().get("embeddings") or {}
+        host = e["base_url"].split("/compatible-mode")[0]
+        r = requests.post(
+            f"{host}/api/v1/services/rerank/text-rerank/text-rerank",
+            headers={"Authorization": f"Bearer {e['api_key']}", "Content-Type": "application/json"},
+            json={"model": "qwen3-rerank",
+                  "input": {"query": query, "documents": documents},
+                  "parameters": {"top_n": top_n, "return_documents": False}},
+            timeout=20,
+        )
+        r.raise_for_status()
+        return [(x["index"], x["relevance_score"]) for x in r.json()["output"]["results"]]
+    except Exception:
+        return None
+
+
 def hybrid_search(
     conn: sqlite3.Connection,
     query: str,
@@ -302,10 +329,20 @@ def hybrid_search(
         else:
             details[cid]["fts_rank"] = i
 
-    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    # Two-stage: over-fetch, then let qwen3-rerank re-order the top candidates.
+    cand = ranked[: max(limit * 4, 20)]
+    docs = [f"{details[cid]['title']} {(details[cid]['content'] or '')[:400]}" for cid, _ in cand]
+    order = rerank(query, docs, limit)
+    if order:
+        return [
+            {**details[cand[idx][0]], "hybrid_score": round(cand[idx][1], 4),
+             "rerank_score": round(rscore, 4)}
+            for idx, rscore in order
+        ]
     return [
         {**details[cid], "hybrid_score": round(score, 4)}
-        for cid, score in ranked
+        for cid, score in ranked[:limit]
     ]
 
 
@@ -321,6 +358,6 @@ def get_embedding_stats(conn: sqlite3.Connection) -> dict:
         "total_cubes": total_cubes,
         "embedded": embedded,
         "coverage": round(embedded / total_cubes * 100, 1) if total_cubes > 0 else 0,
-        "model": "all-MiniLM-L6-v2",
-        "dim": 384,
+        "model": _embed_provider()[2],
+        "dim": _embed_provider()[3],
     }
