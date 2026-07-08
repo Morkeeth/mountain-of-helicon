@@ -122,6 +122,30 @@ async def focus_route(body: RouteBody):
     return {"routed": "prompt", "prompt": prompt}
 
 
+@router.get("/portrait")
+async def portrait():
+    """The reading: a grounded portrait of who the record shows you are, plus
+    the process arc. Qwen narrates a deterministic digest (heavy-ish, so it is
+    an explicit tab load, not an auto-poll)."""
+    from helicon.portrait import build_portrait
+    from helicon.qwen import get_client
+    cfg = get_config()
+    return build_portrait(get_conn(), cfg, client=get_client(cfg))
+
+
+@router.get("/consistency")
+async def consistency():
+    """The consistency gate: does the operator's memory index still match its
+    directory? Deterministic. Defaults to the Claude Code auto-memory MEMORY.md
+    or a configured index."""
+    from helicon.consistency import audit_index, default_index
+    cfg = get_config()
+    idx = default_index(cfg)
+    if not idx:
+        return {"ok": False, "reason": "no index configured or found"}
+    return audit_index(idx)
+
+
 @router.get("/volatility/scan")
 async def volatility_scan():
     """The volatility gate: which stored memories are fast facts that belong in
