@@ -188,10 +188,10 @@ function App() {
               >
                 Mount Helicon
               </h1>
-              <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Memory Audit</span>
+              <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
               <span
                 className="text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
-                style={{ background: 'rgba(194, 94, 58, 0.08)', color: 'var(--helicon-accent)', borderColor: 'rgba(194, 94, 58, 0.25)' }}
+                style={{ background: 'rgba(158, 63, 50, 0.08)', color: 'var(--helicon-accent)', borderColor: 'rgba(158, 63, 50, 0.25)' }}
               >
                 Powered by Qwen
               </span>

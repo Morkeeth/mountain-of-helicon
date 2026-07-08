@@ -126,7 +126,10 @@ def get_score_history(conn: sqlite3.Connection) -> list[dict]:
 def compute_score(conn: sqlite3.Connection) -> dict:
     total = conn.execute("SELECT COUNT(*) FROM helicon_cubes WHERE merged_into IS NULL").fetchone()[0]
     if total == 0:
-        return {"score": 0, "total": 0, "reviewed": 0, "breakdown": {}}
+        # Full shape even when empty — a fresh clone / MCP helicon_health on a
+        # zero-cube DB must not KeyError on 'pending'/'by_*'.
+        return {"score": 0, "total": 0, "reviewed": 0, "pending": 0,
+                "by_source": {}, "by_type": {}, "by_decision": {}}
 
     reviewed = conn.execute(
         "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN ('approved', 'revised', 'killed') AND merged_into IS NULL"
