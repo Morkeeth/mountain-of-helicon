@@ -75,31 +75,80 @@ def init_embedding_table(conn: sqlite3.Connection):
     conn.commit()
 
 
+_provider_cache = None
+
+
+def _embed_provider():
+    """Which embedding backend to use, resolved once from config. If config has
+    an `embeddings` block with api_key + base_url, the whole retrieval stack is
+    Qwen-native (Alibaba Model Studio text-embedding-v4). Otherwise falls back to
+    local MiniLM. Returns (kind, client, model_name, dim)."""
+    global _provider_cache
+    if _provider_cache is not None:
+        return _provider_cache
+    prov = ("local", None, "all-MiniLM-L6-v2", 384)
+    try:
+        from helicon.config import load_config
+        e = (load_config().get("embeddings") or {})
+        if e.get("api_key") and e.get("base_url"):
+            from openai import OpenAI
+            client = OpenAI(api_key=e["api_key"], base_url=e["base_url"])
+            prov = ("qwen", client, e.get("model", "text-embedding-v4"), int(e.get("dim", 1024)))
+    except Exception:
+        pass
+    _provider_cache = prov
+    return prov
+
+
+def _normalize(v: np.ndarray) -> np.ndarray:
+    n = np.linalg.norm(v)
+    return (v / n) if n else v
+
+
 def embed_text(text: str) -> np.ndarray:
-    model = _get_model()
-    return model.encode(text, normalize_embeddings=True)
+    kind, client, model, dim = _embed_provider()
+    if kind == "qwen":
+        r = client.embeddings.create(model=model, input=[text[:8000]],
+                                     dimensions=dim, encoding_format="float")
+        return _normalize(np.array(r.data[0].embedding, dtype=np.float32))
+    return _get_model().encode(text, normalize_embeddings=True)
 
 
 def embed_batch(texts: list[str]) -> np.ndarray:
-    model = _get_model()
-    return model.encode(texts, normalize_embeddings=True, batch_size=32)
+    kind, client, model, dim = _embed_provider()
+    if kind == "qwen":
+        out = []
+        for i in range(0, len(texts), 10):  # Model Studio caps at 10 inputs/call
+            r = client.embeddings.create(model=model, input=[t[:8000] for t in texts[i:i + 10]],
+                                         dimensions=dim, encoding_format="float")
+            out.extend(_normalize(np.array(d.embedding, dtype=np.float32)) for d in r.data)
+        return np.array(out, dtype=np.float32)
+    return _get_model().encode(texts, normalize_embeddings=True, batch_size=32)
 
 
 def store_embedding(conn: sqlite3.Connection, cube_id: str, embedding):
+    kind, _c, model, dim = _embed_provider()
+    mname = model if kind == "qwen" else "all-MiniLM-L6-v2"
+    d = dim if kind == "qwen" else 384
     conn.execute(
         "INSERT OR REPLACE INTO cube_embeddings (cube_id, embedding, embedded_at, model, dim) "
         "VALUES (?, ?, ?, ?, ?)",
-        (cube_id, _serialize(embedding), datetime.utcnow().isoformat(),
-         "all-MiniLM-L6-v2", 384),
+        (cube_id, _serialize(embedding), datetime.utcnow().isoformat(), mname, d),
     )
 
 
 def embed_all_cubes(conn: sqlite3.Connection, batch_size: int = 64) -> dict:
     init_embedding_table(conn)
 
+    # "Already embedded" means embedded with the CURRENT provider's dimension.
+    # Switching models (MiniLM 384 -> Qwen 1024) makes old rows not count, so a
+    # plain `helicon embed` re-embeds everything with the new model (store_embedding
+    # REPLACEs the stale row by cube_id).
+    _k, _c, _m, _dim = _embed_provider()
+    cur_dim = _dim if _k == "qwen" else 384
     already = set()
     try:
-        rows = conn.execute("SELECT cube_id FROM cube_embeddings").fetchall()
+        rows = conn.execute("SELECT cube_id FROM cube_embeddings WHERE dim = ?", (cur_dim,)).fetchall()
         already = {r[0] if isinstance(r, tuple) else r["cube_id"] for r in rows}
     except Exception:
         pass
@@ -130,11 +179,15 @@ def embed_all_cubes(conn: sqlite3.Connection, batch_size: int = 64) -> dict:
 
 
 def _load_all_embeddings(conn: sqlite3.Connection) -> tuple[list[str], np.ndarray]:
+    _k, _c, _m, _dim = _embed_provider()
+    cur_dim = _dim if _k == "qwen" else 384
     rows = conn.execute(
         "SELECT ce.cube_id, ce.embedding FROM cube_embeddings ce "
         "JOIN helicon_cubes gc ON ce.cube_id = gc.id "
         "WHERE gc.merged_into IS NULL "
-        "AND gc.review_status IN ('approved', 'pending')"
+        "AND gc.review_status IN ('approved', 'pending') "
+        "AND ce.dim = ?",
+        (cur_dim,),
     ).fetchall()
 
     if not rows:
@@ -146,7 +199,7 @@ def _load_all_embeddings(conn: sqlite3.Connection) -> tuple[list[str], np.ndarra
         cid = r[0] if isinstance(r, tuple) else r["cube_id"]
         blob = r[1] if isinstance(r, tuple) else r["embedding"]
         ids.append(cid)
-        vecs.append(_deserialize(blob))
+        vecs.append(_deserialize(blob, cur_dim))
 
     return ids, np.vstack(vecs)
 
