@@ -28,7 +28,12 @@ const GOAL_META: { key: string; label: string; stat: (g: SubGoal) => string }[] 
   { key: 'recall_under_limited_context', label: 'Recall in limited context',
     stat: g => `~${g.mean_tokens_per_query_top5 ?? '–'} tok/query · thinness ${g.thinness_pass_rate ?? '–'}` },
   { key: 'cross_session_accuracy', label: 'Cross-session accuracy',
-    stat: g => `${g.snapshots_regressed ?? 0}/${g.snapshots_total ?? 0} snapshots regressed` },
+    stat: g => {
+      const cs = (g.cross_source_contradictions as { inter_judge_kappa?: number; second_judge?: string } | undefined);
+      const k = cs?.inter_judge_kappa;
+      const base = `${g.snapshots_regressed ?? 0}/${g.snapshots_total ?? 0} snapshots regressed`;
+      return k != null ? `${base} · two-judge κ=${k}` : `${base} · two-judge panel (Qwen + ${cs?.second_judge ?? 'DeepSeek'})`;
+    } },
 ];
 
 export default function SetupReportCard() {
