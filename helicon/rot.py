@@ -72,7 +72,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     except Exception as e:
         checks.append(_check("R2", "Doc-drift", "TESTED", None, f"unmeasured: {e}"))
 
-    # R3 staleness/expiry — live cubes past their type's half-life, unreinforced.
+    # R3 staleness/expiry — live memories past their type's half-life, unreinforced.
     now = datetime.utcnow().isoformat()
     expired = 0
     for ctype, eta in DEFAULT_STABILITY.items():
@@ -84,7 +84,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         ).fetchone()[0]
     checks.append(_check(
         "R3", "Staleness / expiry", "TESTED", expired > 0,
-        f"{expired} live cube(s) past their type's half-life without reinforcement "
+        f"{expired} live memories past their type's half-life without reinforcement "
         "(decay runs on every scan; battery test 'Expiry' covers retrieval)"))
 
     # R4 supersession — declared aliases triage every dead-name reference:
@@ -99,7 +99,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         if not triages:
             checks.append(_check(
                 "R4", "Supersession / rename", "TESTED", None,
-                f"{superseded} cube(s) retired by reconcile; no renames declared "
+                f"{superseded} memories retired by reconcile; no renames declared "
                 "yet — helicon alias add <old> <new>"))
         else:
             found = any(t["current_claims"] > 0 or t["leaked"] for t in triages)
@@ -112,7 +112,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
                 for t in triages)
             checks.append(_check(
                 "R4", "Supersession / rename", "TESTED", found,
-                receipt + f" ({superseded} cube(s) retired by reconcile)"))
+                receipt + f" ({superseded} memories retired by reconcile)"))
     except Exception as e:
         checks.append(_check("R4", "Supersession / rename", "TESTED", None,
                              f"unmeasured: {e}"))
@@ -125,9 +125,9 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     ).fetchone()[0]
     checks.append(_check(
         "R5", "Duplicate / echo memory", "TESTED", dupes > 0,
-        f"{dupes} content hash(es) stored more than once among live cubes"))
+        f"{dupes} content hash(es) stored more than once among live memories"))
 
-    # R6 title-only grounding — live cubes that are stubs (no substance).
+    # R6 title-only grounding — live memories that are stubs (no substance).
     stubs = conn.execute(
         "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN ('pending', 'revised') "
         "AND merged_into IS NULL AND length(content) < 40"
@@ -139,7 +139,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     thin_share = (stubs / total_live) if total_live else 0
     checks.append(_check(
         "R6", "Title-only grounding", "TESTED", thin_share > 0.10,
-        f"{stubs}/{total_live} live cubes are stubs (<40 chars); "
+        f"{stubs}/{total_live} live memories are stubs (<40 chars); "
         "battery tests Thinness+Grounding cover retrieval"))
 
     # R7 wrong eviction — the regret ledger.
@@ -148,7 +148,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         regrets = get_regrets(conn, limit=100)
         checks.append(_check(
             "R7", "Wrong eviction (regret)", "TESTED", len(regrets) > 0,
-            f"{len(regrets)} retired cube(s) retrieval has wanted back "
+            f"{len(regrets)} retired memories retrieval has wanted back "
             "(time-decayed, blame on the kill decision)"))
     except Exception as e:
         checks.append(_check("R7", "Wrong eviction (regret)", "TESTED", None, f"unmeasured: {e}"))
@@ -182,7 +182,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         f"{non_human} automated review(s) correctly quarantined from rule learning; "
         f"{leaked} leaked past the guard"))
 
-    # R10 instruction-file drift — agent-rules/skills cubes retired or duplicated.
+    # R10 instruction-file drift — agent-rules/skills memories retired or duplicated.
     rules_retired = conn.execute(
         "SELECT COUNT(*) FROM helicon_cubes WHERE source IN ('agent-rules', 'skills') "
         "AND review_status = 'superseded'"
@@ -194,7 +194,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     checks.append(_check(
         "R10", "Instruction-file drift", "TESTED", rules_retired > 0,
         f"{rules_retired} rules/skills section(s) retired as drifted; {rules_live} live "
-        "(section-level cubes, covered by reconcile + snapshots)"))
+        "(section-level memories, covered by reconcile + snapshots)"))
 
     found = sum(1 for c in checks if c["verdict"] == "ROT FOUND")
     unmeasured = sum(1 for c in checks if c["verdict"] == "UNMEASURED")
