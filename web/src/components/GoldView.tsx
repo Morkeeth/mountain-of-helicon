@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-/* GOLD — the stack's law, compiled from human judgment. Every rule was born
+/* GOLD, the stack's law, compiled from human judgment. Every rule was born
    from a ruling, a precedent, a declared fact or standing feedback, and
    carries its provenance. The growth strip is the law's own history. */
 
@@ -54,7 +54,7 @@ export default function GoldView() {
         </div>
         <div className="flex items-end gap-3">
           {hist.length > 1 && (
-            <div className="flex items-end gap-[2px]" title="rules over time — the law's growth">
+            <div className="flex items-end gap-[2px]" title="rules over time, the law's growth">
               {hist.slice(-24).map((h, i) => (
                 <div key={i} style={{ width: 5, height: 4 + (h.total / max) * 26, background: '#c9a227', opacity: 0.45 + 0.55 * (i / 24) }} />
               ))}

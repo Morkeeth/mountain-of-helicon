@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { Finding } from '../api';
 
-/* CONFLICT MAP — Oscar's call on the Graph tab: "surely there's better ways
+/* CONFLICT MAP, Oscar's call on the Graph tab: "surely there's better ways
    to visualise this". This is the flat, honest version: every open
-   contradiction as a pair — file vs file, value vs value, the evidence
+   contradiction as a pair, file vs file, value vs value, the evidence
    between them, and the one command that closes it. No cosmic 3D. */
 
 function Side({ label, text, align }: { label: string; text: string; align: 'left' | 'right' }) {

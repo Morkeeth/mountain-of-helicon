@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import type { Finding, FindingsResponse } from '../api';
 
-/* FINDINGS — the heart of the dashboard. One list of everything that failed
+/* FINDINGS, the heart of the dashboard. One list of everything that failed
    a check, unified across audit / skills / battery. The WHY sentence leads;
    the title is context. Every row carries its fix. Real data only. */
 
@@ -11,9 +11,9 @@ const GROUPS: { key: string; label: string; kinds: string[]; hint: string }[] = 
   { key: 'drift', label: 'Drift', kinds: ['factual', 'supersession'],
     hint: 'two sources disagree, or a renamed thing is still called its old name' },
   { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical', 'routine', 'output', 'context'],
-    hint: 'aged past its truth — memory past its half-life, dead paths, silent routines' },
+    hint: 'aged past its truth, memory past its half-life, dead paths, silent routines' },
   { key: 'smartness', label: 'Smartness', kinds: ['regret', 'agent-flag', 'skill'],
-    hint: 'not an error — a memory worth restoring, or a skill worth sharpening' },
+    hint: 'not an error, a memory worth restoring, or a skill worth sharpening' },
 ];
 
 function HowItWorks() {
@@ -27,10 +27,10 @@ function HowItWorks() {
           onClick={() => { localStorage.setItem('hm-guide', '1'); setHidden(true); }}>got it, hide</button>
       </div>
       <ol className="mt-2 text-[12.5px] leading-relaxed text-zinc-600 list-decimal ml-4 space-y-0.5">
-        <li><b className="text-zinc-800">It reads your memory</b> — transcripts, vault, rules files, git — read-only, into its own store.</li>
-        <li><b className="text-zinc-800">Checks run on a timer</b> — ten documented failure classes (contradictions, staleness, dead names…). No LLM needed for the core.</li>
-        <li><b className="text-zinc-800">Everything below failed a check</b> — each row carries its evidence. Nothing here is a suggestion; it is a receipt.</li>
-        <li><b className="text-zinc-800">You rule, once</b> — confirm it's still true, correct it with the truth, or retire it. Rulings stick: the same rot re-alarms if it returns. Every decision is reversible.</li>
+        <li><b className="text-zinc-800">It reads your memory</b>, transcripts, vault, rules files, git, read-only, into its own store.</li>
+        <li><b className="text-zinc-800">Checks run on a timer</b>, ten documented failure classes (contradictions, staleness, dead names…). No LLM needed for the core.</li>
+        <li><b className="text-zinc-800">Everything below failed a check</b>, each row carries its evidence. Nothing here is a suggestion; it is a receipt.</li>
+        <li><b className="text-zinc-800">You rule, once</b>, confirm it's still true, correct it with the truth, or retire it. Rulings stick: the same rot re-alarms if it returns. Every decision is reversible.</li>
       </ol>
     </div>
   );
@@ -54,7 +54,7 @@ function sevColor(sev: string): string {
   return '#a1a1aa';
 }
 
-// Copyable CLI one-liner chip — the fix for skill/reconcile findings.
+// Copyable CLI one-liner chip, the fix for skill/reconcile findings.
 function CopyChip({ cmd, title }: { cmd: string; title?: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -173,7 +173,7 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
         />
 
         <div className="flex-1 min-w-0">
-          {/* The WHY sentence is the finding — it leads. The title (which doc /
+          {/* The WHY sentence is the finding, it leads. The title (which doc /
               cube) is the differentiator when the why repeats across findings,
               so keep it legible and un-truncated rather than a faint gray line. */}
           <p className="text-[13px] text-zinc-200 leading-snug">{f.why}</p>
@@ -220,7 +220,7 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
   batteryLoading: boolean;
   batteryIncluded: boolean;
 }) {
-  // Default to the decision lane — the handful that need a human ruling, not
+  // Default to the decision lane, the handful that need a human ruling, not
   // the whole pile. Oscar's Jul-3 verdict: CI shows failing checks, not every line.
   const [kindFilter, setKindFilter] = useState('needs');
 
@@ -277,18 +277,18 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
           </button>
           {batteryLoading && (
             <span className="text-[11px] text-zinc-600 animate-pulse-subtle">
-              Running the context-quality battery — ~10s
+              Running the context-quality battery, ~10s
             </span>
           )}
         </div>
       </div>
 
       <HowItWorks />
-      {/* Kind filter chips — the old rules/projects/content confusion, resolved into clean kinds */}
+      {/* Kind filter chips, the old rules/projects/content confusion, resolved into clean kinds */}
       <div className="flex items-center gap-1.5 mb-4 flex-wrap">
         <button
           onClick={() => setKindFilter('needs')}
-          title="Findings only a human can rule on — contradictions, wrong evictions, skills"
+          title="Findings only a human can rule on, contradictions, wrong evictions, skills"
           className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
             kindFilter === 'needs' ? 'bg-zinc-800/60 text-zinc-200' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/20'
           }`}
@@ -297,7 +297,7 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         </button>
         <button
           onClick={() => setKindFilter('aging')}
-          title="Age & mechanics — stale notes, decayed commits, moved paths. Auto-manageable in bulk."
+          title="Age & mechanics, stale notes, decayed commits, moved paths. Auto-manageable in bulk."
           className={`text-[11px] px-2.5 py-1 rounded-md transition-colors ${
             kindFilter === 'aging' ? 'bg-zinc-800/60 text-zinc-300' : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/20'
           }`}
@@ -330,15 +330,15 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         )}
       </div>
 
-      {/* Plain-English description of whatever lane is selected — so a first-time
+      {/* Plain-English description of whatever lane is selected, so a first-time
           reader always knows what this list is, without a tooltip. */}
       {(() => {
         const desc = kindFilter === 'needs'
-          ? 'Decisions only you can make — contradictions, dead names, and memory you retired that retrieval keeps pulling back.'
+          ? 'Decisions only you can make, contradictions, dead names, and memory you retired that retrieval keeps pulling back.'
           : kindFilter === 'aging'
-            ? 'Age and mechanics — notes past their freshness window, decayed commits, moved paths. Safe to accept or bulk-manage; nothing here is urgent.'
+            ? 'Age and mechanics, notes past their freshness window, decayed commits, moved paths. Safe to accept or bulk-manage; nothing here is urgent.'
             : kindFilter === 'all'
-              ? 'Everything flagged — the decisions that need you and the ambient age findings together.'
+              ? 'Everything flagged, the decisions that need you and the ambient age findings together.'
               : (GROUPS.find(g => g.key === kindFilter)?.hint || '');
         return desc ? <p className="text-[12px] mb-4" style={{ color: 'var(--helicon-muted)' }}>{desc}</p> : null;
       })()}

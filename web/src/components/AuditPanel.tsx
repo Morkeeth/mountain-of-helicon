@@ -39,10 +39,10 @@ function issueDescription(f: AuditFinding): string {
 
 // Names the health check the memory failed, so a Kill is never decided blind.
 function failedCheck(f: AuditFinding): string {
-  if (f.audit_type === 'temporal') return 'Temporal check — time-relative wording no longer matches the memory\'s age';
-  if (f.audit_type === 'factual') return 'Factual check — this memory contradicts another stored memory';
-  if (f.audit_type === 'decay') return 'Decay check — confidence has decayed below the keep threshold';
-  if (f.audit_type === 'logical') return 'Logical check — the learned pattern is no longer supported by review data';
+  if (f.audit_type === 'temporal') return 'Temporal check, time-relative wording no longer matches the memory\'s age';
+  if (f.audit_type === 'factual') return 'Factual check, this memory contradicts another stored memory';
+  if (f.audit_type === 'decay') return 'Decay check, confidence has decayed below the keep threshold';
+  if (f.audit_type === 'logical') return 'Logical check, the learned pattern is no longer supported by review data';
   return `${f.audit_type} check`;
 }
 

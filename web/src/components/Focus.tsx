@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-/* Focus — the cherry. Memory state -> your next moves, each citing the exact
+/* Focus, the cherry. Memory state -> your next moves, each citing the exact
    memory it came from. Detection is automatic; deciding what to DO is the human
    act this surfaces. A move leaves as a paste-ready agent prompt or a vault note. */
 
@@ -53,7 +53,7 @@ export default function Focus() {
           </h2>
           <p className="text-[12px] mt-1" style={{ color: 'var(--helicon-muted)' }}>
             {data
-              ? `Your agent's memory, read back to you as what to do next. ${data.grounded_in} flagged memories became these moves — each carries the memory it came from, so none of it is a guess.`
+              ? `Your agent's memory, read back to you as what to do next. ${data.grounded_in} flagged memories became these moves, each carries the memory it came from, so none of it is a guess.`
               : 'Reading the state of your memory…'}
           </p>
         </div>

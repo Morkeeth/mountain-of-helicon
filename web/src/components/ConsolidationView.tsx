@@ -36,7 +36,7 @@ export function ConsolidationView() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-baseline gap-3">
           <h2 className="text-[15px] font-medium text-zinc-200">Memory Consolidation</h2>
-          <span className="text-[11px] text-zinc-600" title="A sleep cycle finds clusters of near-duplicate memories (by embedding similarity) and merges each cluster into one consolidated note — fewer, denser memories, ~9x fewer tokens per retrieval. Nothing is deleted; originals are marked merged.">what is a sleep cycle? — hover</span>
+          <span className="text-[11px] text-zinc-600" title="A sleep cycle finds clusters of near-duplicate memories (by embedding similarity) and merges each cluster into one consolidated note, fewer, denser memories, ~9x fewer tokens per retrieval. Nothing is deleted; originals are marked merged.">what is a sleep cycle?, hover</span>
         </div>
         <button
           onClick={runConsolidation}

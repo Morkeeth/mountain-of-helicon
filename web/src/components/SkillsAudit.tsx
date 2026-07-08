@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type SkillsAudit as SkillsAuditData } from '../api';
 
-/* Audits the local Agent-Skills library — the newest durable agent-memory
+/* Audits the local Agent-Skills library, the newest durable agent-memory
    surface. Nobody regression-tests skills; Helicon does. Real data, no fixture. */
 
 function Stat({ value, label, warn }: { value: number; label: string; warn?: boolean }) {
@@ -71,7 +71,7 @@ export default function SkillsAudit() {
           {data.thin.length > 0 && (
             <>
               <div style={{ fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--helicon-muted)', margin: '4px 0 4px' }}>
-                Thin triggers — too short to route reliably
+                Thin triggers, too short to route reliably
               </div>
               {data.thin.slice(0, 8).map((t) => (
                 <div key={t.name} className="flex items-center gap-3" style={{ fontSize: 13, padding: '9px 0', borderTop: '1px solid var(--helicon-line)', color: '#443e36' }}>
@@ -86,7 +86,7 @@ export default function SkillsAudit() {
           {data.collisions.length > 0 && (
             <>
               <div style={{ fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--helicon-muted)', margin: '18px 0 4px' }}>
-                Trigger collisions — skills that will fight to fire
+                Trigger collisions, skills that will fight to fire
               </div>
               {data.collisions.slice(0, 6).map((c) => (
                 <div key={c.a + c.b} className="flex items-center gap-3" style={{ fontSize: 13, padding: '9px 0', borderTop: '1px solid var(--helicon-line)', color: '#443e36' }}>

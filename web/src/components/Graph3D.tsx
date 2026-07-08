@@ -21,7 +21,7 @@ interface SimNode extends GraphNode {
 
 const PAPER = '#faf7f1';           // warm ground, matches --helicon-bg
 const INK = '#2b2825';             // --helicon-ink
-const HEALTHY = '#8a8478';         // stone/zinc — reviewed & holding
+const HEALTHY = '#8a8478';         // stone/zinc, reviewed & holding
 const STALE = '#B98A4E';           // --helicon-stale (ochre)
 const DEAD = '#C25E3A';            // --helicon-accent (terracotta)
 
@@ -450,7 +450,7 @@ export function Graph3D() {
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: DEAD }} /> superseded
         </span>
-        <span className="text-zinc-700">— rot is localized, not everywhere.</span>
+        <span className="text-zinc-700">,  rot is localized, not everywhere.</span>
         <span className="flex items-center gap-1.5 text-zinc-700">
           <span className="w-2.5 h-2.5 rounded-full" style={{ background: INK }} /> entity
         </span>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import type { LogEntry } from '../api';
 
-/* LOG — receipts feed. Every action Helicon took and every call the human
+/* LOG, receipts feed. Every action Helicon took and every call the human
    made, newest first, merged from audit_log / reviews / triage / reconcile.
    Shape from /api/log: {entries: [{ts, actor, action, detail, count?}]}. */
 

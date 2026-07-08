@@ -117,7 +117,7 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
 
       {notesSaved && (
         <p className="mt-3 pl-3 text-[11px] text-emerald-600 animate-fade-in">
-          Saved — Helicon learns your review patterns from this.
+          Saved, Helicon learns your review patterns from this.
         </p>
       )}
       <div className="mt-3 pl-3 flex items-center gap-2">

@@ -16,12 +16,12 @@ import SetupReportCard from './components/SetupReportCard';
 import StoreAudit from './components/StoreAudit';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
-   Graph · Projects secondary. Review and Insights are gone — findings
+   Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
 type Tab = 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
 
-// Focus leads — your next moves from the state of your memory. Then your memory
+// Focus leads, your next moves from the state of your memory. Then your memory
 // itself, what needs ruling, what to feed the agent. Stack/evals/log secondary.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'tour', label: 'Tour' },
@@ -51,7 +51,7 @@ function App() {
   const [triageCount, setTriageCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Findings (the heart) — owned here so the header attention bar shares it
+  // Findings (the heart), owned here so the header attention bar shares it
   const [findingsData, setFindingsData] = useState<FindingsResponse | null>(null);
   const [batteryIncluded, setBatteryIncluded] = useState(false);
   const [batteryLoading, setBatteryLoading] = useState(false);
@@ -212,7 +212,7 @@ function App() {
                 </button>
               )}
               {score && (
-                <div className="flex items-center gap-1.5" title={`${score.reviewed} of ${score.total} memory items triaged — review coverage, not a health grade`}>
+                <div className="flex items-center gap-1.5" title={`${score.reviewed} of ${score.total} memory items triaged, review coverage, not a health grade`}>
                   <div className="w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
                     <div
                       className="h-full rounded-full qwen-gradient-bg transition-all duration-700"
@@ -331,7 +331,7 @@ function App() {
 
         {tab === 'findings' && (
           <>
-          <TabPurpose>What Helicon caught in your memory — drift, staleness, and things worth sharpening. You rule once; it sticks.</TabPurpose>
+          <TabPurpose>What Helicon caught in your memory, drift, staleness, and things worth sharpening. You rule once; it sticks.</TabPurpose>
           <FindingsView
             data={findingsData}
             onReload={loadFindings}
@@ -344,28 +344,28 @@ function App() {
 
         {tab === 'gold' && (
           <>
-          <TabPurpose>Your agent's operating law. Every rule here you ruled true, and each carries its receipt — this is what your agent should already know, kept in sync as your memory changes. Not a doc you paste; infrastructure it obeys.</TabPurpose>
+          <TabPurpose>Your agent's operating law. Every rule here you ruled true, and each carries its receipt, this is what your agent should already know, kept in sync as your memory changes. Not a doc you paste; infrastructure it obeys.</TabPurpose>
           <GoldView />
           </>
         )}
 
         {tab === 'routines' && (
           <>
-          <TabPurpose>The stack around your memory — the routines that feed it and the skills your agent loads. Silent crons and duplicate skills surface here.</TabPurpose>
+          <TabPurpose>The stack around your memory, the routines that feed it and the skills your agent loads. Silent crons and duplicate skills surface here.</TabPurpose>
           <SkillsAudit />
           </>
         )}
 
         {tab === 'evals' && (
           <>
-          <TabPurpose>Talk to your agent — test what a task retrieves, run the battery, then transfer the compiled context into your next session.</TabPurpose>
+          <TabPurpose>Talk to your agent, test what a task retrieves, run the battery, then transfer the compiled context into your next session.</TabPurpose>
           <EvalView />
           </>
         )}
 
           {tab === 'log' && (
           <>
-          <TabPurpose>What Helicon did and what you decided — every action is a receipt.</TabPurpose>
+          <TabPurpose>What Helicon did and what you decided, every action is a receipt.</TabPurpose>
           <LogView />
           </>
         )}
@@ -380,7 +380,7 @@ function App() {
 
         {tab === 'projects' && !selectedProject && (
           <>
-          <TabPurpose>Compiled knowledge per project — copy it into your agent's context.</TabPurpose>
+          <TabPurpose>Compiled knowledge per project, copy it into your agent's context.</TabPurpose>
           <ProjectsGrid
             projects={projects}
             score={score}
@@ -421,7 +421,7 @@ function TabPurpose({ children }: { children: React.ReactNode }) {
 
 /* The front door. States the promise, the loop, and the two honest numbers:
    what needs a human ruling now (the alarm, terracotta) and how much of the
-   memory has been triaged (coverage — deliberately NOT framed as a health grade,
+   memory has been triaged (coverage, deliberately NOT framed as a health grade,
    because it is just reviewed/total). Daily-use framing kills the "do I live
    in this dashboard?" question up front. */
 function ContextHero({ score, needsYou, onReview }: { score: Score | null; needsYou: number; onReview: () => void }) {
@@ -478,13 +478,13 @@ function ContextHero({ score, needsYou, onReview }: { score: Score | null; needs
             {coverage}%
           </span>
           <span className="text-[12px]" style={{ color: 'var(--helicon-muted)' }}>
-            reviewed <span style={{ opacity: 0.75 }}>({reviewed.toLocaleString()} of {total.toLocaleString()} triaged — coverage, not a health grade)</span>
+            reviewed <span style={{ opacity: 0.75 }}>({reviewed.toLocaleString()} of {total.toLocaleString()} triaged, coverage, not a health grade)</span>
           </span>
         </div>
       </div>
 
       <p className="mt-5 text-[11px]" style={{ color: 'var(--helicon-muted)' }}>
-        Helicon runs on a timer and pings you when something needs a call. You don't live here — you drop in when it does.
+        Helicon runs on a timer and pings you when something needs a call. You don't live here, you drop in when it does.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-/* The Setup Report Card — "how healthy is my agent's memory setup?", graded
+/* The Setup Report Card, "how healthy is my agent's memory setup?", graded
    live against the Track-1 MemoryAgent criteria. Heavy (runs the battery +
    cross-source pairing), so it's an explicit "run the exam" action. */
 
@@ -22,11 +22,11 @@ interface Report {
 
 const GOAL_META: { key: string; label: string; stat: (g: SubGoal) => string }[] = [
   { key: 'efficient_storage_retrieval', label: 'Efficient store & retrieval',
-    stat: g => `P@3 ${g.precision_at_3 ?? '–'} · MRR ${g.mrr ?? '–'}` },
+    stat: g => `P@3 ${g.precision_at_3 ?? '-'} · MRR ${g.mrr ?? '-'}` },
   { key: 'timely_forgetting', label: 'Timely forgetting',
-    stat: g => `${(g.retired_superseded as number ?? 0) + (g.retired_killed as number ?? 0)} retired · freshness ${g.freshness_pass_rate ?? '–'}` },
+    stat: g => `${(g.retired_superseded as number ?? 0) + (g.retired_killed as number ?? 0)} retired · freshness ${g.freshness_pass_rate ?? '-'}` },
   { key: 'recall_under_limited_context', label: 'Recall in limited context',
-    stat: g => `~${g.mean_tokens_per_query_top5 ?? '–'} tok/query · thinness ${g.thinness_pass_rate ?? '–'}` },
+    stat: g => `~${g.mean_tokens_per_query_top5 ?? '-'} tok/query · thinness ${g.thinness_pass_rate ?? '-'}` },
   { key: 'cross_session_accuracy', label: 'Cross-session accuracy',
     stat: g => {
       const cs = (g.cross_source_contradictions as { inter_judge_kappa?: number; second_judge?: string } | undefined);
@@ -55,7 +55,7 @@ export default function SetupReportCard() {
             Setup report card
           </div>
           <p className="mt-1.5 text-[13px]" style={{ color: 'var(--helicon-muted)', maxWidth: '46ch' }}>
-            How healthy is your agent's memory setup? Graded live against the seven MemoryAgent criteria — storage, forgetting, recall, cross-session accuracy.
+            How healthy is your agent's memory setup? Graded live against the seven MemoryAgent criteria, storage, forgetting, recall, cross-session accuracy.
           </p>
         </div>
         <button

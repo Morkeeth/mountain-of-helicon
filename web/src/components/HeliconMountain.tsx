@@ -76,7 +76,7 @@ function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], s
 
   const tiles: TaskTile[] = [];
 
-  // cracked tiles near the summit ridge — ONE per flagged task. BROKEN tasks
+  // cracked tiles near the summit ridge, ONE per flagged task. BROKEN tasks
   // flake: the tile turns terracotta, pulses, and sheds a shard that falls
   // off the mountain on load (the one dramatic animation on this page).
   for (let k = 0; k < crackTasks.length; k++) {
@@ -113,7 +113,7 @@ function buildMountain(crackTasks: BatteryTask[], healthyTasks: BatteryTask[], s
   return { svg: ridgeLine + s, viewH, tiles, ridgePts };
 }
 
-// Gold seams — kintsugi. One per human verdict (resolve/dismiss): the crack
+// Gold seams, kintsugi. One per human verdict (resolve/dismiss): the crack
 // was ruled on, the repair is visible, and never-twice guards it. Drawn along
 // the ridge where the rot lived.
 function goldSeams(ridgePts: [number, number][], count: number): string {
@@ -139,7 +139,7 @@ const DOT: Record<string, string> = {
 
 /* Degradation-over-time: % of benchmark tasks serving healthy context, one
    real point per battery run (dashboard load or `helicon report`). No
-   interpolation, no backfill — the curve is as long as the tool has run.
+   interpolation, no backfill, the curve is as long as the tool has run.
    This is the on-screen answer to "Is your AI agent getting dumber?" */
 function DegradationCurve({ history }: { history: BatteryHistory }) {
   const [hover, setHover] = useState<BatteryHistoryPoint | null>(null);
@@ -224,7 +224,7 @@ function DegradationCurve({ history }: { history: BatteryHistory }) {
         )}
       </div>
       <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 6 }}>
-        One real point per battery run — no interpolation, no backfill. The curve is as young as the habit.
+        One real point per battery run, no interpolation, no backfill. The curve is as young as the habit.
       </div>
     </div>
   );
@@ -363,7 +363,7 @@ export default function HeliconMountain() {
       )}
       {battery && (
         <div style={{ fontSize: 13.5, lineHeight: 1.6, color: '#6f665a', maxWidth: '58ch', marginBottom: 14 }}>
-          Killed notes, dead names, contradicted facts — still being retrieved. Hover a crack for the receipt.
+          Killed notes, dead names, contradicted facts, still being retrieved. Hover a crack for the receipt.
           Rulings are final: resolved rot re-alarms if it ever comes back.
         </div>
       )}
@@ -374,7 +374,7 @@ export default function HeliconMountain() {
             margin: '0 0 18px', padding: '7px 0', fontSize: 11.5, fontVariantNumeric: 'tabular-nums',
             color: '#5d564b', whiteSpace: 'nowrap',
           }}
-          title="open contradictions in your memory, live — rule on them in FINDINGS"
+          title="open contradictions in your memory, live, rule on them in FINDINGS"
         >
           <div className="hm-ticker">
             {[...tickerItems, ...tickerItems].map((t, i) => (
@@ -451,21 +451,21 @@ export default function HeliconMountain() {
                     <div style={{ fontWeight: 600 }}>{hovered.task.task}</div>
                     <div style={{ opacity: 0.8 }}>
                       {hovered.task.verdict.toLowerCase()}
-                      {fails.length > 0 ? ` — failing: ${fails.map((f) => f.name).join(', ')}` : ' — all checks passing'}
+                      {fails.length > 0 ? `, failing: ${fails.map((f) => f.name).join(', ')}` : ', all checks passing'}
                     </div>
                   </div>
                 );
               })()}
             </div>
             <div className="flex flex-wrap" style={{ gap: '10px 26px', fontSize: 11, color: 'var(--helicon-muted)', marginTop: 10 }}>
-              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(150 18% 68%)', marginRight: 6, verticalAlign: '-1px' }} />tile — one retrieval task, context fresh</span>
-              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(22 62% 52%)', marginRight: 6, verticalAlign: '-1px' }} />cracked — serving rot, hover for the receipt</span>
-              <span><i style={{ display: 'inline-block', width: 10, height: 3, background: '#c9a227', marginRight: 6, verticalAlign: '2px', borderRadius: 2 }} />gold — {verdicts} ruling{verdicts === 1 ? '' : 's'} recorded, guarded against recurrence</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(150 18% 68%)', marginRight: 6, verticalAlign: '-1px' }} />tile, one retrieval task, context fresh</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 10, background: 'hsl(22 62% 52%)', marginRight: 6, verticalAlign: '-1px' }} />cracked, serving rot, hover for the receipt</span>
+              <span><i style={{ display: 'inline-block', width: 10, height: 3, background: '#c9a227', marginRight: 6, verticalAlign: '2px', borderRadius: 2 }} />gold, {verdicts} ruling{verdicts === 1 ? '' : 's'} recorded, guarded against recurrence</span>
             </div>
           </div>
 
           <div style={{ fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--helicon-muted)', margin: '20px 0 4px' }}>
-            {flagged.length ? `Flagged — ${flagged.length} task${flagged.length > 1 ? 's' : ''} cracking` : 'All benchmark tasks healthy'}
+            {flagged.length ? `Flagged, ${flagged.length} task${flagged.length > 1 ? 's' : ''} cracking` : 'All benchmark tasks healthy'}
           </div>
           {flagged.map((t) => (
             <div
@@ -489,7 +489,7 @@ export default function HeliconMountain() {
           )}
           {snapshots && snapshots.total === 0 && (
             <div style={{ fontSize: 11, color: 'var(--helicon-muted)', marginTop: 18 }}>
-              No context snapshots captured yet — run <code>helicon snapshot add "&lt;task&gt;"</code> to baseline retrieval and catch regressions.
+              No context snapshots captured yet, run <code>helicon snapshot add "&lt;task&gt;"</code> to baseline retrieval and catch regressions.
             </div>
           )}
         </>

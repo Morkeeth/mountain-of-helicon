@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-/* External store audit — point Helicon at a Mem0 store (the backend Alibaba's
+/* External store audit, point Helicon at a Mem0 store (the backend Alibaba's
    docs recommend), pull what it kept, and run the rot exam. The store owns the
    write path; Helicon is the exam it never runs on itself. */
 
@@ -26,7 +26,7 @@ export default function StoreAudit() {
             Audit an external store
           </div>
           <p className="mt-1.5 text-[13px]" style={{ color: 'var(--helicon-muted)', maxWidth: '52ch' }}>
-            Point Helicon at a <strong style={{ color: 'var(--helicon-ink)' }}>Mem0</strong> store — the memory backend Alibaba's own docs recommend for Qwen agents. It stores and retrieves; it never checks if what it kept is still true. Helicon does.
+            Point Helicon at a <strong style={{ color: 'var(--helicon-ink)' }}>Mem0</strong> store, the memory backend Alibaba's own docs recommend for Qwen agents. It stores and retrieves; it never checks if what it kept is still true. Helicon does.
           </p>
         </div>
         <button
@@ -69,7 +69,7 @@ export default function StoreAudit() {
               ))}
             </div>
           ) : (
-            <p className="text-[13px]" style={{ color: 'var(--helicon-stale)' }}>This Mem0 store is clean — no rot classes firing.</p>
+            <p className="text-[13px]" style={{ color: 'var(--helicon-stale)' }}>This Mem0 store is clean, no rot classes firing.</p>
           )}
         </div>
       )}
