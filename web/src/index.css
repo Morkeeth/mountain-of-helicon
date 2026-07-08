@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500;6..72,600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @import "tailwindcss";
 
@@ -9,23 +9,23 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Graphite accent (frosted-light house style — no AI-purple) */
-  --qwen-purple: #b5502e;
-  --qwen-indigo: #b0842f;
-  --qwen-blue: #8a7a64;
-  --qwen-purple-dim: rgba(181, 80, 46, 0.09);
-  --qwen-gradient: linear-gradient(135deg, #b5502e 0%, #c17a5e 55%, #d6a986 100%);
+  /* Court of record palette — Ink Navy / Wax Red / Mnemosyne Gold / Laurel */
+  --qwen-purple: #9E3F32;
+  --qwen-indigo: #C5A25A;
+  --qwen-blue: #6F8F72;
+  --qwen-purple-dim: rgba(158, 63, 50, 0.09);
+  --qwen-gradient: linear-gradient(135deg, #9E3F32 0%, #b8603f 50%, #C5A25A 100%);
 
-  /* Light mode base */
-  --bg: #f6f1e9;
-  --surface: rgba(253, 251, 246, 0.55);
-  --border: rgba(60,40,20,0.10);
-  --border-subtle: #e8e0d2;
-  --text-primary: #241f18;
-  --text-secondary: #5c5142;
-  --text-muted: #a99e8c;
-  --accent: #b5502e;
-  --accent-dim: rgba(181, 80, 46, 0.09);
+  /* Light mode base — Marble Mist ground, Ink Navy text */
+  --bg: #F6F2EA;
+  --surface: rgba(255, 253, 248, 0.6);
+  --border: rgba(23,32,51,0.10);
+  --border-subtle: #e4e0d6;
+  --text-primary: #172033;
+  --text-secondary: #515b70;
+  --text-muted: #5d677d;
+  --accent: #9E3F32;
+  --accent-dim: rgba(158, 63, 50, 0.09);
 
   /* Frosted Light tuner values (Oscar, Jul 1) */
   --glass-alpha: 0.38;
@@ -39,7 +39,7 @@
   --card-foreground: oklch(0.21 0.01 280);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.21 0.01 280);
-  --primary: oklch(0.52 0.14 42);
+  --primary: oklch(0.45 0.13 28);
   --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.955 0.004 280);
   --secondary-foreground: oklch(0.21 0.01 280);
@@ -48,7 +48,7 @@
   --accent-foreground: oklch(0.21 0.01 280);
   --destructive: oklch(0.577 0.245 27.325);
   --input: oklch(0 0 0 / 6%);
-  --ring: oklch(0.52 0.14 42);
+  --ring: oklch(0.45 0.13 28);
   --chart-1: oklch(0.34 0.006 285);
   --chart-2: oklch(0.46 0.005 285);
   --chart-3: oklch(0.58 0.004 285);
@@ -81,17 +81,18 @@ body {
     var(--bg);
   background-attachment: fixed;
   color: var(--text-secondary);
-  font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.6;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
 }
 
-/* Warm Editorial (chosen Jul 6): Fraunces display for headings + the score
-   number, JetBrains Mono for tabular figures — numbers are heroes. */
+/* Court of record (chosen Jul 8, from the Codex identity): Cormorant Garamond
+   as the display/court hand, Inter for the functional body, JetBrains Mono for
+   tabular figures. Serif headings carry the weight; numbers are heroes. */
 h1, h2, h3, .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .tabular-nums, .font-mono {
   font-family: var(--font-mono);
@@ -214,41 +215,42 @@ button, a, input, select {
 }
 
 @theme inline {
-  --font-heading: 'Fraunces', Georgia, serif;
-  --font-display: 'Fraunces', Georgia, serif;
+  --font-heading: 'Cormorant Garamond', Georgia, serif;
+  --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-sans: 'Newsreader', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* Violet/indigo accent remapped to graphite (kills AI-purple across all
+  /* Violet/indigo accent remapped to Wax Red (kills AI-purple across all
      components without touching component files) */
-  --color-violet-50: #f8efe9;
-  --color-violet-100: #f0ddd3;
-  --color-violet-200: #e3c3b4;
-  --color-violet-300: #d19e88;
-  --color-violet-400: #c17a5e;
-  --color-violet-500: #b5502e;
-  --color-violet-600: #9c4326;
-  --color-violet-700: #7e3620;
-  --color-violet-800: #5a2c1c;
-  --color-violet-900: #3e2015;
-  --color-indigo-50: #f8efe9;
-  --color-indigo-100: #f0ddd3;
-  --color-indigo-400: #c17a5e;
-  --color-indigo-500: #b5502e;
-  --color-indigo-600: #9c4326;
+  --color-violet-50: #f7ece9;
+  --color-violet-100: #edd4ce;
+  --color-violet-200: #ddb3a8;
+  --color-violet-300: #c98a7c;
+  --color-violet-400: #b66150;
+  --color-violet-500: #9E3F32;
+  --color-violet-600: #883528;
+  --color-violet-700: #6d2a20;
+  --color-violet-800: #501f18;
+  --color-violet-900: #351511;
+  --color-indigo-50: #f7ece9;
+  --color-indigo-100: #edd4ce;
+  --color-indigo-400: #b66150;
+  --color-indigo-500: #9E3F32;
+  --color-indigo-600: #883528;
 
-  /* Zinc palette swap: dark-on-light instead of light-on-dark */
-  --color-zinc-50: #1c1710;
-  --color-zinc-100: #241f18;
-  --color-zinc-200: #3a3025;
-  --color-zinc-300: #524635;
-  --color-zinc-400: #5c4f3d;
-  --color-zinc-500: #6b5d48;
-  --color-zinc-600: #7a6c54;
-  --color-zinc-700: #8f8068;
-  --color-zinc-800: #e6ddc9;
-  --color-zinc-900: #f3ede0;
-  --color-zinc-950: #faf6ee;
+  /* Zinc swap: Ink Navy text on Marble Mist — dark-on-light, navy-gray ramp
+     (contrast-verified ≥4.5:1 for 100-600 body, ≥3:1 for 700 faint) */
+  --color-zinc-50: #0e1626;
+  --color-zinc-100: #172033;
+  --color-zinc-200: #29344a;
+  --color-zinc-300: #3a4761;
+  --color-zinc-400: #454f63;
+  --color-zinc-500: #515b70;
+  --color-zinc-600: #5d677d;
+  --color-zinc-700: #79839a;
+  --color-zinc-800: #dfe2ea;
+  --color-zinc-900: #eef0f4;
+  --color-zinc-950: #f7f8fb;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
