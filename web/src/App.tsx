@@ -11,6 +11,7 @@ import LogView from './components/LogView';
 import GoldView from './components/GoldView';
 import ConflictMap from './components/ConflictMap';
 import Focus from './components/Focus';
+import SetupReportCard from './components/SetupReportCard';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone — findings
@@ -294,6 +295,8 @@ function App() {
               needsYou={findingsData?.summary?.needs_you ?? 0}
               onReview={() => setTab('findings')}
             />
+
+            <SetupReportCard />
 
             <div className="border-t border-zinc-800/40 pt-8">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">

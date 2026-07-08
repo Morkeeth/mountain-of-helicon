@@ -20,6 +20,17 @@ async def focus_moves():
     return generate_next_moves(get_conn(), get_config())
 
 
+@router.get("/setup-report")
+async def setup_report():
+    """The graded MemoryAgent report card — how healthy your agent's memory
+    setup is, scored live against the Track-1 criteria. Heavy (runs the battery
+    + cross-source pairing), so it's an explicit action, not an auto-load."""
+    from helicon.report import memoryagent_report
+    from helicon.qwen import get_client
+    cfg = get_config()
+    return memoryagent_report(get_conn(), client=get_client(cfg))
+
+
 def _vault_dir(config: dict) -> str | None:
     """Configured Obsidian vault, if any. Kept config-driven so the OSS tool
     never hardcodes a personal path; falls back to a local file when unset."""
