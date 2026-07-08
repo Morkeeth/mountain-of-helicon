@@ -303,31 +303,34 @@ def hybrid_search(
     scores = {}
     details = {}
 
-    for r in sem_results:
+    # Reciprocal Rank Fusion (Cormack et al., SIGIR 2009): fuse the two ranked
+    # lists by RANK, not raw score, so semantic cosine and FTS relevance stop
+    # fighting over incomparable scales. k=60 is the standard constant; the
+    # weights let one signal count more without re-introducing scale bias.
+    RRF_K = 60
+    for rank, r in enumerate(sem_results):
         cid = r["id"]
-        sem_score = r["similarity"]
-        scores[cid] = scores.get(cid, 0) + sem_score * semantic_weight
+        scores[cid] = scores.get(cid, 0) + semantic_weight / (RRF_K + rank)
         details[cid] = {
             "id": cid, "title": r["title"], "type": r["type"],
             "source": r["source"], "confidence": r["confidence"],
             "content": r["content"], "created_at": r["created_at"],
-            "semantic_score": sem_score, "fts_rank": None,
+            "semantic_score": r["similarity"], "fts_rank": None,
         }
 
-    for i, r in enumerate(fts_results):
+    for rank, r in enumerate(fts_results):
         cid = r["id"]
-        fts_score = max(0, 1.0 - i * 0.05)
-        scores[cid] = scores.get(cid, 0) + fts_score * fts_weight
+        scores[cid] = scores.get(cid, 0) + fts_weight / (RRF_K + rank)
         if cid not in details:
             details[cid] = {
                 "id": cid, "title": r["title"], "type": r["type"],
                 "source": r["source"], "confidence": r["confidence"],
                 "content": (r["content"] or "")[:300],
                 "created_at": r["created_at"] if "created_at" in r.keys() else "",
-                "semantic_score": None, "fts_rank": i,
+                "semantic_score": None, "fts_rank": rank,
             }
         else:
-            details[cid]["fts_rank"] = i
+            details[cid]["fts_rank"] = rank
 
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     # Two-stage: over-fetch, then let qwen3-rerank re-order the top candidates.
