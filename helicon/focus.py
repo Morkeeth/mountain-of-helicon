@@ -14,6 +14,7 @@ resolve back to one of them — no free-floating advice ever ships.
 from datetime import datetime
 
 from helicon.qwen import get_client, complete_json
+from helicon.lenses import detect_lens, lens_guidance
 
 
 _SYSTEM = """You are Mount Helicon's focus engine. You receive the current STATE of a
@@ -76,18 +77,20 @@ def generate_next_moves(conn, config: dict | None = None) -> dict:
     lines: list[str] = []
     for f in findings:
         rid = f["id"]
+        ok = detect_lens(f.get("title", ""), f.get("source", ""),
+                         f.get("source_ref", ""), f.get("why", ""))
         refs[rid] = {
             "ref": rid, "kind": f["kind"], "title": f.get("title") or "",
             "why": f.get("why") or "", "source": f.get("source") or "",
-            "cube_id": f.get("cube_id"),
+            "cube_id": f.get("cube_id"), "output_kind": ok,
         }
-        lines.append(f"[{rid}] ({f['kind']}) {f.get('why','')[:200]}")
+        lines.append(f"[{rid}] ({f['kind']} · {ok}) {f.get('why','')[:200]}")
     for r in recs:
         rid = f"project:{r['name']}"
         refs[rid] = {
             "ref": rid, "kind": "project", "title": r["name"],
             "why": r.get("action") or "; ".join(r.get("reasons", [])),
-            "source": "project-intelligence", "cube_id": None,
+            "source": "project-intelligence", "cube_id": None, "output_kind": "default",
         }
         sig = (f"{r['cube_count']} cubes, {int(r['ship_rate']*100)}% shipped, "
                f"spin {r['spin_score']}x, {r.get('pending',0)} pending, "
@@ -104,7 +107,10 @@ def generate_next_moves(conn, config: dict | None = None) -> dict:
         return {"moves": [], "grounded_in": len(refs), "generated_at": datetime.utcnow().isoformat(),
                 "note": "No Qwen client configured (set qwen_api_key)."}
 
-    user = ("Current memory state. Cite only these ref ids.\n\nFINDINGS & SIGNALS:\n"
+    present = {r.get("output_kind", "default") for r in refs.values()}
+    user = ("Current memory state. Cite only these ref ids.\n\n"
+            + lens_guidance(present)
+            + "\n\nFINDINGS & SIGNALS (each tagged with its output type):\n"
             + "\n".join(lines))
     data = complete_json(client, _SYSTEM, user, model="qwen3.6-plus", operation="focus_next_moves")
 
