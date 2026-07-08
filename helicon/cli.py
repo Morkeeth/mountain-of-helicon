@@ -718,6 +718,52 @@ def _render_portrait(res: dict):
         print()
 
 
+def cmd_consistency(args):
+    """The consistency gate: does your memory INDEX still match its directory?
+    Deterministic, no key. Catches the drift that hides in plain sight, a
+    pointer to a deleted file or a file the index never lists."""
+    from helicon.config import load_config
+    from helicon.consistency import audit_index, default_index
+
+    config = load_config()
+    index = getattr(args, "index", None) or default_index(config)
+    if not index:
+        print("No index given and no Claude Code auto-memory MEMORY.md found.")
+        print("Usage: helicon consistency <path/to/INDEX.md>")
+        return
+    res = audit_index(index, getattr(args, "dir", None))
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+    if not res.get("ok"):
+        print(res.get("reason", "could not read the index"))
+        return
+
+    print(f"The consistency gate — does your index match its directory?\n")
+    print(f"  index   {res['index']}")
+    print(f"  dir     {res['dir']}")
+    ext = res.get("external", [])
+    ext_note = f" · {len(ext)} external (cross-vault, not checked)" if ext else ""
+    print(f"  {res['pointers']} pointers · {res['on_disk']} files on disk{ext_note}\n")
+    if res["consistent"]:
+        print("  index and directory agree. Nothing points at a ghost, nothing hides.")
+        return
+    if res["dangling"]:
+        print(f"  DANGLING ({len(res['dangling'])}) — the index points to files that are gone:")
+        for f in res["dangling"][:20]:
+            print(f"    ✗ {f}")
+    if res["dangling_wikilinks"]:
+        print(f"  DANGLING WIKILINKS ({len(res['dangling_wikilinks'])}):")
+        for w in res["dangling_wikilinks"][:20]:
+            print(f"    ✗ [[{w}]]")
+    if res["unlisted"]:
+        print(f"  UNLISTED ({len(res['unlisted'])}) — files on disk the index never names:")
+        for f in res["unlisted"][:20]:
+            print(f"    ? {f}")
+    print(f"\n  Loaded every session, checked by nobody. This is the drift that survives.")
+
+
 def cmd_read(args):
     """The reading: open the record and it tells you who you are. Composes a
     grounded portrait from your memory (who recurs, what you make, the record's
@@ -1657,6 +1703,11 @@ def main():
     read_p = sub.add_parser("read", help="The reading: open the record and it tells you who you are (portrait + Qwen narration)")
     read_p.add_argument("--json", action="store_true", help="Emit JSON")
 
+    cons_p = sub.add_parser("consistency", help="The consistency gate: does your memory index still match its directory? (deterministic)")
+    cons_p.add_argument("index", nargs="?", help="Path to the index markdown (default: Claude Code auto-memory MEMORY.md)")
+    cons_p.add_argument("--dir", dest="dir", help="Directory the index indexes (default: the index's own folder)")
+    cons_p.add_argument("--json", action="store_true", help="Emit JSON")
+
     vol_p = sub.add_parser("volatility", help="The volatility gate: flag fast facts stored as durable memory (truth = fact + timestamp + decay)")
     vol_p.add_argument("--json", action="store_true", help="Emit JSON")
 
@@ -1740,6 +1791,7 @@ def main():
         "report": cmd_report,
         "rot": cmd_rot,
         "read": cmd_read,
+        "consistency": cmd_consistency,
         "volatility": cmd_volatility,
         "ci": cmd_ci,
         "gold": cmd_gold,
