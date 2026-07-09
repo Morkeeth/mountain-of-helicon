@@ -503,14 +503,18 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
               <div>
                 <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Review coverage by source</h3>
                 {score && (
-                  <div className="space-y-3">
+                  <div className="space-y-3.5">
                     {Object.entries(score.by_source).map(([src, data]) => (
-                      <div key={src} className="flex items-center justify-between">
-                        <span className="text-[13px] text-zinc-400">{src}</span>
-                        <div className="flex items-center gap-4">
-                          <span className="text-[11px] text-zinc-600 tabular-nums">{data.reviewed}/{data.total}</span>
-                          <span className="text-[13px] text-zinc-300 tabular-nums w-10 text-right">{data.score}%</span>
-                        </div>
+                      <div key={src} className="grid items-center gap-4" style={{ gridTemplateColumns: '128px 64px 1fr 40px' }}>
+                        <span className="text-[13px]" style={{ color: 'var(--helicon-ink)' }}>{src}</span>
+                        <span className="text-[11px] tabular-nums text-right" style={{ color: 'var(--helicon-muted)' }}>{data.reviewed}/{data.total}</span>
+                        <span className="relative h-[5px] rounded-full overflow-hidden" style={{ background: 'rgba(46,58,71,0.09)' }}>
+                          <span
+                            className="absolute left-0 top-0 h-full rounded-full"
+                            style={{ width: `${Math.min(100, data.score)}%`, background: data.score >= 100 ? 'var(--helicon-conflict)' : 'var(--helicon-ink)', opacity: 0.55, transition: 'width .8s cubic-bezier(0.16,1,0.3,1)' }}
+                          />
+                        </span>
+                        <span className="text-[13px] tabular-nums text-right" style={{ color: 'var(--helicon-ink)' }}>{data.score}%</span>
                       </div>
                     ))}
                   </div>
@@ -545,7 +549,20 @@ function ContextHero({ score, needsYou, onReview }: { score: Score | null; needs
   const step = (label: string) => <b style={{ color: 'var(--helicon-ink)', fontWeight: 600 }}>{label}</b>;
 
   return (
-    <div className="rounded-2xl bg-white shadow-sm border border-zinc-800/50 px-7 py-6">
+    <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm border border-zinc-800/50 px-7 py-6">
+      <img
+        src="/mountain.png"
+        alt=""
+        aria-hidden
+        className="absolute right-0 top-0 h-full w-[48%] object-cover pointer-events-none select-none"
+        style={{
+          objectPosition: 'center 42%',
+          WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 46%)',
+          maskImage: 'linear-gradient(90deg, transparent 0%, #000 46%)',
+          animation: 'heliconMist 32s ease-in-out infinite',
+        }}
+      />
+      <div className="relative" style={{ maxWidth: '58%' }}>
       <div className="text-[10px] uppercase tracking-[0.3em]" style={{ color: 'var(--helicon-muted)' }}>
         Agent memory audit
       </div>
@@ -600,6 +617,7 @@ function ContextHero({ score, needsYou, onReview }: { score: Score | null; needs
       <p className="mt-5 text-[11px]" style={{ color: 'var(--helicon-muted)' }}>
         Helicon runs on a timer and pings you when something needs a call. You don't live here, you drop in when it does.
       </p>
+      </div>
     </div>
   );
 }
