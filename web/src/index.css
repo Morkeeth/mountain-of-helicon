@@ -1,68 +1,62 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 @import "tailwindcss";
-
 @import "tw-animate-css";
-
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Court of record palette — Ink Navy / Wax Red / Mnemosyne Gold / Laurel */
-  --qwen-purple: #9E3F32;
-  --qwen-indigo: #C5A25A;
-  --qwen-blue: #6F8F72;
-  --qwen-purple-dim: rgba(158, 63, 50, 0.09);
-  --qwen-gradient: linear-gradient(135deg, #9E3F32 0%, #b8603f 50%, #C5A25A 100%);
+  /* ---- Alpine Wash: warm cream paper, slate ink, one clay accent ---- */
+  --bg: #F1ECE1;
+  --surface: #F7F3EB;
+  --border: rgba(46,58,71,0.10);
+  --border-subtle: #e4ddce;
+  --text-primary: #2E3A47;
+  --text-secondary: #626d7c;
+  --text-muted: #7a8391;
+  --accent: #B26A43;
+  --accent-dim: rgba(178,106,67,0.10);
 
-  /* Light mode base — Marble Mist ground, Ink Navy text */
-  --bg: #F6F2EA;
-  --surface: rgba(255, 253, 248, 0.6);
-  --border: rgba(23,32,51,0.10);
-  --border-subtle: #e4e0d6;
-  --text-primary: #172033;
-  --text-secondary: #515b70;
-  --text-muted: #5d677d;
-  --accent: #9E3F32;
-  --accent-dim: rgba(158, 63, 50, 0.09);
+  /* legacy names kept (redefined off the rainbow) so old classes stay calm */
+  --qwen-purple: #B26A43;
+  --qwen-indigo: #C6A461;
+  --qwen-blue: #8595A6;
+  --qwen-purple-dim: rgba(178,106,67,0.09);
+  --qwen-gradient: linear-gradient(135deg, #2E3A47 0%, #4A5866 60%, #8595A6 100%);
 
-  /* Frosted Light tuner values (Oscar, Jul 1) */
-  --glass-alpha: 0.38;
-  --glass-blur: 40px;
-  --glass-border: rgba(255, 255, 255, 0.66);
-
-  /* shadcn vars - light mode */
-  --background: oklch(0.975 0.003 280);
-  --foreground: oklch(0.18 0.01 280);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.01 280);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.01 280);
-  --primary: oklch(0.45 0.13 28);
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.955 0.004 280);
-  --secondary-foreground: oklch(0.21 0.01 280);
-  --muted: oklch(0.94 0.004 280);
-  --muted-foreground: oklch(0.48 0.01 280);
-  --accent-foreground: oklch(0.21 0.01 280);
-  --destructive: oklch(0.577 0.245 27.325);
-  --input: oklch(0 0 0 / 6%);
-  --ring: oklch(0.45 0.13 28);
-  --chart-1: oklch(0.34 0.006 285);
-  --chart-2: oklch(0.46 0.005 285);
-  --chart-3: oklch(0.58 0.004 285);
-  --chart-4: oklch(0.70 0.003 285);
-  --chart-5: oklch(0.82 0.002 285);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.975 0.003 280);
-  --sidebar-foreground: oklch(0.21 0.01 280);
-  --sidebar-primary: oklch(0.34 0.006 285);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.94 0.004 280);
-  --sidebar-accent-foreground: oklch(0.21 0.01 280);
-  --sidebar-border: oklch(0 0 0 / 8%);
-  --sidebar-ring: oklch(0.34 0.006 285);
+  /* shadcn vars — light mode (watercolor) */
+  --background: #F1ECE1;
+  --foreground: oklch(0.30 0.02 245);
+  --card: #F7F3EB;
+  --card-foreground: oklch(0.30 0.02 245);
+  --popover: #FBF8F1;
+  --popover-foreground: oklch(0.30 0.02 245);
+  --primary: oklch(0.53 0.10 45);          /* clay */
+  --primary-foreground: oklch(0.98 0.01 80);
+  --secondary: oklch(0.93 0.012 80);       /* cream-2 */
+  --secondary-foreground: oklch(0.32 0.02 245);
+  --muted: oklch(0.92 0.012 80);
+  --muted-foreground: oklch(0.48 0.02 245);
+  --accent-foreground: oklch(0.32 0.02 245);
+  --destructive: oklch(0.53 0.13 40);
+  --input: rgba(46,58,71,0.10);
+  --ring: oklch(0.53 0.10 45);
+  /* charts: slate ramp (summit → valley), one clay for emphasis */
+  --chart-1: oklch(0.53 0.10 45);          /* clay */
+  --chart-2: oklch(0.55 0.04 245);         /* slate */
+  --chart-3: oklch(0.66 0.03 245);
+  --chart-4: oklch(0.74 0.02 245);
+  --chart-5: oklch(0.70 0.04 80);          /* gold */
+  --radius: 1.125rem;                      /* 18px, soft */
+  --sidebar: #F1ECE1;
+  --sidebar-foreground: oklch(0.32 0.02 245);
+  --sidebar-primary: oklch(0.53 0.10 45);
+  --sidebar-primary-foreground: oklch(0.98 0.01 80);
+  --sidebar-accent: oklch(0.92 0.012 80);
+  --sidebar-accent-foreground: oklch(0.32 0.02 245);
+  --sidebar-border: rgba(46,58,71,0.10);
+  --sidebar-ring: oklch(0.53 0.10 45);
 }
 
 * {
@@ -72,185 +66,122 @@
 
 body {
   margin: 0;
-  /* faint neutral tint-wash so frosted surfaces have something to refract */
+  /* soft watercolor washes bleeding from the corners — painterly, calm.
+     gold at top-right, slate at bottom-left, over warm cream. */
   background:
-    radial-gradient(at 12% 18%, rgba(181,140,90,0.14) 0px, transparent 46%),
-    radial-gradient(at 88% 12%, rgba(181,80,46,0.07) 0px, transparent 46%),
-    radial-gradient(at 78% 88%, rgba(176,132,47,0.10) 0px, transparent 46%),
-    radial-gradient(at 18% 92%, rgba(181,140,90,0.12) 0px, transparent 46%),
+    radial-gradient(120% 62% at 82% -10%, rgba(198,164,97,0.11) 0px, transparent 58%),
+    radial-gradient(92% 52% at -6% 112%, rgba(120,140,160,0.11) 0px, transparent 58%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text-secondary);
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.6;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.003em;
 }
 
-/* Court of record (chosen Jul 8, from the Codex identity): Cormorant Garamond
-   as the display/court hand, Inter for the functional body, JetBrains Mono for
-   tabular figures. Serif headings carry the weight; numbers are heroes. */
+/* Fraunces carries headings + numbers; numbers are heroes. */
 h1, h2, h3, .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.012em;
+  color: var(--text-primary);
 }
 .tabular-nums, .font-mono {
   font-family: var(--font-mono);
   font-feature-settings: "tnum";
 }
-
-/* Frosted Light: every white surface becomes translucent frosted glass.
-   Plain (unlayered) rule so it beats Tailwind's .bg-white utility. */
-.bg-white {
-  background-color: rgba(255, 255, 255, var(--glass-alpha)) !important;
-  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
-  box-shadow: 0 4px 24px rgba(50, 50, 75, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
-}
-
-#root {
-  min-height: 100vh;
-}
-
-::selection {
-  background: rgba(181, 80, 46, 0.20);
-  color: #241f18;
-}
-
-input, textarea, select {
-  font-family: inherit;
-  letter-spacing: inherit;
-}
-
-button {
-  font-family: inherit;
+/* elegant serif figures where numbers lead */
+.font-fig {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 300;
   letter-spacing: -0.01em;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
+/* Cards: solid warm paper, soft shadow — NO frosted glass. */
+.bg-white {
+  background-color: var(--surface) !important;
+  box-shadow: var(--helicon-shadow) !important;
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+#root { min-height: 100vh; }
+
+::selection {
+  background: rgba(178,106,67,0.18);
+  color: #241f18;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #d4d4dc;
-  border-radius: 3px;
-}
+input, textarea, select { font-family: inherit; letter-spacing: inherit; }
+button { font-family: inherit; letter-spacing: -0.005em; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
-}
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(46,58,71,0.16); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(46,58,71,0.28); }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeInScale { from { opacity: 0; transform: scale(0.98) translateY(2px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse-subtle { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+@keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+@keyframes heliconMist { 0%,100% { transform: scale(1.02) translateX(0); } 50% { transform: scale(1.05) translateX(-8px); } }
 
-@keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.98) translateY(2px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
+.animate-fade-in { animation: fadeIn 0.2s ease-out both; }
+.animate-fade-in-scale { animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-up { animation: slideUp 0.25s ease-out both; }
+.animate-pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes pulse-subtle {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out both;
-}
-
-.animate-fade-in-scale {
-  animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.animate-slide-up {
-  animation: slideUp 0.25s ease-out both;
-}
-
-.animate-pulse-subtle {
-  animation: pulse-subtle 2s ease-in-out infinite;
-}
-
+/* legacy gradient classes — redefined off the rust rainbow, kept calm */
 .qwen-gradient-text {
-  background: var(--qwen-gradient);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-primary);
+  -webkit-text-fill-color: currentColor;
 }
-
-.qwen-gradient-bg {
-  background: var(--qwen-gradient);
-}
-
-.qwen-gradient-border {
-  border-image: var(--qwen-gradient) 1;
-}
-
+.qwen-gradient-bg { background: var(--qwen-gradient); }
+.qwen-gradient-border { border-color: var(--border); }
 .qwen-shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(63, 63, 70, 0.06) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(46,58,71,0.05) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
 }
 
-* {
-  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-button, a, input, select {
-  transition-duration: 150ms;
-}
+* { transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+button, a, input, select { transition-duration: 150ms; }
 
 @theme inline {
-  --font-heading: 'Cormorant Garamond', Georgia, serif;
-  --font-display: 'Cormorant Garamond', Georgia, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Fraunces', Georgia, serif;
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
 
-  /* Violet/indigo accent remapped to Wax Red (kills AI-purple across all
-     components without touching component files) */
-  --color-violet-50: #f7ece9;
-  --color-violet-100: #edd4ce;
-  --color-violet-200: #ddb3a8;
-  --color-violet-300: #c98a7c;
-  --color-violet-400: #b66150;
-  --color-violet-500: #9E3F32;
-  --color-violet-600: #883528;
-  --color-violet-700: #6d2a20;
-  --color-violet-800: #501f18;
-  --color-violet-900: #351511;
-  --color-indigo-50: #f7ece9;
-  --color-indigo-100: #edd4ce;
-  --color-indigo-400: #b66150;
-  --color-indigo-500: #9E3F32;
-  --color-indigo-600: #883528;
+  /* violet/indigo family remapped to CLAY (kills AI-purple everywhere) */
+  --color-violet-50: #f6ece6;
+  --color-violet-100: #ecd6c9;
+  --color-violet-200: #ddb6a2;
+  --color-violet-300: #cd977c;
+  --color-violet-400: #bf7e5a;
+  --color-violet-500: #B26A43;
+  --color-violet-600: #9c5a37;
+  --color-violet-700: #7f472b;
+  --color-violet-800: #5f3520;
+  --color-violet-900: #3f2315;
+  --color-indigo-50: #f6ece6;
+  --color-indigo-100: #ecd6c9;
+  --color-indigo-400: #bf7e5a;
+  --color-indigo-500: #B26A43;
+  --color-indigo-600: #9c5a37;
 
-  /* Zinc swap: Ink Navy text on Marble Mist — dark-on-light, navy-gray ramp
-     (contrast-verified ≥4.5:1 for 100-600 body, ≥3:1 for 700 faint) */
-  --color-zinc-50: #0e1626;
-  --color-zinc-100: #172033;
-  --color-zinc-200: #29344a;
-  --color-zinc-300: #3a4761;
-  --color-zinc-400: #454f63;
-  --color-zinc-500: #515b70;
-  --color-zinc-600: #5d677d;
-  --color-zinc-700: #79839a;
-  --color-zinc-800: #dfe2ea;
-  --color-zinc-900: #eef0f4;
-  --color-zinc-950: #f7f8fb;
+  /* zinc remapped to slate-on-cream ramp (dark text on warm light) */
+  --color-zinc-50: #1b2530;
+  --color-zinc-100: #2E3A47;
+  --color-zinc-200: #3b4a5a;
+  --color-zinc-300: #45525f;
+  --color-zinc-400: #55616e;
+  --color-zinc-500: #626d7c;
+  --color-zinc-600: #737e8c;
+  --color-zinc-700: #8f98a5;
+  --color-zinc-800: #ded7c8;
+  --color-zinc-900: #efe9db;
+  --color-zinc-950: #f7f3eb;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -283,20 +214,16 @@ button, a, input, select {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.7);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.2);
+  --radius-2xl: calc(var(--radius) * 1.5);
+  --radius-3xl: calc(var(--radius) * 1.9);
+  --radius-4xl: calc(var(--radius) * 2.3);
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground; }
 }

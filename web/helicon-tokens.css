@@ -1,39 +1,62 @@
 /* ============================================================
-   HELICON — locked visual identity (Tesserae / mountain-of-memory)
-   Dialed in the live tuner 2026-07-01. Build the real UI on these.
-   Aesthetic: elegant, fresh, mountain. NOT frosted glass, NOT AI-purple,
-   NOT a rainbow grid. Memory renders as a summit built of tonal stone
-   tiles; terracotta appears ONLY on cracked/flagged tiles.
+   HELICON — locked visual identity  ·  "Alpine Wash"
+   Chosen 2026-07-09 from a mood-board + generated watercolor imagery.
+   Aesthetic: calm, editorial, watercolor mountain. Warm cream paper,
+   slate ink, ONE clay accent (rot only). Soft watercolor washes at the
+   edges (painterly gradients, never AI-purple). Fraunces serif carries
+   every number; Archivo for tiny letterspaced labels. Dark slate cards
+   fade the mountain into their base.
+   Supersedes the Tesserae / kintsugi / Wax-Red "court of record" look.
    ============================================================ */
 :root {
-  /* ground & surfaces (ground-lightness = 100 -> near-white warm) */
-  --helicon-bg:     #F6F2EA;           /* Marble Mist — app ground */
-  --helicon-panel:  #FFFDF8;           /* Paper White — cards */
-  --helicon-line:   rgba(23,32,51,0.10); /* Ink-tinted hairline borders */
-  --helicon-ink:    #172033;           /* Ink Navy — primary text */
-  --helicon-muted:  #5d677d;           /* navy-gray labels / secondary (≥4.5:1 on Marble Mist) */
-  --helicon-accent: #9E3F32;           /* Wax Red — flags, rulings, primary action */
+  /* ground & surfaces */
+  --helicon-bg:       #F1ECE1;            /* warm cream — app ground */
+  --helicon-bg-2:     #E9E2D4;            /* deeper cream — recessed */
+  --helicon-panel:    #F7F3EB;            /* card */
+  --helicon-panel-2:  #FBF8F1;            /* raised card */
+  --helicon-line:     rgba(46,58,71,0.10);/* hairline border */
+  --helicon-line-2:   rgba(46,58,71,0.16);/* stronger hairline */
 
-  /* accent supporting */
-  --helicon-stale:  #C5A25A;           /* Mnemosyne Gold — rulings / precedent seams */
-  --helicon-conflict:#6F8F72;          /* Laurel Green */
+  /* ink (all text is one slate hue at varying alpha) */
+  --helicon-ink:      #2E3A47;            /* primary text */
+  --helicon-ink-70:   rgba(46,58,71,0.68);/* secondary */
+  --helicon-muted:    #626d7c;            /* labels (≥4.5:1 on cream) */
+  --helicon-faint:    rgba(46,58,71,0.30);/* tertiary / de-emphasised */
 
-  /* wordmark: Cormorant Garamond, the court hand */
-  --helicon-serif:  'Cormorant Garamond','Playfair Display',Georgia,serif;
-  --helicon-wm-weight: 300;
-  --helicon-wm-track:  0em;            /* uppercase, no extra tracking */
-  --helicon-wm-opsz:   144;            /* high-contrast display cut */
+  /* the ONE accent — clay. Used only for rot / flags / primary action */
+  --helicon-accent:     #B26A43;
+  --helicon-accent-dim: rgba(178,106,67,0.10);
+  --helicon-accent-deep:#93513A;
 
-  /* memory viz: mountain-of-tesserae (generative SVG) */
+  /* supporting signal hues (kept desaturated, calm) */
+  --helicon-stale:    #C6A461;            /* gold — degraded / precedent seam */
+  --helicon-conflict: #8595A6;            /* slate — degraded / neutral marker */
+  --helicon-gold:     #C6A461;
+
+  /* dark slate cards */
+  --helicon-dark:     #2B3641;
+  --helicon-dark-2:   #212a33;
+  --helicon-on-dark:      #EAE7DE;
+  --helicon-on-dark-60:   rgba(234,231,222,0.62);
+  --helicon-on-dark-35:   rgba(234,231,222,0.35);
+
+  /* type: Fraunces (display + numbers) + Archivo (labels/body).
+     Numbers are heroes — thin, high-optical-size serif. */
+  --helicon-serif:  'Fraunces', Georgia, 'Times New Roman', serif;
+  --helicon-sans:   'Archivo', system-ui, -apple-system, sans-serif;
+  --helicon-mono:   'IBM Plex Mono', ui-monospace, monospace;
+  --helicon-wm-weight: 400;
+  --helicon-wm-track:  0em;
+  --helicon-wm-opsz:   144;
+
+  /* shape & elevation — soft, calm */
+  --helicon-radius:  18px;
+  --helicon-radius-sm: 11px;
+  --helicon-shadow:  0 1px 2px rgba(46,58,71,0.04), 0 10px 34px rgba(46,58,71,0.055);
+  --helicon-shadow-sm: 0 1px 2px rgba(46,58,71,0.05);
+
+  /* legacy tesserae params kept as harmless no-ops for any old reference */
   --helicon-tile:   9px;
   --helicon-grout:  1px;
-  --helicon-corner: 0px;               /* crisp */
+  --helicon-corner: 0px;
 }
-
-/* viz generation params (used by the mountain render fn in
-   helicon-tesserae.html — port that renderer into the real app):
-     palette-spread = 0.28   (tonal, low saturation)
-     ridge-drama    = 0.50
-     tonal ramp: hue 208(slate summit) -> 36(warm stone base),
-                 sat = 6 + spread*34, light = 74 - depth*20
-     cracks: ~6 tiles near the ridge, filled ground-color + terracotta fracture */
