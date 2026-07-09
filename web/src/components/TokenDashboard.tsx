@@ -39,7 +39,7 @@ export function TokenDashboard() {
     <div className="space-y-10">
       <div className="grid grid-cols-4 gap-6">
         <Stat label="Total Calls" value={stats.total_calls.toString()} />
-        <Stat label="Cache Hit Rate" value={`${cacheRate.toFixed(1)}%`} color={cacheRate > 50 ? 'text-green-400' : cacheRate > 20 ? 'text-amber-400' : 'text-zinc-400'} />
+        <Stat label="Cache Hit Rate" value={`${cacheRate.toFixed(1)}%`} color={cacheRate > 50 ? 'text-zinc-400' : cacheRate > 20 ? 'text-amber-400' : 'text-zinc-400'} />
         <Stat label="Cached Entries" value={cacheEntries.toString()} />
         <Stat label="Total Cost" value={`$${stats.total_cost_usd.toFixed(4)}`} />
       </div>
@@ -64,7 +64,7 @@ export function TokenDashboard() {
                     </div>
                     <div>
                       <span className="text-zinc-700 block">Cached</span>
-                      <span className="text-green-500/60 tabular-nums">{data.cached_calls}</span>
+                      <span className="text-zinc-400/60 tabular-nums">{data.cached_calls}</span>
                     </div>
                     <div>
                       <span className="text-zinc-700 block">Tokens</span>
@@ -161,7 +161,7 @@ export function TokenDashboard() {
               <div key={i} className="border border-zinc-300 bg-zinc-100 rounded-lg p-3">
                 <div className="flex items-baseline justify-between mb-1">
                   <span className="text-[13px] text-zinc-700 font-mono">{rec.operation}</span>
-                  <span className="text-[11px] text-green-500/60">save ~${rec.estimated_savings_usd.toFixed(4)}</span>
+                  <span className="text-[11px] text-zinc-400/60">save ~${rec.estimated_savings_usd.toFixed(4)}</span>
                 </div>
                 <p className="text-[12px] text-zinc-500">
                   {rec.current_model} &rarr; {rec.suggested}: {rec.reason}

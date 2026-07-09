@@ -7,7 +7,7 @@ import { useState } from 'react';
 const API = (p: string) => fetch(`/api${p}`).then(r => r.json());
 
 const VERDICT: Record<string, { color: string; label: string }> = {
-  HEALTHY: { color: '#5f7f57', label: 'Healthy' },
+  HEALTHY: { color: 'var(--helicon-good)', label: 'Healthy' },
   DEGRADED: { color: 'var(--helicon-stale)', label: 'Degraded' },
   BROKEN: { color: 'var(--helicon-accent)', label: 'Broken' },
 };
@@ -18,6 +18,24 @@ interface Report {
   battery_tasks: { total: number; healthy?: number; degraded?: number; broken?: number };
   last_scan_hours_ago: number | null;
   sub_goals: Record<string, SubGoal>;
+}
+
+// Audit Score ring — the honest overall (healthy retrieval tasks / total)
+function Ring({ pct, color }: { pct: number; color: string }) {
+  const r = 33;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - Math.max(0, Math.min(100, pct)) / 100);
+  return (
+    <svg width="94" height="94" viewBox="0 0 94 94" className="shrink-0">
+      <circle cx="47" cy="47" r={r} fill="none" stroke="var(--helicon-mist)" strokeWidth="6.5" />
+      <circle
+        cx="47" cy="47" r={r} fill="none" stroke={color} strokeWidth="6.5" strokeLinecap="round"
+        strokeDasharray={c} strokeDashoffset={off} transform="rotate(-90 47 47)"
+        style={{ transition: 'stroke-dashoffset .9s cubic-bezier(0.16,1,0.3,1)' }}
+      />
+      <text x="47" y="52" textAnchor="middle" style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontSize: 23 }} fill="var(--helicon-ink)">{pct}%</text>
+    </svg>
+  );
 }
 
 const GOAL_META: { key: string; label: string; stat: (g: SubGoal) => string }[] = [
@@ -76,14 +94,21 @@ export default function SetupReportCard() {
 
       {rep && !loading && (
         <div className="mt-6">
-          <div className="flex items-baseline gap-3 mb-5">
-            <span className="text-[34px] leading-none" style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontVariationSettings: "'opsz' 144", color: ov!.color }}>
-              {ov!.label}
-            </span>
-            <span className="text-[12px]" style={{ color: 'var(--helicon-muted)' }}>
-              {rep.battery_tasks.total} retrieval tasks · {rep.battery_tasks.healthy ?? 0} healthy / {rep.battery_tasks.degraded ?? 0} degraded / {rep.battery_tasks.broken ?? 0} broken
-              {rep.last_scan_hours_ago != null && ` · scanned ${rep.last_scan_hours_ago}h ago`}
-            </span>
+          <div className="flex items-center gap-5 mb-6">
+            <Ring
+              pct={rep.battery_tasks.total ? Math.round(((rep.battery_tasks.healthy ?? 0) / rep.battery_tasks.total) * 100) : 0}
+              color={ov!.color}
+            />
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--helicon-muted)' }}>Overall score</div>
+              <div className="text-[26px] leading-tight" style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, fontVariationSettings: "'opsz' 144", color: ov!.color }}>
+                {ov!.label}
+              </div>
+              <div className="text-[12px] mt-0.5 tabular-nums" style={{ color: 'var(--helicon-muted)' }}>
+                {rep.battery_tasks.total} retrieval tasks · {rep.battery_tasks.healthy ?? 0} healthy / {rep.battery_tasks.degraded ?? 0} degraded / {rep.battery_tasks.broken ?? 0} broken
+                {rep.last_scan_hours_ago != null && ` · scanned ${rep.last_scan_hours_ago}h ago`}
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -92,7 +117,7 @@ export default function SetupReportCard() {
               if (!g) return null;
               const v = VERDICT[g.verdict] || VERDICT.DEGRADED;
               return (
-                <div key={m.key} className="rounded-lg border border-zinc-800/30 px-4 py-3" style={{ background: 'rgba(60,40,20,0.02)' }}>
+                <div key={m.key} className="rounded-lg border border-zinc-800/30 px-4 py-3" style={{ background: 'rgba(23,40,58,0.025)' }}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[13px]" style={{ color: 'var(--helicon-ink)' }}>{m.label}</span>
                     <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ color: v.color, border: `1px solid ${v.color}` }}>

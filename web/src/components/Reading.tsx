@@ -30,11 +30,10 @@ const API = (p: string) => fetch(`/api${p}`).then(r => r.json());
 // ridge tile. Matches the locked tesserae identity.
 function Summit({ size = 56 }: { size?: number }) {
   return (
-    <svg width={size} height={size * 0.72} viewBox="0 0 100 72" aria-hidden="true">
-      <polygon points="50,6 96,68 4,68" fill="var(--helicon-ink)" opacity="0.92" />
-      <polygon points="50,6 68,42 32,42" fill={GOLD} opacity="0.85" />
-      <polygon points="50,6 58,26 42,26" fill="var(--helicon-panel)" opacity="0.9" />
-      <polygon points="44,42 56,42 52,54 48,54" fill={RED} />
+    <svg width={size} height={size * 0.6} viewBox="0 0 44 26" fill="none"
+      stroke="var(--helicon-ink)" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+      <path d="M2.5 23 L14 5 L22 16.5" opacity={0.5} />
+      <path d="M15 23 L27.5 4 L41.5 23" />
     </svg>
   );
 }

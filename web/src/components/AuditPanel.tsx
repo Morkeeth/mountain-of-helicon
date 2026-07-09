@@ -112,7 +112,7 @@ export function AuditPanel({ findings, onRefresh }: Props) {
           );
         })}
         <div className="ml-auto flex items-center gap-2">
-          <Badge variant="outline" className="text-[10px] border-red-200 text-red-600 bg-red-50 px-1.5 py-0">
+          <Badge variant="outline" className="text-[10px] border-[rgba(169,74,61,0.30)] text-[#A94A3D] bg-[rgba(169,74,61,0.10)] px-1.5 py-0">
             {bySeverity.critical} critical
           </Badge>
           <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-700 bg-amber-50 px-1.5 py-0">
@@ -158,7 +158,7 @@ function FindingRow({ f, acting, onAct, onDismiss }: {
 
   const { label, variant } = actionLabel(f);
   const btnColors = variant === 'critical'
-    ? 'border-red-800/30 text-red-400/70 hover:bg-red-500/5'
+    ? 'border-[rgba(169,74,61,0.30)] text-[#A94A3D]/70 hover:bg-[rgba(169,74,61,0.05)]'
     : variant === 'warning'
       ? 'border-amber-200 text-amber-700 hover:bg-amber-50'
       : 'border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/30';
@@ -190,7 +190,7 @@ function FindingRow({ f, acting, onAct, onDismiss }: {
         className="flex items-center gap-3 py-2.5 px-4 hover:bg-zinc-800/10 transition-colors cursor-pointer"
       >
         <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-          f.severity === 'critical' ? 'bg-red-500' : f.severity === 'warning' ? 'bg-amber-500' : 'bg-zinc-500'
+          f.severity === 'critical' ? 'bg-[#A94A3D]' : f.severity === 'warning' ? 'bg-amber-500' : 'bg-zinc-500'
         }`} />
 
         <div className="flex-1 min-w-0">

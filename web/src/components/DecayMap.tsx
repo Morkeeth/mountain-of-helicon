@@ -1,7 +1,7 @@
 import type { DecayStats } from '../api';
 
 function barColor(avg: number): string {
-  if (avg < 0.1) return 'bg-red-500';
+  if (avg < 0.1) return 'bg-[#A94A3D]';
   if (avg < 0.3) return 'bg-amber-500';
   if (avg < 0.6) return 'bg-violet-400';
   return 'bg-violet-300';

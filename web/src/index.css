@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -7,56 +7,56 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* ---- Alpine Wash: warm cream paper, slate ink, one clay accent ---- */
-  --bg: #F1ECE1;
-  --surface: #F7F3EB;
-  --border: rgba(46,58,71,0.10);
-  --border-subtle: #e4ddce;
-  --text-primary: #2E3A47;
-  --text-secondary: #626d7c;
-  --text-muted: #7a8391;
-  --accent: #B26A43;
-  --accent-dim: rgba(178,106,67,0.10);
+  /* ---- Alpine Wash (Brand Book 2026): INK NAVY + PAPER, JUDGMENT RED accent ---- */
+  --bg: #ECE4D8;
+  --surface: #F4EFE7;
+  --border: rgba(23,40,58,0.10);
+  --border-subtle: #DFE4E9;
+  --text-primary: #17283A;
+  --text-secondary: #4E6173;
+  --text-muted: #6C7E8E;
+  --accent: #A94A3D;
+  --accent-dim: rgba(169,74,61,0.10);
 
-  /* legacy names kept (redefined off the rainbow) so old classes stay calm */
-  --qwen-purple: #B26A43;
-  --qwen-indigo: #C6A461;
-  --qwen-blue: #8595A6;
-  --qwen-purple-dim: rgba(178,106,67,0.09);
-  --qwen-gradient: linear-gradient(135deg, #2E3A47 0%, #4A5866 60%, #8595A6 100%);
+  /* legacy names kept (redefined to the brand) so old classes stay calm */
+  --qwen-purple: #A94A3D;
+  --qwen-indigo: #C6963F;
+  --qwen-blue: #AEBFCC;
+  --qwen-purple-dim: rgba(169,74,61,0.09);
+  --qwen-gradient: linear-gradient(135deg, #17283A 0%, #465B6F 60%, #AEBFCC 100%);
 
-  /* shadcn vars — light mode (watercolor) */
-  --background: #F1ECE1;
-  --foreground: oklch(0.30 0.02 245);
-  --card: #F7F3EB;
-  --card-foreground: oklch(0.30 0.02 245);
-  --popover: #FBF8F1;
-  --popover-foreground: oklch(0.30 0.02 245);
-  --primary: oklch(0.53 0.10 45);          /* clay */
+  /* shadcn vars — light mode (INK NAVY + PAPER) */
+  --background: #ECE4D8;
+  --foreground: oklch(0.25 0.03 250);      /* INK NAVY 17283A */
+  --card: #F4EFE7;
+  --card-foreground: oklch(0.25 0.03 250);
+  --popover: #FAF7F0;
+  --popover-foreground: oklch(0.25 0.03 250);
+  --primary: oklch(0.50 0.13 33);          /* JUDGMENT RED A94A3D */
   --primary-foreground: oklch(0.98 0.01 80);
-  --secondary: oklch(0.93 0.012 80);       /* cream-2 */
-  --secondary-foreground: oklch(0.32 0.02 245);
-  --muted: oklch(0.92 0.012 80);
-  --muted-foreground: oklch(0.48 0.02 245);
-  --accent-foreground: oklch(0.32 0.02 245);
-  --destructive: oklch(0.53 0.13 40);
-  --input: rgba(46,58,71,0.10);
-  --ring: oklch(0.53 0.10 45);
-  /* charts: slate ramp (summit → valley), one clay for emphasis */
-  --chart-1: oklch(0.53 0.10 45);          /* clay */
-  --chart-2: oklch(0.55 0.04 245);         /* slate */
-  --chart-3: oklch(0.66 0.03 245);
-  --chart-4: oklch(0.74 0.02 245);
-  --chart-5: oklch(0.70 0.04 80);          /* gold */
+  --secondary: oklch(0.92 0.010 245);      /* light slate */
+  --secondary-foreground: oklch(0.30 0.03 250);
+  --muted: oklch(0.91 0.010 245);
+  --muted-foreground: oklch(0.45 0.03 250);
+  --accent-foreground: oklch(0.30 0.03 250);
+  --destructive: oklch(0.50 0.14 33);
+  --input: rgba(23,40,58,0.10);
+  --ring: oklch(0.50 0.13 33);
+  /* charts: slate ramp (summit → valley), judgment red + amber for emphasis */
+  --chart-1: oklch(0.40 0.05 250);         /* SLATE BLUE 465B6F */
+  --chart-2: oklch(0.76 0.03 245);         /* MIST BLUE AEBFCC */
+  --chart-3: oklch(0.50 0.13 33);          /* judgment red */
+  --chart-4: oklch(0.72 0.09 75);          /* amber */
+  --chart-5: oklch(0.82 0.02 245);         /* light mist */
   --radius: 1.125rem;                      /* 18px, soft */
-  --sidebar: #F1ECE1;
-  --sidebar-foreground: oklch(0.32 0.02 245);
-  --sidebar-primary: oklch(0.53 0.10 45);
+  --sidebar: #ECE4D8;
+  --sidebar-foreground: oklch(0.30 0.03 250);
+  --sidebar-primary: oklch(0.50 0.13 33);
   --sidebar-primary-foreground: oklch(0.98 0.01 80);
-  --sidebar-accent: oklch(0.92 0.012 80);
-  --sidebar-accent-foreground: oklch(0.32 0.02 245);
-  --sidebar-border: rgba(46,58,71,0.10);
-  --sidebar-ring: oklch(0.53 0.10 45);
+  --sidebar-accent: oklch(0.92 0.010 245);
+  --sidebar-accent-foreground: oklch(0.30 0.03 250);
+  --sidebar-border: rgba(23,40,58,0.10);
+  --sidebar-ring: oklch(0.50 0.13 33);
 }
 
 * {
@@ -67,17 +67,17 @@
 body {
   margin: 0;
   /* soft watercolor washes bleeding from the corners — painterly, calm.
-     gold at top-right, slate at bottom-left, over warm cream. */
+     faint sand at top-right, blue-slate mist at bottom-left, over sand ground. */
   background:
-    radial-gradient(120% 62% at 82% -10%, rgba(198,164,97,0.11) 0px, transparent 58%),
-    radial-gradient(92% 52% at -6% 112%, rgba(120,140,160,0.11) 0px, transparent 58%),
+    radial-gradient(120% 62% at 84% -10%, rgba(174,191,204,0.16) 0px, transparent 58%),
+    radial-gradient(92% 52% at -6% 112%, rgba(70,91,111,0.10) 0px, transparent 58%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text-secondary);
-  font-family: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.6;
-  letter-spacing: -0.003em;
+  letter-spacing: -0.006em;
 }
 
 /* Fraunces carries headings + numbers; numbers are heroes. */
@@ -107,8 +107,8 @@ h1, h2, h3, .font-display {
 #root { min-height: 100vh; }
 
 ::selection {
-  background: rgba(178,106,67,0.18);
-  color: #241f18;
+  background: rgba(157,174,188,0.34);
+  color: #16212d;
 }
 
 input, textarea, select { font-family: inherit; letter-spacing: inherit; }
@@ -151,37 +151,37 @@ button, a, input, select { transition-duration: 150ms; }
   --font-heading: 'Fraunces', Georgia, serif;
   --font-display: 'Fraunces', Georgia, serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-sans: 'Archivo', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* violet/indigo family remapped to CLAY (kills AI-purple everywhere) */
-  --color-violet-50: #f6ece6;
-  --color-violet-100: #ecd6c9;
-  --color-violet-200: #ddb6a2;
-  --color-violet-300: #cd977c;
-  --color-violet-400: #bf7e5a;
-  --color-violet-500: #B26A43;
-  --color-violet-600: #9c5a37;
-  --color-violet-700: #7f472b;
-  --color-violet-800: #5f3520;
-  --color-violet-900: #3f2315;
-  --color-indigo-50: #f6ece6;
-  --color-indigo-100: #ecd6c9;
-  --color-indigo-400: #bf7e5a;
-  --color-indigo-500: #B26A43;
-  --color-indigo-600: #9c5a37;
+  /* violet/indigo family remapped to JUDGMENT RED (kills AI-purple) */
+  --color-violet-50: #f7ece9;
+  --color-violet-100: #eed3ce;
+  --color-violet-200: #dcaba3;
+  --color-violet-300: #ca857b;
+  --color-violet-400: #bb655a;
+  --color-violet-500: #A94A3D;
+  --color-violet-600: #933f34;
+  --color-violet-700: #76322a;
+  --color-violet-800: #58261f;
+  --color-violet-900: #3a1915;
+  --color-indigo-50: #f7ece9;
+  --color-indigo-100: #eed3ce;
+  --color-indigo-400: #bb655a;
+  --color-indigo-500: #A94A3D;
+  --color-indigo-600: #933f34;
 
-  /* zinc remapped to slate-on-cream ramp (dark text on warm light) */
-  --color-zinc-50: #1b2530;
-  --color-zinc-100: #2E3A47;
-  --color-zinc-200: #3b4a5a;
-  --color-zinc-300: #45525f;
-  --color-zinc-400: #55616e;
-  --color-zinc-500: #626d7c;
-  --color-zinc-600: #737e8c;
-  --color-zinc-700: #8f98a5;
-  --color-zinc-800: #ded7c8;
-  --color-zinc-900: #efe9db;
-  --color-zinc-950: #f7f3eb;
+  /* zinc remapped to INK NAVY / slate ramp (dark navy text on paper) */
+  --color-zinc-50: #101d2b;
+  --color-zinc-100: #17283A;
+  --color-zinc-200: #465B6F;
+  --color-zinc-300: #536878;
+  --color-zinc-400: #647787;
+  --color-zinc-500: #74879a;
+  --color-zinc-600: #8b9dac;
+  --color-zinc-700: #AEBFCC;
+  --color-zinc-800: #ddddd2;
+  --color-zinc-900: #ebe6da;
+  --color-zinc-950: #f4efe7;
 
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

@@ -81,7 +81,7 @@ export function EvalView() {
             <div className="space-y-1.5">
               {evalResult.retrieval.details.slice(0, 10).map((d, i) => (
                 <div key={i} className="flex items-center gap-2 text-[11px]">
-                  <span className={`w-12 shrink-0 tabular-nums ${d.found_at_rank && d.found_at_rank <= 3 ? 'text-emerald-400/70' : d.found_at_rank ? 'text-amber-500/60' : 'text-red-400/60'}`}>
+                  <span className={`w-12 shrink-0 tabular-nums ${d.found_at_rank && d.found_at_rank <= 3 ? 'text-zinc-400/70' : d.found_at_rank ? 'text-amber-500/60' : 'text-[#A94A3D]/60'}`}>
                     {d.found_at_rank ? `#${d.found_at_rank}` : 'miss'}
                   </span>
                   <span className="text-zinc-500 truncate flex-1">{d.query}</span>

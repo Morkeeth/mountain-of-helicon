@@ -192,6 +192,10 @@ function App() {
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-5">
             <div className="flex items-center gap-3">
+              <svg width="30" height="18" viewBox="0 0 44 26" fill="none" stroke="var(--helicon-ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+                <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
+                <path d="M15 23 L27.5 4 L41.5 23" />
+              </svg>
               <h1
                 className="text-[19px] tracking-tight text-zinc-100"
                 style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
@@ -201,7 +205,7 @@ function App() {
               <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
               <span
                 className="text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
-                style={{ background: 'rgba(158, 63, 50, 0.08)', color: 'var(--helicon-accent)', borderColor: 'rgba(158, 63, 50, 0.25)' }}
+                style={{ background: 'var(--helicon-accent-dim)', color: 'var(--helicon-accent)', borderColor: 'rgba(169,74,61, 0.25)' }}
               >
                 Powered by Qwen
               </span>
