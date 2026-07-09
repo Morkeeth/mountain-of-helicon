@@ -205,7 +205,7 @@ function App() {
               <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
               <span
                 className="text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
-                style={{ background: 'var(--helicon-accent-dim)', color: 'var(--helicon-accent)', borderColor: 'rgba(169,74,61, 0.25)' }}
+                style={{ background: 'var(--helicon-accent-dim)', color: 'var(--helicon-accent)', borderColor: 'rgba(34,58,78, 0.25)' }}
               >
                 Powered by Qwen
               </span>

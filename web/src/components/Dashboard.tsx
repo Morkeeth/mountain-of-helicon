@@ -78,7 +78,7 @@ export function Dashboard({ score, findings, connectors, triageCount, onNavigate
         <div className="flex-1">
           {tiers && (
             <div className="flex items-center gap-6">
-              <TierPill label="Hot" count={tiers.hot} pct={hotPct} color="text-[#A94A3D]/80" bg="bg-[rgba(169,74,61,0.10)]" desc="< 7 days" />
+              <TierPill label="Hot" count={tiers.hot} pct={hotPct} color="text-[#223A4E]/80" bg="bg-[rgba(34,58,78,0.10)]" desc="< 7 days" />
               <TierPill label="Warm" count={tiers.warm} pct={warmPct} color="text-amber-400/80" bg="bg-amber-400/10" desc="7-30 days" />
               <TierPill label="Cold" count={tiers.cold} pct={coldPct} color="text-blue-400/60" bg="bg-blue-400/10" desc="> 30 days" />
               <div className="h-8 w-px bg-zinc-800/40" />
@@ -108,7 +108,7 @@ export function Dashboard({ score, findings, connectors, triageCount, onNavigate
       {/* Tier bar visualization */}
       {tiers && total > 0 && (
         <div className="h-1.5 rounded-full bg-zinc-800/30 flex overflow-hidden">
-          <div className="bg-[rgba(169,74,61,0.4)] transition-all" style={{ width: `${hotPct}%` }} />
+          <div className="bg-[rgba(34,58,78,0.4)] transition-all" style={{ width: `${hotPct}%` }} />
           <div className="bg-amber-400/30 transition-all" style={{ width: `${warmPct}%` }} />
           <div className="bg-blue-400/20 transition-all" style={{ width: `${coldPct}%` }} />
         </div>
@@ -166,7 +166,7 @@ export function Dashboard({ score, findings, connectors, triageCount, onNavigate
                       <button
                         onClick={() => handleKill(f)}
                         disabled={acting === f.id}
-                        className="text-[11px] px-2.5 py-1 rounded-md border border-[rgba(169,74,61,0.30)] text-[#A94A3D]/70 hover:bg-[rgba(169,74,61,0.05)] transition-all active:scale-95 disabled:opacity-30"
+                        className="text-[11px] px-2.5 py-1 rounded-md border border-[rgba(34,58,78,0.30)] text-[#223A4E]/70 hover:bg-[rgba(34,58,78,0.05)] transition-all active:scale-95 disabled:opacity-30"
                       >
                         {acting === f.id ? '...' : 'Kill'}
                       </button>

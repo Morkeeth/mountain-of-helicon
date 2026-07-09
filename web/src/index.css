@@ -15,14 +15,15 @@
   --text-primary: #17283A;
   --text-secondary: #4E6173;
   --text-muted: #6C7E8E;
-  --accent: #A94A3D;
-  --accent-dim: rgba(169,74,61,0.10);
+  --accent: #223A4E;                        /* primary action = calm slate-navy (red retired) */
+  --accent-dim: rgba(34,58,78,0.09);
+  --improve: #C67C3E;                       /* the one warm pop — improvement only */
 
-  /* legacy names kept (redefined to the brand) so old classes stay calm */
-  --qwen-purple: #A94A3D;
-  --qwen-indigo: #C6963F;
+  /* legacy names kept (redefined to calm blue) so old classes stay calm */
+  --qwen-purple: #223A4E;
+  --qwen-indigo: #465B6F;
   --qwen-blue: #AEBFCC;
-  --qwen-purple-dim: rgba(169,74,61,0.09);
+  --qwen-purple-dim: rgba(34,58,78,0.09);
   --qwen-gradient: linear-gradient(135deg, #17283A 0%, #465B6F 60%, #AEBFCC 100%);
 
   /* shadcn vars — light mode (INK NAVY + PAPER) */
@@ -32,8 +33,8 @@
   --card-foreground: oklch(0.25 0.03 250);
   --popover: #FAF7F0;
   --popover-foreground: oklch(0.25 0.03 250);
-  --primary: oklch(0.50 0.13 33);          /* JUDGMENT RED A94A3D */
-  --primary-foreground: oklch(0.98 0.01 80);
+  --primary: oklch(0.34 0.045 248);        /* calm slate-navy #223A4E */
+  --primary-foreground: oklch(0.97 0.012 80);
   --secondary: oklch(0.92 0.010 245);      /* light slate */
   --secondary-foreground: oklch(0.30 0.03 250);
   --muted: oklch(0.91 0.010 245);
@@ -41,13 +42,13 @@
   --accent-foreground: oklch(0.30 0.03 250);
   --destructive: oklch(0.50 0.14 33);
   --input: rgba(23,40,58,0.10);
-  --ring: oklch(0.50 0.13 33);
-  /* charts: slate ramp (summit → valley), judgment red + amber for emphasis */
-  --chart-1: oklch(0.40 0.05 250);         /* SLATE BLUE 465B6F */
-  --chart-2: oklch(0.76 0.03 245);         /* MIST BLUE AEBFCC */
-  --chart-3: oklch(0.50 0.13 33);          /* judgment red */
-  --chart-4: oklch(0.72 0.09 75);          /* amber */
-  --chart-5: oklch(0.82 0.02 245);         /* light mist */
+  --ring: oklch(0.34 0.045 248);
+  /* charts: nuances of blue (summit → valley); orange ONLY for improvement */
+  --chart-1: oklch(0.34 0.045 248);        /* ink-slate */
+  --chart-2: oklch(0.52 0.04 245);         /* SLATE BLUE 465B6F */
+  --chart-3: oklch(0.76 0.03 245);         /* MIST BLUE AEBFCC */
+  --chart-4: oklch(0.64 0.11 58);          /* improvement orange */
+  --chart-5: oklch(0.84 0.02 245);         /* light mist */
   --radius: 1.125rem;                      /* 18px, soft */
   --sidebar: #ECE4D8;
   --sidebar-foreground: oklch(0.30 0.03 250);
@@ -153,22 +154,22 @@ button, a, input, select { transition-duration: 150ms; }
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
-  /* violet/indigo family remapped to JUDGMENT RED (kills AI-purple) */
-  --color-violet-50: #f7ece9;
-  --color-violet-100: #eed3ce;
-  --color-violet-200: #dcaba3;
-  --color-violet-300: #ca857b;
-  --color-violet-400: #bb655a;
-  --color-violet-500: #A94A3D;
-  --color-violet-600: #933f34;
-  --color-violet-700: #76322a;
-  --color-violet-800: #58261f;
-  --color-violet-900: #3a1915;
-  --color-indigo-50: #f7ece9;
-  --color-indigo-100: #eed3ce;
-  --color-indigo-400: #bb655a;
-  --color-indigo-500: #A94A3D;
-  --color-indigo-600: #933f34;
+  /* violet/indigo family remapped to CALM SLATE-NAVY (primary action, no red) */
+  --color-violet-50: #eef1f4;
+  --color-violet-100: #d6dde3;
+  --color-violet-200: #aab8c4;
+  --color-violet-300: #7d92a3;
+  --color-violet-400: #4f6a80;
+  --color-violet-500: #223A4E;
+  --color-violet-600: #1d3243;
+  --color-violet-700: #172836;
+  --color-violet-800: #111f29;
+  --color-violet-900: #0b151c;
+  --color-indigo-50: #eef1f4;
+  --color-indigo-100: #d6dde3;
+  --color-indigo-400: #4f6a80;
+  --color-indigo-500: #223A4E;
+  --color-indigo-600: #1d3243;
 
   /* zinc remapped to INK NAVY / slate ramp (dark navy text on paper) */
   --color-zinc-50: #101d2b;

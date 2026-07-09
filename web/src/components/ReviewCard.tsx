@@ -4,7 +4,7 @@ import type { Cube } from '../api';
 import { VoiceInput } from './VoiceInput';
 
 function confColor(c: number): string {
-  if (c < 0.1) return 'text-[#A94A3D]/60';
+  if (c < 0.1) return 'text-[#223A4E]/60';
   if (c < 0.3) return 'text-amber-600';
   return 'text-zinc-500';
 }
@@ -147,7 +147,7 @@ export function ReviewCard({ cube, onReviewed, focused, onAction }: Props) {
           <button
             onClick={() => handleReview('killed')}
             disabled={reviewing}
-            className="text-[12px] px-3 py-1.5 rounded-lg text-zinc-500 hover:text-[#A94A3D] hover:bg-[rgba(169,74,61,0.10)] active:scale-95 transition-all disabled:opacity-30"
+            className="text-[12px] px-3 py-1.5 rounded-lg text-zinc-500 hover:text-[#223A4E] hover:bg-[rgba(34,58,78,0.10)] active:scale-95 transition-all disabled:opacity-30"
           >
             Kill
           </button>

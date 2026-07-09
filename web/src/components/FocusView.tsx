@@ -39,7 +39,7 @@ export function FocusView() {
                 You touched <strong className="text-zinc-100 tabular-nums">{weekly.touched_count}</strong> projects this week.
               </span>
               <span className="text-[14px] text-zinc-300 ml-1">
-                You shipped from <strong className={`tabular-nums ${weekly.shipped_count === 0 ? 'text-[#A94A3D]' : 'text-zinc-400'}`}>{weekly.shipped_count}</strong>.
+                You shipped from <strong className={`tabular-nums ${weekly.shipped_count === 0 ? 'text-[#223A4E]' : 'text-zinc-400'}`}>{weekly.shipped_count}</strong>.
               </span>
             </div>
             <span className="text-[11px] text-zinc-700">since {weekly.week_start}</span>
@@ -54,7 +54,7 @@ export function FocusView() {
             </div>
           )}
           {weekly.shipped_count === 0 && weekly.touched_count > 0 && (
-            <p className="text-[12px] text-[#A94A3D]/60 mt-2">
+            <p className="text-[12px] text-[#223A4E]/60 mt-2">
               All motion, no output. Pick one project and ship something.
             </p>
           )}
@@ -110,20 +110,20 @@ function ProjectCard({ rec, rank }: { rec: ProjectRecommendation; rank: number }
   const [expanded, setExpanded] = useState(false);
 
   const shipColor = rec.ship_rate === 0
-    ? 'text-[#A94A3D]'
+    ? 'text-[#223A4E]'
     : rec.ship_rate > 0.3
       ? 'text-zinc-500'
       : 'text-amber-600';
 
   const spinColor = rec.spin_score > 3
-    ? 'text-[#A94A3D]'
+    ? 'text-[#223A4E]'
     : rec.spin_score > 1.5
       ? 'text-amber-600'
       : 'text-zinc-500';
 
   const urgencyBar = Math.min(rec.score / 80, 1);
   const urgencyColor = rec.score > 50
-    ? 'bg-[rgba(169,74,61,0.4)]'
+    ? 'bg-[rgba(34,58,78,0.4)]'
     : rec.score > 30
       ? 'bg-amber-400'
       : 'bg-zinc-700/40';
@@ -159,7 +159,7 @@ function ProjectCard({ rec, rank }: { rec: ProjectRecommendation; rank: number }
               {rec.spin_score.toFixed(1)}x spin
             </span>
             {rec.days_since_output !== null && (
-              <span className={`tabular-nums ${rec.days_since_output > 14 ? 'text-[#A94A3D]' : 'text-zinc-600'}`}>
+              <span className={`tabular-nums ${rec.days_since_output > 14 ? 'text-[#223A4E]' : 'text-zinc-600'}`}>
                 {rec.days_since_output}d ago
               </span>
             )}
@@ -229,7 +229,7 @@ function ContextSwitchPanel({ data }: { data: ContextSwitchData | null }) {
                   style={{ width: `${((w.sessions - w.multi_project_sessions) / maxSessions) * 100}%` }}
                 />
                 <div
-                  className={`h-full ${w.zero_ship_multi > 0 ? 'bg-[rgba(169,74,61,0.4)]' : 'bg-amber-400'}`}
+                  className={`h-full ${w.zero_ship_multi > 0 ? 'bg-[rgba(34,58,78,0.4)]' : 'bg-amber-400'}`}
                   style={{ width: `${(w.multi_project_sessions / maxSessions) * 100}%` }}
                 />
               </div>

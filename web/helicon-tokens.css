@@ -27,11 +27,16 @@
   --helicon-slate:    #AEBFCC;            /* MIST BLUE */
   --helicon-slate-deep:#465B6F;           /* SLATE BLUE */
 
-  /* semantic signals */
-  --helicon-accent:     #A94A3D;          /* JUDGMENT RED — critical / ruling / primary action */
-  --helicon-accent-dim: rgba(169,74,61,0.10);
-  --helicon-accent-deep:#8A3A30;
-  --helicon-stale:    #C6963F;            /* WARNING — amber */
+  /* semantic signals — the world is BLUE. Calm nuances of slate carry
+     everything; ONE warm colour (orange) marks IMPROVEMENT only; red is
+     nearly retired (a whisper, for genuine critical alarms). (Oscar Jul 10) */
+  --helicon-accent:     #223A4E;          /* PRIMARY action / CTA / counts — deep slate-navy (calm, not red) */
+  --helicon-accent-dim: rgba(34,58,78,0.09);
+  --helicon-accent-deep:#17283A;
+  --helicon-improve:    #C67C3E;          /* the contrary pop — IMPROVEMENT / gains / ↑ only, 1–2 per page */
+  --helicon-improve-dim:rgba(198,124,62,0.12);
+  --helicon-stale:    #C6963F;            /* WARNING — amber (sparing) */
+  --helicon-critical: #A94A3D;            /* CRITICAL — judgment red, a whisper, genuine alarms only */
   --helicon-conflict: #AEBFCC;            /* REVIEWED / neutral — mist slate */
   --helicon-good:     #6E8A6A;            /* CONNECTED — quiet sage green (status dots only) */
   --helicon-gold:     #C6963F;
