@@ -216,6 +216,17 @@ function App() {
 
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
+      {/* Atmosphere — a faint watercolor peak at the page foot (brand book:
+          "use as atmosphere, not decoration"). pointer-events:none, imperceptibly
+          low so it can never sit over or block content. */}
+      <img
+        src="/mountain-3.png" alt="" aria-hidden
+        className="pointer-events-none select-none"
+        style={{
+          position: 'fixed', bottom: 0, right: 0, width: 460, zIndex: 0, opacity: 0.05,
+          WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 70%)', maskImage: 'linear-gradient(180deg, transparent, #000 70%)',
+        }}
+      />
       {/* Left rail — brand book 88–120px numbered nav */}
       <nav className="flex-none flex flex-col" style={{ width: 110, borderRight: '1px solid var(--helicon-line)' }}>
         <div className="px-5 pt-6 pb-5">
