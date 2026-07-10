@@ -15,6 +15,7 @@ import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
 import StoreAudit from './components/StoreAudit';
 import Reading from './components/Reading';
+import MemoryHealthTrend from './components/MemoryHealthTrend';
 import Volatility from './components/Volatility';
 import Consistency from './components/Consistency';
 
@@ -497,6 +498,8 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
       {sub === 'health' && (
         <div className="space-y-10">
           <ContextHero score={score} needsYou={needsYou} onReview={onReview} />
+
+          <MemoryHealthTrend />
 
           <SetupReportCard />
 
