@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
@@ -46,6 +46,33 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
 ];
 
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
+
+// Left-rail nav item (brand book: numbered, calm, active = ink + accent bar)
+function RailItem({ n, label, active, badge = 0, onClick }: {
+  n: number; label: string; active: boolean; badge?: number; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative text-left rounded-lg px-2.5 py-2 transition-colors"
+      style={{ background: active ? 'var(--helicon-accent-dim)' : 'transparent' }}
+    >
+      {active && (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full" style={{ background: 'var(--helicon-accent)' }} />
+      )}
+      <span className="block text-[9px] tabular-nums mb-0.5" style={{ color: 'var(--helicon-faint)' }}>{n}</span>
+      <span
+        className="block text-[10px] uppercase leading-tight"
+        style={{ letterSpacing: '0.08em', color: active ? 'var(--helicon-ink)' : 'var(--helicon-muted)', fontWeight: active ? 600 : 500 }}
+      >
+        {label}
+      </span>
+      {badge > 0 && (
+        <span className="absolute top-2 right-2 text-[9px] tabular-nums" style={{ color: 'var(--helicon-accent)' }}>{badge}</span>
+      )}
+    </button>
+  );
+}
 
 function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
@@ -188,15 +215,39 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <header className="px-8 pt-6 pb-0" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
+      {/* Left rail — brand book 88–120px numbered nav */}
+      <nav className="flex-none flex flex-col" style={{ width: 110, borderRight: '1px solid var(--helicon-line)' }}>
+        <div className="px-5 pt-6 pb-5">
+          <svg width="30" height="18" viewBox="0 0 44 26" fill="none" stroke="var(--helicon-ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+            <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
+            <path d="M15 23 L27.5 4 L41.5 23" />
+          </svg>
+        </div>
+        <div className="flex-1 flex flex-col gap-0.5 px-2.5">
+          {PRIMARY_TABS.map((t, i) => (
+            <RailItem key={t.key} n={i + 1} label={t.label} active={tab === t.key}
+              badge={t.key === 'findings' ? (findingsData?.summary.needs_you || 0) : 0}
+              onClick={() => setTab(t.key)} />
+          ))}
+          <div className="my-3 mx-2 border-t" style={{ borderColor: 'var(--helicon-line)' }} />
+          {SECONDARY_TABS.map((t, i) => (
+            <RailItem key={t.key} n={i + 6} label={t.label} active={tab === t.key}
+              onClick={() => { setTab(t.key); if (t.key !== 'projects') setSelectedProject(null); }} />
+          ))}
+        </div>
+        <div className="relative mt-2" style={{ height: 96, overflow: 'hidden' }}>
+          <img src="/mountain-2.png" alt="" aria-hidden className="absolute bottom-0 left-0 w-full object-cover"
+            style={{ height: 96, opacity: 0.85, WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 62%)', maskImage: 'linear-gradient(180deg, transparent, #000 62%)' }} />
+        </div>
+      </nav>
+
+      {/* Right column */}
+      <div className="flex-1 min-w-0 flex flex-col">
+      <header className="px-8 pt-6 pb-4" style={{ borderBottom: '1px solid var(--helicon-line)' }}>
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <svg width="30" height="18" viewBox="0 0 44 26" fill="none" stroke="var(--helicon-ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
-                <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
-                <path d="M15 23 L27.5 4 L41.5 23" />
-              </svg>
               <h1
                 className="text-[19px] tracking-tight text-zinc-100"
                 style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
@@ -237,39 +288,6 @@ function App() {
               )}
             </div>
           </div>
-
-          <nav className="flex items-stretch gap-0 border-b border-zinc-800/60">
-            {PRIMARY_TABS.map((t, i) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`px-4 py-2.5 text-[12px] uppercase tracking-[0.12em] transition-colors relative ${
-                  tab === t.key ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-400'
-                }`}
-              >
-                <span className="text-zinc-600 mr-1.5 text-[11px] tabular-nums tracking-normal">{i + 1}</span>
-                {t.label}
-                {t.key === 'findings' && findingsData && findingsData.summary.needs_you > 0 && (
-                  <span className="ml-1.5 text-[10px] tabular-nums tracking-normal" style={{ color: 'var(--helicon-accent)' }}>
-                    {findingsData.summary.needs_you}
-                  </span>
-                )}
-                {tab === t.key && (
-                  <motion.span
-                    layoutId="tab-indicator"
-                    className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full qwen-gradient-bg"
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                )}
-              </button>
-            ))}
-            <MoreMenu
-              tabs={SECONDARY_TABS}
-              activeTab={tab}
-              projectsCount={projects.length}
-              onSelect={(key) => { setTab(key); if (key !== 'projects') setSelectedProject(null); }}
-            />
-          </nav>
         </div>
       </header>
 
@@ -375,6 +393,7 @@ function App() {
         </motion.div>
         </AnimatePresence>
       </main>
+      </div>
     </div>
   );
 }
@@ -384,78 +403,6 @@ function TabPurpose({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] text-zinc-600 mb-5 leading-relaxed">{children}</p>;
 }
 
-// ============================================================
-// More menu: the secondary destinations, off the journey
-// ============================================================
-
-/* The journey stays a clean 5 tabs on the left; everything that is not the
-   daily loop lives here, quiet and out of the way. Shows the active label when
-   you are inside one of its destinations so you are never lost. */
-function MoreMenu({ tabs, activeTab, projectsCount, onSelect }: {
-  tabs: { key: Tab; label: string }[];
-  activeTab: Tab;
-  projectsCount: number;
-  onSelect: (key: Tab) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const active = tabs.find(t => t.key === activeTab);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative ml-auto flex items-stretch">
-      <button
-        onClick={() => setOpen(o => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`px-3 py-2.5 text-[11px] flex items-center gap-1.5 transition-colors relative ${
-          active ? 'text-zinc-300' : 'text-zinc-600 hover:text-zinc-500'
-        }`}
-      >
-        {active ? `More · ${active.label}` : 'More'}
-        <svg
-          width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-          className={`transition-transform ${open ? 'rotate-180' : ''}`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-        {active && (
-          <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full" style={{ background: 'var(--helicon-accent)', opacity: 0.6 }} />
-        )}
-      </button>
-
-      {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1.5 z-30 min-w-[190px] rounded-xl bg-white shadow-lg border border-zinc-800/50 py-1.5 animate-fade-in">
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              role="menuitem"
-              onClick={() => { onSelect(t.key); setOpen(false); }}
-              className={`w-full text-left px-4 py-2 text-[12px] flex items-center justify-between gap-3 transition-colors hover:bg-black/[0.04] ${
-                activeTab === t.key ? 'text-zinc-200' : 'text-zinc-500'
-              }`}
-            >
-              <span>{t.label}</span>
-              {t.key === activeTab
-                ? <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--helicon-accent)' }} />
-                : (t.key === 'projects' && projectsCount > 0
-                    ? <span className="text-[10px] text-zinc-600 tabular-nums">{projectsCount}</span>
-                    : null)}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ============================================================
 // Memory tab: the record's health, with its truth gates as sub-views
