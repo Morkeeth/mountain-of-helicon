@@ -68,7 +68,7 @@ function CopyChip({ cmd, title }: { cmd: string; title?: string }) {
         });
       }}
       className="flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 bg-white shadow-sm font-mono"
-      style={{ borderColor: 'var(--helicon-line)', color: '#443e36' }}
+      style={{ borderColor: 'var(--helicon-line)', color: 'var(--helicon-ink)' }}
     >
       <code>{cmd}</code>
       <span style={{ color: copied ? 'var(--helicon-accent)' : 'var(--helicon-muted)', fontFamily: 'Inter, sans-serif' }}>
@@ -86,9 +86,9 @@ function ActionButton({ label, tone, disabled, onClick }: {
 }) {
   const styles =
     tone === 'kill'
-      ? { borderColor: 'rgba(194,94,58,0.35)', color: 'var(--helicon-accent)' }
+      ? { borderColor: 'var(--helicon-line-2)', color: 'var(--helicon-ink)' }
       : tone === 'keep'
-        ? { borderColor: 'var(--helicon-line)', color: '#443e36' }
+        ? { borderColor: 'rgba(110,138,106,0.45)', color: 'var(--helicon-good)' }
         : { borderColor: 'transparent', color: 'var(--helicon-muted)' };
   return (
     <button
@@ -271,7 +271,7 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
             onClick={() => onReload(true)}
             disabled={batteryLoading}
             className="text-[12px] px-3 py-1.5 rounded-lg border transition-all active:scale-95 disabled:opacity-40 shadow-sm bg-white"
-            style={{ borderColor: 'rgba(194,94,58,0.3)', color: 'var(--helicon-accent)' }}
+            style={{ borderColor: 'var(--helicon-line-2)', color: 'var(--helicon-ink)' }}
           >
             {batteryLoading ? 'Running…' : batteryIncluded ? 'Re-run deep battery check' : 'Run deep battery check'}
           </button>
