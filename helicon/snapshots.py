@@ -32,9 +32,12 @@ def init_snapshot_table(conn: sqlite3.Connection):
 
 
 def _drop_superseded(conn: sqlite3.Connection, hits: list[dict], k: int) -> list[dict]:
-    """Exclude cubes reconciliation has retired ('superseded') — a re-scan
-    replaced them, so serving them is strictly wrong. 'killed'/decayed cubes are
-    intentionally left retrievable so the battery can still flag stale context."""
+    """Belt-and-suspenders: drop any retired ('superseded') cube that slipped
+    through. Retrieval now filters killed+superseded at the source on both the
+    semantic (embeddings) and FTS (search_cubes) branches, so retired memory no
+    longer reaches an agent. The battery Freshness test still guards the residual
+    real case: a cube that has decayed to near-zero confidence while still live
+    (pending/approved), i.e. stale context nobody has killed yet."""
     if not hits:
         return hits
     ids = [h["id"] for h in hits]

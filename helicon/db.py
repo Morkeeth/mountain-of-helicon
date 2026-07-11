@@ -297,12 +297,26 @@ def rebuild_fts(conn: sqlite3.Connection):
     conn.commit()
 
 
-def search_cubes(conn: sqlite3.Connection, query: str, limit: int = 30) -> list[dict]:
+def search_cubes(conn: sqlite3.Connection, query: str, limit: int = 30,
+                 include_retired: bool = False) -> list[dict]:
+    """Full-text search over cubes.
+
+    By default excludes retired memory (review_status killed/superseded): retrieval
+    that feeds an agent must not serve context the human or reconcile has retired.
+    This matches the semantic path (embeddings._load_all_embeddings already loads
+    only 'approved'/'pending'), so hybrid search is hygienic on BOTH branches — the
+    FTS branch used to silently re-introduce killed cubes the semantic branch
+    filtered out. Pass include_retired=True for review/browse surfaces that
+    deliberately want to see retired memory.
+    """
+    retired_filter = "" if include_retired else \
+        "AND g.review_status NOT IN ('killed', 'superseded') "
     rows = conn.execute(
-        """SELECT g.*, cubes_fts.rank
+        f"""SELECT g.*, cubes_fts.rank
         FROM cubes_fts
         JOIN helicon_cubes g ON g.rowid = cubes_fts.rowid
         WHERE cubes_fts MATCH ?
+        {retired_filter}
         ORDER BY rank
         LIMIT ?""",
         (query, limit),
