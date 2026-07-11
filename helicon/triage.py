@@ -7,7 +7,7 @@ an agent, not just a tool.
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.db import human_evidence_sql
 
@@ -215,7 +215,7 @@ def run_auto_triage(conn: sqlite3.Connection, dry_run: bool = False) -> dict:
     if not rules:
         return {"triaged": 0, "rules_applied": 0, "actions": [], "rules": []}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     actions = []
 
     for rule in rules:

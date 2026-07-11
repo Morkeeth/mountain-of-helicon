@@ -11,7 +11,7 @@ So we hand Qwen a fixed set of ref-ids and drop any move whose citations do not
 resolve back to one of them, no free-floating advice ever ships.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.qwen import get_client, complete_json
 from helicon.lenses import detect_lens, lens_guidance
@@ -100,12 +100,12 @@ def generate_next_moves(conn, config: dict | None = None) -> dict:
         lines.append(f"[{rid}] (project) {r['name']}: {r.get('action','')}, {sig}")
 
     if not refs:
-        return {"moves": [], "grounded_in": 0, "generated_at": datetime.utcnow().isoformat(),
+        return {"moves": [], "grounded_in": 0, "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                 "note": "No open findings or project signals, memory is clean."}
 
     client = get_client(config)
     if client is None:
-        return {"moves": [], "grounded_in": len(refs), "generated_at": datetime.utcnow().isoformat(),
+        return {"moves": [], "grounded_in": len(refs), "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                 "note": "No Qwen client configured (set qwen_api_key)."}
 
     present = {r.get("output_kind", "default") for r in refs.values()}
@@ -133,5 +133,5 @@ def generate_next_moves(conn, config: dict | None = None) -> dict:
         "moves": moves_out,
         "grounded_in": len(refs),
         "dropped_uncited": len(moves_in) - len(moves_out),
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
     }

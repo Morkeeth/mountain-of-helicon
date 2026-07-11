@@ -15,7 +15,7 @@ This needs no absolute ground truth — only a baseline — so it is not circula
 """
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def init_snapshot_table(conn: sqlite3.Connection):
@@ -85,7 +85,7 @@ def capture_snapshot(conn: sqlite3.Connection, task: str, k: int = 5, note: str 
         "INSERT INTO context_snapshots (task, cube_ids, titles, top_k, created_at, note) "
         "VALUES (?, ?, ?, ?, ?, ?)",
         (task, json.dumps([h["id"] for h in hits]), json.dumps([h["title"] for h in hits]),
-         k, datetime.utcnow().isoformat(), note),
+         k, datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), note),
     )
     conn.commit()
     return {"id": cur.lastrowid, "task": task, "top_k": k, "hits": hits}

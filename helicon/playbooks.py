@@ -11,7 +11,7 @@ lessons from the user's OWN memory cubes at runtime. Nothing here is user-specif
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # Generic defaults. feedback_keys are plain search terms matched against the user's
@@ -172,7 +172,7 @@ def build_playbooks(conn: sqlite3.Connection) -> list[dict]:
     """Build all task playbooks from review data + feedback patterns."""
     init_playbooks_table(conn)
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     results = []
 
     conn.execute("DELETE FROM playbooks")

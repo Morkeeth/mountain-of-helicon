@@ -27,7 +27,7 @@ in the finding — never one row per cube (700 rows of backlog is its own rot).
 import json
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
@@ -41,7 +41,7 @@ def add_alias(conn: sqlite3.Connection, old_name: str, new_name: str,
             "INSERT INTO entity_aliases (old_name, new_name, renamed_at, note, created_at) "
             "VALUES (?, ?, ?, ?, ?)",
             (old_name.strip(), new_name.strip(), renamed_at, note,
-             datetime.utcnow().isoformat()),
+             datetime.now(timezone.utc).replace(tzinfo=None).isoformat()),
         )
         conn.commit()
         return True
@@ -149,7 +149,7 @@ def alias_scan(conn: sqlite3.Connection, k: int = 5) -> dict:
     """File one audit finding per alias that shows rot (current-claims or
     serving leakage). Idempotent by alias_key."""
     existing = _existing_alias_keys(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, clean, skipped = [], [], []
 
     for t in alias_rot(conn, k=k):

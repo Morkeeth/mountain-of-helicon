@@ -21,7 +21,7 @@ import os
 import sqlite3
 import subprocess
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 CRON_TAG = "# mount-helicon-watch"
 
@@ -123,7 +123,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
     """One watch tick. Scans (unless told not to), files pairing/alias
     findings, diffs against the cursor, speaks only on news, advances the
     cursor. Returns what happened either way (for --json and tests)."""
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     state = load_state(config)
 
     ran_scan = False

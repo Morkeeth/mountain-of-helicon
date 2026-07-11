@@ -3,7 +3,7 @@ to where work actually happens (the agent, or the vault). The loop closes here:
 a move leaves as a paste-ready agent prompt and/or a markdown note in the vault.
 """
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -105,7 +105,7 @@ async def focus_route(body: RouteBody):
     if body.destination == "vault":
         config = get_config()
         vault = _vault_dir(config)
-        stamp = datetime.utcnow().strftime("%Y-%m-%d")
+        stamp = datetime.now(timezone.utc).replace(tzinfo=None).strftime("%Y-%m-%d")
         if vault:
             target_dir = os.path.join(vault, "00 Dashboard")
             os.makedirs(target_dir, exist_ok=True)

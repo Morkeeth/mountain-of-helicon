@@ -9,7 +9,7 @@ Model: all-MiniLM-L6-v2 (384 dims, 80MB, runs on CPU in ~50ms per query).
 import glob
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -133,7 +133,7 @@ def store_embedding(conn: sqlite3.Connection, cube_id: str, embedding):
     conn.execute(
         "INSERT OR REPLACE INTO cube_embeddings (cube_id, embedding, embedded_at, model, dim) "
         "VALUES (?, ?, ?, ?, ?)",
-        (cube_id, _serialize(embedding), datetime.utcnow().isoformat(), mname, d),
+        (cube_id, _serialize(embedding), datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), mname, d),
     )
 
 

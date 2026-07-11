@@ -182,11 +182,11 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     # below EXPIRY_CONF_FLOOR (0.15) — above the 0.10 Freshness hard-stale line so
     # Expiry is the earlier soft warning, below the 0.37 midpoint so it never fires
     # on merely-older-than-half-life memory.
-    from datetime import datetime as _dt
+    from datetime import datetime as _dt, timezone as _tz
     from helicon.forgetting import DEFAULT_STABILITY, DEFAULT_SHAPE, weibull_decay
     EXPIRY_CONF_FLOOR = 0.15
     expired = []
-    now_dt = _dt.utcnow()
+    now_dt = _dt.now(_tz.utc).replace(tzinfo=None)
     for c in cubes.values():
         eta = DEFAULT_STABILITY.get(c.get("type"))
         if not eta:

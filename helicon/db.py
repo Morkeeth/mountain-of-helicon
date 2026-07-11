@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import HeliconCube, Review, AuditResult, Pattern
 
@@ -376,7 +376,7 @@ def insert_review(conn: sqlite3.Connection, review: Review) -> int:
 def log_scan_start(conn: sqlite3.Connection, connectors: list[str]) -> int:
     cursor = conn.execute(
         "INSERT INTO scan_log (started_at, connectors_used) VALUES (?, ?)",
-        (datetime.utcnow().isoformat(), json.dumps(connectors)),
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), json.dumps(connectors)),
     )
     conn.commit()
     return cursor.lastrowid
@@ -387,7 +387,7 @@ def log_scan_complete(conn: sqlite3.Connection, scan_id: int, added: int = 0,
     conn.execute(
         """UPDATE scan_log SET completed_at = ?, cubes_added = ?, cubes_skipped = ?,
            cubes_merged = ?, errors = ? WHERE id = ?""",
-        (datetime.utcnow().isoformat(), added, skipped, merged,
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), added, skipped, merged,
          json.dumps(errors or []), scan_id),
     )
     conn.commit()
@@ -403,7 +403,7 @@ def record_battery_point(conn: sqlite3.Connection, total: int, healthy: int,
         """INSERT INTO battery_history
            (recorded_at, total, healthy, degraded, broken, mean_tokens, source)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (datetime.utcnow().isoformat(), total, healthy, degraded, broken,
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), total, healthy, degraded, broken,
          mean_tokens, source),
     )
     conn.commit()
@@ -420,7 +420,7 @@ def last_scan_info(conn: sqlite3.Connection) -> dict | None:
     if not row:
         return None
     completed = datetime.fromisoformat(row["completed_at"])
-    hours = (datetime.utcnow() - completed).total_seconds() / 3600
+    hours = (datetime.now(timezone.utc).replace(tzinfo=None) - completed).total_seconds() / 3600
     return {
         "completed_at": row["completed_at"],
         "hours_ago": round(hours, 1),

@@ -15,7 +15,7 @@ and outputs files agents can consume without calling Mount Helicon's MCP tools.
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.playbooks import TASK_CATEGORIES, get_playbooks, build_playbooks
 
@@ -48,7 +48,7 @@ def compile_core_memory(conn: sqlite3.Connection, max_items: int = 20) -> str:
     except Exception:
         q_values = {}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     scored = []
     for r in rows:
         q = q_values.get(r["id"], 0.5)

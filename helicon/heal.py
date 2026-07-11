@@ -19,7 +19,7 @@ volatility.find_suspects (volatility), the frontmatter dates (freshness).
 """
 import os
 import sqlite3
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from helicon.claims import find_claim_conflicts
 from helicon.volatility import find_suspects
@@ -47,7 +47,7 @@ DEMO_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 
 def _today() -> date:
-    return datetime.utcnow().date()
+    return datetime.now(timezone.utc).replace(tzinfo=None).date()
 
 
 def _active_cubes(conn: sqlite3.Connection) -> list[sqlite3.Row]:
@@ -290,7 +290,7 @@ def apply_repairs(conn: sqlite3.Connection, findings: list[dict],
     """Apply accepted repairs to the store. Retire = mark the stale cube killed
     (drops from active; reversible by re-seeding the demo store). Records a
     human_decision on the audit so the loop is auditable."""
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     applied = []
     for f in findings:
         if accept is not None and f["id"] not in accept:
@@ -317,7 +317,7 @@ def heal(conn: sqlite3.Connection, config: dict | None = None,
 
     envelope = {
         "store": store_label,
-        "scanned_at": datetime.utcnow().isoformat(),
+        "scanned_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         "gate_scores": {"before": _public(before)},
         "findings": findings,
         "formula": {

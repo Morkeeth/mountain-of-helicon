@@ -368,13 +368,13 @@ def _record_cli_review(conn, row, decision, session):
     """Write one human review the same way the web API does (updates cube status,
     reinforcement, Q-value reward, context link). Non-'auto-triage' session so it
     counts as human evidence for triage learning."""
-    from datetime import datetime
+    from datetime import datetime, timezone
     from helicon.db import insert_review
     from helicon.models import Review
     from helicon.context_impact import link_review_to_context
     from helicon.utility import update_reward
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
         clean = (row["created_at"] or "").replace("Z", "").split("+")[0]
         age = (now - datetime.fromisoformat(clean)).total_seconds() / 86400

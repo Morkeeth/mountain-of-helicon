@@ -5,7 +5,7 @@ Run with: python -m helicon.mcp_server
 
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.config import load_config
 from helicon.db import init_db, search_cubes
@@ -283,7 +283,7 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
                 try:
                     raw = c["created_at"].replace("Z", "").split("+")[0]
                     created = datetime.fromisoformat(raw)
-                    age_days = (datetime.utcnow() - created).days
+                    age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - created).days
                     recency_bonus = max(0, 0.3 - age_days * 0.01)
                 except (ValueError, TypeError):
                     pass
@@ -327,7 +327,7 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
 
     # Log retrieval + update utility tracking
     from helicon.utility import record_surfaced
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     for s in selected:
         try:
             conn.execute(
@@ -399,7 +399,7 @@ def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
     if cube is None:
         return {"ok": False, "error": f"no memory with id {memory_id}"}
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     if verdict == "useful":
         update_reward(conn, memory_id, 1.0)
         conn.execute(

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -35,7 +35,7 @@ class ConfirmRequest(BaseModel):
 @router.post("/audit/confirm")
 async def confirm_finding(req: ConfirmRequest):
     conn = get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     conn.execute(
         "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
         (req.decision, now, req.finding_id),

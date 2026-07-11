@@ -14,7 +14,7 @@ visible, like report.py's thresholds.
 """
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 # minimum content words a task must share with a ghost before it counts
 MIN_SHARED_TERMS = 3
@@ -49,7 +49,7 @@ def record_ghost_hits(conn: sqlite3.Connection, task: str, source: str = "") -> 
     except sqlite3.OperationalError:
         return []
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     hits = []
     for g in ghosts:
         shared = task_terms & _terms(f"{g['title']} {g['content'][:500]}")

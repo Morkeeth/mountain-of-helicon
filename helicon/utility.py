@@ -12,7 +12,7 @@ Based on MemRL (github.com/MemTensor/MemRL, arxiv 2601.03192).
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 ALPHA = 0.3       # learning rate
@@ -59,7 +59,7 @@ def get_q_values_batch(conn: sqlite3.Connection, cube_ids: list[str]) -> dict:
 def record_surfaced(conn: sqlite3.Connection, cube_id: str):
     """Called when a memory is surfaced via helicon_context."""
     init_utility_table(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     existing = conn.execute(
         "SELECT cube_id FROM memory_utility WHERE cube_id = ?", (cube_id,)
     ).fetchone()
@@ -86,7 +86,7 @@ def update_reward(conn: sqlite3.Connection, cube_id: str, reward: float):
             0.3 = no action (surfaced but not reviewed - slight negative)
     """
     init_utility_table(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     q_old = get_q_value(conn, cube_id)
     q_new = round(q_old + ALPHA * (reward - q_old), 4)
 

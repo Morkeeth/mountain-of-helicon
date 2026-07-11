@@ -1,6 +1,6 @@
 import os
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import ConnectorResult
 
@@ -77,7 +77,7 @@ def scan(config: dict) -> list[ConnectorResult]:
                 type="code",
                 title=f"[{repo_name}] Uncommitted changes",
                 content=f"Uncommitted changes in {repo_name}:\n{files_changed}",
-                created_at=datetime.utcnow().isoformat(),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
                 tags=["git", "uncommitted", repo_name.lower()],
                 metadata={"repo": repo_name, "diff_stat": files_changed},
             ))

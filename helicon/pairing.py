@@ -23,7 +23,7 @@ import json
 import re
 import sqlite3
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
@@ -429,7 +429,7 @@ def dismiss_finding(conn: sqlite3.Connection, audit_id: int, reason: str) -> dic
     conn.execute(
         "UPDATE audit_log SET human_decision = 'dismissed', resolved_at = ?, "
         "details = json_set(details, '$.dismiss_reason', ?) WHERE id = ?",
-        (datetime.utcnow().isoformat(), reason, audit_id))
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), reason, audit_id))
     conn.commit()
     return {"ok": True, "audit_id": audit_id}
 
@@ -459,7 +459,7 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
                          f"{d.get('all_dates', d.get('dates'))} — if none of them "
                          f"is true, dismiss the finding and fix the sources"}
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     conn.execute(
         "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
         (f"resolved:{truth}", now, audit_id))
@@ -530,7 +530,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
     a pair_key already in audit_log is never filed twice."""
     conflicts = find_conflicts(conn)
     existing, open_facts = _existing_pair_keys(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, rejected, skipped = [], [], []
     # Two-judge panel confusion counts, for Cohen's κ across the scan.
     panel = {"both_yes": 0, "both_no": 0, "qwen_only": 0, "judge2_only": 0}

@@ -29,7 +29,7 @@ import json
 import re
 import sqlite3
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
@@ -294,7 +294,7 @@ def claim_scan(conn: sqlite3.Connection, config: dict | None = None) -> dict:
     """File each new claim conflict once (idempotent by pair_key), same
     audit shape as pairing so FINDINGS / rot R1 / resolve work unchanged."""
     existing = _existing_keys(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, skipped = [], []
     for c in find_claim_conflicts(conn, config):
         if c["pair_key"] in existing:

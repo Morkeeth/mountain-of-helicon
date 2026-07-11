@@ -12,7 +12,7 @@ Statuses are honest three ways:
 Zero LLM calls by default — the exam is deterministic and free to run daily.
 """
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.forgetting import DEFAULT_STABILITY
 
@@ -73,7 +73,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         checks.append(_check("R2", "Doc-drift", "TESTED", None, f"unmeasured: {e}"))
 
     # R3 staleness/expiry — live memories past their type's half-life, unreinforced.
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     expired = 0
     for ctype, eta in DEFAULT_STABILITY.items():
         expired += conn.execute(
