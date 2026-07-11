@@ -147,13 +147,16 @@ def test_rule_preview_precision_vs_history(conn):
 
 
 # ------------------------------------------------------------- expiry test
-def test_battery_expiry_flags_cube_past_half_life(conn):
+def test_battery_expiry_flags_cube_in_stale_tail(conn):
+    """Expiry fires off the decay model, not a raw age>half-life cutoff: a draft
+    aged 20d (η=10d, κ=1.8) has Weibull confidence ~0.03, deep in the stale tail,
+    so it is flagged."""
     from helicon.battery import run_battery
     old = _cube("gc_old1", "Sprint execution plan priorities",
                 "Execution plan: priorities for the sprint, deploy target list")
     old.created_at = old.valid_from = old.last_reinforced = \
         (datetime.utcnow() - timedelta(days=20)).isoformat()
-    old.type = "draft"  # draft half-life is 10d -> 20d is past it
+    old.type = "draft"  # η=10d, κ=1.8 -> conf at 20d ~0.03, well below the 0.15 floor
     assert insert_cube(conn, old)
     conn.commit()
     rebuild_fts(conn)
@@ -161,11 +164,32 @@ def test_battery_expiry_flags_cube_past_half_life(conn):
     res = run_battery(conn, "sprint execution plan priorities", k=5)
     expiry = next(r for r in res["results"] if r["name"] == "Expiry")
     assert expiry["status"] == "FAIL"
-    assert "past half-life" in expiry["reason"]
+    assert "decayed below" in expiry["reason"]
     # Expiry is non-critical: on its own it degrades, never breaks. (The
     # fixture's killed ECS cube also gets retrieved here and trips the
     # critical Freshness test, so the overall verdict is Freshness's call.)
     assert expiry["critical"] is False
+
+
+def test_battery_expiry_does_not_flag_healthy_past_half_life(conn):
+    """The recalibration's whole point: a memory just past one half-life is at the
+    decay MIDPOINT (conf ~0.37), still healthy, and must NOT be flagged as expired.
+    A draft aged 12d (η=10d) sits at conf ~0.6 — comfortably above the 0.15 floor."""
+    from helicon.battery import run_battery
+    fresh = _cube("gc_fresh1", "Quarterly launch runbook checklist",
+                  "Runbook: launch checklist steps for the quarterly release cycle")
+    fresh.created_at = fresh.valid_from = fresh.last_reinforced = \
+        (datetime.utcnow() - timedelta(days=12)).isoformat()
+    fresh.type = "draft"  # 12d is 1.2x half-life; conf still ~0.6, not stale
+    assert insert_cube(conn, fresh)
+    conn.commit()
+    rebuild_fts(conn)
+
+    res = run_battery(conn, "quarterly launch runbook checklist", k=5)
+    expiry = next(r for r in res["results"] if r["name"] == "Expiry")
+    reason = expiry["reason"]
+    # The fresh cube must not appear among any flagged (decayed) memories.
+    assert "Quarterly launch runbook" not in reason
 
 
 # ------------------------------------------------------------- the rot exam

@@ -170,13 +170,21 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     else:
         add("Thinness", False, "no memories to measure")
 
-    # Expiry: a memory older than its type's half-life, served without any
-    # reinforcement since, is suspect context even if nobody killed it yet.
-    # (Benchmark incident 3: a 6.9d-old execution plan — dashboard η=7d — was
-    # reused verbatim and rebuilt yesterday's priorities.) Non-critical:
-    # expired context degrades, it doesn't break.
+    # Expiry: a memory the decay model itself judges stale — decayed to near-zero
+    # confidence without reinforcement — served as current context even though
+    # nobody killed it yet. Non-critical: expired context degrades, doesn't break.
+    #
+    # Calibration: fire off the *same* Weibull the store decays with, not a raw
+    # age>η cutoff. At age = 1×η the Weibull confidence is exp(-1) ≈ 0.37 for every
+    # type — that is the decay MIDPOINT, not expiry, so an age>η test flags the
+    # median-age memory (empirically 18/20 past-η cubes here still sit at conf
+    # 0.15–0.37, healthy). We flag only the genuine stale tail: decayed confidence
+    # below EXPIRY_CONF_FLOOR (0.15) — above the 0.10 Freshness hard-stale line so
+    # Expiry is the earlier soft warning, below the 0.37 midpoint so it never fires
+    # on merely-older-than-half-life memory.
     from datetime import datetime as _dt
-    from helicon.forgetting import DEFAULT_STABILITY
+    from helicon.forgetting import DEFAULT_STABILITY, DEFAULT_SHAPE, weibull_decay
+    EXPIRY_CONF_FLOOR = 0.15
     expired = []
     now_dt = _dt.utcnow()
     for c in cubes.values():
@@ -192,11 +200,13 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
             from datetime import timezone as _tz
             anchor_dt = anchor_dt.astimezone(_tz.utc).replace(tzinfo=None)
         age = (now_dt - anchor_dt).total_seconds() / 86400
-        if age > eta:
-            expired.append(f"{(c.get('title') or '')[:40]} ({age:.0f}d > {eta:.0f}d)")
+        shape = DEFAULT_SHAPE.get(c.get("type"), 1.0)
+        conf = weibull_decay(age, eta, shape, c.get("review_count") or 0)
+        if conf < EXPIRY_CONF_FLOOR:
+            expired.append(f"{(c.get('title') or '')[:40]} (conf {conf:.2f}, {age:.0f}d)")
     add("Expiry", not expired,
-        "no retrieved memory is past its half-life" if not expired
-        else f"{len(expired)} past half-life: {expired[:3]}")
+        "no retrieved memory has decayed into its stale tail" if not expired
+        else f"{len(expired)} decayed below {EXPIRY_CONF_FLOOR}: {expired[:3]}")
 
     # Tokens-per-query (BEAM-style): what this retrieval costs in context budget.
     # Accuracy without a token price is a half-finished score.
