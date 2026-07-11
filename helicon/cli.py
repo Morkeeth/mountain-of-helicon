@@ -764,6 +764,100 @@ def cmd_consistency(args):
     print(f"\n  Loaded every session, checked by nobody. This is the drift that survives.")
 
 
+def cmd_heal(args):
+    """The self-healing audit loop: score the four truth gates on a store, show
+    every drift with its evidence and a proposed repair, apply the accepted
+    ones, and re-score so the gates move. The thing no retriever can do."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.heal import heal, DEMO_DB
+
+    demo = getattr(args, "demo", False)
+    apply = getattr(args, "apply", False)
+    # Safety guard: --apply on the REAL store marks cubes killed (retires live
+    # memories). Refuse unless explicitly confirmed with --yes-really. The demo
+    # store is always safe (re-seedable), so it never needs confirmation.
+    if apply and not demo and not getattr(args, "yes_really", False):
+        print("\n  ⚠  refusing to --apply on your REAL store "
+              "(would mark cubes killed / retire live memories).")
+        print("     • see it safely first:    helicon heal --demo --apply")
+        print("     • really apply for real:  helicon heal --apply --yes-really\n")
+        return
+    if demo:
+        _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if _repo_root not in sys.path:
+            sys.path.insert(0, _repo_root)
+        import scripts.demo_seed as seed_mod
+        if getattr(args, "reset", False) or not os.path.exists(DEMO_DB):
+            seed_mod.seed()
+        conn = init_db(DEMO_DB)
+        label = "demo"
+        config = None
+    else:
+        config = load_config()
+        conn = init_db(config["db_path"])
+        label = "oscar:vault+memory"
+
+    env = heal(conn, config=config, apply=apply, store_label=label)
+
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(env, indent=2, default=str))
+        return
+    _render_heal(env, applied=apply)
+
+
+def _bar(score, width=18):
+    if score is None:
+        return "—" * 6
+    filled = int(round(width * score / 100))
+    return "█" * filled + "·" * (width - filled)
+
+
+def _render_heal(env, applied: bool):
+    b = env["gate_scores"]["before"]
+    a = env["gate_scores"].get("after")
+    order = ["consistency", "freshness", "volatility", "retrieval"]
+    print(f"\n  THE SELF-HEALING AUDIT LOOP   ·   store: {env['store']}\n")
+    print(f"  {'gate':<13} {'before':>7}      {'after':>7}   move")
+    print(f"  {'─'*13} {'─'*7}      {'─'*7}   {'─'*5}")
+    for g in order:
+        bv = b[g]
+        av = a[g] if a else None
+        bs = f"{bv:>5}%" if bv is not None else "  n/a"
+        as_ = (f"{av:>5}%" if av is not None else "  n/a") if a else ""
+        if a and av is not None and bv is not None:
+            d = round(av - bv, 1)
+            move = f"+{d}" if d > 0 else (f"{d}" if d < 0 else "·")
+        else:
+            move = ""
+        arrow = "→" if a else " "
+        print(f"  {g:<13} {bs:>7} {_bar(bv)} {arrow} {as_:>7} {_bar(av) if a else ''}  {move}")
+    print()
+    print(f"  {env['summary']['findings']} evidenced findings"
+          + (f"  ·  {env['summary']['applied']} repairs applied" if applied else "  ·  proposed (dry-run)"))
+    print()
+    for f in env["findings"]:
+        tag = {"consistency": "CONTRADICTION", "freshness": "STALE",
+               "volatility": "VOLATILE"}.get(f["gate"], f["gate"].upper())
+        print(f"  [{f['id']}] {tag:<13} {f['subject']}")
+        print(f"        drift:   {f['drift']}")
+        for e in f["evidence"]:
+            when = (e.get("created_at") or "")[:10]
+            print(f"        source:  {e['source']}:{e['ref']}  ({when})  \"{e['text']}\"")
+        print(f"        repair:  {f['repair']['kind'].upper()} — {f['repair']['reason']}")
+        for line in f["repair"]["diff"].splitlines():
+            print(f"                 {line}")
+        print(f"        status:  {f['status'].upper()}")
+        print()
+    if applied and env.get("gate_delta"):
+        gains = " · ".join(f"{g} +{d}" for g, d in env["gate_delta"].items() if d > 0)
+        print(f"  Loop closed. Gates moved: {gains}.")
+    elif not applied:
+        print("  Re-run with --apply to accept the repairs and watch the gates move.")
+    print()
+
+
 def cmd_read(args):
     """The reading: open the record and it tells you who you are. Composes a
     grounded portrait from your memory (who recurs, what you make, the record's
@@ -1700,6 +1794,13 @@ def main():
     rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    heal_p = sub.add_parser("heal", help="The self-healing audit loop: score the 4 truth gates, propose repairs, apply, re-score")
+    heal_p.add_argument("--demo", action="store_true", help="Run on the seeded demo store (universally-legible drift), not your real store")
+    heal_p.add_argument("--apply", action="store_true", help="Accept the proposed repairs, apply them, and re-score")
+    heal_p.add_argument("--yes-really", action="store_true", help="Required to --apply on your REAL store (safety guard; not needed with --demo)")
+    heal_p.add_argument("--reset", action="store_true", help="Re-seed the demo store before running (with --demo)")
+    heal_p.add_argument("--json", action="store_true", help="Emit the raw envelope")
+
     read_p = sub.add_parser("read", help="The reading: open the record and it tells you who you are (portrait + Qwen narration)")
     read_p.add_argument("--json", action="store_true", help="Emit JSON")
 
@@ -1790,6 +1891,7 @@ def main():
         "battery": cmd_battery,
         "report": cmd_report,
         "rot": cmd_rot,
+        "heal": cmd_heal,
         "read": cmd_read,
         "consistency": cmd_consistency,
         "volatility": cmd_volatility,
