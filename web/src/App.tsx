@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import CausalLens from './components/CausalLens';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
@@ -23,7 +24,7 @@ import Consistency from './components/Consistency';
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
+type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens';
 
 // One honest journey on the left: the reading opens the record, then your next
 // moves, then your memory itself (with its truth gates as sub-views), what needs
@@ -40,6 +41,7 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
   { key: 'tour', label: 'Tour' },
   { key: 'routines', label: 'Routines & Skills' },
   { key: 'evals', label: 'Evals' },
+  { key: 'lens', label: 'Causal Lens' },
   { key: 'log', label: 'Log' },
   { key: 'graph', label: 'Graph' },
   { key: 'projects', label: 'Projects' },
@@ -313,6 +315,7 @@ function App() {
         >
 
         {tab === 'reading' && <Reading />}
+        {tab === 'lens' && <CausalLens />}
 
         {tab === 'tour' && <Landing onEnter={() => setTab('focus')} />}
 

@@ -75,6 +75,7 @@ def create_app() -> FastAPI:
     from helicon.api.score import router as score_router
     from helicon.api.patterns import router as patterns_router
     from helicon.api.audit import router as audit_router
+    from helicon.api.lens import router as lens_router
     from helicon.api.connectors import router as connectors_router
     from helicon.api.graph import router as graph_router
     from helicon.api.search import router as search_router
@@ -95,6 +96,7 @@ def create_app() -> FastAPI:
     app.include_router(score_router, prefix="/api")
     app.include_router(patterns_router, prefix="/api")
     app.include_router(audit_router, prefix="/api")
+    app.include_router(lens_router, prefix="/api")
     app.include_router(connectors_router, prefix="/api")
     app.include_router(graph_router, prefix="/api")
     app.include_router(search_router, prefix="/api")
