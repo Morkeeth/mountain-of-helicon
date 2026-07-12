@@ -1085,6 +1085,17 @@ def cmd_evolve(args):
              if gold["total"] > prev_rules else "  (holding)"))
     print(f"\n  rule on what needs you:  helicon resolve --list")
     print(f"  the law, current:        data/GOLDEN_RULES.md")
+    # obey path: rulings only govern the agent once they reach ~/.claude. Detect
+    # automatically; apply on --obey (writing the operator's home dir stays opt-in).
+    new_rulings = gold["total"] > prev_rules
+    if getattr(args, "obey", False):
+        from helicon.gold import inject
+        res = inject(conn, config, apply=True)
+        print(f"  obey:                    wrote {res['target']} "
+              f"({res['chars']} chars, .bak kept) — the agent obeys it next session")
+    elif new_rulings:
+        print(f"  make the agent obey:     helicon policy --inject  "
+              f"(pushes {gold['total'] - prev_rules} new ruling(s) to ~/.claude)")
 
 
 def cmd_resolve(args):
@@ -1845,6 +1856,7 @@ def main():
 
     evolve_p = sub.add_parser("evolve", help="The night command: scan + exams + gold recompile + the morning delta")
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
+    evolve_p.add_argument("--obey", action="store_true", help="also push the compiled policy to ~/.claude so the agent obeys it (.bak kept)")
 
     resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction memory + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
