@@ -31,10 +31,10 @@ type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log'
 // moves, then your memory itself (with its truth gates as sub-views), what needs
 // ruling, and the golden rules it compiles. Everything else lives under More.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'findings', label: 'Needs Ruling' },
   { key: 'reading', label: 'The Reading' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'health', label: 'Memory' },
-  { key: 'findings', label: 'Needs Ruling' },
   { key: 'gold', label: 'Golden Rules' },
 ];
 
@@ -81,7 +81,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'reading';
+    return ALL_TABS.includes(h) ? h : 'findings';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
