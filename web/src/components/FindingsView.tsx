@@ -346,21 +346,41 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         return desc ? <p className="text-[12px] mb-4" style={{ color: 'var(--helicon-muted)' }}>{desc}</p> : null;
       })()}
 
-      {/* Finding rows */}
+      {/* Finding rows, grouped by severity so the hierarchy is legible and each tier self-explains */}
       {visible.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-zinc-600 text-[13px]">Nothing failing here. Memory is clean.</p>
         </div>
-      ) : (
-        <div className="border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/30 bg-white shadow-sm">
-          {visible.slice(0, 50).map(f => (
-            <FindingRow key={f.id} f={f} onGone={() => onActed(f)} />
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const TIERS = [
+          { sev: 'critical', t: 'Critical', d: 'Rule on these first \u2014 the record is actively wrong.' },
+          { sev: 'warning', t: 'Warnings', d: 'Worth a ruling when you have a moment.' },
+          { sev: 'info', t: 'Aging \u00b7 auto-managed', d: 'Age and mechanics \u2014 safe to leave; open if curious.' },
+        ];
+        let shown = 0;
+        return TIERS.map(tier => {
+          const items = visible.filter(x => (x.severity || 'info') === tier.sev);
+          if (items.length === 0 || shown >= 50) return null;
+          const slice = items.slice(0, 50 - shown);
+          shown += slice.length;
+          return (
+            <div key={tier.sev} className="mb-6">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: sevColor(tier.sev) }} />
+                <span className="text-[13px] font-medium" style={{ color: 'var(--helicon-ink)' }}>{tier.t}</span>
+                <span className="text-[12px] tabular-nums" style={{ color: 'var(--helicon-faint)' }}>{items.length}</span>
+                <span className="text-[11px] ml-1.5" style={{ color: 'var(--helicon-muted)' }}>{tier.d}</span>
+              </div>
+              <div className="border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/30 bg-white shadow-sm">
+                {slice.map(x => <FindingRow key={x.id} f={x} onGone={() => onActed(x)} />)}
+              </div>
+            </div>
+          );
+        });
+      })()}
 
       {visible.length > 50 && (
-        <p className="text-[11px] text-zinc-700 mt-3 text-center">Showing 50 of {visible.length}</p>
+        <p className="text-[11px] text-zinc-700 mt-3 text-center">Showing the first 50 of {visible.length}</p>
       )}
     </div>
   );
