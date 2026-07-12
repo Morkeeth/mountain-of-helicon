@@ -481,9 +481,34 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
     )
     from helicon.db import insert_cube
     insert_cube(conn, cube)
+
+    # Retire the losing cubes: any live cube asserting a ruled-out value for
+    # this (person, topic) is now known-wrong, so mark it 'superseded' — that
+    # drops it from both retrieval branches (search_cubes + semantic) and from
+    # find_conflicts' live set. This is the "can't be retrieved" half of
+    # never-twice; the "can't re-file" half is the guard in find_conflicts, and
+    # NEW memory re-asserting a wrong value AFTER now still re-alarms there.
+    truth_iv = _parse_label(truth)
+    person_l, topic_l = d["person"].lower(), d["topic"]
+    like = " OR ".join("lower(content) LIKE ?" for _ in TOPIC_KEYWORDS)
+    rows = conn.execute(
+        f"SELECT id, title, content FROM helicon_cubes "
+        f"WHERE review_status IN ('pending', 'revised', 'approved') "
+        f"AND merged_into IS NULL AND id != ? AND ({like})",
+        [cube.id] + [f"%{t}%" for t in TOPIC_KEYWORDS]).fetchall()
+    retired = []
+    for r in rows:
+        ivs = {a["interval"] for a in extract_assertions(r["content"], r["title"])
+               if a["person"].lower() == person_l and a["topic"] == topic_l}
+        # retire a cube that takes the WRONG side and not the truth; a cube
+        # quoting BOTH values documents the conflict — leave it retrievable
+        if ivs and truth_iv not in ivs and any(_disjoint(iv, truth_iv) for iv in ivs):
+            conn.execute("UPDATE helicon_cubes SET review_status = 'superseded', "
+                         "last_reinforced = ? WHERE id = ?", (now, r["id"]))
+            retired.append(r["id"])
     conn.commit()
     return {"ok": True, "audit_id": audit_id, "truth": truth,
-            "correction_cube": cube.id, "wrong_dates": wrong,
+            "correction_cube": cube.id, "wrong_dates": wrong, "retired": retired,
             "person": d["person"], "topic": d["topic"]}
 
 
