@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import CausalLens from './components/CausalLens';
+import FocusReview from './components/FocusReview';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
@@ -92,6 +93,7 @@ function App() {
   const [findingsData, setFindingsData] = useState<FindingsResponse | null>(null);
   const [batteryIncluded, setBatteryIncluded] = useState(false);
   const [batteryLoading, setBatteryLoading] = useState(false);
+  const [reviewMode, setReviewMode] = useState<'focus' | 'all'>('focus');
 
   // Project-centric state (secondary surface, unchanged)
   const [projects, setProjects] = useState<ProjectRollup[]>([]);
@@ -330,8 +332,19 @@ function App() {
           />
         )}
 
-        {tab === 'findings' && (
+        {tab === 'findings' && reviewMode === 'focus' && (
           <>
+          <TabPurpose>One ruling at a time. Handle what needs you; the rest is auto-managed.</TabPurpose>
+          <FocusReview
+            data={findingsData}
+            onActed={handleFindingActed}
+            onSeeAll={() => setReviewMode('all')}
+          />
+          </>
+        )}
+        {tab === 'findings' && reviewMode === 'all' && (
+          <>
+          <button onClick={() => setReviewMode('focus')} className="text-[12px] mb-3 transition-colors hover:opacity-70" style={{ color: 'var(--helicon-accent)' }}>← back to focus</button>
           <TabPurpose>What Helicon caught in your memory, drift, staleness, and things worth sharpening. You rule once; it sticks.</TabPurpose>
           <FindingsView
             data={findingsData}
