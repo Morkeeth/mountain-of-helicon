@@ -10,7 +10,7 @@ function Term({ children }: { children: React.ReactNode }) {
       <div className="flex gap-1.5 px-3.5 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#e05a4e' }} />
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#e0b23a' }} />
-        <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#5aa564' }} />
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#3f627d' }} />
       </div>
       <pre className="m-0 px-4 py-3.5 overflow-x-auto leading-relaxed" style={{ fontFamily: 'var(--font-mono, monospace)', fontSize: 12, color: '#e7e9f0' }}>
         {children}

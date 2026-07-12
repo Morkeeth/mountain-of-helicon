@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Bricolage+Grotesque:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -97,7 +97,7 @@ body {
     var(--bg);
   background-attachment: fixed;
   color: var(--text-secondary);
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 14px;
   line-height: 1.6;
   letter-spacing: -0.006em;
@@ -174,7 +174,7 @@ button, a, input, select { transition-duration: 150ms; }
   --font-heading: 'Fraunces', Georgia, serif;
   --font-display: 'Fraunces', Georgia, serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
 
   /* violet/indigo family remapped to CALM SLATE-NAVY (primary action, no red) */
   --color-violet-50: #eef1f4;
@@ -192,6 +192,27 @@ button, a, input, select { transition-duration: 150ms; }
   --color-indigo-400: #4f6a80;
   --color-indigo-500: #223A4E;
   --color-indigo-600: #1d3243;
+
+  /* emerald/green family remapped to CALM SLATE-BLUE — the world is blue, no
+     vibe-code green. "Good / still-true / shipped" reads as calm slate. */
+  --color-emerald-50: #eef1f4;
+  --color-emerald-100: #d6dde3;
+  --color-emerald-200: #aab8c4;
+  --color-emerald-300: #7d92a3;
+  --color-emerald-400: #4f6a80;
+  --color-emerald-500: #3f627d;
+  --color-emerald-600: #2f5069;
+  --color-emerald-700: #223A4E;
+  --color-emerald-800: #172836;
+  --color-emerald-900: #111f29;
+  --color-green-50: #eef1f4;
+  --color-green-100: #d6dde3;
+  --color-green-200: #aab8c4;
+  --color-green-300: #7d92a3;
+  --color-green-400: #4f6a80;
+  --color-green-500: #3f627d;
+  --color-green-600: #2f5069;
+  --color-green-700: #223A4E;
 
   /* zinc remapped to INK NAVY / slate ramp (dark navy text on paper) */
   --color-zinc-50: #101d2b;

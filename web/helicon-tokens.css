@@ -38,7 +38,7 @@
   --helicon-stale:    #C6963F;            /* WARNING — amber (sparing) */
   --helicon-critical: #A94A3D;            /* CRITICAL — judgment red, a whisper, genuine alarms only */
   --helicon-conflict: #AEBFCC;            /* REVIEWED / neutral — mist slate */
-  --helicon-good:     #6E8A6A;            /* CONNECTED — quiet sage green (status dots only) */
+  --helicon-good:     #3f627d;            /* CONNECTED — calm slate-blue (no green) */
   --helicon-gold:     #C6963F;
 
   /* dark cards (Critical Issues, Focus) — INK NAVY */
@@ -48,9 +48,9 @@
   --helicon-on-dark-60:   rgba(244,239,231,0.62);
   --helicon-on-dark-35:   rgba(244,239,231,0.34);
 
-  /* type: Reckoning→Fraunces (display) · Inter (interface) · Berkeley Mono→IBM Plex (data) */
+  /* type: Reckoning→Fraunces (display) · Bricolage Grotesque (interface) · Berkeley Mono→IBM Plex (data) */
   --helicon-serif:  'Fraunces', Georgia, 'Times New Roman', serif;
-  --helicon-sans:   'Inter', system-ui, -apple-system, sans-serif;
+  --helicon-sans:   'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
   --helicon-mono:   'IBM Plex Mono', ui-monospace, monospace;
   --helicon-wm-weight: 400;
   --helicon-wm-track:  0em;

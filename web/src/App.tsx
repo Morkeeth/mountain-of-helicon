@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
-import { Graph3D } from './components/Graph3D';
+const Graph3D = lazy(() => import('./components/Graph3D').then(m => ({ default: m.Graph3D })));
 import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
 import SkillsAudit from './components/SkillsAudit';
@@ -15,8 +15,8 @@ import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
 import StoreAudit from './components/StoreAudit';
 import Reading from './components/Reading';
-import MemoryHealthTrend from './components/MemoryHealthTrend';
-import Volatility from './components/Volatility';
+const MemoryHealthTrend = lazy(() => import('./components/MemoryHealthTrend'));
+const Volatility = lazy(() => import('./components/Volatility'));
 import Consistency from './components/Consistency';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
@@ -372,7 +372,7 @@ function App() {
         {false && (
           <>
           <TabPurpose>Where the rot lives in your knowledge graph.</TabPurpose>
-          <Graph3D />
+          <Suspense fallback={<div className="py-12" />}><Graph3D /></Suspense>
           </>
         )}
 
@@ -457,7 +457,7 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
         <div className="space-y-10">
           <ContextHero score={score} needsYou={needsYou} onReview={onReview} />
 
-          <MemoryHealthTrend />
+          <Suspense fallback={<div className="py-12" />}><MemoryHealthTrend /></Suspense>
 
           <SetupReportCard />
 
@@ -491,7 +491,7 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
         </div>
       )}
 
-      {sub === 'volatility' && <Volatility />}
+      {sub === 'volatility' && <Suspense fallback={<div className="py-12" />}><Volatility /></Suspense>}
 
       {sub === 'consistency' && <Consistency />}
     </div>
@@ -697,7 +697,7 @@ function ProjectCard({ project, index, onClick }: { project: ProjectRollup; inde
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           {isActive && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-subtle" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           )}
           <h3 className="text-[13px] font-medium text-zinc-200 group-hover:text-zinc-800 transition-colors">
             {project.name}

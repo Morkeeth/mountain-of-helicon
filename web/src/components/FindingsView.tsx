@@ -84,17 +84,19 @@ function ActionButton({ label, tone, disabled, onClick }: {
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const isKeep = tone === 'keep';
   const styles =
     tone === 'kill'
       ? { borderColor: 'var(--helicon-line-2)', color: 'var(--helicon-ink)' }
-      : tone === 'keep'
-        ? { borderColor: 'rgba(110,138,106,0.45)', color: 'var(--helicon-good)' }
+      : isKeep
+        ? { border: 'none', color: '#F4EFE7',
+            backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }
         : { borderColor: 'transparent', color: 'var(--helicon-muted)' };
   return (
     <button
       onClick={e => { e.stopPropagation(); onClick(); }}
       disabled={disabled}
-      className="text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 bg-white shadow-sm"
+      className={`text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 shadow-sm ${isKeep ? '' : 'bg-white'}`}
       style={styles}
     >
       {label}
