@@ -552,7 +552,7 @@ def cmd_battery(args):
     from helicon.snapshots import _retrieve
 
     if not args.task:
-        print('usage: helicon battery "<task>"')
+        print('usage: helicon check "<task>"')
         return
     config = load_config()
     conn = init_db(config["db_path"])
@@ -714,7 +714,7 @@ def _render_portrait(res: dict):
 
     if not reading:
         print(f"  {c['dim']}(no Qwen key — the reading needs one. The record above is real.){c['r']}")
-        print(f"  {c['dim']}run helicon volatility and helicon rot for the full audit.{c['r']}")
+        print(f"  {c['dim']}run helicon volatility and helicon audit for the full audit.{c['r']}")
         print()
 
 
@@ -780,8 +780,8 @@ def cmd_heal(args):
     if apply and not demo and not getattr(args, "yes_really", False):
         print("\n  ⚠  refusing to --apply on your REAL store "
               "(would mark cubes killed / retire live memories).")
-        print("     • see it safely first:    helicon heal --demo --apply")
-        print("     • really apply for real:  helicon heal --apply --yes-really\n")
+        print("     • see it safely first:    helicon repair --demo --apply")
+        print("     • really apply for real:  helicon repair --apply --yes-really\n")
         return
     if demo:
         _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -1780,7 +1780,7 @@ def main():
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
-    battery_p = sub.add_parser("battery", help="Context-quality battery: named tests on retrieved context")
+    battery_p = sub.add_parser("check", aliases=["battery"], help="Check retrieval quality: named tests on the context a task retrieves")
     battery_p.add_argument("task", nargs="?", help="task or query text")
     battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
     battery_p.add_argument("--prompt", action="store_true", help="also print the LLM prompt for subjective tests")
@@ -1791,10 +1791,10 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
-    rot_p = sub.add_parser("rot", help="The rot exam: 10 documented failure classes (ROT.md) checked live")
+    rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 10 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
 
-    heal_p = sub.add_parser("heal", help="The self-healing audit loop: score the 4 truth gates, propose repairs, apply, re-score")
+    heal_p = sub.add_parser("repair", aliases=["heal"], help="Self-repair loop: score the 4 truth gates, propose repairs, apply, re-score")
     heal_p.add_argument("--demo", action="store_true", help="Run on the seeded demo store (universally-legible drift), not your real store")
     heal_p.add_argument("--apply", action="store_true", help="Accept the proposed repairs, apply them, and re-score")
     heal_p.add_argument("--yes-really", action="store_true", help="Required to --apply on your REAL store (safety guard; not needed with --demo)")
@@ -1817,7 +1817,7 @@ def main():
     ci_p.add_argument("--fail-on", dest="fail_on", choices=["rot", "none"], default="rot",
                       help="'rot' (default) exits 1 if any class fires; 'none' is report-only")
 
-    gold_p = sub.add_parser("gold", help="Compile GOLDEN_RULES.md: the stack's law from your rulings, with provenance")
+    gold_p = sub.add_parser("policy", aliases=["gold"], help="Compile the policy the agent obeys, built from your rulings, with provenance")
     gold_p.add_argument("--inject", action="store_true", help="write to ~/.claude/GOLDEN_RULES.md (.bak kept)")
     gold_p.add_argument("--show", action="store_true", help="print the compiled rules, write nothing")
 
@@ -1888,14 +1888,18 @@ def main():
         "triage": cmd_triage,
         "review": cmd_review,
         "snapshot": cmd_snapshot,
+        "check": cmd_battery,
         "battery": cmd_battery,
         "report": cmd_report,
+        "audit": cmd_rot,
         "rot": cmd_rot,
+        "repair": cmd_heal,
         "heal": cmd_heal,
         "read": cmd_read,
         "consistency": cmd_consistency,
         "volatility": cmd_volatility,
         "ci": cmd_ci,
+        "policy": cmd_gold,
         "gold": cmd_gold,
         "evolve": cmd_evolve,
         "resolve": cmd_resolve,
