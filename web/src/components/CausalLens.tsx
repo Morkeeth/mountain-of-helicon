@@ -62,6 +62,17 @@ export default function CausalLens() {
         >Trace</button>
       </form>
 
+      {!mems && !loading && (
+        <div className="mt-4 flex items-center gap-2 flex-wrap text-[12px]" style={{ color: MUTED }}>
+          <span>try:</span>
+          {['what am I working on', 'FAVOUR security audit', 'my next move'].map(q => (
+            <button key={q} onClick={() => { setTask(q); setTimeout(() => trace(), 0); }}
+              className="px-2.5 py-1 rounded-full transition-colors hover:bg-[var(--helicon-bg-2)]"
+              style={{ border: '1px solid var(--helicon-line)', color: 'var(--helicon-ink)' }}>{q}</button>
+          ))}
+        </div>
+      )}
+
       {loading && <div className="mt-8 text-[13px]" style={{ color: MUTED }}>…tracing the memory</div>}
 
       {mems && !loading && (

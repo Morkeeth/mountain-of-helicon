@@ -16,8 +16,8 @@ import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
 import StoreAudit from './components/StoreAudit';
 import Reading from './components/Reading';
-const MemoryHealthTrend = lazy(() => import('./components/MemoryHealthTrend'));
-const Volatility = lazy(() => import('./components/Volatility'));
+import MemoryHealthTrend from './components/MemoryHealthTrend';
+import Volatility from './components/Volatility';
 import Consistency from './components/Consistency';
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
@@ -460,7 +460,7 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
         <div className="space-y-10">
           <ContextHero score={score} needsYou={needsYou} onReview={onReview} />
 
-          <Suspense fallback={<div className="py-12" />}><MemoryHealthTrend /></Suspense>
+          <MemoryHealthTrend />
 
           <SetupReportCard />
 
@@ -494,7 +494,7 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
         </div>
       )}
 
-      {sub === 'volatility' && <Suspense fallback={<div className="py-12" />}><Volatility /></Suspense>}
+      {sub === 'volatility' && <Volatility />}
 
       {sub === 'consistency' && <Consistency />}
     </div>

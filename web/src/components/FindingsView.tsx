@@ -272,14 +272,15 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
           <button
             onClick={() => onReload(true)}
             disabled={batteryLoading}
+            title="LLM-judged tests on whether the context your agent retrieves is any good — relevance, freshness, grounding. The slow, deep pass."
             className="text-[12px] px-3 py-1.5 rounded-lg border transition-all active:scale-95 disabled:opacity-40 shadow-sm bg-white"
             style={{ borderColor: 'var(--helicon-line-2)', color: 'var(--helicon-ink)' }}
           >
-            {batteryLoading ? 'Running…' : batteryIncluded ? 'Re-run deep battery check' : 'Run deep battery check'}
+            {batteryLoading ? 'Running…' : batteryIncluded ? 'Re-run deep quality check' : 'Run deep quality check'}
           </button>
           {batteryLoading && (
             <span className="text-[11px] text-zinc-600 animate-pulse-subtle">
-              Running the context-quality battery, ~10s
+              Checking retrieval quality, ~10s
             </span>
           )}
         </div>
@@ -328,7 +329,7 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
           </button>
         ))}
         {!batteryIncluded && !batteryLoading && (
-          <span className="text-[10px] text-zinc-700 ml-auto">battery findings appear after a deep check</span>
+          <span className="text-[10px] text-zinc-700 ml-auto">quality findings appear after a deep check</span>
         )}
       </div>
 
