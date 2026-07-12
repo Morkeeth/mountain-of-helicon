@@ -15,7 +15,7 @@ launder its own output into "the human said so".
 """
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 PROMPT_VERSION = "rule-compiler-v1"
 
@@ -166,7 +166,7 @@ def save_rule(conn: sqlite3.Connection, nl_text: str, pred: dict, model: str,
         "INSERT INTO rules (nl_text, predicate, action, status, model, prompt_version, "
         "frozen_examples, created_at) VALUES (?, ?, ?, 'proposed', ?, ?, ?, ?)",
         (nl_text, json.dumps(pred), pred["action"], model, PROMPT_VERSION,
-         json.dumps(frozen), datetime.utcnow().isoformat()),
+         json.dumps(frozen), datetime.now(timezone.utc).replace(tzinfo=None).isoformat()),
     )
     conn.commit()
     return cur.lastrowid
@@ -175,7 +175,7 @@ def save_rule(conn: sqlite3.Connection, nl_text: str, pred: dict, model: str,
 def approve_rule(conn: sqlite3.Connection, rule_id: int) -> bool:
     cur = conn.execute(
         "UPDATE rules SET status = 'approved', approved_at = ? WHERE id = ? AND status = 'proposed'",
-        (datetime.utcnow().isoformat(), rule_id),
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), rule_id),
     )
     conn.commit()
     return cur.rowcount > 0
@@ -209,7 +209,7 @@ def apply_rules(conn: sqlite3.Connection, dry_run: bool = True) -> dict:
     from helicon.triage import init_triage_table
 
     init_triage_table(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     results = []
     total = 0
     for rule in list_rules(conn, status="approved"):

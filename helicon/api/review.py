@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -27,7 +27,7 @@ async def submit_review(req: ReviewRequest):
     if not row:
         return {"error": "cube not found"}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     try:
         clean = row["created_at"].replace("Z", "")
         if "+" in clean:

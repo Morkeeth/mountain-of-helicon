@@ -1,13 +1,13 @@
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from helicon.qwen import complete_json, resolve_model
 
 
 def detect_session(conn: sqlite3.Connection, window_minutes: int = 60) -> dict | None:
     """Detect if there's a recent review session worth summarizing."""
-    cutoff = (datetime.utcnow() - timedelta(minutes=window_minutes)).isoformat()
+    cutoff = (datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=window_minutes)).isoformat()
     rows = conn.execute(
         "SELECT r.*, g.title, g.tags FROM reviews r "
         "JOIN helicon_cubes g ON r.cube_id = g.id "
@@ -134,7 +134,7 @@ def _store_session_summary(conn: sqlite3.Connection, summary: dict):
             json.dumps(summary["types_reviewed"]),
             json.dumps(summary["sources_reviewed"]),
             json.dumps(summary.get("insights", {})),
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         ),
     )
     conn.commit()

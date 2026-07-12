@@ -7,7 +7,7 @@ recommendations for what to work on next.
 
 import json
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 # Optional: merge tag variants into one canonical project name. Empty by default
@@ -63,7 +63,7 @@ def _extract_projects(tags_json: str) -> set[str]:
 
 def get_project_rollup(conn) -> list[dict]:
     """Compute per-project stats from cubes + reviews."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     rows = conn.execute("""
         SELECT c.id, c.tags, c.source, c.source_ref, c.type, c.confidence,
@@ -296,7 +296,7 @@ def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
 
 def get_weekly_summary(conn) -> dict:
     """Weekly summary: projects touched, projects shipped from."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     week_ago = (now - timedelta(days=7)).isoformat()
 
     touched = set()
@@ -336,7 +336,7 @@ def get_context_switches(conn: sqlite3.Connection, weeks: int = 4) -> dict:
 
     Returns a weekly context-switch index and flagged sessions.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     cutoff = (now - timedelta(weeks=weeks)).isoformat()
 
     # Get all claude-code sessions since cutoff with their cubes

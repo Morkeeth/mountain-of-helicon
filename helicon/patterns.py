@@ -1,7 +1,7 @@
 import json
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import Pattern
 from helicon.qwen import complete_json
@@ -39,7 +39,7 @@ def detect_spin(conn: sqlite3.Connection, min_sessions: int = 4) -> list[dict]:
 
 
 def detect_kill_candidates(conn: sqlite3.Connection, days_threshold: int = 30) -> list[dict]:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     rows = conn.execute(
         "SELECT id, title, type, confidence, created_at, source "
         "FROM helicon_cubes "
@@ -54,7 +54,7 @@ def detect_kill_candidates(conn: sqlite3.Connection, days_threshold: int = 30) -
             if "+" in clean:
                 clean = clean.split("+")[0]
             created = datetime.fromisoformat(clean)
-            age_days = (datetime.utcnow() - created).total_seconds() / 86400
+            age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - created).total_seconds() / 86400
         except (ValueError, AttributeError):
             age_days = 0
 
@@ -153,7 +153,7 @@ Return JSON array of patterns:
     if not result or not isinstance(result, list):
         return extract_patterns_from_sql(conn)
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     patterns = []
     for item in result:
         patterns.append(Pattern(
@@ -174,7 +174,7 @@ Return JSON array of patterns:
 
 
 def extract_patterns_from_sql(conn: sqlite3.Connection) -> list[Pattern]:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     patterns = []
 
     velocity = compute_velocity(conn)

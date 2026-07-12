@@ -8,7 +8,7 @@ Three benchmarks:
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.db import search_cubes, human_evidence_sql
 from helicon.score import compute_score
@@ -294,7 +294,7 @@ def run_eval(conn: sqlite3.Connection) -> dict:
     forgetting = _run_forgetting_benchmark(conn)
     audit = _run_audit_recall_benchmark(conn)
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
     # Only average metrics that have real ground truth. A metric that returns None
     # (no labels) is excluded and its weight is redistributed, so the composite is

@@ -2,7 +2,7 @@ import json
 import sqlite3
 import uuid
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -211,7 +211,7 @@ Return JSON:
     if not result:
         return None
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     cons_id = make_id()
 
     # The stored topic drives both the UI label and the consolidation eval query.

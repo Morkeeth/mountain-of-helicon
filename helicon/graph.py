@@ -3,7 +3,7 @@ import re
 import sqlite3
 import uuid
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.qwen import complete_json
 
@@ -72,7 +72,7 @@ Skip generic words. Max 15 entities.
 
 
 def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
     rows = conn.execute(
         "SELECT id, title, content, type, source, created_at, tags "

@@ -23,7 +23,7 @@ import json
 import re
 import sqlite3
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
@@ -429,7 +429,7 @@ def dismiss_finding(conn: sqlite3.Connection, audit_id: int, reason: str) -> dic
     conn.execute(
         "UPDATE audit_log SET human_decision = 'dismissed', resolved_at = ?, "
         "details = json_set(details, '$.dismiss_reason', ?) WHERE id = ?",
-        (datetime.utcnow().isoformat(), reason, audit_id))
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), reason, audit_id))
     conn.commit()
     return {"ok": True, "audit_id": audit_id}
 
@@ -459,7 +459,7 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
                          f"{d.get('all_dates', d.get('dates'))} — if none of them "
                          f"is true, dismiss the finding and fix the sources"}
 
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     conn.execute(
         "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
         (f"resolved:{truth}", now, audit_id))
@@ -481,9 +481,34 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
     )
     from helicon.db import insert_cube
     insert_cube(conn, cube)
+
+    # Retire the losing cubes: any live cube asserting a ruled-out value for
+    # this (person, topic) is now known-wrong, so mark it 'superseded' — that
+    # drops it from both retrieval branches (search_cubes + semantic) and from
+    # find_conflicts' live set. This is the "can't be retrieved" half of
+    # never-twice; the "can't re-file" half is the guard in find_conflicts, and
+    # NEW memory re-asserting a wrong value AFTER now still re-alarms there.
+    truth_iv = _parse_label(truth)
+    person_l, topic_l = d["person"].lower(), d["topic"]
+    like = " OR ".join("lower(content) LIKE ?" for _ in TOPIC_KEYWORDS)
+    rows = conn.execute(
+        f"SELECT id, title, content FROM helicon_cubes "
+        f"WHERE review_status IN ('pending', 'revised', 'approved') "
+        f"AND merged_into IS NULL AND id != ? AND ({like})",
+        [cube.id] + [f"%{t}%" for t in TOPIC_KEYWORDS]).fetchall()
+    retired = []
+    for r in rows:
+        ivs = {a["interval"] for a in extract_assertions(r["content"], r["title"])
+               if a["person"].lower() == person_l and a["topic"] == topic_l}
+        # retire a cube that takes the WRONG side and not the truth; a cube
+        # quoting BOTH values documents the conflict — leave it retrievable
+        if ivs and truth_iv not in ivs and any(_disjoint(iv, truth_iv) for iv in ivs):
+            conn.execute("UPDATE helicon_cubes SET review_status = 'superseded', "
+                         "last_reinforced = ? WHERE id = ?", (now, r["id"]))
+            retired.append(r["id"])
     conn.commit()
     return {"ok": True, "audit_id": audit_id, "truth": truth,
-            "correction_cube": cube.id, "wrong_dates": wrong,
+            "correction_cube": cube.id, "wrong_dates": wrong, "retired": retired,
             "person": d["person"], "topic": d["topic"]}
 
 
@@ -530,7 +555,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
     a pair_key already in audit_log is never filed twice."""
     conflicts = find_conflicts(conn)
     existing, open_facts = _existing_pair_keys(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, rejected, skipped = [], [], []
     # Two-judge panel confusion counts, for Cohen's κ across the scan.
     panel = {"both_yes": 0, "both_no": 0, "qwen_only": 0, "judge2_only": 0}

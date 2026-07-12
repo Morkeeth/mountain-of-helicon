@@ -24,7 +24,7 @@ import os
 import re
 import sqlite3
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
@@ -177,7 +177,7 @@ def _existing_keys(conn: sqlite3.Connection) -> set:
 def stack_scan(conn: sqlite3.Connection) -> dict:
     """Run all three checks, file new findings idempotently."""
     existing = _existing_keys(conn)
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed = {"routine": 0, "output": 0, "context": 0}
     for kind, items in (("routine", routine_findings()),
                         ("output", output_findings(conn, ephemeral=EPHEMERAL)),

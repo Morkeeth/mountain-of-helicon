@@ -18,7 +18,7 @@ Every finding has the same shape:
 import json
 import os
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import combinations
 
 from fastapi import APIRouter
@@ -317,7 +317,7 @@ async def list_findings(kind: str | None = None, lane: str | None = None,
     ?kind= filters to one kind. ?include=battery adds the expensive per-task
     battery findings. Sorted decision-lane first, then severity, then recency."""
     conn = get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
     findings = _audit_findings(conn)
     try:

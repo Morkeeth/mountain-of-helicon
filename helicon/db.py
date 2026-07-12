@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import HeliconCube, Review, AuditResult, Pattern
 
@@ -297,12 +297,26 @@ def rebuild_fts(conn: sqlite3.Connection):
     conn.commit()
 
 
-def search_cubes(conn: sqlite3.Connection, query: str, limit: int = 30) -> list[dict]:
+def search_cubes(conn: sqlite3.Connection, query: str, limit: int = 30,
+                 include_retired: bool = False) -> list[dict]:
+    """Full-text search over cubes.
+
+    By default excludes retired memory (review_status killed/superseded): retrieval
+    that feeds an agent must not serve context the human or reconcile has retired.
+    This matches the semantic path (embeddings._load_all_embeddings already loads
+    only 'approved'/'pending'), so hybrid search is hygienic on BOTH branches — the
+    FTS branch used to silently re-introduce killed cubes the semantic branch
+    filtered out. Pass include_retired=True for review/browse surfaces that
+    deliberately want to see retired memory.
+    """
+    retired_filter = "" if include_retired else \
+        "AND g.review_status NOT IN ('killed', 'superseded') "
     rows = conn.execute(
-        """SELECT g.*, cubes_fts.rank
+        f"""SELECT g.*, cubes_fts.rank
         FROM cubes_fts
         JOIN helicon_cubes g ON g.rowid = cubes_fts.rowid
         WHERE cubes_fts MATCH ?
+        {retired_filter}
         ORDER BY rank
         LIMIT ?""",
         (query, limit),
@@ -362,7 +376,7 @@ def insert_review(conn: sqlite3.Connection, review: Review) -> int:
 def log_scan_start(conn: sqlite3.Connection, connectors: list[str]) -> int:
     cursor = conn.execute(
         "INSERT INTO scan_log (started_at, connectors_used) VALUES (?, ?)",
-        (datetime.utcnow().isoformat(), json.dumps(connectors)),
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), json.dumps(connectors)),
     )
     conn.commit()
     return cursor.lastrowid
@@ -373,7 +387,7 @@ def log_scan_complete(conn: sqlite3.Connection, scan_id: int, added: int = 0,
     conn.execute(
         """UPDATE scan_log SET completed_at = ?, cubes_added = ?, cubes_skipped = ?,
            cubes_merged = ?, errors = ? WHERE id = ?""",
-        (datetime.utcnow().isoformat(), added, skipped, merged,
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), added, skipped, merged,
          json.dumps(errors or []), scan_id),
     )
     conn.commit()
@@ -389,7 +403,7 @@ def record_battery_point(conn: sqlite3.Connection, total: int, healthy: int,
         """INSERT INTO battery_history
            (recorded_at, total, healthy, degraded, broken, mean_tokens, source)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (datetime.utcnow().isoformat(), total, healthy, degraded, broken,
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), total, healthy, degraded, broken,
          mean_tokens, source),
     )
     conn.commit()
@@ -406,7 +420,7 @@ def last_scan_info(conn: sqlite3.Connection) -> dict | None:
     if not row:
         return None
     completed = datetime.fromisoformat(row["completed_at"])
-    hours = (datetime.utcnow() - completed).total_seconds() / 3600
+    hours = (datetime.now(timezone.utc).replace(tzinfo=None) - completed).total_seconds() / 3600
     return {
         "completed_at": row["completed_at"],
         "hours_ago": round(hours, 1),

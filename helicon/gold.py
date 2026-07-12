@@ -17,7 +17,7 @@ own growth curve, rendered on the dashboard's GOLD surface.
 import json
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def gather(conn: sqlite3.Connection, config: dict) -> dict:
@@ -89,7 +89,7 @@ def compile_gold(conn: sqlite3.Connection, config: dict) -> str:
 
 def _compile_from(g: dict) -> str:
     total = sum(len(v) for v in g.values())
-    now = datetime.utcnow().isoformat()[:16].replace("T", " ")
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()[:16].replace("T", " ")
     L = [
         "# GOLDEN RULES",
         "",
@@ -140,7 +140,7 @@ def write_gold(conn: sqlite3.Connection, config: dict) -> dict:
     out = os.path.join(os.path.dirname(config["db_path"]), "GOLDEN_RULES.md")
     with open(out, "w", encoding="utf-8") as f:
         f.write(md)
-    point = {"ts": datetime.utcnow().isoformat(),
+    point = {"ts": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
              **{k: len(v) for k, v in g.items()},
              "total": sum(len(v) for v in g.values())}
     hist = gold_history(config, limit=1)

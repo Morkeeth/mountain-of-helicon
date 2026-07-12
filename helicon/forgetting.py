@@ -1,6 +1,6 @@
 import math
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 DEFAULT_STABILITY = {
     "code": 7.0,
@@ -68,7 +68,7 @@ def apply_decay(conn: sqlite3.Connection, config: dict | None = None) -> dict:
     if config:
         stability_overrides = config.get("forgetting", {}).get("stability", {})
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     cursor = conn.execute(
         "SELECT id, confidence, last_reinforced, created_at, type, review_count "
         "FROM helicon_cubes WHERE review_status IN ('pending', 'revised')"

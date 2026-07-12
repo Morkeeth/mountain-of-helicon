@@ -1,7 +1,7 @@
 import json
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
@@ -22,7 +22,7 @@ TIME_RELATIVE_PATTERNS = [
 
 
 def audit_temporal(conn: sqlite3.Connection, stale_days: int = 7) -> list[AuditResult]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     results = []
 
     rows = conn.execute(
@@ -72,7 +72,7 @@ def audit_temporal(conn: sqlite3.Connection, stale_days: int = 7) -> list[AuditR
 
 
 def audit_factual(conn: sqlite3.Connection, qwen_client=None, audit_context: str = "") -> list[AuditResult]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     results = []
 
     rows = conn.execute(
@@ -162,7 +162,7 @@ def _names_suggest_overlap(name_a: str, name_b: str) -> bool:
 
 
 def audit_decay(conn: sqlite3.Connection) -> list[AuditResult]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     results = []
 
     rows = conn.execute(
@@ -198,7 +198,7 @@ def audit_decay(conn: sqlite3.Connection) -> list[AuditResult]:
 
 
 def audit_patterns_staleness(conn: sqlite3.Connection, qwen_client=None) -> list[AuditResult]:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     results = []
 
     rows = conn.execute(

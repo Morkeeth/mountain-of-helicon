@@ -186,6 +186,29 @@ def test_resolve_closes_finding_and_files_correction(conn):
     assert pair_scan(conn)["filed"] == []
 
 
+def test_ruled_out_value_can_neither_be_retrieved_nor_refiled(conn):
+    """The atom of the 'verifier with a memory' thesis: a claim you have RULED
+    ON cannot come back. After resolving Avery's birthday to 05-18, the wrong
+    value 05-13 must be (a) not retrievable and (b) not re-filed on the next
+    scan. (a) is the inch resolve_pair was missing — it filed the correction
+    cube but left the losing cube live and retrievable, so retrieval could
+    still serve the value the human already ruled out."""
+    from helicon.pairing import resolve_pair
+    from helicon.db import rebuild_fts, search_cubes
+    wrong_id = _cube(conn, "Avery birthday May 13, from her list", "mindmap.md")
+    _cube(conn, "May 18 Avery birthday (Paris), plan dinner", "summer-trips.md")
+    pair_scan(conn)
+    res = resolve_pair(conn, _filed_finding_id(conn), "05-18")
+    assert res["ok"]
+
+    rebuild_fts(conn)
+    ids = {h["id"] for h in search_cubes(conn, "Avery birthday")}
+    assert wrong_id not in ids, "ruled-out value must not be retrievable"
+    assert res["correction_cube"] in ids, "the truth must be served"
+    assert wrong_id in res.get("retired", []), "resolve must retire the losing cube"
+    assert pair_scan(conn)["filed"] == [], "a ruled-on claim must not re-file"
+
+
 def test_resolve_rejects_bad_input(conn):
     from helicon.pairing import resolve_pair
     _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")

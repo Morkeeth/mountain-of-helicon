@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.models import ConnectorResult, HeliconCube
 from helicon.connectors import scan_all
@@ -17,7 +17,7 @@ def content_hash(content: str) -> str:
 
 
 def result_to_cube(result: ConnectorResult) -> HeliconCube:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     return HeliconCube(
         id=make_id(),
         source=result.source,

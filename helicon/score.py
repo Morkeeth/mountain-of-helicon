@@ -1,6 +1,6 @@
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 
 from helicon.db import human_evidence_sql
 
@@ -25,7 +25,7 @@ def record_score_snapshot(conn: sqlite3.Connection, event_label: str = None):
     conn.execute(
         "INSERT INTO score_history (recorded_at, score, total, reviewed, event_label, details) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        (datetime.utcnow().isoformat(), score["score"], score["total"],
+        (datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), score["score"], score["total"],
          score["reviewed"], event_label,
          json.dumps({"by_source": score["by_source"]})),
     )
