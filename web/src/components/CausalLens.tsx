@@ -26,6 +26,17 @@ export default function CausalLens() {
     } finally { setLoading(false); }
   }
 
+  async function retire(id: string) {
+    await fetch('/api/review', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cube_id: id, decision: 'killed' }),
+    });
+    // correct upstream: re-trace — the retired memory drops out of the answer
+    const r = await fetch(`/api/lens?task=${encodeURIComponent(asked)}&k=8`);
+    const d = await r.json();
+    setMems(d.memories || []);
+  }
+
   return (
     <div className="max-w-2xl">
       <h2 style={{ fontFamily: 'var(--helicon-serif)', color: INK }} className="text-[27px] leading-tight">
@@ -67,7 +78,7 @@ export default function CausalLens() {
 
           {/* the causal threads: each memory hangs off the answer */}
           <div className="mt-1">
-            {mems.map(m => <MemoryRow key={m.id} m={m} />)}
+            {mems.map(m => <MemoryRow key={m.id} m={m} onRetire={retire} />)}
           </div>
         </div>
       )}
@@ -75,7 +86,7 @@ export default function CausalLens() {
   );
 }
 
-function MemoryRow({ m }: { m: Memory }) {
+function MemoryRow({ m, onRetire }: { m: Memory; onRetire: (id: string) => void }) {
   const stale = m.age_days != null && m.age_days > 90;
   const retired = !['approved', 'pending', ''].includes(m.status);
   const conf = Math.max(0, Math.min(1, m.confidence));
@@ -102,6 +113,10 @@ function MemoryRow({ m }: { m: Memory }) {
         {stale && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ color: 'var(--helicon-stale)', background: 'rgba(198,150,63,0.12)' }}>stale</span>}
         {retired && <span className="text-[10px] uppercase tracking-wide" style={{ color: 'var(--helicon-stale)' }}>{m.status}</span>}
         {m.acted_on && <span className="text-[10px] uppercase tracking-wide" style={{ color: ACCENT }}>acted-on</span>}
+        <button onClick={() => onRetire(m.id)}
+          className="ml-auto text-[11px] px-2 py-0.5 rounded transition-colors hover:bg-[var(--helicon-bg-2)]"
+          style={{ color: 'var(--helicon-muted)' }}
+          title="Retire this memory — it stops feeding answers (correct the premise upstream)">retire ↑</button>
       </div>
     </div>
   );
