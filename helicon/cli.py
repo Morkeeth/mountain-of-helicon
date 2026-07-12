@@ -1060,6 +1060,8 @@ def cmd_evolve(args):
     pair_scan(conn, client=client)
     claim_scan(conn, config)
     alias_scan(conn)
+    from helicon.identity import identity_scan
+    identity_scan(conn)          # R11: file confirmed identity forks (semantic-gated)
     from helicon.stackwatch import stack_scan
     stack = stack_scan(conn)
     exam = run_rot_exam(conn)
