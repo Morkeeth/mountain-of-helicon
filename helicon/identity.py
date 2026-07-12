@@ -134,8 +134,11 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
         for g in extract_glosses(row["content"] or "", row["title"] or ""):
             by_name[g["name"].lower()][g["genus"]].setdefault(scope, g["gloss"])
 
+    resolved = _resolved_identity_names(conn)
     candidates = []
     for name, genera in by_name.items():
+        if name in resolved:
+            continue          # ruled: the fork stays settled (basic never-twice)
         if len(genera) < 2:
             continue
         all_scopes = set().union(*(set(s) for s in genera.values()))
@@ -182,6 +185,68 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
         if cos < SEMANTIC_FORK_THRESHOLD:
             confirmed.append(f)
     return confirmed
+
+
+def _resolved_identity_names(conn) -> set[str]:
+    """Entity names whose identity fork a human has already ruled (canonical set)."""
+    names = set()
+    for row in conn.execute(
+        "SELECT details FROM audit_log WHERE audit_type = 'identity' "
+        "AND human_decision LIKE 'resolved:%'"
+    ):
+        try:
+            n = json.loads(row["details"]).get("name")
+            if n:
+                names.add(n.lower())
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return names
+
+
+def resolve_identity(conn, audit_id: int, canonical: str) -> dict:
+    """Rule an identity fork with its canonical definition. Writes an approved
+    correction cube (full provenance) so retrieval serves the settled identity, and
+    closes the finding — find_identity_forks then skips this name (the fork stays
+    settled). Re-alarm on a genuinely NEW divergent genus is the next increment."""
+    row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (audit_id,)).fetchone()
+    if row is None:
+        return {"ok": False, "error": f"no audit finding #{audit_id}"}
+    if row["audit_type"] != "identity":
+        return {"ok": False, "error": f"finding #{audit_id} is not an identity fork"}
+    if row["human_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already decided: "
+                                      f"{row['human_decision']}"}
+    canonical = (canonical or "").strip()
+    if not canonical:
+        return {"ok": False, "error": "canonical definition is empty"}
+    try:
+        d = json.loads(row["details"])
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    name = d.get("name", "")
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    conn.execute(
+        "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
+        (f"resolved:{canonical[:80]}", now, audit_id))
+
+    from helicon.models import HeliconCube
+    from helicon.scanner import make_id, content_hash as _hash
+    from helicon.db import insert_cube
+    genera = ", ".join(d.get("genera", {}).keys())
+    content = (f"{name.title()} is canonically: {canonical} "
+               f"(human resolution of identity fork #{audit_id}, {now[:10]}). "
+               f"The competing definitions ({genera}) were a fork; this is settled.")
+    cube = HeliconCube(
+        id=make_id(), source="human-resolution", source_ref=f"audit:{audit_id}",
+        type="decision", title=f"Canonical: {name.title()} = {canonical[:60]}",
+        content=content, summary="", content_hash=_hash(content),
+        created_at=now, valid_from=now, last_reinforced=now,
+        confidence=1.0, review_status="approved",
+    )
+    insert_cube(conn, cube)
+    conn.commit()
+    return {"ok": True, "audit_id": audit_id, "name": name,
+            "canonical": canonical, "correction_cube": cube.id}
 
 
 def _existing_identity_keys(conn) -> set[str]:

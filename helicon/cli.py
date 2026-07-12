@@ -1162,6 +1162,17 @@ def cmd_resolve(args):
                   f"<{'|'.join(str(v) for v in vals) or 'value'}>"
                   f"\n   or:   helicon resolve {row['id']} --dismiss \"why\"")
         return
+    # identity forks (R11) resolve with a canonical definition, not a scalar value
+    _row = conn.execute("SELECT audit_type FROM audit_log WHERE id = ?", (args.id,)).fetchone()
+    if _row and _row["audit_type"] == "identity":
+        from helicon.identity import resolve_identity
+        ri = resolve_identity(conn, args.id, args.truth or "")
+        if not ri["ok"]:
+            print(f"error: {ri['error']}")
+            return
+        print(f"resolved #{ri['audit_id']}: {ri['name'].title()} is canonically \"{ri['canonical']}\"")
+        print(f"  correction cube {ri['correction_cube']} (approved, provenance); the fork is settled")
+        return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
         print(f"error: {res['error']}")

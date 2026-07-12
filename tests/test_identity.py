@@ -90,6 +90,39 @@ def test_identity_scan_files_once(conn):
     assert n == 1
 
 
+def test_resolve_identity_settles_the_fork(conn):
+    from helicon.identity import resolve_identity
+    _cube(conn, "Yieldbound is a yield treasury.", "a.md")
+    _cube(conn, "Yieldbound is a wallet tracker.", "b.md")
+    assert len(identity_scan(conn, semantic=False)["filed"]) == 1
+    audit_id = conn.execute(
+        "SELECT id FROM audit_log WHERE audit_type='identity'").fetchone()[0]
+
+    r = resolve_identity(conn, audit_id, "a yield treasury that spends its own yield")
+    assert r["ok"] and r["correction_cube"]
+    cube = conn.execute(
+        "SELECT review_status, source, content FROM helicon_cubes WHERE id=?",
+        (r["correction_cube"],)).fetchone()
+    assert cube["review_status"] == "approved" and cube["source"] == "human-resolution"
+    assert "canonically" in cube["content"]
+
+    # settled: the fork no longer surfaces and a re-scan files nothing
+    assert find_identity_forks(conn, semantic=False) == []
+    assert identity_scan(conn, semantic=False)["filed"] == []
+
+
+def test_resolve_identity_rejects_bad_input(conn):
+    from helicon.identity import resolve_identity
+    assert not resolve_identity(conn, 99999, "x")["ok"]        # no such finding
+    _cube(conn, "Yieldbound is a yield treasury.", "a.md")
+    _cube(conn, "Yieldbound is a wallet tracker.", "b.md")
+    identity_scan(conn, semantic=False)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='identity'").fetchone()[0]
+    assert not resolve_identity(conn, aid, "")["ok"]           # empty canonical
+    assert resolve_identity(conn, aid, "a treasury")["ok"]
+    assert not resolve_identity(conn, aid, "a treasury")["ok"]  # already decided
+
+
 def test_rot_exam_reports_r11(conn):
     from helicon.rot import run_rot_exam
     _cube(conn, "Yieldbound is a yield treasury.", "a.md")
