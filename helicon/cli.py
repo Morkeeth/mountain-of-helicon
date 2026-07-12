@@ -602,6 +602,24 @@ def cmd_battery(args):
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
 
 
+def cmd_lens(args):
+    """Memory Causal Lens: the memories behind an answer, with provenance."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.provenance import memory_provenance, format_provenance
+    if not args.task:
+        print('usage: helicon lens "<task or answer>"')
+        return
+    config = load_config()
+    conn = init_db(config["db_path"])
+    rows = memory_provenance(conn, args.task, k=args.k)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(rows, indent=2, default=str))
+        return
+    print(format_provenance(args.task, rows))
+
+
 def cmd_rot(args):
     """The rot exam: ROT.md's 10 documented failure classes checked live
     against the real store. Deterministic, zero LLM calls, free to run daily."""
@@ -1780,6 +1798,10 @@ def main():
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
+    lens_p = sub.add_parser("lens", help="Memory Causal Lens: the memories behind an answer, with provenance")
+    lens_p.add_argument("task", nargs="?", help="task or answer text")
+    lens_p.add_argument("-k", type=int, default=8, help="how many memories to trace (default 8)")
+    lens_p.add_argument("--json", action="store_true", help="machine-readable result")
     battery_p = sub.add_parser("check", aliases=["battery"], help="Check retrieval quality: named tests on the context a task retrieves")
     battery_p.add_argument("task", nargs="?", help="task or query text")
     battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
@@ -1888,6 +1910,7 @@ def main():
         "triage": cmd_triage,
         "review": cmd_review,
         "snapshot": cmd_snapshot,
+        "lens": cmd_lens,
         "check": cmd_battery,
         "battery": cmd_battery,
         "report": cmd_report,
