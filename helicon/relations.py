@@ -34,6 +34,10 @@ _REL_RE = re.compile(rf"\b{_NAME}\s+(?:{_REL_VERBS})\s+(?:the\s+|an?\s+)?{_NAME}
 # A cube whose claim is a guess until grounded elsewhere.
 _SPECULATIVE_TYPES = {"idea", "draft", "session", "session_summary"}
 _SPECULATIVE_REF = ("/03 ideas", "session_", "session-", "/ideas", "brainstorm", "speculat")
+# A memory (incl. a Mem0/store memory) tagged as a guess reads as speculative even
+# though its type is generic — an LLM-extracted "thesis"/"prediction" isn't grounded.
+_SPECULATIVE_TAGS = {"idea", "thesis", "prediction", "speculation", "hypothesis",
+                     "brainstorm", "guess", "bet"}
 # Entity names too generic/junky to anchor a relation.
 _JUNK = {"at", "the", "and", "for", "with", "this", "that", "it", "a", "an", "of"}
 
@@ -51,7 +55,14 @@ def _known_entities(conn) -> set[str]:
 def _grounding(row) -> str:
     typ = (row["type"] or "").lower()
     ref = (row["source_ref"] or "").lower()
-    if typ in _SPECULATIVE_TYPES or any(k in ref for k in _SPECULATIVE_REF):
+    tags = []
+    try:
+        if "tags" in row.keys() and row["tags"]:
+            tags = [str(t).lower() for t in json.loads(row["tags"])]
+    except (ValueError, TypeError):
+        tags = []
+    if (typ in _SPECULATIVE_TYPES or any(k in ref for k in _SPECULATIVE_REF)
+            or any(t in _SPECULATIVE_TAGS for t in tags)):
         return "speculative"
     return "grounded"
 
@@ -97,7 +108,7 @@ def find_phantom_relations(conn) -> list[dict]:
     Precision from: a narrow relational-verb list + both endpoints capitalized +
     the single-speculative-source filter + the no-corroboration check."""
     rows = conn.execute(
-        "SELECT id, title, content, source, source_ref, type, review_status "
+        "SELECT id, title, content, source, source_ref, type, tags, review_status "
         "FROM helicon_cubes "
         "WHERE review_status IN ('pending', 'revised', 'approved') "
         "AND merged_into IS NULL"

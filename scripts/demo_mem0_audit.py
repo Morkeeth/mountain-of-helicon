@@ -42,6 +42,9 @@ MOCK_MEMORIES = [
     {"id": "m-aurora-2", "memory": "Aurora is a lending market where users deposit "
      "collateral and borrow against it.", "created_at": "2026-05-10T09:00:00",
      "categories": ["projects"]},
+    {"id": "m-helios-phantom", "memory": "Thesis: Helios rides the wave to Solana — "
+     "as the Solana ecosystem compounds, Helios rides that liquidity straight up.",
+     "created_at": "2026-06-15T09:00:00", "categories": ["thesis"]},
     {"id": "m-name", "memory": "User prefers to be addressed by their first name.",
      "created_at": "2026-05-01T09:00:00", "categories": ["preferences"]},
     {"id": "m-tz", "memory": "User works from Central European Time.",
@@ -97,7 +100,45 @@ def main() -> int:
         add_alias(conn, args.rename[0], args.rename[1], "2026-01-01T00:00:00",
                   note="rename the store itself recorded")
 
+    def _c(res, rid):
+        return next(c for c in res["checks"] if c["id"] == rid)
+
+    # PHASE 1 — audit (the exam a store never runs on itself)
     res = run_rot_exam(conn)
+    r11, r12 = _c(res, "R11"), _c(res, "R12")
+    print("── PHASE 1 · audit the Mem0 store (read-only) ──")
+    print(f"  R11 Identity coherence    {r11['verdict']}   {r11['receipt']}")
+    print(f"  R12 Phantom association   {r12['verdict']}   {r12['receipt']}")
+    print("  Mem0 / AgentPrizm STORE these memories. Neither can SEE an identity fork")
+    print("  or a phantom association — a store confidence-scores what it kept; it does")
+    print("  not examine whether two memories disagree on what an entity IS.\n")
+
+    if args.mock:
+        # PHASE 2 — rule them (the never-twice a store can't do)
+        from helicon.identity import identity_scan, resolve_identity
+        from helicon.relations import relation_scan, resolve_relation
+        identity_scan(conn, semantic=False)
+        fid = conn.execute("SELECT id FROM audit_log WHERE audit_type='identity'").fetchone()
+        if fid:
+            resolve_identity(conn, fid[0], "a payments protocol")
+        relation_scan(conn)
+        pid = conn.execute("SELECT id FROM audit_log WHERE audit_type='provenance'").fetchone()
+        if pid:
+            resolve_relation(conn, pid[0], "phantom")
+        print("── PHASE 2 · you rule them (Helicon remembers the verdict) ──")
+        print("  Aurora ruled canonical: a payments protocol (the 'lending market' fork loses).")
+        print("  Helios → Solana ruled: phantom (an ungrounded association).\n")
+
+        # PHASE 3 — re-audit (the rulings stick — never-twice)
+        res2 = run_rot_exam(conn)
+        print("── PHASE 3 · re-audit — the rulings stick ──")
+        print(f"  R11 Identity coherence    {_c(res2, 'R11')['verdict']}")
+        print(f"  R12 Phantom association   {_c(res2, 'R12')['verdict']}")
+        print("  Settled. Re-assert either and it re-alarms; a governed store just re-stores it.\n")
+        print("  A store REMEMBERS everything. Helicon EXAMINES it — and what you rule")
+        print("  cannot return. That is the moat a memory store cannot cross.")
+        return 0
+
     print(format_rot(res))
     print(f"\nMount Helicon audited a Mem0 store and found rot in "
           f"{res['rot_found']}/{res['classes']} classes — the store keeps the write path; "
