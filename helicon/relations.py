@@ -145,6 +145,84 @@ def find_phantom_relations(conn) -> list[dict]:
     return phantoms
 
 
+def _upsert_entity(conn, name: str) -> str:
+    """Entity id for `name`, created if absent (lowercased key)."""
+    from helicon.graph import make_id
+    row = conn.execute("SELECT id FROM entities WHERE lower(name) = ?",
+                       (name.lower(),)).fetchone()
+    if row:
+        return row["id"]
+    eid = make_id()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    conn.execute("INSERT INTO entities (id, name, entity_type, mention_count, "
+                 "first_seen, last_seen) VALUES (?, ?, 'concept', 1, ?, ?)",
+                 (eid, name, now, now))
+    return eid
+
+
+def store_asserts_edges(conn) -> dict:
+    """Write each extracted relation as an 'asserts' edge with provenance in
+    edges.metadata {subj, obj, asserted_by_cube, predicate, source_scope, grounding}.
+    Idempotent by (source, target). build_graph preserves 'asserts' edges."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    # a pair a human already ruled phantom stays retired even after regeneration
+    phantom_ruled = set()
+    for row in conn.execute("SELECT details FROM audit_log WHERE audit_type = 'provenance' "
+                            "AND human_decision = 'resolved:phantom'"):
+        try:
+            d = json.loads(row["details"])
+            phantom_ruled.add((d.get("subj"), d.get("obj")))
+        except (json.JSONDecodeError, TypeError):
+            pass
+    rows = conn.execute(
+        "SELECT id, title, content, source, source_ref, type, tags "
+        "FROM helicon_cubes WHERE review_status IN ('pending', 'revised', 'approved') "
+        "AND merged_into IS NULL").fetchall()
+    written = 0
+    for row in rows:
+        scope, grounding = _cube_scope(row), _grounding(row)
+        for r in extract_relations(row["content"] or "", row["title"] or ""):
+            sid, tid = _upsert_entity(conn, r["subj"]), _upsert_entity(conn, r["obj"])
+            if conn.execute("SELECT 1 FROM edges WHERE source_id = ? AND target_id = ? "
+                            "AND relation = 'asserts'", (sid, tid)).fetchone():
+                continue
+            meta = json.dumps({"subj": r["subj"], "obj": r["obj"],
+                               "asserted_by_cube": row["id"], "predicate": r["predicate"],
+                               "source_scope": scope, "grounding": grounding,
+                               "retired": (r["subj"], r["obj"]) in phantom_ruled})
+            conn.execute(
+                "INSERT INTO edges (source_id, target_id, source_kind, target_kind, "
+                "relation, weight, created_at, metadata) "
+                "VALUES (?, ?, 'entity', 'entity', 'asserts', 1.0, ?, ?)",
+                (sid, tid, now, meta))
+            written += 1
+    conn.commit()
+    return {"asserts_edges": written}
+
+
+def _retire_asserts_edge(conn, subj: str, obj: str) -> list[str]:
+    """A ruled phantom retires its 'asserts' edge and flags the cube that made the
+    claim (so retrieval/graph stop treating the ungrounded relation as real)."""
+    flagged = []
+    for erow in conn.execute("SELECT id, metadata FROM edges WHERE relation = 'asserts'"):
+        try:
+            m = json.loads(erow["metadata"] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if m.get("subj") == subj and m.get("obj") == obj and not m.get("retired"):
+            m["retired"] = True
+            conn.execute("UPDATE edges SET metadata = ? WHERE id = ?",
+                         (json.dumps(m), erow["id"]))
+            cid = m.get("asserted_by_cube")
+            if cid:
+                conn.execute(
+                    "UPDATE helicon_cubes SET metadata = json_set("
+                    "CASE WHEN metadata IS NULL OR metadata = '' THEN '{}' ELSE metadata END, "
+                    "'$.phantom_flagged', 1) WHERE id = ?", (cid,))
+                flagged.append(cid)
+    return flagged
+
+
 def _resolved_relation_keys(conn) -> set[str]:
     """pair_keys of phantom findings a human has already ruled (phantom or real)."""
     keys = set()
@@ -183,7 +261,7 @@ def resolve_relation(conn, audit_id: int, verdict: str = "phantom") -> dict:
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     conn.execute("UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
                  (f"resolved:{verdict}", now, audit_id))
-    cube_id = None
+    cube_id, flagged = None, []
     if verdict == "phantom":
         from helicon.models import HeliconCube
         from helicon.scanner import make_id, content_hash as _hash
@@ -199,9 +277,10 @@ def resolve_relation(conn, audit_id: int, verdict: str = "phantom") -> dict:
             confidence=1.0, review_status="approved")
         insert_cube(conn, cube)
         cube_id = cube.id
+        flagged = _retire_asserts_edge(conn, subj, obj)
     conn.commit()
     return {"ok": True, "audit_id": audit_id, "subj": subj, "obj": obj,
-            "verdict": verdict, "correction_cube": cube_id}
+            "verdict": verdict, "correction_cube": cube_id, "flagged_cubes": flagged}
 
 
 def _existing_relation_keys(conn) -> set[str]:

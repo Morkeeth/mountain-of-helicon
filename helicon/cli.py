@@ -1083,8 +1083,9 @@ def cmd_evolve(args):
     alias_scan(conn)
     from helicon.identity import identity_scan
     identity_scan(conn)          # R11: file confirmed identity forks (semantic-gated)
-    from helicon.relations import relation_scan
+    from helicon.relations import relation_scan, store_asserts_edges
     relation_scan(conn)          # R12: file phantom associations
+    store_asserts_edges(conn)    # R12: persist relation provenance as 'asserts' edges
     from helicon.stackwatch import stack_scan
     stack = stack_scan(conn)
     exam = run_rot_exam(conn)

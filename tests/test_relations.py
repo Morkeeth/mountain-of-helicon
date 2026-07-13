@@ -1,6 +1,8 @@
 """R12 phantom association — a relation asserted by a single speculative source
 that nothing else grounds. Deterministic; precision from a narrow conceptual-verb
 list + the single-speculative-source + no-corroboration filter."""
+import json
+
 import pytest
 
 from helicon.db import init_db, insert_cube
@@ -96,6 +98,46 @@ def test_resolve_relation_real_closes_without_cube(conn):
 def test_resolve_relation_rejects_bad(conn):
     from helicon.relations import resolve_relation
     assert not resolve_relation(conn, 99999)["ok"]
+
+
+def test_store_asserts_edge_with_provenance(conn):
+    from helicon.relations import store_asserts_edges
+    _cube(conn, "Yieldbound rides the wave to World.", "idea.md", ctype="idea")
+    assert store_asserts_edges(conn)["asserts_edges"] == 1
+    m = json.loads(conn.execute(
+        "SELECT metadata FROM edges WHERE relation='asserts'").fetchone()["metadata"])
+    assert (m["subj"], m["obj"]) == ("yieldbound", "world")
+    assert m["grounding"] == "speculative" and m["retired"] is False and m["asserted_by_cube"]
+    assert store_asserts_edges(conn)["asserts_edges"] == 0     # idempotent
+
+
+def test_resolve_phantom_retires_edge_and_flags_cube(conn):
+    from helicon.relations import store_asserts_edges, resolve_relation
+    cid = _cube(conn, "Yieldbound rides the wave to World.", "idea.md", ctype="idea")
+    store_asserts_edges(conn)
+    relation_scan(conn)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='provenance'").fetchone()[0]
+    r = resolve_relation(conn, aid, "phantom")
+    assert cid in r["flagged_cubes"]
+    m = json.loads(conn.execute(
+        "SELECT metadata FROM edges WHERE relation='asserts'").fetchone()["metadata"])
+    assert m["retired"] is True                                # edge retired
+    cm = json.loads(conn.execute(
+        "SELECT metadata FROM helicon_cubes WHERE id=?", (cid,)).fetchone()["metadata"] or "{}")
+    assert cm.get("phantom_flagged") == 1                      # cube built on it flagged
+
+
+def test_asserts_edge_regenerates_retired_after_phantom_ruling(conn):
+    from helicon.relations import store_asserts_edges, resolve_relation
+    _cube(conn, "Yieldbound rides the wave to World.", "idea.md", ctype="idea")
+    relation_scan(conn)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='provenance'").fetchone()[0]
+    resolve_relation(conn, aid, "phantom")
+    conn.execute("DELETE FROM edges"); conn.commit()           # simulate a graph rebuild
+    store_asserts_edges(conn)
+    m = json.loads(conn.execute(
+        "SELECT metadata FROM edges WHERE relation='asserts'").fetchone()["metadata"])
+    assert m["retired"] is True                                # ruling survives regeneration
 
 
 def test_relation_scan_files_once(conn):
