@@ -1,4 +1,4 @@
-"""Memory Utility Learning: MemRL-inspired Q-value tracking per cube.
+"""Memory Utility Learning: Q-value tracking per cube.
 
 Each memory gets a utility score (Q-value) that updates with every
 retrieval+outcome cycle. Memories that get surfaced and acted on rise.
@@ -8,7 +8,9 @@ into retrieval ranking so the system self-improves over time.
 Formula: Q_new = Q_old + alpha * (reward - Q_old)
 Retrieval score: (1 - lambda) * relevance + lambda * Q_value
 
-Based on MemRL (github.com/MemTensor/MemRL, arxiv 2601.03192).
+Reinforcement-learning utility ranking, our own take: reward comes from a
+HUMAN ruling (approve/kill), never from the system's own auto-triage — so the
+loop can't reinforce its own echo, the failure mode a naive utility signal has.
 """
 
 import sqlite3

@@ -72,8 +72,8 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - 41 entities, 605 edges in knowledge graph
 - 14 routers, 11 MCP tools, 20 CLI commands
 - 6 task playbooks
-- Q-value utility learning (MemRL-inspired) wired into retrieval ranking
-- Entity-boosted retrieval (Mem0 pattern, 41 entities wired)
+- Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
+- Entity-boosted retrieval (41 entities wired)
 - Semantic embeddings: all-MiniLM-L6-v2, 384 dims, all cubes embedded
 - Hybrid search: 60% semantic + 40% FTS5 keyword, numpy vector ops
 - Embedding-based consolidation: cosine similarity clustering + Qwen synthesis

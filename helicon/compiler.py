@@ -1,6 +1,8 @@
 """Core Memory Compiler: generate injectable context files from learned patterns.
 
-Inspired by Letta's Memory.compile() and LangMem's prompt optimization.
+Compiling memory into loadable context is an established pattern; our compiler's
+difference is what it compiles FROM — human rulings and Golden Rules with
+provenance, not raw memory — so the output is governed law, not a summary.
 Mount Helicon compiles its highest-confidence memories, review patterns, and
 playbook rules into files that agents automatically load:
 

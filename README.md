@@ -228,17 +228,19 @@ Everything destructive is dry-run by default and takes `--apply`.
 - Consolidation: ~9-10x fewer tokens; Qwen-judged quality favors synthesis (self-graded, shown as direction, not proof).
 - Zero fake data anywhere: the demo DB is the author's real Claude Code transcripts (210+), Obsidian vault, and git repos.
 
-## Research foundation
+## Built on established patterns, extended
 
-| Technique | Source | How Mount Helicon uses it |
+Mount Helicon's capabilities stand on well-understood memory-systems patterns and take each one further. The lineage, stated honestly — the second column is the established idea, the third is our own build on top of it:
+
+| Capability | Established pattern | How Mount Helicon extends it |
 |-----------|--------|---------------------------|
-| Versioned memory cubes | MemOS (SJTU, 2025) | HeliconCube schema |
-| Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
-| Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting, kappa per type |
-| Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |
-| Anti-confabulation | Honest Lying (May 2026) | Challenge patterns against evidence |
-| Retrieval learning | MetaMem (ACL 2026) | Track surfaced vs acted-on |
-| Utility-aware ranking | MemRL-inspired | Q-value learning wired into retrieval |
+| Versioned memory cubes | Structured memory units, not raw text | HeliconCube: source, hash, valid_from, confidence, decay per type |
+| Multi-axis audit | Temporal/factual/logical consistency checks | 12-class rot exam, each with a receipt and a never-twice guard |
+| Weibull decay | Non-uniform forgetting curves | Per-type kappa, and decay rank-predicts human kills (AUC 0.78) |
+| Novelty gate | ADD/NOOP/MERGE at ingestion | Gate + provenance, so a merge never loses the source it came from |
+| Anti-confabulation | Challenge claims against evidence | Grounding check + R12 phantom-association catch |
+| Retrieval learning | Track surfaced vs acted-on | Q-value ranking rewarded by human rulings only — no self-echo |
+| Identity & phantom coherence | *(ours — no store or prior system does this)* | R11 fork detection, R12 phantom catch, rulings compiled to law |
 
 ## Architecture
 
