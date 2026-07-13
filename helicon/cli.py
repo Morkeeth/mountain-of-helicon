@@ -406,6 +406,14 @@ def cmd_review(args):
     config = load_config()
     conn = init_db(config["db_path"])
 
+    if getattr(args, "terminals", False):
+        from helicon.review_terminals import review_terminals, format_queue
+        only = set(x.lower() for x in (getattr(args, "only", None) or []))
+        filed = getattr(args, "file", False)
+        queue = review_terminals(conn, config, file=filed, only=only)
+        print(format_queue(queue, filed=filed))
+        return
+
     pending = conn.execute(
         "SELECT id, title, content, type, source, confidence, created_at "
         "FROM helicon_cubes WHERE review_status = 'pending' AND merged_into IS NULL"
@@ -1906,6 +1914,12 @@ def main():
     review_p.add_argument("--batch", "-n", type=int, default=5, help="How many to surface (default 5)")
     review_p.add_argument("--threshold", "-t", type=float, default=0.80,
                           help="Similarity for teach-once grouping (default 0.80)")
+    review_p.add_argument("--terminals", action="store_true",
+                          help="Review AGENT OUTPUT: verify each terminal's closeout/diff claims against reality")
+    review_p.add_argument("--file", action="store_true",
+                          help="with --terminals: persist findings so ruled claims are never re-surfaced")
+    review_p.add_argument("--only", nargs="+", metavar="NAME",
+                          help="with --terminals: limit to these terminals/repos")
     review_p.add_argument("--preview", action="store_true",
                           help="Show the queue + suggested actions without prompting or writing")
 
