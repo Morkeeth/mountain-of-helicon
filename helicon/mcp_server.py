@@ -15,27 +15,24 @@ from helicon.triage import run_auto_triage, init_triage_table
 
 
 def _read_message():
-    header = ""
+    # MCP stdio transport = newline-delimited JSON-RPC (one JSON object per line),
+    # NOT LSP Content-Length framing. Skip blank lines; ignore any line that isn't
+    # a JSON object so a stray log line can't wedge the loop.
     while True:
         line = sys.stdin.readline()
         if not line:
             return None
-        header += line
-        if line == "\r\n" or line == "\n":
-            break
-    content_length = 0
-    for h in header.strip().split("\n"):
-        if h.lower().startswith("content-length:"):
-            content_length = int(h.split(":")[1].strip())
-    if content_length == 0:
-        return None
-    body = sys.stdin.read(content_length)
-    return json.loads(body)
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError:
+            continue
 
 
 def _send_message(msg):
-    body = json.dumps(msg)
-    sys.stdout.write(f"Content-Length: {len(body)}\r\n\r\n{body}")
+    sys.stdout.write(json.dumps(msg) + "\n")
     sys.stdout.flush()
 
 
