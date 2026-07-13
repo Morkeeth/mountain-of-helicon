@@ -14,6 +14,22 @@ The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become sta
 
 Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live 2,800-cube memory, and it has failed its own audits more than once (see receipts in the demo).
 
+## The moat: what a memory store cannot do (one command)
+
+Mem0 stores. AgentPrizm confidence-scores. Both keep what an agent wrote. Neither can **examine whether two memories disagree on what an entity IS**, catch a **relationship no source ever grounded**, or make a **ruling stick** so a corrected mistake cannot silently return. Those are three things a store structurally cannot do — and they are the exam.
+
+```bash
+python3 scripts/demo_mem0_audit.py --mock     # audits a Mem0-format store, no key
+```
+
+Four phases, on a store's own memories:
+1. **Audit** — catches an **identity fork** (`Aurora` defined as a *payments protocol* in one memory, a *lending market* in another) and a **phantom association** (`Aurora → Solana`, asserted once, grounded by nothing). R11 and R12 — blind spots no confidence score reveals.
+2. **Rule** — you settle each; Helicon records the verdict with provenance.
+3. **Re-audit** — clean. The rulings stuck.
+4. **Recurrence** — a new memory re-asserts the ruled-out definition, and Helicon **re-alarms**. A store forgets it ever asked; Helicon remembers what you ruled.
+
+Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=config-demo.json helicon serve` → rule the fork and the phantom in the review queue, watch them clear.
+
 ## Why it fits Track 1 (MemoryAgent)
 
 **Memory stores remember. Mount Helicon judges what is still true.** It is itself a memory agent: it accumulates findings, human rulings, Golden Rules, regret events and retrieval failures across sessions, and uses them to make future agent decisions more accurate.
