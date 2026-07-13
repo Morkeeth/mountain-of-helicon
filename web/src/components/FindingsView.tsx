@@ -128,6 +128,9 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
     if (f.suggested_action === 'resolve_identity' && auditId !== null) {
       return <IdentityResolve auditId={auditId} onGone={onGone} />;
     }
+    if (f.suggested_action === 'resolve_relation' && auditId !== null) {
+      return <RelationResolve auditId={auditId} onGone={onGone} />;
+    }
     if (f.suggested_action === 'fix_skill') {
       return <CopyChip cmd="helicon fix-skills --apply" title="writes descriptions back with .bak backups" />;
     }
@@ -413,6 +416,22 @@ function IdentityResolve({ auditId, onGone }: { auditId: number; onGone: () => v
         style={{ background: 'var(--helicon-panel-2)', color: 'var(--helicon-ink)', borderColor: 'var(--helicon-line)' }} />
       <ActionButton label="Set canonical" tone="keep" disabled={busy || !canon.trim()} onClick={resolve} />
       <ActionButton label="Not a fork" tone="muted" disabled={busy} onClick={dismiss} />
+    </div>
+  );
+}
+
+
+function RelationResolve({ auditId, onGone }: { auditId: number; onGone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const rule = async (verdict: string) => {
+    setBusy(true);
+    try { await api.resolveRelation(auditId, verdict); } finally { setBusy(false); }
+    onGone();
+  };
+  return (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <ActionButton label="Confirm phantom" tone="keep" disabled={busy} onClick={() => rule('phantom')} />
+      <ActionButton label="It's real" tone="muted" disabled={busy} onClick={() => rule('real')} />
     </div>
   );
 }

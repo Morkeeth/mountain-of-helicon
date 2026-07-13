@@ -68,6 +68,36 @@ def test_two_speculative_sources_is_not_a_phantom(conn):
 
 # --- filing ------------------------------------------------------------------
 
+def test_resolve_relation_phantom_settles_and_records(conn):
+    from helicon.relations import resolve_relation
+    _cube(conn, "Yieldbound rides the wave to World.", "idea.md", ctype="idea")
+    relation_scan(conn)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='provenance'").fetchone()[0]
+    r = resolve_relation(conn, aid, "phantom")
+    assert r["ok"] and r["correction_cube"]
+    cube = conn.execute("SELECT review_status, content FROM helicon_cubes WHERE id=?",
+                        (r["correction_cube"],)).fetchone()
+    assert cube["review_status"] == "approved" and "PHANTOM" in cube["content"]
+    # settled: no re-fire, no re-file
+    assert find_phantom_relations(conn) == []
+    assert relation_scan(conn)["filed"] == []
+
+
+def test_resolve_relation_real_closes_without_cube(conn):
+    from helicon.relations import resolve_relation
+    _cube(conn, "Yieldbound rides the wave to World.", "idea.md", ctype="idea")
+    relation_scan(conn)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='provenance'").fetchone()[0]
+    r = resolve_relation(conn, aid, "real")
+    assert r["ok"] and r["correction_cube"] is None
+    assert find_phantom_relations(conn) == []          # ruled real → stays settled
+
+
+def test_resolve_relation_rejects_bad(conn):
+    from helicon.relations import resolve_relation
+    assert not resolve_relation(conn, 99999)["ok"]
+
+
 def test_relation_scan_files_once(conn):
     _cube(conn, "Yieldbound rides the wave to World.", "idea.md", ctype="idea")
     r1 = relation_scan(conn)

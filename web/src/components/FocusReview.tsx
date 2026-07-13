@@ -68,6 +68,12 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
     try { await api.submitReview(f.cube_id, d, `via focus: ${f.kind}`, 0); } finally { setActing(false); }
     advance(f);
   };
+  const resolveRel = async (verdict: string) => {
+    if (auditId === null) return advance(f);
+    setActing(true);
+    try { await api.resolveRelation(auditId, verdict); } finally { setActing(false); }
+    advance(f);
+  };
 
   return (
     <div className="max-w-xl mx-auto">
@@ -106,6 +112,9 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
             <><Primary disabled={acting} onClick={() => confirmAudit('dismissed')}>Keep</Primary>
               <Ghost disabled={acting} onClick={() => confirmAudit('acted')}>Retire</Ghost>
               <Later onClick={() => advance(f)} /></>
+          ) : f.suggested_action === 'resolve_relation' && auditId !== null ? (
+            <><Primary disabled={acting} onClick={() => resolveRel('phantom')}>Confirm phantom</Primary>
+              <Ghost disabled={acting} onClick={() => resolveRel('real')}>It&apos;s real</Ghost></>
           ) : f.suggested_action === 'resolve_identity' && auditId !== null ? (
             <IdentityResolveFocus auditId={auditId} onDone={() => advance(f)} />
           ) : (

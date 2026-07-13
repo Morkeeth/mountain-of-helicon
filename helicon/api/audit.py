@@ -37,6 +37,18 @@ class ResolveIdentityRequest(BaseModel):
     canonical: str
 
 
+class ResolveRelationRequest(BaseModel):
+    finding_id: int
+    verdict: str = "phantom"
+
+
+@router.post("/audit/resolve-relation")
+async def resolve_relation_finding(req: ResolveRelationRequest):
+    from helicon.relations import resolve_relation
+    conn = get_conn()
+    return resolve_relation(conn, req.finding_id, req.verdict)
+
+
 @router.post("/audit/resolve-identity")
 async def resolve_identity_finding(req: ResolveIdentityRequest):
     from helicon.identity import resolve_identity

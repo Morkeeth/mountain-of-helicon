@@ -84,6 +84,7 @@ _AUDIT_ACTION = {
     "factual": "reconcile",
     "logical": "review",
     "identity": "resolve_identity",
+    "provenance": "resolve_relation",
 }
 
 

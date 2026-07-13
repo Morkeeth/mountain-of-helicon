@@ -103,6 +103,7 @@ def find_phantom_relations(conn) -> list[dict]:
         "AND merged_into IS NULL"
     ).fetchall()
 
+    resolved = _resolved_relation_keys(conn)
     asserts: dict = {}                       # (subj,obj) -> record
     for row in rows:
         scope = _cube_scope(row)
@@ -116,6 +117,8 @@ def find_phantom_relations(conn) -> list[dict]:
 
     phantoms = []
     for (subj, obj), rec in asserts.items():
+        if f"relation|{subj}|{obj}" in resolved:
+            continue                          # ruled (phantom or real) → stays settled
         if len(rec["scopes"]) != 1:
             continue                          # multiple sources assert it → not phantom
         if "speculative" not in rec["grounding"]:
@@ -129,6 +132,65 @@ def find_phantom_relations(conn) -> list[dict]:
             "scope": asserting_scope, "cubes": rec["cubes"],
         })
     return phantoms
+
+
+def _resolved_relation_keys(conn) -> set[str]:
+    """pair_keys of phantom findings a human has already ruled (phantom or real)."""
+    keys = set()
+    for row in conn.execute(
+        "SELECT details FROM audit_log WHERE audit_type = 'provenance' "
+        "AND human_decision IS NOT NULL"
+    ):
+        try:
+            k = json.loads(row["details"]).get("pair_key")
+            if k:
+                keys.add(k)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return keys
+
+
+def resolve_relation(conn, audit_id: int, verdict: str = "phantom") -> dict:
+    """Rule a phantom-association finding. verdict 'phantom' = confirmed ungrounded
+    (writes an approved correction cube recording the ruling so the store carries the
+    counter-evidence); any other verdict (e.g. 'real') just closes it as real-but-
+    undocumented. Either way the pair stays settled — the scan won't re-file it."""
+    row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (audit_id,)).fetchone()
+    if row is None:
+        return {"ok": False, "error": f"no audit finding #{audit_id}"}
+    if row["audit_type"] != "provenance":
+        return {"ok": False, "error": f"finding #{audit_id} is not a phantom-association finding"}
+    if row["human_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already decided: "
+                                      f"{row['human_decision']}"}
+    try:
+        d = json.loads(row["details"])
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    subj, obj = d.get("subj", ""), d.get("obj", "")
+    verdict = (verdict or "phantom").strip().lower()
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    conn.execute("UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
+                 (f"resolved:{verdict}", now, audit_id))
+    cube_id = None
+    if verdict == "phantom":
+        from helicon.models import HeliconCube
+        from helicon.scanner import make_id, content_hash as _hash
+        from helicon.db import insert_cube
+        content = (f"The association '{subj} {d.get('predicate', '')} {obj}' is a PHANTOM — "
+                   f"human-ruled ungrounded (finding #{audit_id}, {now[:10]}). No source "
+                   f"grounds it; do not treat {subj} and {obj} as related on this basis.")
+        cube = HeliconCube(
+            id=make_id(), source="human-resolution", source_ref=f"audit:{audit_id}",
+            type="decision", title=f"Phantom association ruled: {subj} ↛ {obj}",
+            content=content, summary="", content_hash=_hash(content),
+            created_at=now, valid_from=now, last_reinforced=now,
+            confidence=1.0, review_status="approved")
+        insert_cube(conn, cube)
+        cube_id = cube.id
+    conn.commit()
+    return {"ok": True, "audit_id": audit_id, "subj": subj, "obj": obj,
+            "verdict": verdict, "correction_cube": cube_id}
 
 
 def _existing_relation_keys(conn) -> set[str]:

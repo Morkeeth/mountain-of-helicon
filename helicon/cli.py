@@ -1175,6 +1175,16 @@ def cmd_resolve(args):
         print(f"resolved #{ri['audit_id']}: {ri['name'].title()} is canonically \"{ri['canonical']}\"")
         print(f"  correction cube {ri['correction_cube']} (approved, provenance); the fork is settled")
         return
+    if _row and _row["audit_type"] == "provenance":
+        from helicon.relations import resolve_relation
+        rr = resolve_relation(conn, args.id, args.truth or "phantom")
+        if not rr["ok"]:
+            print(f"error: {rr['error']}")
+            return
+        print(f"resolved #{rr['audit_id']}: {rr['subj']} -/-> {rr['obj']} ruled {rr['verdict']}")
+        if rr["verdict"] == "phantom" and rr["correction_cube"]:
+            print(f"  phantom recorded (cube {rr['correction_cube']}); the scan will not re-file it")
+        return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
         print(f"error: {res['error']}")
