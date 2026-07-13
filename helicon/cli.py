@@ -410,7 +410,8 @@ def cmd_review(args):
         from helicon.review_terminals import review_terminals, format_queue
         only = set(x.lower() for x in (getattr(args, "only", None) or []))
         filed = getattr(args, "file", False)
-        queue = review_terminals(conn, config, file=filed, only=only)
+        queue = review_terminals(conn, config, file=filed, only=only,
+                                 run=getattr(args, "run", False))
         print(format_queue(queue, filed=filed))
         return
 
@@ -1920,6 +1921,8 @@ def main():
                           help="with --terminals: persist findings so ruled claims are never re-surfaced")
     review_p.add_argument("--only", nargs="+", metavar="NAME",
                           help="with --terminals: limit to these terminals/repos")
+    review_p.add_argument("--run", action="store_true",
+                          help="with --terminals: actually run each repo's test suite to verify claimed counts (pytest / npm test)")
     review_p.add_argument("--preview", action="store_true",
                           help="Show the queue + suggested actions without prompting or writing")
 

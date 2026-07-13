@@ -47,9 +47,13 @@ NEG_RX = re.compile(
     r"\b(not|no|never|neither|nothing|without|un-?|not-?yet|pending|gate|gated|"
     r"todo|wip|scaffold|un-?deployed|un-?pushed|isn't|aren't|wasn't|won't|don't)\b|"
     r"\bNOT\b", re.I)
+# A test claim worth verifying asserts a COUNT ("173 passed", "40 tests green").
+# A bare "suite green" / "keep the suite green" is prose or an instruction, not a
+# checkable claim, so it must carry a number to qualify.
 TEST_RX = re.compile(
-    r"\b(\d+)\s+(?:tests?|specs?)\s+(?:pass|passed|passing|green)\b|"
-    r"\b(?:suite|tests?)\s+(?:green|passing|all pass)\b|\ball tests? pass", re.I)
+    r"\b(\d+)\s+(?:tests?|specs?|passed|passing)\b(?:[^.\n]{0,20}?"
+    r"(?:pass|passed|passing|green))?|"
+    r"\b(?:tests?|suite)\b[^.\n]{0,20}?\b(\d+)\s+(?:pass|passed|passing|green)\b", re.I)
 ENDPOINT_RX = re.compile(r"\b(GET|POST|PUT|PATCH|DELETE)\s+(/[\w\[\]\-/.:]+)", re.I)
 URL_RX = re.compile(r"https?://[\w.\-]+(?:/[\w\-./]*)?")
 METRIC_RX = re.compile(r"\b\d+(?:\.\d+)?%|\b\d+x\b|\bmainnet\b.*\bproven\b", re.I)
@@ -130,14 +134,22 @@ def extract_claims(atom):
     sources = [("closeout", atom["closeout_text"])] + \
               [("commit", c.split(" ", 1)[-1]) for c in atom["commits"]]
     for origin, text in sources:
+        in_fence = False
         for line in text.splitlines():
-            line = line.strip()
-            if not line or line.startswith(("#", ">", "|", "```")):
+            if line.lstrip().startswith("```"):
+                in_fence = not in_fence  # skip pasted output inside code fences
                 continue
-            if SHIP_RX.search(line) and not NEG_RX.search(line):
+            line = line.strip()
+            # a claim is a PROSE assertion; fenced blocks are pasted evidence, not claims
+            if in_fence or not line or line.startswith(("#", ">", "|")):
+                continue
+            if origin == "closeout" and SHIP_RX.search(line) and not NEG_RX.search(line):
                 claims.append({"kind": "ship", "text": line[:140], "origin": origin})
-            if TEST_RX.search(line):
-                claims.append({"kind": "test", "text": line[:140], "origin": origin})
+            mt = TEST_RX.search(line)
+            if mt:
+                count = next((g for g in mt.groups() if g and g.isdigit()), None)
+                claims.append({"kind": "test", "text": line[:140], "origin": origin,
+                               "count": int(count) if count else None})
             for m in ENDPOINT_RX.finditer(line):
                 claims.append({"kind": "endpoint", "text": m.group(0),
                                "verb": m.group(1), "path": m.group(2), "origin": origin})
@@ -147,28 +159,78 @@ def extract_claims(atom):
     # dedup by (kind,text)
     seen, uniq = set(), []
     for c in claims:
-        k = (c["kind"], c["text"])
-        if k not in seen:
-            seen.add(k); uniq.append(c)
+        key = (c["kind"], c["text"])
+        if key not in seen:
+            seen.add(key); uniq.append(c)
+    # test claims collapse to the single HEADLINE (highest count) per terminal:
+    # one "does the suite hold" question, not one per quoted line.
+    tests = [c for c in uniq if c["kind"] == "test"]
+    if tests:
+        headline = max(tests, key=lambda c: (c.get("count") or 0))
+        uniq = [c for c in uniq if c["kind"] != "test"] + [headline]
     return uniq
 
 
 def _route_exists(repo, path):
-    """A Next.js/Express route for /api/tasks/[id]/boost lives at a matching file."""
-    seg = [s for s in path.strip("/").split("/") if s and not s.startswith(":")]
-    if not seg:
-        return False
-    tail = seg[-1].strip("[]")
-    hits = _git(repo, "ls-files", "*route.ts", "*route.js", "*.ts", "*.js")
-    for f in hits.splitlines():
-        low = f.lower()
-        if all(s.strip("[]").lower() in low for s in seg[-2:]) or (tail and tail.lower() in low):
-            return f
-    return False
+    """Is a handler for this route grounded anywhere in source? Language-agnostic:
+    a Python FastAPI/Flask decorator (@app.get('/verify')), a Next.js route file,
+    an Express router. Grep the path literal across tracked source; if the exact
+    path is absent, try the last dynamic-free segment. Returns 'file:line' or None."""
+    literal = "/" + path.strip("/")
+    for needle in (literal, "/" + "/".join(
+            s for s in path.strip("/").split("/") if not s.startswith((":", "[")))):
+        if not needle or needle == "/":
+            continue
+        hit = _git(repo, "grep", "-n", "-I", "--fixed-strings", needle,
+                   "--", "*.py", "*.ts", "*.js", "*.tsx", "*.jsx", "*.go", "*.rb")
+        if hit:
+            first = hit.splitlines()[0]
+            return ":".join(first.split(":")[:2])
+    # Next.js file-based routing: /api/tasks/[id]/boost -> a matching route file
+    seg = [s.strip("[]:") for s in path.strip("/").split("/") if s and not s.startswith((":", "["))]
+    if seg:
+        for f in _git(repo, "ls-files", "*route.ts", "*route.js", "*/page.tsx").splitlines():
+            if seg[-1].lower() in f.lower():
+                return f
+    return None
 
 
-def verify(claim, atom):
-    """Return (verdict, receipt). verdict ∈ verified | unverified | contradicted."""
+_PASS_RX = re.compile(r"(\d+)\s+passed", re.I)
+_FAIL_RX = re.compile(r"(\d+)\s+(?:failed|error)", re.I)
+
+
+def run_tests(repo):
+    """Actually run the repo's test suite (opt-in, guarded). Only runs a clear,
+    fast, local runner: pytest for Python, the npm test script when node_modules
+    is already installed. Never runs if no config. Returns a receipt dict."""
+    has_py = bool(_git(repo, "ls-files", "test_*.py", "*/test_*.py", "tests/*.py",
+                       "conftest.py", "pytest.ini", "pyproject.toml"))
+    has_node = os.path.isfile(os.path.join(repo, "package.json")) and \
+        os.path.isdir(os.path.join(repo, "node_modules"))
+    cmd = None
+    if has_py:
+        cmd = ["python3", "-m", "pytest", "-q", "--no-header", "-p", "no:cacheprovider"]
+    elif has_node:
+        cmd = ["npm", "test", "--silent"]
+    elif os.path.isfile(os.path.join(repo, "package.json")):
+        return {"ran": False, "why": "node_modules not installed - run `npm i` to enable"}
+    else:
+        return {"ran": False, "why": "no recognized test runner"}
+    try:
+        r = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, timeout=150)
+        out = (r.stdout + "\n" + r.stderr)
+        passed = int(_PASS_RX.search(out).group(1)) if _PASS_RX.search(out) else None
+        failed = int(_FAIL_RX.search(out).group(1)) if _FAIL_RX.search(out) else 0
+        return {"ran": True, "passed": passed, "failed": failed,
+                "ok": r.returncode == 0 and not failed, "cmd": " ".join(cmd)}
+    except subprocess.TimeoutExpired:
+        return {"ran": False, "why": "test run exceeded 150s (skipped)"}
+    except Exception as e:
+        return {"ran": False, "why": f"could not run: {type(e).__name__}"}
+
+
+def verify(claim, atom, run=False):
+    """Return (verdict, receipt). verdict in verified | unverified | contradicted."""
     k = claim["kind"]
     if k == "ship":
         if not atom["upstream"]:
@@ -190,9 +252,23 @@ def verify(claim, atom):
         return ("unverified", "external URL - reachability not checked (needs you / --probe)")
     if k == "test":
         has_tests = bool(_git(atom["repo"], "ls-files", "*test*", "*spec*", "test/*", "tests/*"))
-        return ("unverified",
-                ("test files present, claimed count NOT re-run - rule after `--run`"
-                 if has_tests else "claims tests pass but NO test files found in repo"))
+        if not has_tests:
+            return ("contradicted", "claims tests pass but NO test files found in repo")
+        if not run:
+            return ("unverified", "test files present, claimed count NOT re-run - add --run")
+        res = atom.get("_test_result")
+        if res is None:
+            res = atom["_test_result"] = run_tests(atom["repo"])
+        if not res.get("ran"):
+            return ("unverified", f"could not verify: {res.get('why', 'unknown')}")
+        claimed = claim.get("count")
+        if res["failed"]:
+            return ("contradicted",
+                    f"ran `{res['cmd']}`: {res['failed']} FAILED, {res['passed']} passed")
+        if claimed and res["passed"] is not None and res["passed"] < claimed:
+            return ("contradicted",
+                    f"claimed {claimed} pass, but only {res['passed']} passed on re-run")
+        return ("verified", f"ran `{res['cmd']}`: {res['passed']} passed, 0 failed")
     return ("unverified", "no deterministic check - needs your eyes")
 
 
@@ -200,7 +276,7 @@ _SEV = {"contradicted": "critical", "unverified": "warning", "verified": "info"}
 _RANK = {"contradicted": 0, "unverified": 1, "verified": 2}
 
 
-def review_terminals(conn, config=None, file=False, only=None):
+def review_terminals(conn, config=None, file=False, only=None, run=False):
     """Ingest every terminal, verify its claims, return a ranked queue. If
     file=True, persist unverified/contradicted claims as audit_log findings with a
     per-claim pair_key so a ruled claim is skipped on the next run (never-twice)."""
@@ -220,7 +296,7 @@ def review_terminals(conn, config=None, file=False, only=None):
             continue
         atom = ingest(name, repo)
         for claim in extract_claims(atom):
-            verdict, receipt = verify(claim, atom)
+            verdict, receipt = verify(claim, atom, run=run)
             if verdict == "verified":
                 continue
             key = _claim_key(atom, claim["kind"], claim["text"])
