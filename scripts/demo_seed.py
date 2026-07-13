@@ -154,6 +154,18 @@ def seed(db_path: str = DEMO_DB) -> dict:
     from helicon.relations import relation_scan
     identity_scan(conn, semantic=False)
     relation_scan(conn)
+
+    # A couple of already-ruled Taste Machine verdicts so the Golden Rules tab
+    # reads as real operating law the moment it's opened (not empty until you
+    # rule the fork live) AND shows the Taste Machine bridge on the Gold surface:
+    # two kills of the same output shape compile into one "avoid this move" rule.
+    from helicon.taste import ingest_verdict
+    for i, hsh in enumerate(("taste-le-1", "taste-le-2")):
+        ingest_verdict(conn, {
+            "artifact_hash": hsh, "kind": "x-reply", "move": "lived-example",
+            "human_verdict": "kill", "content": f"draft reply {i}",
+            "reason": "shoehorned a fake personal anecdote to seem relatable",
+            "decided_at": "2026-07-11T10:00:00", "scores": {"relevance": 0.2}})
     return {"db": db_path, "cubes": n}
 
 
