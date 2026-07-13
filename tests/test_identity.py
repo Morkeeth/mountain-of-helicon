@@ -12,9 +12,9 @@ from helicon.scanner import result_to_cube
 from helicon.identity import extract_glosses, find_identity_forks, identity_scan
 
 
-def _cube(conn, content, ref, source="obsidian"):
+def _cube(conn, content, ref, source="obsidian", created_at="2026-07-01T00:00:00"):
     r = ConnectorResult(source=source, source_ref=ref, type="memory",
-                        title=ref, content=content, created_at="2026-07-01T00:00:00")
+                        title=ref, content=content, created_at=created_at)
     cube = result_to_cube(r)
     assert insert_cube(conn, cube)
     conn.commit()
@@ -121,6 +121,38 @@ def test_resolve_identity_rejects_bad_input(conn):
     assert not resolve_identity(conn, aid, "")["ok"]           # empty canonical
     assert resolve_identity(conn, aid, "a treasury")["ok"]
     assert not resolve_identity(conn, aid, "a treasury")["ok"]  # already decided
+
+
+def test_identity_never_twice_realarms_on_new_divergence(conn):
+    from helicon.identity import resolve_identity
+    _cube(conn, "Yieldbound is a yield treasury.", "a.md")
+    _cube(conn, "Yieldbound is a wallet tracker.", "b.md")
+    identity_scan(conn, semantic=False)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='identity'").fetchone()[0]
+    resolve_identity(conn, aid, "a yield treasury")     # canonical genus = treasury
+    assert find_identity_forks(conn, semantic=False) == []       # settled
+
+    # NEW memory (created after the ruling) asserts a divergent genus -> re-alarm
+    _cube(conn, "Yieldbound is a lending protocol.", "fresh.md",
+          created_at="2027-01-01T00:00:00")
+    forks = find_identity_forks(conn, semantic=False)
+    assert len(forks) == 1
+    assert forks[0].get("resurfaced") is True
+    assert forks[0]["genus_b"] == "protocol"
+    # and it files as a NEW finding, not grandfathered under the old key
+    assert identity_scan(conn, semantic=False)["filed"]
+
+
+def test_identity_reasserting_canonical_stays_settled(conn):
+    from helicon.identity import resolve_identity
+    _cube(conn, "Yieldbound is a yield treasury.", "a.md")
+    _cube(conn, "Yieldbound is a wallet tracker.", "b.md")
+    identity_scan(conn, semantic=False)
+    aid = conn.execute("SELECT id FROM audit_log WHERE audit_type='identity'").fetchone()[0]
+    resolve_identity(conn, aid, "a yield treasury")
+    # re-stating the canonical genus after the ruling must NOT re-alarm
+    _cube(conn, "Yieldbound is a treasury.", "fresh.md", created_at="2027-01-01T00:00:00")
+    assert find_identity_forks(conn, semantic=False) == []
 
 
 def test_rot_exam_reports_r11(conn):

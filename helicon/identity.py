@@ -121,36 +121,61 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
     rephrasings. Falls back to the deterministic genus tier if embeddings are
     unavailable. Pass semantic=False for the fast rot exam and deterministic tests."""
     rows = conn.execute(
-        "SELECT id, title, content, source, source_ref, review_status "
+        "SELECT id, title, content, source, source_ref, created_at, review_status "
         "FROM helicon_cubes "
         "WHERE review_status IN ('pending', 'revised', 'approved') "
         "AND merged_into IS NULL"
     ).fetchall()
 
-    # name -> genus -> {scope: representative gloss}
+    from helicon.timeutil import ts_norm
+    # name -> genus -> {scope: gloss}; and the latest timestamp per (name, genus)
     by_name: dict = defaultdict(lambda: defaultdict(dict))
+    latest: dict = defaultdict(lambda: defaultdict(str))
     for row in rows:
         scope = _cube_scope(row)
+        ts = ts_norm(row["created_at"]) or (row["created_at"] or "")
         for g in extract_glosses(row["content"] or "", row["title"] or ""):
-            by_name[g["name"].lower()][g["genus"]].setdefault(scope, g["gloss"])
+            n, gen = g["name"].lower(), g["genus"]
+            by_name[n][gen].setdefault(scope, g["gloss"])
+            if ts > latest[n][gen]:
+                latest[n][gen] = ts
 
-    resolved = _resolved_identity_names(conn)
+    resolutions = _load_identity_resolutions(conn)
     candidates = []
     for name, genera in by_name.items():
-        if name in resolved:
-            continue          # ruled: the fork stays settled (basic never-twice)
+        res = resolutions.get(name)
+        if res:
+            # never-twice: a settled name re-alarms ONLY when a NON-canonical genus
+            # is asserted AFTER the ruling. Re-stating the canonical definition, or
+            # an old divergent cube that predates the ruling, stays settled.
+            cg, rt = res["genus"], res["resolved_at"]
+            divergent = [g for g in genera if g != cg and latest[name][g] > rt]
+            if not divergent:
+                continue
+            gb = max(divergent, key=lambda g: len(genera[g]))
+            scopes = set(genera[gb]) | (set(genera[cg]) if cg in genera else set())
+            candidates.append({
+                "name": name,
+                "pair_key": f"identity|{name}|resurfaced:{rt}",
+                "genera": {gen: sorted(sc) for gen, sc in genera.items()},
+                "genus_a": cg, "genus_b": gb,
+                "gloss_a": f"canonical: {cg}",
+                "gloss_b": next(iter(genera[gb].values())),
+                "scopes": sorted(scopes),
+                "resurfaced": True,
+            })
+            continue
+        # unresolved: a genuine cross-source fork (>=2 genera from >=2 scopes)
         if len(genera) < 2:
             continue
         all_scopes = set().union(*(set(s) for s in genera.values()))
         if len(all_scopes) < 2:
             continue
-        # require two genera from two DIFFERENT scopes (true cross-source fork)
         pairs = [(gen, sc) for gen, scopes in genera.items() for sc in scopes]
         cross = any(g1 != g2 and s1 != s2
                     for g1, s1 in pairs for g2, s2 in pairs)
         if not cross:
             continue
-        # rank genera by how many scopes attest them; the two best are the fork
         ranked = sorted(genera.items(), key=lambda kv: -len(kv[1]))
         top = ranked[:2]
         candidates.append({
@@ -161,6 +186,7 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
             "gloss_a": next(iter(top[0][1].values())),
             "gloss_b": next(iter(top[1][1].values())),
             "scopes": sorted(all_scopes),
+            "resurfaced": False,
         })
 
     if not semantic or not candidates:
@@ -174,6 +200,9 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
         return candidates
     confirmed = []
     for f in candidates:
+        if f.get("resurfaced"):
+            confirmed.append(f)          # a ruled-out definition returned — never-twice
+            continue
         try:
             va, vb = embed_text(f["gloss_a"]), embed_text(f["gloss_b"])
             denom = (float(np.linalg.norm(va)) * float(np.linalg.norm(vb))) or 1.0
@@ -187,20 +216,24 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
     return confirmed
 
 
-def _resolved_identity_names(conn) -> set[str]:
-    """Entity names whose identity fork a human has already ruled (canonical set)."""
-    names = set()
+def _load_identity_resolutions(conn) -> dict:
+    """name (lower) -> {'genus': canonical genus, 'resolved_at': normalized ts}."""
+    from helicon.timeutil import ts_norm
+    out = {}
     for row in conn.execute(
-        "SELECT details FROM audit_log WHERE audit_type = 'identity' "
+        "SELECT details, resolved_at FROM audit_log WHERE audit_type = 'identity' "
         "AND human_decision LIKE 'resolved:%'"
     ):
         try:
-            n = json.loads(row["details"]).get("name")
-            if n:
-                names.add(n.lower())
+            d = json.loads(row["details"])
         except (json.JSONDecodeError, TypeError):
-            pass
-    return names
+            continue
+        n = (d.get("name") or "").lower()
+        if not n:
+            continue
+        out[n] = {"genus": d.get("canonical_genus", ""),
+                  "resolved_at": ts_norm(row["resolved_at"]) or (row["resolved_at"] or "")}
+    return out
 
 
 def resolve_identity(conn, audit_id: int, canonical: str) -> dict:
@@ -225,9 +258,13 @@ def resolve_identity(conn, audit_id: int, canonical: str) -> dict:
         d = {}
     name = d.get("name", "")
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    # store the canonical GENUS so the never-twice guard can tell a re-assertion of
+    # the settled definition (fine) from a genuinely new divergent one (re-alarm)
+    canonical_genus = _genus(canonical) or (canonical.split() or [canonical])[-1].lower()
     conn.execute(
-        "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
-        (f"resolved:{canonical[:80]}", now, audit_id))
+        "UPDATE audit_log SET human_decision = ?, resolved_at = ?, "
+        "details = json_set(details, '$.canonical_genus', ?) WHERE id = ?",
+        (f"resolved:{canonical[:80]}", now, canonical_genus, audit_id))
 
     from helicon.models import HeliconCube
     from helicon.scanner import make_id, content_hash as _hash
