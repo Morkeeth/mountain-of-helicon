@@ -209,6 +209,19 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     except Exception as e:
         checks.append(_check("R11", "Identity coherence", "TESTED", None, f"unmeasured: {e}"))
 
+    # R12 phantom association — a relation asserted by a single speculative source
+    # that nothing else grounds. R1/R11 blind: no scalar slot, no definition fork.
+    try:
+        from helicon.relations import find_phantom_relations
+        phantoms = find_phantom_relations(conn)
+        checks.append(_check(
+            "R12", "Phantom association", "TESTED", len(phantoms) > 0,
+            (f"{len(phantoms)} ungrounded relation(s): "
+             + ", ".join(f"{x['subj']}->{x['obj']}" for x in phantoms[:3]))
+            if phantoms else "no ungrounded single-source relations between entities"))
+    except Exception as e:
+        checks.append(_check("R12", "Phantom association", "TESTED", None, f"unmeasured: {e}"))
+
     found = sum(1 for c in checks if c["verdict"] == "ROT FOUND")
     unmeasured = sum(1 for c in checks if c["verdict"] == "UNMEASURED")
     tested = sum(1 for c in checks if c["coverage"] == "TESTED")

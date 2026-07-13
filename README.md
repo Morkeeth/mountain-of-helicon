@@ -39,7 +39,7 @@ helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
 helicon scan        # extract memory into HeliconCubes
 helicon doctor      # health check: PATH, config, key, DB, last scan
 helicon check "what am I working on"   # context-quality verdict
-helicon audit         # the rot exam: 11 documented failure classes, checked live
+helicon audit         # the rot exam: 12 documented failure classes, checked live
 helicon serve       # dashboard at http://localhost:8420
 ```
 
@@ -142,7 +142,7 @@ The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercise
 
 `helicon repair` runs **the self-healing audit loop** — the thing no retriever can do. It scores the four truth gates (freshness / volatility / consistency / retrieval) on a store, surfaces each drift with its cross-source evidence, proposes a repair (retire the stale memory, move a fast fact to the live layer) as a diff you accept, applies the accepted ones, and re-scores so the gates visibly move. `helicon repair --demo` runs it on a seeded, universally-legible store (the classic "I told my agent I'm vegetarian, then started eating chicken again — it never updated" contradiction, plus a stale goal and a fast fact); `--apply` closes the loop.
 
-`helicon audit` runs **the rot exam**: the 11 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 11 classes and says so — and as of Jul 5 all 11 classes are fully tested, 0 partial.
+`helicon audit` runs **the rot exam**: the 12 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 12 classes and says so — and as of Jul 5 all 12 classes are fully tested, 0 partial.
 
 `helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots — no news, no noise. First run baselines silently.
 

@@ -24,9 +24,9 @@ def test_compute_score_empty_db_has_full_shape(tmp_path):
 def test_rot_exam_contract(tmp_path):
     conn = init_db(str(tmp_path / "t.db"))
     res = run_rot_exam(conn)
-    assert res["classes"] == 11
+    assert res["classes"] == 12
     assert "rot_found" in res and isinstance(res["checks"], list)
-    assert len(res["checks"]) == 11
+    assert len(res["checks"]) == 12
     for c in res["checks"]:
         assert {"id", "name", "coverage", "verdict", "receipt"} <= set(c)
         assert c["verdict"] in ("ROT FOUND", "CLEAN", "UNMEASURED")
