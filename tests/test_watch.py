@@ -86,7 +86,7 @@ def test_cursor_persists_across_runs(env):
     W.watch_once(conn, config)
     state = W.load_state(config)
     assert state["last_run"] is not None
-    assert set(state["rot_verdicts"]) == {f"R{i}" for i in range(1, 11)}
+    assert set(state["rot_verdicts"]) == {f"R{i}" for i in range(1, 13)}
 
 
 def test_alias_drift_flips_r4(env):

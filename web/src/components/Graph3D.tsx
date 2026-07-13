@@ -19,11 +19,11 @@ interface SimNode extends GraphNode {
    terracotta); entities are structural ink. Warm paper ground, no default
    space-black force graph. */
 
-const PAPER = '#faf7f1';           // warm ground, matches --helicon-bg
+const PAPER = '#F7F5F1';           // warm ground, matches --helicon-bg
 const INK = '#2b2825';             // --helicon-ink
 const HEALTHY = '#8a8478';         // stone/zinc, reviewed & holding
 const STALE = '#B98A4E';           // --helicon-stale (ochre)
-const DEAD = '#C25E3A';            // --helicon-accent (terracotta)
+const DEAD = '#223A4E';            // --helicon-accent (terracotta)
 
 // entities: structural, muted warm ink tones per type
 const TYPE_COLORS: Record<string, string> = {
@@ -416,7 +416,7 @@ export function Graph3D() {
                   <div className="space-y-1 max-h-36 overflow-y-auto">
                     {detail.cubes.slice(0, 8).map(c => (
                       <div key={c.id} className="flex items-center gap-2 text-[11px]">
-                        <span className={`w-1.5 h-1.5 rounded-full ${c.confidence > 0.5 ? 'bg-emerald-500/50' : c.confidence > 0.2 ? 'bg-amber-500/50' : 'bg-red-500/50'}`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${c.confidence > 0.5 ? 'bg-zinc-400/70' : c.confidence > 0.2 ? 'bg-amber-500/50' : 'bg-[rgba(34,58,78,0.5)]'}`} />
                         <span className="text-zinc-500 truncate">{c.title}</span>
                       </div>
                     ))}

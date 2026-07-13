@@ -193,11 +193,11 @@ def test_battery_expiry_does_not_flag_healthy_past_half_life(conn):
 
 
 # ------------------------------------------------------------- the rot exam
-def test_rot_exam_runs_all_ten_classes(conn):
+def test_rot_exam_runs_all_twelve_classes(conn):
     from helicon.rot import run_rot_exam
     res = run_rot_exam(conn, repo_root="/Users/morkeeth/CODE/helicon")
-    assert res["classes"] == 10
-    assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 11)}
+    assert res["classes"] == 12
+    assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 13)}
     assert all(c["verdict"] in ("CLEAN", "ROT FOUND", "UNMEASURED") for c in res["checks"])
     # fixture has a killed cube with a regret event? no — but R5 dupes must be CLEAN
     r5 = next(c for c in res["checks"] if c["id"] == "R5")

@@ -95,7 +95,7 @@ export default function Focus() {
                 {m.title}
               </h3>
 
-              <pre className="mt-3 text-[12.5px] whitespace-pre-wrap leading-relaxed rounded-lg p-3.5 border border-zinc-800/30" style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)', background: 'rgba(60,40,20,0.03)' }}>
+              <pre className="mt-3 text-[12.5px] whitespace-pre-wrap leading-relaxed rounded-lg p-3.5 border border-zinc-800/30" style={{ fontFamily: 'var(--font-mono, monospace)', color: 'var(--helicon-ink)', background: 'rgba(29,43,58,0.03)' }}>
                 {m.body}
               </pre>
 
@@ -109,7 +109,7 @@ export default function Focus() {
                   {m.receipts.map(r => (
                     <span key={r.ref} title={r.why}
                       className="text-[11px] px-2 py-0.5 rounded-full cursor-help"
-                      style={{ background: 'rgba(60,40,20,0.05)', color: 'var(--helicon-ink)', border: '1px solid rgba(60,40,20,0.10)' }}>
+                      style={{ background: 'rgba(29,43,58,0.05)', color: 'var(--helicon-ink)', border: '1px solid rgba(29,43,58,0.10)' }}>
                       {(r.title || r.ref).slice(0, 46)}{(r.title || '').length > 46 ? '…' : ''}
                     </span>
                   ))}

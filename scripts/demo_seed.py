@@ -72,6 +72,29 @@ CUBES = [
      "Obsidian for now. Revisit after the trial.",
      "2025-10-10T09:00:00", {"as_of": "2025-10-10"}),
 
+    # --- R11 identity coherence: one entity, two forked definitions ----------
+    # Two grounded sources define "Aurora" with incompatible genera (protocol vs
+    # market). Article-gated, cross-source -> the identity gate fires.
+    ("demo-aurora-a", "obsidian", "01 Projects/Aurora/overview.md", "project",
+     "Aurora — overview",
+     "Aurora is a payments protocol for cross-border stablecoin settlement; it "
+     "routes transfers between chains.",
+     "2026-04-01T09:00:00", {}),
+    ("demo-aurora-b", "claude-code", "session/2026-05-10", "memory",
+     "Aurora notes",
+     "Reminder: Aurora is a lending market — users deposit collateral and borrow "
+     "against it at a variable rate.",
+     "2026-05-10T09:00:00", {}),
+
+    # --- R12 phantom association: a relation no source grounds ----------------
+    # A single idea note claims a relation between two entities that nothing else
+    # corroborates -> the phantom-association gate fires.
+    ("demo-aurora-phantom", "obsidian", "03 Ideas/aurora-thesis.md", "idea",
+     "Aurora thesis",
+     "Aurora rides the wave to Solana — if the Solana ecosystem keeps growing, "
+     "Aurora rides that momentum straight up.",
+     "2026-06-15T09:00:00", {}),
+
     # --- clean control memories (so scores are not 0/100 and gates are honest) -
     ("demo-name", "claude-code", "session/2025-10-01", "preference",
      "How the user is addressed",
@@ -123,6 +146,26 @@ def seed(db_path: str = DEMO_DB) -> dict:
                 "was_acted_on, retrieved_at) VALUES (?, 'demo', 1, 0, ?)",
                 (cid, recent))
     conn.commit()
+
+    # File the findings a human rules on in the dashboard demo — R11 identity forks
+    # + R12 phantom associations — so they appear in the review queue with their
+    # resolve controls (deterministic, no embeddings needed).
+    from helicon.identity import identity_scan
+    from helicon.relations import relation_scan
+    identity_scan(conn, semantic=False)
+    relation_scan(conn)
+
+    # A couple of already-ruled Taste Machine verdicts so the Golden Rules tab
+    # reads as real operating law the moment it's opened (not empty until you
+    # rule the fork live) AND shows the Taste Machine bridge on the Gold surface:
+    # two kills of the same output shape compile into one "avoid this move" rule.
+    from helicon.taste import ingest_verdict
+    for i, hsh in enumerate(("taste-le-1", "taste-le-2")):
+        ingest_verdict(conn, {
+            "artifact_hash": hsh, "kind": "x-reply", "move": "lived-example",
+            "human_verdict": "kill", "content": f"draft reply {i}",
+            "reason": "shoehorned a fake personal anecdote to seem relatable",
+            "decided_at": "2026-07-11T10:00:00", "scores": {"relevance": 0.2}})
     return {"db": db_path, "cubes": n}
 
 

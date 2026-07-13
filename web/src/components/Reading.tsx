@@ -30,11 +30,10 @@ const API = (p: string) => fetch(`/api${p}`).then(r => r.json());
 // ridge tile. Matches the locked tesserae identity.
 function Summit({ size = 56 }: { size?: number }) {
   return (
-    <svg width={size} height={size * 0.72} viewBox="0 0 100 72" aria-hidden="true">
-      <polygon points="50,6 96,68 4,68" fill="var(--helicon-ink)" opacity="0.92" />
-      <polygon points="50,6 68,42 32,42" fill={GOLD} opacity="0.85" />
-      <polygon points="50,6 58,26 42,26" fill="var(--helicon-panel)" opacity="0.9" />
-      <polygon points="44,42 56,42 52,54 48,54" fill={RED} />
+    <svg width={size} height={size * 0.6} viewBox="0 0 44 26" fill="none"
+      stroke="var(--helicon-ink)" strokeWidth={1.4} strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+      <path d="M2.5 23 L14 5 L22 16.5" opacity={0.5} />
+      <path d="M15 23 L27.5 4 L41.5 23" />
     </svg>
   );
 }
@@ -103,17 +102,27 @@ export default function Reading() {
 
   return (
     <div className="pb-10">
-      {/* Wordmark */}
-      <div className="flex items-center gap-4 mb-9">
-        <Summit size={52} />
-        <div>
-          <div className="text-[10px] uppercase tracking-[0.3em]" style={{ color: 'var(--helicon-muted)' }}>Mount Helicon</div>
-          <div className="text-[24px] leading-none" style={{ ...SERIF, fontWeight: 400, fontStyle: 'italic', color: 'var(--helicon-ink)' }}>the reading</div>
+      {/* Watercolor hero band — the record opens on the mountain */}
+      <div
+        className="relative mb-9 overflow-hidden"
+        style={{ height: 300, borderRadius: 'var(--helicon-radius)', boxShadow: 'var(--helicon-shadow)', border: '1px solid var(--helicon-line)' }}
+      >
+        <img
+          src="/mountain.png"
+          alt="Mount Helicon"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: 'center 42%', animation: 'heliconMist 30s ease-in-out infinite' }}
+        />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(241,236,225,0.04) 38%, rgba(241,236,225,0.62) 100%)' }} />
+        <div className="absolute left-8 top-7">
+          <div className="text-[12px] uppercase" style={{ letterSpacing: '0.34em', lineHeight: 2, fontWeight: 500, color: 'var(--helicon-ink)' }}>Mount Helicon</div>
+          <div className="text-[27px] leading-none" style={{ ...SERIF, fontStyle: 'italic', fontWeight: 400, color: 'var(--helicon-ink)' }}>the reading</div>
+          <div style={{ width: 44, height: 1, background: 'var(--helicon-faint)', marginTop: 12 }} />
         </div>
         <button
           onClick={load}
-          className="ml-auto text-[12px] px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-100 transition-colors"
-          style={{ color: 'var(--helicon-ink)' }}
+          className="absolute right-6 top-6 text-[12px] px-3 py-1.5 rounded-lg transition-colors"
+          style={{ color: 'var(--helicon-ink)', background: 'rgba(247,243,235,0.72)', border: '1px solid var(--helicon-line)' }}
         >
           Read again
         </button>

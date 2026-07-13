@@ -14,6 +14,22 @@ The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become sta
 
 Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live 2,800-cube memory, and it has failed its own audits more than once (see receipts in the demo).
 
+## The moat: what a memory store cannot do (one command)
+
+Mem0 stores. AgentPrizm confidence-scores. Both keep what an agent wrote. Neither can **examine whether two memories disagree on what an entity IS**, catch a **relationship no source ever grounded**, make a **ruling stick** so a corrected mistake cannot silently return, or **turn that ruling into policy** the next generation obeys. Those are four things a store structurally cannot do — and they are the exam.
+
+```bash
+python3 scripts/demo_mem0_audit.py --mock     # audits a Mem0-format store, no key
+```
+
+Four phases, on a store's own memories:
+1. **Audit** — catches an **identity fork** (`Aurora` defined as a *payments protocol* in one memory, a *lending market* in another) and a **phantom association** (`Aurora → Solana`, asserted once, grounded by nothing). R11 and R12 — blind spots no confidence score reveals.
+2. **Rule** — you settle each; Helicon records the verdict *and compiles it into the Golden Rules the agent reads before it writes* (`Aurora IS a payments protocol (ruled canonical); the 'market' framing is wrong`). A store keeps both contradictory memories; Helicon turns your verdict into policy — the *govern* half a store has no place to put.
+3. **Re-audit** — clean. The rulings stuck.
+4. **Recurrence** — a new memory re-asserts the ruled-out definition, and Helicon **re-alarms**. A store forgets it ever asked; Helicon remembers what you ruled.
+
+Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=config-demo.json helicon serve` → rule the fork and the phantom in the review queue, watch them clear.
+
 ## Why it fits Track 1 (MemoryAgent)
 
 **Memory stores remember. Mount Helicon judges what is still true.** It is itself a memory agent: it accumulates findings, human rulings, Golden Rules, regret events and retrieval failures across sessions, and uses them to make future agent decisions more accurate.
@@ -24,7 +40,7 @@ Mount Helicon is the exam. It runs on real data only -- this repo was built and 
 | **Remembers preferences** | Auto-triage learns keep/kill rules from *your* past rulings; Golden Rules encode your standing decisions with provenance |
 | **Improves decisions across sessions** | Rulings compile into Golden Rules the agent obeys next session; the never-twice guard stops a corrected fact silently resurfacing |
 | **Efficient store / retrieve** | Hybrid FTS5 + semantic retrieval; the battery tests what a task *actually* retrieves, not the whole store |
-| **Timely forgetting** | 10-class rot exam + per-type Weibull decay + `reconcile` retires cubes reality no longer contains |
+| **Timely forgetting** | 12-class rot exam + per-type Weibull decay + `reconcile` retires cubes reality no longer contains |
 | **Recall within limited context** | Selectors + retrieval-quality battery + Next Moves surface only what matters, each citing its source |
 | **Qwen Cloud, load-bearing** | Contradiction + grounding judging, cross-source adjudication, rule compilation, and Next Moves synthesis — cached, cost-tracked, honest keyless degrade |
 
@@ -39,7 +55,7 @@ helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
 helicon scan        # extract memory into HeliconCubes
 helicon doctor      # health check: PATH, config, key, DB, last scan
 helicon check "what am I working on"   # context-quality verdict
-helicon audit         # the rot exam: 10 documented failure classes, checked live
+helicon audit         # the rot exam: 12 documented failure classes, checked live
 helicon serve       # dashboard at http://localhost:8420
 ```
 
@@ -136,13 +152,13 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (33 commands)
+## CLI (35 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `snapshot` `lens` `taste` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
 `helicon repair` runs **the self-healing audit loop** — the thing no retriever can do. It scores the four truth gates (freshness / volatility / consistency / retrieval) on a store, surfaces each drift with its cross-source evidence, proposes a repair (retire the stale memory, move a fast fact to the live layer) as a diff you accept, applies the accepted ones, and re-scores so the gates visibly move. `helicon repair --demo` runs it on a seeded, universally-legible store (the classic "I told my agent I'm vegetarian, then started eating chicken again — it never updated" contradiction, plus a stale goal and a fast fact); `--apply` closes the loop.
 
-`helicon audit` runs **the rot exam**: the 10 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in 4 of 10 classes and says so — and as of Jul 5 all 10 classes are fully tested, 0 partial.
+`helicon audit` runs **the rot exam**: the 12 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 12 classes and says so — and as of Jul 5 all 12 classes are fully tested, 0 partial.
 
 `helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots — no news, no noise. First run baselines silently.
 
@@ -206,27 +222,29 @@ Everything destructive is dry-run by default and takes `--apply`.
 
 ## Honest eval numbers
 
-- Composite: **74.2** (retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
-- Retrieval: P@3 0.692, MRR 0.615. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
-- **Decay predicts human kills at rank-AUC 0.877** (mean confidence of killed cubes 0.017 vs approved 0.256). A real, independent signal.
+- Composite: **~67** (live, as of 2026-07-13 — run `helicon eval` to recompute; retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
+- Retrieval: P@3 0.69, MRR 0.60. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
+- **Decay predicts human kills at rank-AUC 0.78** (mean confidence of killed cubes 0.14 vs approved 0.27). A real, independent signal.
 - Consolidation: ~9-10x fewer tokens; Qwen-judged quality favors synthesis (self-graded, shown as direction, not proof).
 - Zero fake data anywhere: the demo DB is the author's real Claude Code transcripts (210+), Obsidian vault, and git repos.
 
-## Research foundation
+## Built on established patterns, extended
 
-| Technique | Source | How Mount Helicon uses it |
+Mount Helicon's capabilities stand on well-understood memory-systems patterns and take each one further. The lineage, stated honestly — the second column is the established idea, the third is our own build on top of it:
+
+| Capability | Established pattern | How Mount Helicon extends it |
 |-----------|--------|---------------------------|
-| Versioned memory cubes | MemOS (SJTU, 2025) | HeliconCube schema |
-| Three-axis audit | Memory Bear (Dec 2025) | Temporal, factual, logical consistency |
-| Weibull decay | SSGM (Mar 2026) / LiCoMemory | Non-uniform forgetting, kappa per type |
-| Novelty gate | SAGE (May 2026) | ADD/NOOP/MERGE at ingestion |
-| Anti-confabulation | Honest Lying (May 2026) | Challenge patterns against evidence |
-| Retrieval learning | MetaMem (ACL 2026) | Track surfaced vs acted-on |
-| Utility-aware ranking | MemRL-inspired | Q-value learning wired into retrieval |
+| Versioned memory cubes | Structured memory units, not raw text | HeliconCube: source, hash, valid_from, confidence, decay per type |
+| Multi-axis audit | Temporal/factual/logical consistency checks | 12-class rot exam, each with a receipt and a never-twice guard |
+| Weibull decay | Non-uniform forgetting curves | Per-type kappa, and decay rank-predicts human kills (AUC 0.78) |
+| Novelty gate | ADD/NOOP/MERGE at ingestion | Gate + provenance, so a merge never loses the source it came from |
+| Anti-confabulation | Challenge claims against evidence | Grounding check + R12 phantom-association catch |
+| Retrieval learning | Track surfaced vs acted-on | Q-value ranking rewarded by human rulings only — no self-echo |
+| Identity & phantom coherence | *(ours — no store or prior system does this)* | R11 fork detection, R12 phantom catch, rulings compiled to law |
 
 ## Architecture
 
-- **Backend:** Python 3.12, FastAPI (81 endpoints), SQLite + FTS5 (22 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
+- **Backend:** Python 3.12, FastAPI (86 endpoints), SQLite + FTS5 (22 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
 - **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. Proof-of-run on Alibaba Cloud via Cloud Shell (`scripts/cloudshell-run.sh`)

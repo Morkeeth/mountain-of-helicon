@@ -1,39 +1,67 @@
 /* ============================================================
-   HELICON — locked visual identity (Tesserae / mountain-of-memory)
-   Dialed in the live tuner 2026-07-01. Build the real UI on these.
-   Aesthetic: elegant, fresh, mountain. NOT frosted glass, NOT AI-purple,
-   NOT a rainbow grid. Memory renders as a summit built of tonal stone
-   tiles; terracotta appears ONLY on cracked/flagged tiles.
+   HELICON — locked visual identity  ·  "Alpine Wash"
+   Agentic Design Brand Book 2026 (Image #9, Jul 10). Court of record for
+   agent memory. Watercolor as atmosphere, not decoration. PRECISE · QUIET ·
+   ELEVATED · LITERATE · SEVERE · TRUSTWORTHY.
+   Palette locked to the brand book's six named colors.
    ============================================================ */
 :root {
-  /* ground & surfaces (ground-lightness = 100 -> near-white warm) */
-  --helicon-bg:     #F6F2EA;           /* Marble Mist — app ground */
-  --helicon-panel:  #FFFDF8;           /* Paper White — cards */
-  --helicon-line:   rgba(23,32,51,0.10); /* Ink-tinted hairline borders */
-  --helicon-ink:    #172033;           /* Ink Navy — primary text */
-  --helicon-muted:  #5d677d;           /* navy-gray labels / secondary (≥4.5:1 on Marble Mist) */
-  --helicon-accent: #9E3F32;           /* Wax Red — flags, rulings, primary action */
+  /* ---- the six named brand colors ----
+     INK NAVY #17283A · SLATE BLUE #465B6F · MIST BLUE #AEBFCC
+     BONE #F4EFE7 · PAPER #ECE4D8 · JUDGMENT RED #A94A3D */
 
-  /* accent supporting */
-  --helicon-stale:  #C5A25A;           /* Mnemosyne Gold — rulings / precedent seams */
-  --helicon-conflict:#6F8F72;          /* Laurel Green */
+  /* ground & surfaces */
+  --helicon-bg:       #ECE4D8;            /* PAPER — app ground */
+  --helicon-bg-2:     #E2D8C8;            /* deeper — recessed */
+  --helicon-panel:    #F4EFE7;            /* BONE — card */
+  --helicon-panel-2:  #FAF7F0;            /* raised card */
+  --helicon-line:     rgba(23,40,58,0.10);/* hairline border */
+  --helicon-line-2:   rgba(23,40,58,0.16);/* stronger hairline */
+  --helicon-mist:     #DCE3E9;            /* ring/bar tracks (light mist) */
 
-  /* wordmark: Cormorant Garamond, the court hand */
-  --helicon-serif:  'Cormorant Garamond','Playfair Display',Georgia,serif;
-  --helicon-wm-weight: 300;
-  --helicon-wm-track:  0em;            /* uppercase, no extra tracking */
-  --helicon-wm-opsz:   144;            /* high-contrast display cut */
+  /* ink — one navy hue at varying weight */
+  --helicon-ink:      #17283A;            /* INK NAVY — primary text */
+  --helicon-ink-70:   rgba(23,40,58,0.68);/* secondary */
+  --helicon-muted:    #4E6173;            /* labels (≥4.5:1 on paper) */
+  --helicon-faint:    rgba(23,40,58,0.34);/* tertiary */
+  --helicon-slate:    #AEBFCC;            /* MIST BLUE */
+  --helicon-slate-deep:#465B6F;           /* SLATE BLUE */
 
-  /* memory viz: mountain-of-tesserae (generative SVG) */
-  --helicon-tile:   9px;
-  --helicon-grout:  1px;
-  --helicon-corner: 0px;               /* crisp */
+  /* semantic signals — the world is BLUE. Calm nuances of slate carry
+     everything; ONE warm colour (orange) marks IMPROVEMENT only; red is
+     nearly retired (a whisper, for genuine critical alarms). (Oscar Jul 10) */
+  --helicon-accent:     #223A4E;          /* PRIMARY action / CTA / counts — deep slate-navy (calm, not red) */
+  --helicon-accent-dim: rgba(34,58,78,0.09);
+  --helicon-accent-deep:#17283A;
+  --helicon-improve:    #C67C3E;          /* the contrary pop — IMPROVEMENT / gains / ↑ only, 1–2 per page */
+  --helicon-improve-dim:rgba(198,124,62,0.12);
+  --helicon-stale:    #C6963F;            /* WARNING — amber (sparing) */
+  --helicon-critical: #A94A3D;            /* CRITICAL — judgment red, a whisper, genuine alarms only */
+  --helicon-conflict: #AEBFCC;            /* REVIEWED / neutral — mist slate */
+  --helicon-good:     #3f627d;            /* CONNECTED — calm slate-blue (no green) */
+  --helicon-gold:     #C6963F;
+
+  /* dark cards (Critical Issues, Focus) — INK NAVY */
+  --helicon-dark:     #17283A;
+  --helicon-dark-2:   #101d2b;
+  --helicon-on-dark:      #F4EFE7;
+  --helicon-on-dark-60:   rgba(244,239,231,0.62);
+  --helicon-on-dark-35:   rgba(244,239,231,0.34);
+
+  /* type: Reckoning→Fraunces (display) · Bricolage Grotesque (interface) · Berkeley Mono→IBM Plex (data) */
+  --helicon-serif:  'Fraunces', Georgia, 'Times New Roman', serif;
+  --helicon-sans:   'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+  --helicon-mono:   'IBM Plex Mono', ui-monospace, monospace;
+  --helicon-wm-weight: 400;
+  --helicon-wm-track:  0em;
+  --helicon-wm-opsz:   144;
+
+  /* shape & elevation — 8px baseline, generous, soft */
+  --helicon-radius:  18px;
+  --helicon-radius-sm: 12px;
+  --helicon-shadow:  0 1px 2px rgba(23,40,58,0.05), 0 12px 34px rgba(23,40,58,0.07);
+  --helicon-shadow-sm: 0 1px 2px rgba(23,40,58,0.06);
+
+  /* legacy no-ops */
+  --helicon-tile: 9px; --helicon-grout: 1px; --helicon-corner: 0px;
 }
-
-/* viz generation params (used by the mountain render fn in
-   helicon-tesserae.html — port that renderer into the real app):
-     palette-spread = 0.28   (tonal, low saturation)
-     ridge-drama    = 0.50
-     tonal ramp: hue 208(slate summit) -> 36(warm stone base),
-                 sat = 6 + spread*34, light = 74 - depth*20
-     cracks: ~6 tiles near the ridge, filled ground-color + terracotta fracture */

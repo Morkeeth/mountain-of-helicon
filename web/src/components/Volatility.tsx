@@ -37,7 +37,7 @@ function Signals({ signals }: { signals: string[] }) {
     <div className="flex flex-wrap gap-1 mt-2">
       {signals.map((s, i) => (
         <span key={i} className="text-[10px] px-1.5 py-0.5 rounded"
-          style={{ background: 'rgba(60,40,20,0.05)', color: 'var(--helicon-muted)', border: '1px solid rgba(60,40,20,0.10)' }}>
+          style={{ background: 'rgba(29,43,58,0.05)', color: 'var(--helicon-muted)', border: '1px solid rgba(29,43,58,0.10)' }}>
           {s}
         </span>
       ))}

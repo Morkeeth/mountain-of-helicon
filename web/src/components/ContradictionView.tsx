@@ -103,14 +103,14 @@ function ContradictionCard({ pair, onResolved }: { pair: ContradictionPair; onRe
         <button
           onClick={() => resolve('keep_a')}
           disabled={resolving}
-          className="text-[12px] px-3 py-1.5 rounded-md text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 border border-zinc-800/60 transition-colors disabled:opacity-30"
+          className="text-[12px] px-3 py-1.5 rounded-md text-zinc-500 hover:text-zinc-400 hover:bg-zinc-100/40 border border-zinc-800/60 transition-colors disabled:opacity-30"
         >
           Keep A
         </button>
         <button
           onClick={() => resolve('keep_b')}
           disabled={resolving}
-          className="text-[12px] px-3 py-1.5 rounded-md text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 border border-zinc-800/60 transition-colors disabled:opacity-30"
+          className="text-[12px] px-3 py-1.5 rounded-md text-zinc-500 hover:text-zinc-400 hover:bg-zinc-100/40 border border-zinc-800/60 transition-colors disabled:opacity-30"
         >
           Keep B
         </button>

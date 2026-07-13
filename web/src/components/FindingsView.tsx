@@ -68,7 +68,7 @@ function CopyChip({ cmd, title }: { cmd: string; title?: string }) {
         });
       }}
       className="flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 bg-white shadow-sm font-mono"
-      style={{ borderColor: 'var(--helicon-line)', color: '#443e36' }}
+      style={{ borderColor: 'var(--helicon-line)', color: 'var(--helicon-ink)' }}
     >
       <code>{cmd}</code>
       <span style={{ color: copied ? 'var(--helicon-accent)' : 'var(--helicon-muted)', fontFamily: 'Inter, sans-serif' }}>
@@ -84,17 +84,19 @@ function ActionButton({ label, tone, disabled, onClick }: {
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const isKeep = tone === 'keep';
   const styles =
     tone === 'kill'
-      ? { borderColor: 'rgba(194,94,58,0.35)', color: 'var(--helicon-accent)' }
-      : tone === 'keep'
-        ? { borderColor: 'var(--helicon-line)', color: '#443e36' }
+      ? { borderColor: 'var(--helicon-line-2)', color: 'var(--helicon-ink)' }
+      : isKeep
+        ? { border: 'none', color: '#F4EFE7',
+            backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }
         : { borderColor: 'transparent', color: 'var(--helicon-muted)' };
   return (
     <button
       onClick={e => { e.stopPropagation(); onClick(); }}
       disabled={disabled}
-      className="text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 bg-white shadow-sm"
+      className={`text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 shadow-sm ${isKeep ? '' : 'bg-white'}`}
       style={styles}
     >
       {label}
@@ -123,6 +125,12 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
   };
 
   const actions = (() => {
+    if (f.suggested_action === 'resolve_identity' && auditId !== null) {
+      return <IdentityResolve auditId={auditId} onGone={onGone} />;
+    }
+    if (f.suggested_action === 'resolve_relation' && auditId !== null) {
+      return <RelationResolve auditId={auditId} onGone={onGone} />;
+    }
     if (f.suggested_action === 'fix_skill') {
       return <CopyChip cmd="helicon fix-skills --apply" title="writes descriptions back with .bak backups" />;
     }
@@ -270,14 +278,15 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
           <button
             onClick={() => onReload(true)}
             disabled={batteryLoading}
+            title="LLM-judged tests on whether the context your agent retrieves is any good — relevance, freshness, grounding. The slow, deep pass."
             className="text-[12px] px-3 py-1.5 rounded-lg border transition-all active:scale-95 disabled:opacity-40 shadow-sm bg-white"
-            style={{ borderColor: 'rgba(194,94,58,0.3)', color: 'var(--helicon-accent)' }}
+            style={{ borderColor: 'var(--helicon-line-2)', color: 'var(--helicon-ink)' }}
           >
-            {batteryLoading ? 'Running…' : batteryIncluded ? 'Re-run deep battery check' : 'Run deep battery check'}
+            {batteryLoading ? 'Running…' : batteryIncluded ? 'Re-run deep quality check' : 'Run deep quality check'}
           </button>
           {batteryLoading && (
             <span className="text-[11px] text-zinc-600 animate-pulse-subtle">
-              Running the context-quality battery, ~10s
+              Checking retrieval quality, ~10s
             </span>
           )}
         </div>
@@ -326,7 +335,7 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
           </button>
         ))}
         {!batteryIncluded && !batteryLoading && (
-          <span className="text-[10px] text-zinc-700 ml-auto">battery findings appear after a deep check</span>
+          <span className="text-[10px] text-zinc-700 ml-auto">quality findings appear after a deep check</span>
         )}
       </div>
 
@@ -343,22 +352,86 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         return desc ? <p className="text-[12px] mb-4" style={{ color: 'var(--helicon-muted)' }}>{desc}</p> : null;
       })()}
 
-      {/* Finding rows */}
+      {/* Finding rows, grouped by severity so the hierarchy is legible and each tier self-explains */}
       {visible.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-zinc-600 text-[13px]">Nothing failing here. Memory is clean.</p>
         </div>
-      ) : (
-        <div className="border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/30 bg-white shadow-sm">
-          {visible.slice(0, 50).map(f => (
-            <FindingRow key={f.id} f={f} onGone={() => onActed(f)} />
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const TIERS = [
+          { sev: 'critical', t: 'Critical', d: 'Rule on these first \u2014 the record is actively wrong.' },
+          { sev: 'warning', t: 'Warnings', d: 'Worth a ruling when you have a moment.' },
+          { sev: 'info', t: 'Aging \u00b7 auto-managed', d: 'Age and mechanics \u2014 safe to leave; open if curious.' },
+        ];
+        let shown = 0;
+        return TIERS.map(tier => {
+          const items = visible.filter(x => (x.severity || 'info') === tier.sev);
+          if (items.length === 0 || shown >= 50) return null;
+          const slice = items.slice(0, 50 - shown);
+          shown += slice.length;
+          return (
+            <div key={tier.sev} className="mb-6">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: sevColor(tier.sev) }} />
+                <span className="text-[13px] font-medium" style={{ color: 'var(--helicon-ink)' }}>{tier.t}</span>
+                <span className="text-[12px] tabular-nums" style={{ color: 'var(--helicon-faint)' }}>{items.length}</span>
+                <span className="text-[11px] ml-1.5" style={{ color: 'var(--helicon-muted)' }}>{tier.d}</span>
+              </div>
+              <div className="border border-zinc-800/60 rounded-lg overflow-hidden divide-y divide-zinc-800/30 bg-white shadow-sm">
+                {slice.map(x => <FindingRow key={x.id} f={x} onGone={() => onActed(x)} />)}
+              </div>
+            </div>
+          );
+        });
+      })()}
 
       {visible.length > 50 && (
-        <p className="text-[11px] text-zinc-700 mt-3 text-center">Showing 50 of {visible.length}</p>
+        <p className="text-[11px] text-zinc-700 mt-3 text-center">Showing the first 50 of {visible.length}</p>
       )}
+    </div>
+  );
+}
+
+
+function IdentityResolve({ auditId, onGone }: { auditId: number; onGone: () => void }) {
+  const [canon, setCanon] = useState('');
+  const [busy, setBusy] = useState(false);
+  const resolve = async () => {
+    if (!canon.trim()) return;
+    setBusy(true);
+    try { await api.resolveIdentity(auditId, canon.trim()); } finally { setBusy(false); }
+    onGone();
+  };
+  const dismiss = async () => {
+    setBusy(true);
+    try { await api.confirmAudit(auditId, 'dismissed'); } finally { setBusy(false); }
+    onGone();
+  };
+  return (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <input value={canon} onChange={e => setCanon(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') resolve(); }}
+        placeholder="canonical definition…"
+        className="text-[11px] px-2 py-1 rounded border w-44 outline-none"
+        style={{ background: 'var(--helicon-panel-2)', color: 'var(--helicon-ink)', borderColor: 'var(--helicon-line)' }} />
+      <ActionButton label="Set canonical" tone="keep" disabled={busy || !canon.trim()} onClick={resolve} />
+      <ActionButton label="Not a fork" tone="muted" disabled={busy} onClick={dismiss} />
+    </div>
+  );
+}
+
+
+function RelationResolve({ auditId, onGone }: { auditId: number; onGone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const rule = async (verdict: string) => {
+    setBusy(true);
+    try { await api.resolveRelation(auditId, verdict); } finally { setBusy(false); }
+    onGone();
+  };
+  return (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <ActionButton label="Confirm phantom" tone="keep" disabled={busy} onClick={() => rule('phantom')} />
+      <ActionButton label="It's real" tone="muted" disabled={busy} onClick={() => rule('real')} />
     </div>
   );
 }

@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import CausalLens from './components/CausalLens';
+import FocusReview from './components/FocusReview';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
-import { Graph3D } from './components/Graph3D';
+const Graph3D = lazy(() => import('./components/Graph3D').then(m => ({ default: m.Graph3D })));
 import { EvalView } from './components/EvalView';
 import { ConnectorStatus } from './components/ConnectorStatus';
 import SkillsAudit from './components/SkillsAudit';
@@ -15,6 +17,7 @@ import Landing from './components/Landing';
 import SetupReportCard from './components/SetupReportCard';
 import StoreAudit from './components/StoreAudit';
 import Reading from './components/Reading';
+import MemoryHealthTrend from './components/MemoryHealthTrend';
 import Volatility from './components/Volatility';
 import Consistency from './components/Consistency';
 
@@ -22,16 +25,16 @@ import Consistency from './components/Consistency';
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals';
+type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens';
 
 // One honest journey on the left: the reading opens the record, then your next
 // moves, then your memory itself (with its truth gates as sub-views), what needs
 // ruling, and the golden rules it compiles. Everything else lives under More.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'findings', label: 'Needs Ruling' },
   { key: 'reading', label: 'The Reading' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'health', label: 'Memory' },
-  { key: 'findings', label: 'Needs Ruling' },
   { key: 'gold', label: 'Golden Rules' },
 ];
 
@@ -39,6 +42,7 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
   { key: 'tour', label: 'Tour' },
   { key: 'routines', label: 'Routines & Skills' },
   { key: 'evals', label: 'Evals' },
+  { key: 'lens', label: 'Causal Lens' },
   { key: 'log', label: 'Log' },
   { key: 'graph', label: 'Graph' },
   { key: 'projects', label: 'Projects' },
@@ -46,11 +50,38 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
 
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 
+// Left-rail nav item (brand book: numbered, calm, active = ink + accent bar)
+function RailItem({ n, label, active, badge = 0, onClick }: {
+  n: number; label: string; active: boolean; badge?: number; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative text-left rounded-lg px-2.5 py-2 transition-colors"
+      style={{ background: active ? 'var(--helicon-accent-dim)' : 'transparent' }}
+    >
+      {active && (
+        <span className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full" style={{ background: 'var(--helicon-accent)' }} />
+      )}
+      <span className="block text-[9px] tabular-nums mb-0.5" style={{ color: 'var(--helicon-faint)' }}>{n}</span>
+      <span
+        className="block text-[10px] uppercase leading-tight"
+        style={{ letterSpacing: '0.08em', color: active ? 'var(--helicon-ink)' : 'var(--helicon-muted)', fontWeight: active ? 600 : 500 }}
+      >
+        {label}
+      </span>
+      {badge > 0 && (
+        <span className="absolute top-2 right-2 text-[9px] tabular-nums" style={{ color: 'var(--helicon-accent)' }}>{badge}</span>
+      )}
+    </button>
+  );
+}
+
 function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'reading';
+    return ALL_TABS.includes(h) ? h : 'findings';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -62,6 +93,7 @@ function App() {
   const [findingsData, setFindingsData] = useState<FindingsResponse | null>(null);
   const [batteryIncluded, setBatteryIncluded] = useState(false);
   const [batteryLoading, setBatteryLoading] = useState(false);
+  const [reviewMode, setReviewMode] = useState<'focus' | 'all'>('focus');
 
   // Project-centric state (secondary surface, unchanged)
   const [projects, setProjects] = useState<ProjectRollup[]>([]);
@@ -187,10 +219,49 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
-      <header className="px-8 pt-6 pb-0" style={{ background: 'var(--bg)' }}>
+    <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
+      {/* Atmosphere — a faint watercolor peak at the page foot (brand book:
+          "use as atmosphere, not decoration"). pointer-events:none, imperceptibly
+          low so it can never sit over or block content. */}
+      <img
+        src="/mountain-3.png" alt="" aria-hidden
+        className="pointer-events-none select-none"
+        style={{
+          position: 'fixed', bottom: 0, right: 0, width: 460, zIndex: 0, opacity: 0.05,
+          WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 70%)', maskImage: 'linear-gradient(180deg, transparent, #000 70%)',
+        }}
+      />
+      {/* Left rail — brand book 88–120px numbered nav */}
+      <nav className="flex-none flex flex-col" style={{ width: 110, borderRight: '1px solid var(--helicon-line)' }}>
+        <div className="px-5 pt-6 pb-5">
+          <svg width="30" height="18" viewBox="0 0 44 26" fill="none" stroke="var(--helicon-ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
+            <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
+            <path d="M15 23 L27.5 4 L41.5 23" />
+          </svg>
+        </div>
+        <div className="flex-1 flex flex-col gap-0.5 px-2.5">
+          {PRIMARY_TABS.map((t, i) => (
+            <RailItem key={t.key} n={i + 1} label={t.label} active={tab === t.key}
+              badge={t.key === 'findings' ? (findingsData?.summary.needs_you || 0) : 0}
+              onClick={() => setTab(t.key)} />
+          ))}
+          <div className="my-3 mx-2 border-t" style={{ borderColor: 'var(--helicon-line)' }} />
+          {SECONDARY_TABS.map((t, i) => (
+            <RailItem key={t.key} n={i + 6} label={t.label} active={tab === t.key}
+              onClick={() => { setTab(t.key); if (t.key !== 'projects') setSelectedProject(null); }} />
+          ))}
+        </div>
+        <div className="relative mt-2" style={{ height: 96, overflow: 'hidden' }}>
+          <img src="/mountain-2.png" alt="" aria-hidden className="absolute bottom-0 left-0 w-full object-cover"
+            style={{ height: 96, opacity: 0.85, WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 62%)', maskImage: 'linear-gradient(180deg, transparent, #000 62%)' }} />
+        </div>
+      </nav>
+
+      {/* Right column */}
+      <div className="flex-1 min-w-0 flex flex-col">
+      <header className="px-8 pt-6 pb-4" style={{ borderBottom: '1px solid var(--helicon-line)' }}>
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h1
                 className="text-[19px] tracking-tight text-zinc-100"
@@ -201,7 +272,7 @@ function App() {
               <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
               <span
                 className="text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
-                style={{ background: 'rgba(158, 63, 50, 0.08)', color: 'var(--helicon-accent)', borderColor: 'rgba(158, 63, 50, 0.25)' }}
+                style={{ background: 'var(--helicon-accent-dim)', color: 'var(--helicon-accent)', borderColor: 'rgba(34,58,78, 0.25)' }}
               >
                 Powered by Qwen
               </span>
@@ -232,39 +303,6 @@ function App() {
               )}
             </div>
           </div>
-
-          <nav className="flex items-stretch gap-0 border-b border-zinc-800/60">
-            {PRIMARY_TABS.map((t, i) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`px-4 py-2.5 text-[12px] uppercase tracking-[0.12em] transition-colors relative ${
-                  tab === t.key ? 'text-zinc-200' : 'text-zinc-500 hover:text-zinc-400'
-                }`}
-              >
-                <span className="text-zinc-600 mr-1.5 text-[11px] tabular-nums tracking-normal">{i + 1}</span>
-                {t.label}
-                {t.key === 'findings' && findingsData && findingsData.summary.needs_you > 0 && (
-                  <span className="ml-1.5 text-[10px] tabular-nums tracking-normal" style={{ color: 'var(--helicon-accent)' }}>
-                    {findingsData.summary.needs_you}
-                  </span>
-                )}
-                {tab === t.key && (
-                  <motion.span
-                    layoutId="tab-indicator"
-                    className="absolute bottom-0 left-4 right-4 h-[2px] rounded-full qwen-gradient-bg"
-                    transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                  />
-                )}
-              </button>
-            ))}
-            <MoreMenu
-              tabs={SECONDARY_TABS}
-              activeTab={tab}
-              projectsCount={projects.length}
-              onSelect={(key) => { setTab(key); if (key !== 'projects') setSelectedProject(null); }}
-            />
-          </nav>
         </div>
       </header>
 
@@ -279,6 +317,7 @@ function App() {
         >
 
         {tab === 'reading' && <Reading />}
+        {tab === 'lens' && <CausalLens />}
 
         {tab === 'tour' && <Landing onEnter={() => setTab('focus')} />}
 
@@ -293,8 +332,19 @@ function App() {
           />
         )}
 
-        {tab === 'findings' && (
+        {tab === 'findings' && reviewMode === 'focus' && (
           <>
+          <TabPurpose>One ruling at a time. Handle what needs you; the rest is auto-managed.</TabPurpose>
+          <FocusReview
+            data={findingsData}
+            onActed={handleFindingActed}
+            onSeeAll={() => setReviewMode('all')}
+          />
+          </>
+        )}
+        {tab === 'findings' && reviewMode === 'all' && (
+          <>
+          <button onClick={() => setReviewMode('focus')} className="text-[12px] mb-3 transition-colors hover:opacity-70" style={{ color: 'var(--helicon-accent)' }}>← back to focus</button>
           <TabPurpose>What Helicon caught in your memory, drift, staleness, and things worth sharpening. You rule once; it sticks.</TabPurpose>
           <FindingsView
             data={findingsData}
@@ -338,7 +388,7 @@ function App() {
         {false && (
           <>
           <TabPurpose>Where the rot lives in your knowledge graph.</TabPurpose>
-          <Graph3D />
+          <Suspense fallback={<div className="py-12" />}><Graph3D /></Suspense>
           </>
         )}
 
@@ -370,6 +420,7 @@ function App() {
         </motion.div>
         </AnimatePresence>
       </main>
+      </div>
     </div>
   );
 }
@@ -379,78 +430,6 @@ function TabPurpose({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] text-zinc-600 mb-5 leading-relaxed">{children}</p>;
 }
 
-// ============================================================
-// More menu: the secondary destinations, off the journey
-// ============================================================
-
-/* The journey stays a clean 5 tabs on the left; everything that is not the
-   daily loop lives here, quiet and out of the way. Shows the active label when
-   you are inside one of its destinations so you are never lost. */
-function MoreMenu({ tabs, activeTab, projectsCount, onSelect }: {
-  tabs: { key: Tab; label: string }[];
-  activeTab: Tab;
-  projectsCount: number;
-  onSelect: (key: Tab) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const active = tabs.find(t => t.key === activeTab);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-
-  return (
-    <div ref={ref} className="relative ml-auto flex items-stretch">
-      <button
-        onClick={() => setOpen(o => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={`px-3 py-2.5 text-[11px] flex items-center gap-1.5 transition-colors relative ${
-          active ? 'text-zinc-300' : 'text-zinc-600 hover:text-zinc-500'
-        }`}
-      >
-        {active ? `More · ${active.label}` : 'More'}
-        <svg
-          width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-          className={`transition-transform ${open ? 'rotate-180' : ''}`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-        {active && (
-          <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full" style={{ background: 'var(--helicon-accent)', opacity: 0.6 }} />
-        )}
-      </button>
-
-      {open && (
-        <div role="menu" className="absolute right-0 top-full mt-1.5 z-30 min-w-[190px] rounded-xl bg-white shadow-lg border border-zinc-800/50 py-1.5 animate-fade-in">
-          {tabs.map(t => (
-            <button
-              key={t.key}
-              role="menuitem"
-              onClick={() => { onSelect(t.key); setOpen(false); }}
-              className={`w-full text-left px-4 py-2 text-[12px] flex items-center justify-between gap-3 transition-colors hover:bg-black/[0.04] ${
-                activeTab === t.key ? 'text-zinc-200' : 'text-zinc-500'
-              }`}
-            >
-              <span>{t.label}</span>
-              {t.key === activeTab
-                ? <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--helicon-accent)' }} />
-                : (t.key === 'projects' && projectsCount > 0
-                    ? <span className="text-[10px] text-zinc-600 tabular-nums">{projectsCount}</span>
-                    : null)}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ============================================================
 // Memory tab: the record's health, with its truth gates as sub-views
@@ -494,6 +473,8 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
         <div className="space-y-10">
           <ContextHero score={score} needsYou={needsYou} onReview={onReview} />
 
+          <MemoryHealthTrend />
+
           <SetupReportCard />
 
           <StoreAudit />
@@ -503,14 +484,18 @@ function MemoryTab({ score, connectors, needsYou, onReview }: {
               <div>
                 <h3 className="text-[11px] uppercase tracking-wider text-zinc-500 mb-4">Review coverage by source</h3>
                 {score && (
-                  <div className="space-y-3">
+                  <div className="space-y-3.5">
                     {Object.entries(score.by_source).map(([src, data]) => (
-                      <div key={src} className="flex items-center justify-between">
-                        <span className="text-[13px] text-zinc-400">{src}</span>
-                        <div className="flex items-center gap-4">
-                          <span className="text-[11px] text-zinc-600 tabular-nums">{data.reviewed}/{data.total}</span>
-                          <span className="text-[13px] text-zinc-300 tabular-nums w-10 text-right">{data.score}%</span>
-                        </div>
+                      <div key={src} className="grid items-center gap-4" style={{ gridTemplateColumns: '128px 64px 1fr 40px' }}>
+                        <span className="text-[13px]" style={{ color: 'var(--helicon-ink)' }}>{src}</span>
+                        <span className="text-[11px] tabular-nums text-right" style={{ color: 'var(--helicon-muted)' }}>{data.reviewed}/{data.total}</span>
+                        <span className="relative h-[5px] rounded-full overflow-hidden" style={{ background: 'rgba(46,58,71,0.09)' }}>
+                          <span
+                            className="absolute left-0 top-0 h-full rounded-full"
+                            style={{ width: `${Math.min(100, data.score)}%`, background: data.score >= 100 ? 'var(--helicon-conflict)' : 'var(--helicon-ink)', opacity: 0.55, transition: 'width .8s cubic-bezier(0.16,1,0.3,1)' }}
+                          />
+                        </span>
+                        <span className="text-[13px] tabular-nums text-right" style={{ color: 'var(--helicon-ink)' }}>{data.score}%</span>
                       </div>
                     ))}
                   </div>
@@ -545,7 +530,20 @@ function ContextHero({ score, needsYou, onReview }: { score: Score | null; needs
   const step = (label: string) => <b style={{ color: 'var(--helicon-ink)', fontWeight: 600 }}>{label}</b>;
 
   return (
-    <div className="rounded-2xl bg-white shadow-sm border border-zinc-800/50 px-7 py-6">
+    <div className="relative overflow-hidden rounded-2xl bg-white shadow-sm border border-zinc-800/50 px-7 py-6">
+      <img
+        src="/mountain.png"
+        alt=""
+        aria-hidden
+        className="absolute right-0 top-0 h-full w-[48%] object-cover pointer-events-none select-none"
+        style={{
+          objectPosition: 'center 42%',
+          WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 46%)',
+          maskImage: 'linear-gradient(90deg, transparent 0%, #000 46%)',
+          animation: 'heliconMist 32s ease-in-out infinite',
+        }}
+      />
+      <div className="relative" style={{ maxWidth: '58%' }}>
       <div className="text-[10px] uppercase tracking-[0.3em]" style={{ color: 'var(--helicon-muted)' }}>
         Agent memory audit
       </div>
@@ -600,6 +598,7 @@ function ContextHero({ score, needsYou, onReview }: { score: Score | null; needs
       <p className="mt-5 text-[11px]" style={{ color: 'var(--helicon-muted)' }}>
         Helicon runs on a timer and pings you when something needs a call. You don't live here, you drop in when it does.
       </p>
+      </div>
     </div>
   );
 }
@@ -714,7 +713,7 @@ function ProjectCard({ project, index, onClick }: { project: ProjectRollup; inde
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           {isActive && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-subtle" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
           )}
           <h3 className="text-[13px] font-medium text-zinc-200 group-hover:text-zinc-800 transition-colors">
             {project.name}

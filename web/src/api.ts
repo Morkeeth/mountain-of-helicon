@@ -193,6 +193,10 @@ export const api = {
   runAudit: () => post<{ total_findings: number }>('/audit/run'),
   confirmAudit: (finding_id: number, decision: string, notes?: string) =>
     post('/audit/confirm', { finding_id, decision, notes }),
+  resolveIdentity: (finding_id: number, canonical: string) =>
+    post('/audit/resolve-identity', { finding_id, canonical }),
+  resolveRelation: (finding_id: number, verdict: string) =>
+    post('/audit/resolve-relation', { finding_id, verdict }),
   getPatterns: () => get<{ patterns: Pattern[] }>('/patterns'),
   extractPatterns: () => post<{ extracted: number }>('/patterns/extract'),
   getDecayStats: () => get<DecayStats>('/decay/stats'),

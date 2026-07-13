@@ -602,6 +602,45 @@ def cmd_battery(args):
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
 
 
+def cmd_taste(args):
+    """Taste-verdict memory: remember Taste Machine rulings + the never-twice guard."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.taste import ingest_file, taste_guard
+    config = load_config()
+    conn = init_db(config["db_path"])
+    if args.ingest:
+        res = ingest_file(conn, args.ingest)
+        print(f"ingested {res['ingested']} verdict(s); {res['already_had']} already remembered")
+        return
+    if args.hash or args.move:
+        g = taste_guard(conn, artifact_hash=args.hash, move=args.move)
+        if g["already_ruled"]:
+            print(f"ALREADY RULED ({g['match']}): {g.get('prior_verdict')} \u2014 {g.get('reason')}")
+        else:
+            print("not yet ruled \u2014 fresh output")
+        return
+    print('usage: helicon taste --ingest <verdicts.json>  |  --hash <h> | --move <name>')
+
+
+def cmd_lens(args):
+    """Memory Causal Lens: the memories behind an answer, with provenance."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.provenance import memory_provenance, format_provenance
+    if not args.task:
+        print('usage: helicon lens "<task or answer>"')
+        return
+    config = load_config()
+    conn = init_db(config["db_path"])
+    rows = memory_provenance(conn, args.task, k=args.k)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(rows, indent=2, default=str))
+        return
+    print(format_provenance(args.task, rows))
+
+
 def cmd_rot(args):
     """The rot exam: ROT.md's 10 documented failure classes checked live
     against the real store. Deterministic, zero LLM calls, free to run daily."""
@@ -1042,6 +1081,11 @@ def cmd_evolve(args):
     pair_scan(conn, client=client)
     claim_scan(conn, config)
     alias_scan(conn)
+    from helicon.identity import identity_scan
+    identity_scan(conn)          # R11: file confirmed identity forks (semantic-gated)
+    from helicon.relations import relation_scan, store_asserts_edges
+    relation_scan(conn)          # R12: file phantom associations
+    store_asserts_edges(conn)    # R12: persist relation provenance as 'asserts' edges
     from helicon.stackwatch import stack_scan
     stack = stack_scan(conn)
     exam = run_rot_exam(conn)
@@ -1141,6 +1185,27 @@ def cmd_resolve(args):
             print(f"\nDecide:  helicon resolve {row['id']} --truth "
                   f"<{'|'.join(str(v) for v in vals) or 'value'}>"
                   f"\n   or:   helicon resolve {row['id']} --dismiss \"why\"")
+        return
+    # identity forks (R11) resolve with a canonical definition, not a scalar value
+    _row = conn.execute("SELECT audit_type FROM audit_log WHERE id = ?", (args.id,)).fetchone()
+    if _row and _row["audit_type"] == "identity":
+        from helicon.identity import resolve_identity
+        ri = resolve_identity(conn, args.id, args.truth or "")
+        if not ri["ok"]:
+            print(f"error: {ri['error']}")
+            return
+        print(f"resolved #{ri['audit_id']}: {ri['name'].title()} is canonically \"{ri['canonical']}\"")
+        print(f"  correction cube {ri['correction_cube']} (approved, provenance); the fork is settled")
+        return
+    if _row and _row["audit_type"] == "provenance":
+        from helicon.relations import resolve_relation
+        rr = resolve_relation(conn, args.id, args.truth or "phantom")
+        if not rr["ok"]:
+            print(f"error: {rr['error']}")
+            return
+        print(f"resolved #{rr['audit_id']}: {rr['subj']} -/-> {rr['obj']} ruled {rr['verdict']}")
+        if rr["verdict"] == "phantom" and rr["correction_cube"]:
+            print(f"  phantom recorded (cube {rr['correction_cube']}); the scan will not re-file it")
         return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
@@ -1705,14 +1770,19 @@ def cmd_eval(_args):
         print(f"    ... and {len(r['details']) - 5} more queries")
 
     f = result["forgetting"]
-    print(f"\nForgetting accuracy: {f['forgetting_accuracy']:.0%}")
-    print(f"  {f['killed_with_low_conf']}/{f['killed_total']} killed items had low confidence (correct)")
-    print(f"  {f['approved_with_ok_conf']}/{f['approved_total']} approved items had ok confidence (correct)")
+    print(f"\nForgetting — {f.get('metric', 'rank_auc')}: {f['forgetting_accuracy']:.3f}")
+    if f.get("mean_conf_killed") is not None:
+        print(f"  mean confidence: killed {f['mean_conf_killed']} vs approved "
+              f"{f.get('mean_conf_approved')} "
+              f"({f.get('killed_total', 0)} killed, {f.get('approved_total', 0)} approved)")
 
     a = result["audit"]
-    print(f"\nAudit recall: {a['audit_recall']:.0%}")
-    print(f"  {a['stale_cubes_found']} flagged / {a['stale_cubes_actual']} actually stale")
-    print(f"  {a['total_findings']} total findings, {a['human_confirmed']} human-confirmed")
+    if a.get("audit_recall") is not None:
+        print(f"\nAudit precision: {a['audit_recall']:.0%}  ({a.get('note', '')})")
+    else:
+        print(f"\nAudit: {a.get('note', 'not scored')}")
+    print(f"  {a.get('stale_cubes_found', 0)} flagged / {a.get('stale_cubes_actual', 0)} "
+          f"actually stale, {a.get('total_findings', 0)} total findings")
 
 
 def cmd_consolidation_eval(args):
@@ -1791,6 +1861,14 @@ def main():
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
+    taste_p = sub.add_parser("taste", help="Taste-verdict memory: remember Taste Machine rulings + the never-twice guard")
+    taste_p.add_argument("--ingest", metavar="JSON", help="ingest a JSON array of Taste Machine verdicts")
+    taste_p.add_argument("--hash", help="guard: has this exact output (artifact hash) been ruled?")
+    taste_p.add_argument("--move", help="guard: has this move/shape usually been killed?")
+    lens_p = sub.add_parser("lens", help="Memory Causal Lens: the memories behind an answer, with provenance")
+    lens_p.add_argument("task", nargs="?", help="task or answer text")
+    lens_p.add_argument("-k", type=int, default=8, help="how many memories to trace (default 8)")
+    lens_p.add_argument("--json", action="store_true", help="machine-readable result")
     battery_p = sub.add_parser("check", aliases=["battery"], help="Check retrieval quality: named tests on the context a task retrieves")
     battery_p.add_argument("task", nargs="?", help="task or query text")
     battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
@@ -1900,6 +1978,8 @@ def main():
         "triage": cmd_triage,
         "review": cmd_review,
         "snapshot": cmd_snapshot,
+        "taste": cmd_taste,
+        "lens": cmd_lens,
         "check": cmd_battery,
         "battery": cmd_battery,
         "report": cmd_report,

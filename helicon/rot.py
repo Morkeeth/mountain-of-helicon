@@ -196,6 +196,32 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         f"{rules_retired} rules/skills section(s) retired as drifted; {rules_live} live "
         "(section-level memories, covered by reconcile + snapshots)"))
 
+    # R11 identity coherence — one entity's DEFINITION forks across sources (same
+    # name, incompatible genera). R1 is blind: no scalar slot to compare. Deterministic.
+    try:
+        from helicon.identity import find_identity_forks
+        forks = find_identity_forks(conn, semantic=False)
+        checks.append(_check(
+            "R11", "Identity coherence", "TESTED", len(forks) > 0,
+            (f"{len(forks)} entity definition(s) forked across sources: "
+             + ", ".join(f"{x['name']} ({x['genus_a']}/{x['genus_b']})" for x in forks[:3]))
+            if forks else "no entity definition forks across sources"))
+    except Exception as e:
+        checks.append(_check("R11", "Identity coherence", "TESTED", None, f"unmeasured: {e}"))
+
+    # R12 phantom association — a relation asserted by a single speculative source
+    # that nothing else grounds. R1/R11 blind: no scalar slot, no definition fork.
+    try:
+        from helicon.relations import find_phantom_relations
+        phantoms = find_phantom_relations(conn)
+        checks.append(_check(
+            "R12", "Phantom association", "TESTED", len(phantoms) > 0,
+            (f"{len(phantoms)} ungrounded relation(s): "
+             + ", ".join(f"{x['subj']}->{x['obj']}" for x in phantoms[:3]))
+            if phantoms else "no ungrounded single-source relations between entities"))
+    except Exception as e:
+        checks.append(_check("R12", "Phantom association", "TESTED", None, f"unmeasured: {e}"))
+
     found = sum(1 for c in checks if c["verdict"] == "ROT FOUND")
     unmeasured = sum(1 for c in checks if c["verdict"] == "UNMEASURED")
     tested = sum(1 for c in checks if c["coverage"] == "TESTED")
@@ -208,7 +234,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
 
 def format_rot(res: dict) -> str:
     lines = [
-        "The rot exam — 10 documented failure classes, checked live (see ROT.md)",
+        f"The rot exam — {res['classes']} documented failure classes, checked live (see ROT.md)",
         "",
     ]
     for c in res["checks"]:

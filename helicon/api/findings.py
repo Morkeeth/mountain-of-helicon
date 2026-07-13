@@ -83,6 +83,8 @@ _AUDIT_ACTION = {
     "decay": "kill_stale",
     "factual": "reconcile",
     "logical": "review",
+    "identity": "resolve_identity",
+    "provenance": "resolve_relation",
 }
 
 

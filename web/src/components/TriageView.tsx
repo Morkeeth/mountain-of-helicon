@@ -58,13 +58,13 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
         </div>
 
         {lastResult && (
-          <div className="mb-6 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-lg animate-fade-in">
-            <span className="text-[13px] text-emerald-700">{lastResult.triaged} items auto-triaged</span>
+          <div className="mb-6 px-4 py-3 bg-zinc-100/40 border border-zinc-400/30 rounded-lg animate-fade-in">
+            <span className="text-[13px] text-zinc-500">{lastResult.triaged} items auto-triaged</span>
             {lastResult.actions.length > 0 && (
               <div className="mt-2 space-y-1">
                 {lastResult.actions.slice(0, 5).map(a => (
                   <div key={a.cube_id} className="flex items-center gap-2 text-[11px]">
-                    <span className={a.action === 'kill' ? 'text-red-600' : 'text-emerald-600'}>
+                    <span className={a.action === 'kill' ? 'text-[#223A4E]' : 'text-zinc-500'}>
                       {a.action}
                     </span>
                     <span className="text-zinc-600 truncate">{a.title}</span>
@@ -92,7 +92,7 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
               <span className="text-[11px] text-zinc-700 block">Actions</span>
               <div className="flex gap-2 mt-1">
                 {Object.entries(stats.by_action).map(([action, count]) => (
-                  <span key={action} className={`text-[12px] tabular-nums ${action === 'kill' ? 'text-red-600' : 'text-emerald-600'}`}>
+                  <span key={action} className={`text-[12px] tabular-nums ${action === 'kill' ? 'text-[#223A4E]' : 'text-zinc-500'}`}>
                     {action}: {count}
                   </span>
                 ))}
@@ -117,8 +117,8 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className={`text-[11px] px-1.5 py-0.5 rounded ${
                         a.action === 'kill'
-                          ? 'bg-red-50 text-red-600'
-                          : 'bg-emerald-50 text-emerald-600'
+                          ? 'bg-[rgba(34,58,78,0.10)] text-[#223A4E]'
+                          : 'bg-zinc-100/40 text-zinc-500'
                       }`}>
                         {a.action}
                       </span>
@@ -153,8 +153,8 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
                   <div className="flex items-center gap-2">
                     <span className={`text-[11px] px-1.5 py-0.5 rounded ${
                       r.action === 'kill'
-                        ? 'bg-red-50 text-red-600'
-                        : 'bg-emerald-50 text-emerald-600'
+                        ? 'bg-[rgba(34,58,78,0.10)] text-[#223A4E]'
+                        : 'bg-zinc-100/40 text-zinc-500'
                     }`}>
                       auto-{r.action}
                     </span>
@@ -179,7 +179,7 @@ export function TriageView({ onTriaged }: { onTriaged?: () => void }) {
             {stats.recent.slice(0, 10).map((r, i) => (
               <div key={i} className="flex items-center justify-between text-[11px] py-1.5">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className={r.action === 'kill' ? 'text-red-600' : 'text-emerald-600'}>{r.action}</span>
+                  <span className={r.action === 'kill' ? 'text-[#223A4E]' : 'text-zinc-500'}>{r.action}</span>
                   <span className="text-zinc-600 truncate">{r.reason}</span>
                 </div>
                 <span className="text-zinc-800 shrink-0 ml-2">{r.triaged_at.slice(0, 10)}</span>
