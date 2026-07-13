@@ -127,7 +127,19 @@ def main() -> int:
             resolve_relation(conn, pid[0], "phantom")
         print("── PHASE 2 · you rule them (Helicon remembers the verdict) ──")
         print("  Aurora ruled canonical: a payments protocol (the 'lending market' fork loses).")
-        print("  Helios → Solana ruled: phantom (an ungrounded association).\n")
+        print("  Helios → Solana ruled: phantom (an ungrounded association).")
+        # The ruling BECOMES law — compiled into the Golden Rules the agent reads
+        # before it writes. A store keeps both memories; Helicon turns your verdict
+        # into policy. This is the half a memory store structurally cannot do.
+        from helicon.gold import compile_gold
+        law = compile_gold(conn, {})
+        rulings = [ln.strip("- ").strip() for ln in law.splitlines()
+                   if ("ruled canonical" in ln or "phantom association" in ln)]
+        if rulings:
+            print("\n  ↳ the rulings compile into the Golden Rules the agent obeys next:")
+            for r in rulings:
+                print(f"      • {r.split(' —')[0].split(';')[0]}")
+        print()
 
         # PHASE 3 — re-audit (the rulings stick)
         res2 = run_rot_exam(conn)

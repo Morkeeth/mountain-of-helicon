@@ -56,15 +56,42 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
             taste_raw.append(d)
             continue
         when = (r["resolved_at"] or "")[:10]
-        if r["human_decision"].startswith("resolved:"):
-            truth = r["human_decision"].split(":", 1)[1]
+        atype, hd = r["audit_type"], r["human_decision"]
+        if atype == "identity" and hd.startswith("resolved:"):
+            # R11: a forked entity ruled to one canonical definition. The ruling
+            # becomes a standing rule the generator obeys — what a store can't do.
+            truth = hd.split(":", 1)[1]
+            name = (d.get("name") or "?").title()
+            # name the LOSING framing (any genus that isn't the canonical one) —
+            # genus_b can coincide with the winner, so scan all genera to be sure.
+            cg = d.get("canonical_genus")
+            losing = next((gen for gen in [d.get("genus_b"), *(d.get("genera") or {})]
+                           if gen and gen != cg), "")
+            tail = f"; the '{losing}' framing is wrong" if losing else ""
+            g["resolutions"].append({
+                "rule": f"{name} IS {truth} (ruled canonical){tail} — a competing "
+                        f"definition re-alarms if it returns",
+                "prov": f"identity ruling on finding #{r['id']}, {when}"})
+        elif atype == "provenance" and hd == "resolved:phantom":
+            # R12: a relation ruled ungrounded becomes a "do not assert this" rule.
+            subj = (d.get("subj") or "?").title()
+            obj = (d.get("obj") or "?").title()
+            pred = d.get("predicate") or "→"
+            g["resolutions"].append({
+                "rule": f"{subj} {pred} {obj} is a phantom association (ruled "
+                        f"ungrounded) — do not treat it as fact; re-alarms if re-asserted",
+                "prov": f"phantom ruling on finding #{r['id']}, {when}"})
+        elif atype == "provenance" and hd == "resolved:real":
+            pass  # ruled real is a clearance, not a guard — emits no standing rule
+        elif hd.startswith("resolved:"):
+            truth = hd.split(":", 1)[1]
             subj = f"{d.get('person', '?')} {d.get('topic', '?')}"
             g["resolutions"].append({
                 "rule": f"{subj} = {truth}; the competing value(s) "
                         f"{', '.join(v for v in d.get('dates', []) if v != truth)} "
                         f"are ruled wrong and re-alarm if they return",
                 "prov": f"ruling on finding #{r['id']}, {when}"})
-        elif r["human_decision"] == "dismissed" and d.get("dismiss_reason"):
+        elif hd == "dismissed" and d.get("dismiss_reason"):
             g["precedents"].append({
                 "rule": "NOT rot: " + (r["finding"][:118].rsplit(" ", 1)[0] if len(r["finding"]) > 118 else r["finding"]),
                 "why": d["dismiss_reason"][:140],

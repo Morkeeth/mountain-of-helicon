@@ -70,6 +70,52 @@ def test_write_appends_history(env):
     assert [h["total"] for h in hist] == [a["total"], b["total"]]
 
 
+def test_identity_and_phantom_rulings_compile_to_law(env):
+    """R11 canonical + R12 phantom rulings become standing Golden Rules — the moat:
+    a ruling governs the next generation. And they must NOT fall through to the
+    claims shape and emit '? ? = ...' garbage."""
+    conn, config = env
+    insert_audit(conn, AuditResult(
+        audit_type="identity", target_type="cube", target_id="aurora",
+        finding="Identity fork: 'aurora' is defined as protocol vs market",
+        severity="critical", human_decision="resolved:a payments protocol",
+        details={"pair_key": "identity|aurora", "name": "aurora",
+                 "genus_b": "market", "canonical_genus": "protocol",
+                 "genera": {"protocol": ["obsidian"], "market": ["claude-code"]}},
+        audited_at="2026-07-05", resolved_at="2026-07-05T12:00:00"))
+    insert_audit(conn, AuditResult(
+        audit_type="provenance", target_type="cube", target_id="helios",
+        finding="Phantom association: Helios rides the wave to Solana",
+        severity="warning", human_decision="resolved:phantom",
+        details={"pair_key": "relation|helios|solana", "subj": "helios",
+                 "obj": "solana", "predicate": "rides the wave to"},
+        audited_at="2026-07-05", resolved_at="2026-07-05T12:30:00"))
+    conn.commit()
+    md = compile_gold(conn, config)
+    assert "Aurora IS a payments protocol (ruled canonical)" in md
+    assert "'market' framing is wrong" in md
+    assert "Helios rides the wave to Solana is a phantom association" in md
+    assert "? ?" not in md            # never the claims-shape fallthrough
+    # every ruling still carries provenance
+    g = gather(conn, config)
+    for item in g["resolutions"]:
+        assert item.get("prov")
+
+
+def test_ruled_real_relation_emits_no_rule(env):
+    """A relation ruled REAL is a clearance, not a guard — it must not add a rule."""
+    conn, config = env
+    before = len(gather(conn, config)["resolutions"])
+    insert_audit(conn, AuditResult(
+        audit_type="provenance", target_type="cube", target_id="x",
+        finding="Phantom candidate ruled real", severity="warning",
+        human_decision="resolved:real",
+        details={"pair_key": "relation|a|b", "subj": "a", "obj": "b"},
+        audited_at="2026-07-05", resolved_at="2026-07-05T13:00:00"))
+    conn.commit()
+    assert len(gather(conn, config)["resolutions"]) == before
+
+
 def test_inject_is_dry_run_by_default(env, tmp_path, monkeypatch):
     conn, config = env
     monkeypatch.setenv("HOME", str(tmp_path))
