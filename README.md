@@ -16,7 +16,7 @@ Mount Helicon is the exam. It runs on real data only -- this repo was built and 
 
 ## The moat: what a memory store cannot do (one command)
 
-Mem0 stores. AgentPrizm confidence-scores. Both keep what an agent wrote. Neither can **examine whether two memories disagree on what an entity IS**, catch a **relationship no source ever grounded**, or make a **ruling stick** so a corrected mistake cannot silently return. Those are three things a store structurally cannot do — and they are the exam.
+Mem0 stores. AgentPrizm confidence-scores. Both keep what an agent wrote. Neither can **examine whether two memories disagree on what an entity IS**, catch a **relationship no source ever grounded**, make a **ruling stick** so a corrected mistake cannot silently return, or **turn that ruling into policy** the next generation obeys. Those are four things a store structurally cannot do — and they are the exam.
 
 ```bash
 python3 scripts/demo_mem0_audit.py --mock     # audits a Mem0-format store, no key
@@ -24,7 +24,7 @@ python3 scripts/demo_mem0_audit.py --mock     # audits a Mem0-format store, no k
 
 Four phases, on a store's own memories:
 1. **Audit** — catches an **identity fork** (`Aurora` defined as a *payments protocol* in one memory, a *lending market* in another) and a **phantom association** (`Aurora → Solana`, asserted once, grounded by nothing). R11 and R12 — blind spots no confidence score reveals.
-2. **Rule** — you settle each; Helicon records the verdict with provenance.
+2. **Rule** — you settle each; Helicon records the verdict *and compiles it into the Golden Rules the agent reads before it writes* (`Aurora IS a payments protocol (ruled canonical); the 'market' framing is wrong`). A store keeps both contradictory memories; Helicon turns your verdict into policy — the *govern* half a store has no place to put.
 3. **Re-audit** — clean. The rulings stuck.
 4. **Recurrence** — a new memory re-asserts the ruled-out definition, and Helicon **re-alarms**. A store forgets it ever asked; Helicon remembers what you ruled.
 
@@ -40,7 +40,7 @@ Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=con
 | **Remembers preferences** | Auto-triage learns keep/kill rules from *your* past rulings; Golden Rules encode your standing decisions with provenance |
 | **Improves decisions across sessions** | Rulings compile into Golden Rules the agent obeys next session; the never-twice guard stops a corrected fact silently resurfacing |
 | **Efficient store / retrieve** | Hybrid FTS5 + semantic retrieval; the battery tests what a task *actually* retrieves, not the whole store |
-| **Timely forgetting** | 10-class rot exam + per-type Weibull decay + `reconcile` retires cubes reality no longer contains |
+| **Timely forgetting** | 12-class rot exam + per-type Weibull decay + `reconcile` retires cubes reality no longer contains |
 | **Recall within limited context** | Selectors + retrieval-quality battery + Next Moves surface only what matters, each citing its source |
 | **Qwen Cloud, load-bearing** | Contradiction + grounding judging, cross-source adjudication, rule compilation, and Next Moves synthesis — cached, cost-tracked, honest keyless degrade |
 
