@@ -111,6 +111,19 @@ def extract_glosses(content: str, title: str = "") -> list[dict]:
 SEMANTIC_FORK_THRESHOLD = 0.45
 
 
+def _definition_only(gloss: str, name: str) -> str:
+    """Strip the entity subject + copula lead-in so the semantic gate scores the
+    DEFINITION, not the shared "<Name> is a ..." frame. "Yieldbound is a wallet
+    tracker" -> "wallet tracker". Falls back to the raw gloss if stripping empties
+    it (so we never embed nothing)."""
+    import re
+    out = re.sub(re.escape(name), "", gloss, flags=re.I)
+    out = re.sub(r"^[\s,;:\-–—]*((is|was|are)\s+)?(an?|the)\s+", "",
+                 out.strip(), flags=re.I)
+    out = out.strip(" ,;:-–—\n\t")
+    return out or gloss
+
+
 def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
     """Names whose definition forks: >=2 distinct genera across >=2 source scopes,
     and the two genera are attested by DIFFERENT scopes (a real cross-source fork,
@@ -204,7 +217,14 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
             confirmed.append(f)          # a ruled-out definition returned — never-twice
             continue
         try:
-            va, vb = embed_text(f["gloss_a"]), embed_text(f["gloss_b"])
+            # Compare the DEFINITIONS, not the full sentences. Both glosses share
+            # the subject ("Yieldbound is a ..."), and that shared prefix inflates
+            # cosine enough to bury a real fork (treasury/tracker: 0.87 full vs
+            # 0.31 subject-stripped). Strip the entity name + copula lead-in so the
+            # semantic gate scores genus-vs-genus, the signal it was tuned for.
+            da = _definition_only(f["gloss_a"], f["name"])
+            db = _definition_only(f["gloss_b"], f["name"])
+            va, vb = embed_text(da), embed_text(db)
             denom = (float(np.linalg.norm(va)) * float(np.linalg.norm(vb))) or 1.0
             cos = float(np.dot(va, vb)) / denom
         except Exception:

@@ -200,12 +200,22 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
     # name, incompatible genera). R1 is blind: no scalar slot to compare. Deterministic.
     try:
         from helicon.identity import find_identity_forks
-        forks = find_identity_forks(conn, semantic=False)
+        # Semantic-confirmed forks = exactly what `resolve --list` lets you rule.
+        # The exam must count the SAME set the loop can act on; the fast
+        # genus-only pass over-reports the false positives the semantic gate
+        # (local embeddings, no LLM) exists to kill. Candidates it drops are
+        # reported as an unconfirmed sub-signal, never as ROT.
+        forks = find_identity_forks(conn, semantic=True)
+        candidates = find_identity_forks(conn, semantic=False)
+        unconfirmed = max(0, len(candidates) - len(forks))
+        note = (f" (+{unconfirmed} genus candidate(s) semantically unconfirmed)"
+                if unconfirmed else "")
         checks.append(_check(
             "R11", "Identity coherence", "TESTED", len(forks) > 0,
             (f"{len(forks)} entity definition(s) forked across sources: "
-             + ", ".join(f"{x['name']} ({x['genus_a']}/{x['genus_b']})" for x in forks[:3]))
-            if forks else "no entity definition forks across sources"))
+             + ", ".join(f"{x['name']} ({x['genus_a']}/{x['genus_b']})" for x in forks[:3])
+             + note)
+            if forks else f"no confirmed entity definition forks{note}"))
     except Exception as e:
         checks.append(_check("R11", "Identity coherence", "TESTED", None, f"unmeasured: {e}"))
 

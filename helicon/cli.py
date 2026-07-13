@@ -650,6 +650,32 @@ def cmd_rot(args):
 
     config = load_config()
     conn = init_db(config["db_path"])
+
+    if getattr(args, "file", False):
+        # File the rulable findings so `resolve --list` can surface them without
+        # a full `evolve`. The exam itself is read-only; this is the opt-in write
+        # that turns a detected fork/contradiction into something you can rule.
+        client = None
+        try:
+            from helicon.qwen import get_client, set_cache_db
+            set_cache_db(conn)
+            client = get_client(config)
+        except Exception:
+            pass
+        from helicon.pairing import pair_scan
+        from helicon.claims import claim_scan
+        from helicon.aliases import alias_scan
+        from helicon.identity import identity_scan
+        from helicon.relations import relation_scan
+        pair_scan(conn, client=client)
+        claim_scan(conn, config)
+        alias_scan(conn)
+        identity_scan(conn)
+        relation_scan(conn)
+        n = conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
+        print(f"filed findings — {n} open to rule.  Next:  helicon resolve --list\n")
+
     res = run_rot_exam(conn)
     if getattr(args, "json", False):
         import json as _json
@@ -1138,18 +1164,39 @@ def cmd_resolve(args):
     conn = init_db(config["db_path"])
 
     if args.list or args.id is None:
-        rows = conn.execute(
-            "SELECT id, finding, severity, audited_at FROM audit_log "
+        # One "needs ruling" list across every rulable class, so the loop is
+        # discoverable: R1 cross-source contradictions, R11 identity forks,
+        # R12 phantom associations. Each carries the resolve verb it expects.
+        contradictions = conn.execute(
+            "SELECT id, finding, severity FROM audit_log "
             "WHERE audit_type = 'factual' AND details LIKE '%pair_key%' "
             "AND human_decision IS NULL ORDER BY id").fetchall()
-        if not rows:
-            print("No open cross-source contradictions.")
+        forks = conn.execute(
+            "SELECT id, finding, severity FROM audit_log "
+            "WHERE audit_type = 'identity' AND human_decision IS NULL ORDER BY id").fetchall()
+        phantoms = conn.execute(
+            "SELECT id, finding, severity FROM audit_log "
+            "WHERE audit_type = 'provenance' AND human_decision IS NULL ORDER BY id").fetchall()
+        if not (contradictions or forks or phantoms):
+            print("Nothing open to rule. (Findings are filed by `helicon evolve`; "
+                  "`helicon audit` detects read-only.)")
             return
-        print("Open cross-source contradictions:\n")
-        for r in rows:
-            print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
-        print("\nInspect one:  helicon resolve <id>   "
-              "(shows the evidence, decides nothing)")
+        if contradictions:
+            print("Cross-source contradictions (R1):\n")
+            for r in contradictions:
+                print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
+            print("  rule:  helicon resolve <id> --truth \"<the true value>\"\n")
+        if forks:
+            print("Identity forks (R11) — same name, incompatible definitions:\n")
+            for r in forks:
+                print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
+            print("  rule:  helicon resolve <id> --truth \"<the canonical definition>\"\n")
+        if phantoms:
+            print("Phantom associations (R12) — a relation no source grounds:\n")
+            for r in phantoms:
+                print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
+            print("  rule:  helicon resolve <id> --truth phantom   (or: --truth real)\n")
+        print("Inspect one:  helicon resolve <id>   (shows the evidence, decides nothing)")
         return
 
     if args.dismiss is not None:
@@ -1181,9 +1228,15 @@ def cmd_resolve(args):
             print(f"\n   {d['cube_count']} memories involved across "
                   f"{len(d.get('scopes', []))} source file(s)")
         if not row["human_decision"]:
-            vals = d.get("all_dates") or d.get("dates") or []
-            print(f"\nDecide:  helicon resolve {row['id']} --truth "
-                  f"<{'|'.join(str(v) for v in vals) or 'value'}>"
+            atype = row["audit_type"]
+            if atype == "identity":
+                hint = "--truth \"<the canonical definition>\""
+            elif atype == "provenance":
+                hint = "--truth phantom   (or: --truth real)"
+            else:
+                vals = d.get("all_dates") or d.get("dates") or []
+                hint = f"--truth <{'|'.join(str(v) for v in vals) or 'value'}>"
+            print(f"\nDecide:  helicon resolve {row['id']} {hint}"
                   f"\n   or:   helicon resolve {row['id']} --dismiss \"why\"")
         return
     # identity forks (R11) resolve with a canonical definition, not a scalar value
@@ -1882,6 +1935,7 @@ def main():
 
     rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 10 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
+    rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
 
     heal_p = sub.add_parser("repair", aliases=["heal"], help="Self-repair loop: score the 4 truth gates, propose repairs, apply, re-score")
     heal_p.add_argument("--demo", action="store_true", help="Run on the seeded demo store (universally-legible drift), not your real store")

@@ -156,9 +156,12 @@ def test_identity_reasserting_canonical_stays_settled(conn):
 
 
 def test_rot_exam_reports_r11(conn):
+    # The exam counts SEMANTICALLY-CONFIRMED forks (the same set `resolve --list`
+    # lets you rule), so the fixture is an unambiguous cross-genus fork. A genus
+    # mismatch alone is a candidate, not rot; the semantic gate confirms it.
     from helicon.rot import run_rot_exam
-    _cube(conn, "Yieldbound is a yield treasury.", "a.md")
-    _cube(conn, "Yieldbound is a wallet tracker.", "b.md")
+    _cube(conn, "Aurora is a payments protocol.", "a.md")
+    _cube(conn, "Aurora is a lending market.", "b.md")
     res = run_rot_exam(conn)
     r11 = next((c for c in res["checks"] if c["id"] == "R11"), None)
     assert r11 is not None and r11["verdict"] == "ROT FOUND"

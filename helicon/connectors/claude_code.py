@@ -106,7 +106,7 @@ def scan_jsonl(config: dict) -> list[ConnectorResult]:
                         if tool_name == "Write":
                             file_path = tool_input.get("file_path", "")
                             file_content = tool_input.get("content", "")
-                            if not file_path:
+                            if not file_path or _is_fixture_path(file_path):
                                 continue
                             filename = os.path.basename(file_path)
                             snippet = file_content[:500] if file_content else ""
@@ -125,7 +125,7 @@ def scan_jsonl(config: dict) -> list[ConnectorResult]:
                             file_path = tool_input.get("file_path", "")
                             old_string = tool_input.get("old_string", "")[:200]
                             new_string = tool_input.get("new_string", "")[:200]
-                            if not file_path:
+                            if not file_path or _is_fixture_path(file_path):
                                 continue
                             filename = os.path.basename(file_path)
                             results.append(ConnectorResult(
@@ -206,6 +206,20 @@ def scan_memory(config: dict) -> list[ConnectorResult]:
         ))
 
     return results
+
+
+def _is_fixture_path(file_path: str) -> bool:
+    """Demo/test fixtures carry fake-by-design content (mock entities, sample
+    stores). Capturing their file body as 'memory' pollutes the store — e.g. a
+    demo script's 'Aurora'/'Helios' props re-surfacing as real R11/R12 findings.
+    An edit to a fixture is not a fact about the user's world, so skip its body."""
+    p = file_path.replace("\\", "/").lower()
+    base = os.path.basename(p)
+    return (
+        "/tests/" in p or "/fixtures/" in p or "/__mocks__/" in p
+        or base.startswith("test_") or base.startswith("demo_")
+        or base.endswith(".fixture") or "mock" in base
+    )
 
 
 def _tags_from_path(file_path: str) -> list[str]:
