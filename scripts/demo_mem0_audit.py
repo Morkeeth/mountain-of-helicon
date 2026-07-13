@@ -129,14 +129,29 @@ def main() -> int:
         print("  Aurora ruled canonical: a payments protocol (the 'lending market' fork loses).")
         print("  Helios → Solana ruled: phantom (an ungrounded association).\n")
 
-        # PHASE 3 — re-audit (the rulings stick — never-twice)
+        # PHASE 3 — re-audit (the rulings stick)
         res2 = run_rot_exam(conn)
         print("── PHASE 3 · re-audit — the rulings stick ──")
         print(f"  R11 Identity coherence    {_c(res2, 'R11')['verdict']}")
         print(f"  R12 Phantom association   {_c(res2, 'R12')['verdict']}")
-        print("  Settled. Re-assert either and it re-alarms; a governed store just re-stores it.\n")
-        print("  A store REMEMBERS everything. Helicon EXAMINES it — and what you rule")
-        print("  cannot return. That is the moat a memory store cannot cross.")
+        print("  Settled — clean.\n")
+
+        # PHASE 4 — recurrence: the never-twice punchline a store can't do
+        from helicon.connectors.mem0 import _to_result
+        from helicon.scanner import result_to_cube
+        from helicon.db import insert_cube
+        recur = {"id": "m-aurora-recur", "categories": ["projects"],
+                 "created_at": "2027-01-01T00:00:00",
+                 "memory": "Update: Aurora is a lending market after all — the "
+                           "payments-protocol framing was wrong."}
+        insert_cube(conn, result_to_cube(_to_result(recur, args.user_id)))
+        res3 = run_rot_exam(conn)
+        print("── PHASE 4 · a NEW memory re-asserts the ruled-out definition ──")
+        print("  (Mem0 would just store it, or keep both. What does Helicon do?)")
+        print(f"  R11 Identity coherence    {_c(res3, 'R11')['verdict']}   {_c(res3, 'R11')['receipt']}")
+        print("\n  Never-twice: the verdict you made RE-ALARMS the instant it's contradicted")
+        print("  again. A store forgets it ever asked. Helicon remembers what you ruled —")
+        print("  and that is the moat a memory store cannot cross.")
         return 0
 
     print(format_rot(res))
