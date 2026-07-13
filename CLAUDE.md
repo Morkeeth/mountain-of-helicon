@@ -11,7 +11,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 ## Hackathon
 
 - **Track:** Qwen Cloud Global AI Hackathon - MemoryAgent
-- **Deadline:** Jul 9, 2026
+- **Deadline:** Jul 20, 2026, 2pm PDT (verified at devpost source Jul 13; the old "Jul 9" was stale)
 - **Prize:** $10K ($7K cash + $3K Alibaba Cloud credits)
 - **Requirements:** Qwen Cloud API, Alibaba Cloud deployment, open source, 3-min demo video
 
