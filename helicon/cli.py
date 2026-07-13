@@ -602,6 +602,27 @@ def cmd_battery(args):
         print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
 
 
+def cmd_taste(args):
+    """Taste-verdict memory: remember Taste Machine rulings + the never-twice guard."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.taste import ingest_file, taste_guard
+    config = load_config()
+    conn = init_db(config["db_path"])
+    if args.ingest:
+        res = ingest_file(conn, args.ingest)
+        print(f"ingested {res['ingested']} verdict(s); {res['already_had']} already remembered")
+        return
+    if args.hash or args.move:
+        g = taste_guard(conn, artifact_hash=args.hash, move=args.move)
+        if g["already_ruled"]:
+            print(f"ALREADY RULED ({g['match']}): {g.get('prior_verdict')} \u2014 {g.get('reason')}")
+        else:
+            print("not yet ruled \u2014 fresh output")
+        return
+    print('usage: helicon taste --ingest <verdicts.json>  |  --hash <h> | --move <name>')
+
+
 def cmd_lens(args):
     """Memory Causal Lens: the memories behind an answer, with provenance."""
     from helicon.config import load_config
@@ -1839,6 +1860,10 @@ def main():
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
+    taste_p = sub.add_parser("taste", help="Taste-verdict memory: remember Taste Machine rulings + the never-twice guard")
+    taste_p.add_argument("--ingest", metavar="JSON", help="ingest a JSON array of Taste Machine verdicts")
+    taste_p.add_argument("--hash", help="guard: has this exact output (artifact hash) been ruled?")
+    taste_p.add_argument("--move", help="guard: has this move/shape usually been killed?")
     lens_p = sub.add_parser("lens", help="Memory Causal Lens: the memories behind an answer, with provenance")
     lens_p.add_argument("task", nargs="?", help="task or answer text")
     lens_p.add_argument("-k", type=int, default=8, help="how many memories to trace (default 8)")
@@ -1952,6 +1977,7 @@ def main():
         "triage": cmd_triage,
         "review": cmd_review,
         "snapshot": cmd_snapshot,
+        "taste": cmd_taste,
         "lens": cmd_lens,
         "check": cmd_battery,
         "battery": cmd_battery,
