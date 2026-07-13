@@ -326,6 +326,47 @@ def review_terminals(conn, config=None, file=False, only=None, run=False):
     return queue
 
 
+def resolve_review(conn, audit_id, note=""):
+    """Close the loop: ruling an output-review finding writes the reality-checked
+    verdict back into memory as an approved correction cube (source
+    'output-review', full provenance), so the next retrieval serves the truth
+    instead of the agent's unverified claim. This is the OUTPUT -> memory edge:
+    output evaluation improves the store, not just a review queue."""
+    import json
+    from datetime import datetime, timezone
+    row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (audit_id,)).fetchone()
+    if row is None:
+        return {"ok": False, "error": f"no audit finding #{audit_id}"}
+    if row["audit_type"] != "review":
+        return {"ok": False, "error": f"finding #{audit_id} is not an output-review finding"}
+    if row["human_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already decided: {row['human_decision']}"}
+    try:
+        d = json.loads(row["details"] or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    conn.execute("UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
+                 (f"resolved:{note or 'ruled'}", now, audit_id))
+    from helicon.models import HeliconCube
+    from helicon.scanner import make_id, content_hash as _hash
+    from helicon.db import insert_cube
+    tgt, receipt = row["target_id"], d.get("receipt", "")
+    content = (f"Output review of terminal '{tgt}' ({d.get('repo','')}, branch "
+               f"{d.get('branch','')}): the claim \"{row['finding']}\" was checked "
+               f"against reality on {now[:10]}. Verdict: {row['finding'].split(':')[0]}. "
+               f"Reality: {receipt}."
+               + (f" Human ruling: {note}." if note else ""))
+    cube = HeliconCube(
+        id=make_id(), source="output-review", source_ref=f"audit:{audit_id}",
+        type="decision", title=f"Output-checked: {tgt} - {d.get('kind','claim')}",
+        content=content, summary="", content_hash=_hash(content),
+        created_at=now, valid_from=now, last_reinforced=now,
+        confidence=1.0, review_status="approved")
+    insert_cube(conn, cube)
+    return {"ok": True, "audit_id": audit_id, "correction_cube": cube.id, "terminal": tgt}
+
+
 def format_queue(queue, filed=False):
     if not queue:
         return "\n  No unverified claims across your terminals. The board is clean.\n"

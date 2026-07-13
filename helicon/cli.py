@@ -1269,6 +1269,18 @@ def cmd_resolve(args):
         if rr["verdict"] == "phantom" and rr["correction_cube"]:
             print(f"  phantom recorded (cube {rr['correction_cube']}); the scan will not re-file it")
         return
+    if _row and _row["audit_type"] == "review":
+        # the OUTPUT -> memory edge: a false claim ruling writes the reality
+        # verdict back into the store as a correction (dismiss = it was true).
+        from helicon.review_terminals import resolve_review
+        rv = resolve_review(conn, args.id, args.truth or "")
+        conn.commit()
+        if not rv["ok"]:
+            print(f"error: {rv['error']}")
+            return
+        print(f"resolved #{rv['audit_id']}: output claim from '{rv['terminal']}' corrected")
+        print(f"  correction cube {rv['correction_cube']} (approved) now serves the reality-checked truth")
+        return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
         print(f"error: {res['error']}")
