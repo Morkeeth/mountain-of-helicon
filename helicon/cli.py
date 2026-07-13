@@ -1748,14 +1748,19 @@ def cmd_eval(_args):
         print(f"    ... and {len(r['details']) - 5} more queries")
 
     f = result["forgetting"]
-    print(f"\nForgetting accuracy: {f['forgetting_accuracy']:.0%}")
-    print(f"  {f['killed_with_low_conf']}/{f['killed_total']} killed items had low confidence (correct)")
-    print(f"  {f['approved_with_ok_conf']}/{f['approved_total']} approved items had ok confidence (correct)")
+    print(f"\nForgetting — {f.get('metric', 'rank_auc')}: {f['forgetting_accuracy']:.3f}")
+    if f.get("mean_conf_killed") is not None:
+        print(f"  mean confidence: killed {f['mean_conf_killed']} vs approved "
+              f"{f.get('mean_conf_approved')} "
+              f"({f.get('killed_total', 0)} killed, {f.get('approved_total', 0)} approved)")
 
     a = result["audit"]
-    print(f"\nAudit recall: {a['audit_recall']:.0%}")
-    print(f"  {a['stale_cubes_found']} flagged / {a['stale_cubes_actual']} actually stale")
-    print(f"  {a['total_findings']} total findings, {a['human_confirmed']} human-confirmed")
+    if a.get("audit_recall") is not None:
+        print(f"\nAudit precision: {a['audit_recall']:.0%}  ({a.get('note', '')})")
+    else:
+        print(f"\nAudit: {a.get('note', 'not scored')}")
+    print(f"  {a.get('stale_cubes_found', 0)} flagged / {a.get('stale_cubes_actual', 0)} "
+          f"actually stale, {a.get('total_findings', 0)} total findings")
 
 
 def cmd_consolidation_eval(args):
