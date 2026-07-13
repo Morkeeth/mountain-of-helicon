@@ -146,6 +146,14 @@ def seed(db_path: str = DEMO_DB) -> dict:
                 "was_acted_on, retrieved_at) VALUES (?, 'demo', 1, 0, ?)",
                 (cid, recent))
     conn.commit()
+
+    # File the findings a human rules on in the dashboard demo — R11 identity forks
+    # + R12 phantom associations — so they appear in the review queue with their
+    # resolve controls (deterministic, no embeddings needed).
+    from helicon.identity import identity_scan
+    from helicon.relations import relation_scan
+    identity_scan(conn, semantic=False)
+    relation_scan(conn)
     return {"db": db_path, "cubes": n}
 
 
