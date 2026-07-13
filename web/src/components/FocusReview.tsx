@@ -106,6 +106,8 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
             <><Primary disabled={acting} onClick={() => confirmAudit('dismissed')}>Keep</Primary>
               <Ghost disabled={acting} onClick={() => confirmAudit('acted')}>Retire</Ghost>
               <Later onClick={() => advance(f)} /></>
+          ) : f.suggested_action === 'resolve_identity' && auditId !== null ? (
+            <IdentityResolveFocus auditId={auditId} onDone={() => advance(f)} />
           ) : (
             <><Primary disabled={acting} onClick={() => (f.cube_id ? review('approved') : confirmAudit('dismissed'))}>Confirm — still true</Primary>
               <Ghost disabled={acting} onClick={() => (f.cube_id ? review('killed') : confirmAudit('acted'))}>Retire</Ghost>
@@ -160,5 +162,33 @@ function CmdChip({ cmd }: { cmd: string }) {
       style={{ fontFamily: MONO, color: INK, background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
       {copied ? 'copied ✓' : `${cmd}  ⧉`}
     </button>
+  );
+}
+
+
+function IdentityResolveFocus({ auditId, onDone }: { auditId: number; onDone: () => void }) {
+  const [canon, setCanon] = useState('');
+  const [busy, setBusy] = useState(false);
+  const resolve = async () => {
+    if (!canon.trim()) return;
+    setBusy(true);
+    try { await api.resolveIdentity(auditId, canon.trim()); } finally { setBusy(false); }
+    onDone();
+  };
+  const dismiss = async () => {
+    setBusy(true);
+    try { await api.confirmAudit(auditId, 'dismissed'); } finally { setBusy(false); }
+    onDone();
+  };
+  return (
+    <div className="flex items-center gap-2.5 flex-wrap">
+      <input value={canon} onChange={e => setCanon(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') resolve(); }}
+        placeholder="the canonical definition…"
+        className="px-3 py-2 rounded-lg text-[13px] outline-none w-64"
+        style={{ background: 'var(--helicon-panel-2)', color: INK, border: '1px solid var(--helicon-line)' }} />
+      <Primary disabled={busy || !canon.trim()} onClick={resolve}>Set canonical</Primary>
+      <Ghost disabled={busy} onClick={dismiss}>Not a fork</Ghost>
+    </div>
   );
 }

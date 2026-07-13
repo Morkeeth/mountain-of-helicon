@@ -125,6 +125,9 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
   };
 
   const actions = (() => {
+    if (f.suggested_action === 'resolve_identity' && auditId !== null) {
+      return <IdentityResolve auditId={auditId} onGone={onGone} />;
+    }
     if (f.suggested_action === 'fix_skill') {
       return <CopyChip cmd="helicon fix-skills --apply" title="writes descriptions back with .bak backups" />;
     }
@@ -382,6 +385,34 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
       {visible.length > 50 && (
         <p className="text-[11px] text-zinc-700 mt-3 text-center">Showing the first 50 of {visible.length}</p>
       )}
+    </div>
+  );
+}
+
+
+function IdentityResolve({ auditId, onGone }: { auditId: number; onGone: () => void }) {
+  const [canon, setCanon] = useState('');
+  const [busy, setBusy] = useState(false);
+  const resolve = async () => {
+    if (!canon.trim()) return;
+    setBusy(true);
+    try { await api.resolveIdentity(auditId, canon.trim()); } finally { setBusy(false); }
+    onGone();
+  };
+  const dismiss = async () => {
+    setBusy(true);
+    try { await api.confirmAudit(auditId, 'dismissed'); } finally { setBusy(false); }
+    onGone();
+  };
+  return (
+    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+      <input value={canon} onChange={e => setCanon(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') resolve(); }}
+        placeholder="canonical definition…"
+        className="text-[11px] px-2 py-1 rounded border w-44 outline-none"
+        style={{ background: 'var(--helicon-panel-2)', color: 'var(--helicon-ink)', borderColor: 'var(--helicon-line)' }} />
+      <ActionButton label="Set canonical" tone="keep" disabled={busy || !canon.trim()} onClick={resolve} />
+      <ActionButton label="Not a fork" tone="muted" disabled={busy} onClick={dismiss} />
     </div>
   );
 }

@@ -32,6 +32,18 @@ class ConfirmRequest(BaseModel):
     notes: str = ""
 
 
+class ResolveIdentityRequest(BaseModel):
+    finding_id: int
+    canonical: str
+
+
+@router.post("/audit/resolve-identity")
+async def resolve_identity_finding(req: ResolveIdentityRequest):
+    from helicon.identity import resolve_identity
+    conn = get_conn()
+    return resolve_identity(conn, req.finding_id, req.canonical)
+
+
 @router.post("/audit/confirm")
 async def confirm_finding(req: ConfirmRequest):
     conn = get_conn()
