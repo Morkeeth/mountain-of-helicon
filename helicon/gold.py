@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 def gather(conn: sqlite3.Connection, config: dict) -> dict:
     g: dict = {"canon": [], "renames": [], "triage": [], "precedents": [],
-               "resolutions": [], "feedback": []}
+               "resolutions": [], "taste": [], "feedback": []}
 
     for metric, path in (config.get("claims", {}).get("canonical", {}) or {}).items():
         g["canon"].append({"rule": f"`{metric}` lives in {path}; every other "
@@ -43,14 +43,18 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
                                     f"{(r['approved_at'] or '')[:10]}, "
                                     f"trust {r['trust']:.2f}"})
 
+    taste_raw = []
     for r in conn.execute(
-        "SELECT id, finding, details, resolved_at, human_decision FROM audit_log "
+        "SELECT id, audit_type, finding, details, resolved_at, human_decision FROM audit_log "
         "WHERE human_decision IS NOT NULL ORDER BY resolved_at"
     ):
         try:
             d = json.loads(r["details"]) if r["details"] else {}
         except (json.JSONDecodeError, TypeError):
             d = {}
+        if r["audit_type"] == "taste":
+            taste_raw.append(d)
+            continue
         when = (r["resolved_at"] or "")[:10]
         if r["human_decision"].startswith("resolved:"):
             truth = r["human_decision"].split(":", 1)[1]
@@ -65,6 +69,29 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
                 "rule": "NOT rot: " + (r["finding"][:118].rsplit(" ", 1)[0] if len(r["finding"]) > 118 else r["finding"]),
                 "why": d["dismiss_reason"][:140],
                 "prov": f"dismissed finding #{r['id']}, {when}"})
+
+    # taste verdicts -> "avoid this shape" rules the generator obeys
+    from collections import Counter as _C
+    _kills, _sends = _C(), _C()
+    _KILL = {"kill", "killed", "reject", "rejected"}
+    _SEND = {"send", "sent", "approve", "approved", "exceptional"}
+    for d in taste_raw:
+        move = d.get("move", "")
+        if not move:
+            continue
+        key = (d.get("kind", ""), move)
+        v = d.get("human_verdict", "")
+        if v in _KILL:
+            _kills[key] += 1
+        elif v in _SEND:
+            _sends[key] += 1
+    for key, n in _kills.items():
+        if n >= 2 and n > _sends[key]:
+            kind, move = key
+            g["taste"].append({
+                "rule": f"avoid the '{move}' move" + (f" for {kind}" if kind else "")
+                        + f" — ruled kill {n}x (sent {_sends[key]}x)",
+                "prov": "taste verdicts remembered from Taste Machine"})
 
     for r in conn.execute(
         "SELECT title, source_ref FROM helicon_cubes "
@@ -115,6 +142,8 @@ def _compile_from(g: dict) -> str:
     section("Rulings — facts decided, guarded against recurrence", g["resolutions"],
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
     section("Triage law — approved, previewed against history", g["triage"],
+            lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
+    section("Taste — output shapes to avoid", g["taste"],
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
     section("Precedents — what is NOT rot here", g["precedents"],
             lambda it: f"- {it['rule']}  \n  _why: {it['why']}_  \n  _[{it['prov']}]_")
