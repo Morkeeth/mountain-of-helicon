@@ -72,6 +72,29 @@ CUBES = [
      "Obsidian for now. Revisit after the trial.",
      "2025-10-10T09:00:00", {"as_of": "2025-10-10"}),
 
+    # --- R11 identity coherence: one entity, two forked definitions ----------
+    # Two grounded sources define "Aurora" with incompatible genera (protocol vs
+    # market). Article-gated, cross-source -> the identity gate fires.
+    ("demo-aurora-a", "obsidian", "01 Projects/Aurora/overview.md", "project",
+     "Aurora — overview",
+     "Aurora is a payments protocol for cross-border stablecoin settlement; it "
+     "routes transfers between chains.",
+     "2026-04-01T09:00:00", {}),
+    ("demo-aurora-b", "claude-code", "session/2026-05-10", "memory",
+     "Aurora notes",
+     "Reminder: Aurora is a lending market — users deposit collateral and borrow "
+     "against it at a variable rate.",
+     "2026-05-10T09:00:00", {}),
+
+    # --- R12 phantom association: a relation no source grounds ----------------
+    # A single idea note claims a relation between two entities that nothing else
+    # corroborates -> the phantom-association gate fires.
+    ("demo-aurora-phantom", "obsidian", "03 Ideas/aurora-thesis.md", "idea",
+     "Aurora thesis",
+     "Aurora rides the wave to Solana — if the Solana ecosystem keeps growing, "
+     "Aurora rides that momentum straight up.",
+     "2026-06-15T09:00:00", {}),
+
     # --- clean control memories (so scores are not 0/100 and gates are honest) -
     ("demo-name", "claude-code", "session/2025-10-01", "preference",
      "How the user is addressed",
