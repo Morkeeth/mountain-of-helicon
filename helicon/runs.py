@@ -19,7 +19,7 @@ carries plus the wall-clock span from the line timestamps.
 import glob
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 def _parse_ts(s: str):
@@ -116,12 +116,99 @@ def scan_session_costs(jsonl_dir: str, since: str | None = None) -> list[dict]:
     return recs
 
 
+def group_runs(recs: list[dict], gap_min: int = 300) -> list[dict]:
+    """Slice 1.2: cluster per-session cost records into RUNS. A run is a burst of
+    work Oscar kicked off: sessions whose STARTS fall within `gap_min` of each
+    other (parallel terminals start together; the next run begins after a quiet
+    gap). Clustering on start time, not activity span, so a long session left
+    open cannot bridge two days into one blob.
+
+    Honest temporal grouping only, from the real first_ts of each session; no
+    invented boundaries. `gap_min` (default 5h) is the tuning knob; closeout-based
+    linkage can refine it later.
+    """
+    placed, loose = [], []
+    for r in recs:
+        f = _parse_ts(r.get("first_ts"))
+        if f:
+            placed.append((f, r))
+        else:
+            loose.append(r)                     # no timestamps: its own singleton run
+    placed.sort(key=lambda t: t[0])
+
+    runs = []
+    cur = None
+    prev_start = None
+    for f, r in placed:
+        if cur and prev_start and f <= prev_start + timedelta(minutes=gap_min):
+            cur["_members"].append(r)
+            l = _parse_ts(r.get("last_ts"))
+            if l and l > cur["_end"]:
+                cur["_end"] = l
+        else:
+            if cur:
+                runs.append(_finalize_run(cur))
+            cur = {"_start": f, "_end": _parse_ts(r.get("last_ts")) or f, "_members": [r]}
+        prev_start = f
+    if cur:
+        runs.append(_finalize_run(cur))
+    for r in loose:
+        runs.append(_finalize_run({"_start": None, "_end": None, "_members": [r]}))
+
+    runs.sort(key=lambda x: x["end"] or "", reverse=True)
+    return runs
+
+
+def _finalize_run(cur: dict) -> dict:
+    members = cur["_members"]
+    models: dict[str, int] = {}
+    out_tok = total_tok = 0
+    for m in members:
+        for mdl, c in (m.get("models") or {}).items():
+            models[mdl] = models.get(mdl, 0) + c
+        out_tok += m.get("output_tokens", 0)
+        total_tok += m.get("total_tokens", 0)
+    start, end = cur["_start"], cur["_end"]
+    dur = round((end - start).total_seconds() / 60, 1) if (start and end) else 0.0
+    start_iso = start.isoformat() if start else (members[0].get("first_ts") or "")
+    run_id = "run-" + (start_iso[:16] if start_iso else members[0]["session_id"][:8])
+    return {
+        "run_id": run_id,
+        "start": start.isoformat() if start else members[0].get("first_ts"),
+        "end": end.isoformat() if end else members[0].get("last_ts"),
+        "duration_min": dur,
+        "session_ids": [m["session_id"] for m in members],
+        "session_count": len(members),
+        "model": max(models, key=lambda k: models[k]) if models else "unknown",
+        "models": models,
+        "output_tokens": out_tok,
+        "total_tokens": total_tok,
+    }
+
+
 def _fmt_tok(n: int) -> str:
     if n >= 1_000_000:
         return f"{n/1_000_000:.1f}M"
     if n >= 1_000:
         return f"{n/1_000:.0f}k"
     return str(n)
+
+
+def format_runs(runs: list[dict], limit: int = 15) -> str:
+    if not runs:
+        return "\n  No runs found.\n"
+    out = ["", f"  RUNS — start-clustered (newest first, top {min(limit, len(runs))} "
+           f"of {len(runs)})", ""]
+    out.append(f"  {'run':18}  {'span':16}  {'dur':>8}  {'sess':>4}  "
+               f"{'out':>6}  {'total':>7}  model")
+    for r in runs[:limit]:
+        span = (r["start"] or "")[:16].replace("T", " ")
+        model = r["model"].replace("claude-", "")
+        out.append(f"  {r['run_id'][4:]:18}  {span:16}  "
+                   f"{str(r['duration_min'])+'m':>8}  {r['session_count']:>4}  "
+                   f"{_fmt_tok(r['output_tokens']):>6}  {_fmt_tok(r['total_tokens']):>7}  {model}")
+    out.append("")
+    return "\n".join(out)
 
 
 def format_session_costs(recs: list[dict], limit: int = 20) -> str:

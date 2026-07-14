@@ -527,17 +527,23 @@ def cmd_route(args):
 
 
 def cmd_score_runs(args):
-    """Slice 1.1: the cost side of run scoring. Parse Claude Code transcripts into
-    a per-session cost table (model, duration, tokens). Yield + score land in
-    later slices."""
+    """Run Ratings (building): the cost + identity of runs. Parse Claude Code
+    transcripts into per-session cost, cluster sessions into runs (slice 1.2).
+    Yield + score land in later slices. Default view = runs; --sessions = raw."""
     from helicon.config import load_config
-    from helicon.runs import scan_session_costs, format_session_costs
+    from helicon.runs import (scan_session_costs, group_runs,
+                              format_session_costs, format_runs)
 
     config = load_config()
     jsonl_dir = (config.get("connectors", {}).get("claude-code", {}) or {}).get(
         "jsonl_dir") or "~/.claude/projects"
     recs = scan_session_costs(jsonl_dir, since=getattr(args, "since", None))
-    print(format_session_costs(recs, limit=getattr(args, "limit", 20)))
+    limit = getattr(args, "limit", 20)
+    if getattr(args, "sessions", False):
+        print(format_session_costs(recs, limit=limit))
+    else:
+        runs = group_runs(recs, gap_min=getattr(args, "gap", 300))
+        print(format_runs(runs, limit=limit))
 
 
 def cmd_snapshot(args):
@@ -1989,9 +1995,11 @@ def main():
     route_p.add_argument("--min-n", type=int, default=5, dest="min_n",
                          help="Min pass/fail samples before a pick is made (default 5); below this: insufficient evidence")
 
-    scoreruns_p = sub.add_parser("score-runs", help="Score whole runs (slice 1.1: per-session cost table from Claude Code transcripts)")
+    scoreruns_p = sub.add_parser("score-runs", help="Score whole runs: cost + identity from Claude Code transcripts (yield + score land in later slices)")
     scoreruns_p.add_argument("--since", metavar="ISO", help="Only sessions active at/after this ISO date")
     scoreruns_p.add_argument("--limit", type=int, default=20, help="Rows to show (default 20)")
+    scoreruns_p.add_argument("--sessions", action="store_true", help="Show the raw per-session cost table instead of clustered runs")
+    scoreruns_p.add_argument("--gap", type=int, default=300, help="Minutes between session starts that split one run from the next (default 300)")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
