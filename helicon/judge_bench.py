@@ -101,17 +101,53 @@ def build_probes(which: str = "ruled") -> list[dict]:
     return probes
 
 
+def _openrouter_client():
+    """Slice 3: any OpenAI-compatible judge (GPT/Claude/...) via OpenRouter, one
+    key. Returns None when no key is set - we never fabricate a competitor."""
+    import os
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if not key:
+        return None
+    from openai import OpenAI
+    return OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1")
+
+
+def build_judges(config: dict, tiers) -> tuple[list, list]:
+    """(judges, notes). Each judge = (label, client, model). Qwen tiers always
+    (if a Qwen key exists); competitor models only when OPENROUTER_API_KEY is set."""
+    import os
+    from helicon.qwen import get_client, resolve_model
+    judges, notes = [], []
+    qc = get_client(config)
+    if qc:
+        for t in tiers:
+            m = resolve_model(t, config)
+            judges.append((m, qc, m))
+    else:
+        notes.append("no Qwen key (set QWEN_API_KEY)")
+    orc = _openrouter_client()
+    if orc:
+        for m in (os.environ.get("OPENROUTER_JUDGES",
+                                 "openai/gpt-5,anthropic/claude-sonnet-5").split(",")):
+            m = m.strip()
+            if m:
+                judges.append((m, orc, m))
+    else:
+        notes.append("set OPENROUTER_API_KEY (+ optional OPENROUTER_JUDGES) to compare "
+                     "Qwen vs GPT/Claude on the same probes")
+    return judges, notes
+
+
 def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
-    """Run each tier's Qwen judge over every probe. Returns per-tier verdicts +
-    wall-clock latency. Uses the Qwen cache so reruns are free."""
-    from helicon.qwen import (detect_contradictions, get_client, resolve_model,
-                              _call_log, TIER_COST_PER_1K)
-    client = get_client(config)
-    if client is None:
-        return {"error": "no Qwen key configured (set QWEN_API_KEY)"}
-    out = {}
-    for tier in tiers:
-        model = resolve_model(tier, config)
+    """Run every judge (Qwen tiers + any competitor) over every probe. Returns
+    per-judge verdicts + latency + cost (cost only for models with known pricing).
+    Uses the Qwen cache so reruns are free."""
+    from helicon.qwen import detect_contradictions, _call_log, TIER_COST_PER_1K
+    judges, notes = build_judges(config, tiers)
+    if not judges:
+        return {"error": "; ".join(notes) or "no judges available"}
+    out = {"_notes": notes}
+    for label, client, model in judges:
         verdicts, latency = [], 0.0
         start = len(_call_log)
         for p in probes:
@@ -121,9 +157,10 @@ def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
             verdicts.append(bool(res and res.get("contradicts")))
         tok = sum((e.get("input_tokens", 0) or 0) + (e.get("output_tokens", 0) or 0)
                   for e in _call_log[start:])
-        cost = round(tok / 1000 * TIER_COST_PER_1K.get(model, 0.0), 5)
-        out[tier] = {"model": model, "verdicts": verdicts, "latency_s": round(latency, 1),
-                     "tokens": tok, "cost_usd": cost}
+        cost = (round(tok / 1000 * TIER_COST_PER_1K[model], 5)
+                if model in TIER_COST_PER_1K else None)
+        out[label] = {"model": model, "verdicts": verdicts, "latency_s": round(latency, 1),
+                      "tokens": tok, "cost_usd": cost}
     return out
 
 
@@ -132,6 +169,7 @@ def score_tiers(probes: list[dict], judged: dict) -> dict:
     (negatives correctly passed), accuracy, plus inter-tier agreement."""
     pos = [i for i, p in enumerate(probes) if p["is_contradiction"]]
     neg = [i for i, p in enumerate(probes) if not p["is_contradiction"]]
+    judged = {k: v for k, v in judged.items() if not k.startswith("_")}
     rows = {}
     for tier, d in judged.items():
         v = d["verdicts"]
@@ -193,4 +231,5 @@ def run_judge_bench(config: dict, tiers, which: str = "ruled") -> dict:
     judged = judge_probes(config, probes, tiers=tiers)
     if "error" in judged:
         return judged
-    return {"probes": probes, "judged": judged, "scored": score_tiers(probes, judged)}
+    return {"probes": probes, "judged": judged, "notes": judged.get("_notes", []),
+            "scored": score_tiers(probes, judged)}

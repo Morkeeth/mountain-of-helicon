@@ -38,6 +38,23 @@ def test_score_recall_specificity_accuracy():
     assert r["accuracy"] == 0.75         # 3/4 correct
 
 
+def test_cross_provider_gated_on_key(monkeypatch):
+    from helicon import judge_bench
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    assert judge_bench._openrouter_client() is None       # no key -> no competitor, never faked
+    judges, notes = judge_bench.build_judges({}, ["fast"])  # no Qwen key either
+    assert judges == []
+    assert any("OPENROUTER_API_KEY" in n for n in notes)   # honest "add a key" note
+
+
+def test_score_skips_notes_key():
+    # judged may carry a "_notes" entry; it must not be scored as a judge
+    probes = [{"is_contradiction": True, "a": "x", "b": "y", "subject": "s"}]
+    judged = {"_notes": ["hi"], "qwen3.6-flash": {"model": "qwen3.6-flash", "verdicts": [True]}}
+    rows = score_tiers(probes, judged)["rows"]
+    assert list(rows) == ["qwen3.6-flash"]
+
+
 def test_inter_tier_agreement_and_no_divide_by_zero():
     probes = [{"is_contradiction": True, "a": "x", "b": "y", "subject": "s"},
               {"is_contradiction": False, "a": "x", "b": "x", "subject": "s"}]

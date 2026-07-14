@@ -604,6 +604,8 @@ def cmd_judge_bench(args):
         print(f"  judge-bench: {res['error']}")
         return
     print(format_judge_bench(res["scored"]))
+    for note in res.get("notes", []):
+        print(f"  note: {note}")
 
 
 def cmd_leaderboard(args):
