@@ -268,6 +268,101 @@ def format_run_card(card: dict) -> str:
     ])
 
 
+def persist_run_card(conn, card: dict) -> None:
+    """Slice 1.6: write a scored card to run_cards (upsert by run_id). The card is
+    persisted when its run is current, so its yield is valid as-of scored_at. Over
+    time this table IS the 'Latest runs' history."""
+    from datetime import datetime, timezone
+    conn.execute(
+        "INSERT INTO run_cards (run_id,start,end,duration_min,model,session_count,"
+        "output_tokens,total_tokens,verified,checkable,verified_ratio,cost,damage,"
+        "score,scored_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(run_id) DO UPDATE SET end=excluded.end, "
+        "duration_min=excluded.duration_min, session_count=excluded.session_count, "
+        "output_tokens=excluded.output_tokens, total_tokens=excluded.total_tokens, "
+        "verified=excluded.verified, checkable=excluded.checkable, "
+        "verified_ratio=excluded.verified_ratio, cost=excluded.cost, "
+        "damage=excluded.damage, score=excluded.score, scored_at=excluded.scored_at",
+        (card["run_id"], card["start"], card["end"], card["duration_min"],
+         card["model"], card["session_count"], card["output_tokens"],
+         card["total_tokens"], card["verified"], card["checkable"],
+         card["verified_ratio"], card["cost"], card["damage"], card["score"],
+         datetime.now(timezone.utc).replace(tzinfo=None).isoformat()))
+    conn.commit()
+
+
+def latest_run_cards(conn, limit: int = 15) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM run_cards ORDER BY start DESC LIMIT ?", (limit,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def format_latest(cards: list[dict]) -> str:
+    if not cards:
+        return ("\n  No scored runs yet. Cut one:  helicon score-runs --card --persist\n")
+    out = ["", f"  LATEST RUNS — scored history ({len(cards)})", ""]
+    out.append(f"  {'when':16}  {'sess':>4}  {'out':>6}  {'dur':>7}  "
+               f"{'verified':>9}  {'score':>6}")
+    for c in cards:
+        when = (c["start"] or "")[:16].replace("T", " ")
+        vr = f"{c['verified']}/{c['checkable']}" if c["checkable"] else "n/a"
+        out.append(f"  {when:16}  {c['session_count']:>4}  "
+                   f"{_fmt_tok(c['output_tokens']):>6}  {str(c['duration_min'])+'m':>7}  "
+                   f"{vr:>9}  {c['score']:>6}")
+    out.append("")
+    return "\n".join(out)
+
+
+def suggest_runs(conn, config=None, min_runs: int = 3) -> dict:
+    """Slice 1.7: suggestions read off real history, nothing invented.
+      (a) best run SHAPE: avg score by focused (<=2 sess) vs fleet (3+ sess),
+          only when there are >= min_runs scored cards; else insufficient.
+      (b) model/route: the top recommendation from the route read of the eval store.
+      (c) next run: needs an open-next-steps source (dashboard/todo); not wired to
+          one yet, so it is flagged as roadmap rather than faked."""
+    from helicon.route import route
+    cards = latest_run_cards(conn, limit=1000)
+    shape = None
+    if len(cards) >= min_runs:
+        buckets: dict = {}
+        for c in cards:
+            if c["score"] is None:
+                continue
+            k = "focused (<=2 sess)" if (c["session_count"] or 0) <= 2 else "fleet (3+ sess)"
+            buckets.setdefault(k, []).append(c["score"])
+        shape = {k: round(sum(v) / len(v), 2) for k, v in buckets.items() if v}
+    routed = route(conn, min_n=5)
+    return {"scored_runs": len(cards), "min_runs": min_runs,
+            "best_shape": shape, "route": routed}
+
+
+def format_suggestions(s: dict) -> str:
+    out = ["", "  SUGGESTED RUNS — read off your real history", ""]
+    # (a) shape
+    if s["best_shape"]:
+        best = max(s["best_shape"], key=lambda k: s["best_shape"][k])
+        out.append(f"  ▸ shape: best-scoring is {best} "
+                   f"(avg scores: {s['best_shape']})")
+    else:
+        out.append(f"  ▸ shape: insufficient scored runs "
+                   f"({s['scored_runs']}/{s['min_runs']}) to compare focused vs fleet")
+    # (b) route
+    picks = [r for r in s["route"]["results"] if r.get("recommendation") or r.get("lean")]
+    if picks:
+        r = picks[0]
+        who = r.get("recommendation") or r.get("lean")
+        tag = "route" if r.get("recommendation") else "lean"
+        out.append(f"  ▸ model: {tag} {r['task_class']} to {who} "
+                   f"(verified {r['best']['pass']}/{r['best']['n']})")
+    else:
+        out.append("  ▸ model: no task-class has enough verified evidence yet")
+    # (c) next run
+    out.append("  ▸ next run: wire a next-steps source (dashboard/todo) to rank the "
+               "highest-leverage next run  [roadmap]")
+    out.append("")
+    return "\n".join(out)
+
+
 def _fmt_tok(n: int) -> str:
     if n >= 1_000_000:
         return f"{n/1_000_000:.1f}M"

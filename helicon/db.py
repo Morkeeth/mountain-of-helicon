@@ -218,6 +218,19 @@ CREATE TABLE IF NOT EXISTS route_evidence (
     created_at TEXT NOT NULL,
     pair_key TEXT UNIQUE            -- idempotent: one row per (reviewed claim, model)
 );
+CREATE TABLE IF NOT EXISTS run_cards (
+    run_id TEXT PRIMARY KEY,        -- start-clustered run identity
+    start TEXT, end TEXT,
+    duration_min REAL,
+    model TEXT,
+    session_count INTEGER,
+    output_tokens INTEGER,
+    total_tokens INTEGER,
+    verified INTEGER, checkable INTEGER,
+    verified_ratio REAL,
+    cost REAL, damage REAL, score REAL,
+    scored_at TEXT NOT NULL         -- when the card was cut (yield valid as-of this)
+);
 """
 
 

@@ -11,7 +11,8 @@ import pytest
 
 from helicon.db import init_db
 from helicon.runs import (parse_session_cost, scan_session_costs, group_runs,
-                          run_yield, score_run, build_run_card)
+                          run_yield, score_run, build_run_card,
+                          persist_run_card, latest_run_cards, suggest_runs)
 
 
 def _write(path, lines):
@@ -166,3 +167,41 @@ def test_build_run_card_joins_cost_and_yield(tmp_path):
     assert card["verified_ratio"] == 0.667
     assert card["output_tokens"] == 1_000_000
     assert "score" in card and isinstance(card["score"], float)
+
+
+# --- slice 1.6/1.7: persist + Latest + suggest -------------------------------
+
+def _card(run_id, start, sess, score):
+    return {"run_id": run_id, "start": start, "end": start, "duration_min": 60.0,
+            "model": "claude-opus-4-8", "session_count": sess, "output_tokens": 1000,
+            "total_tokens": 5000, "verified": 2, "checkable": 3, "verified_ratio": 0.667,
+            "cost": 1.0, "damage": 0.0, "score": score}
+
+
+def test_persist_is_idempotent_and_latest_orders_newest_first(tmp_path):
+    conn = init_db(str(tmp_path / "h.db"))
+    persist_run_card(conn, _card("run-A", "2026-07-10T09:00", 1, 0.5))
+    persist_run_card(conn, _card("run-B", "2026-07-14T09:00", 4, 0.9))
+    persist_run_card(conn, _card("run-A", "2026-07-10T09:00", 1, 0.7))  # re-score, upsert
+    cards = latest_run_cards(conn)
+    assert [c["run_id"] for c in cards] == ["run-B", "run-A"]   # newest start first
+    assert len(cards) == 2                                       # upsert, not duplicate
+    assert cards[1]["score"] == 0.7                              # re-score took effect
+
+
+def test_suggest_shape_insufficient_below_min(tmp_path):
+    conn = init_db(str(tmp_path / "h.db"))
+    persist_run_card(conn, _card("run-A", "2026-07-10T09:00", 1, 0.5))
+    s = suggest_runs(conn, min_runs=3)
+    assert s["best_shape"] is None                # 1 < 3, no fabricated comparison
+    assert s["scored_runs"] == 1
+
+
+def test_suggest_shape_compares_focused_vs_fleet(tmp_path):
+    conn = init_db(str(tmp_path / "h.db"))
+    persist_run_card(conn, _card("r1", "2026-07-10T09:00", 1, 0.9))   # focused
+    persist_run_card(conn, _card("r2", "2026-07-11T09:00", 2, 0.8))   # focused
+    persist_run_card(conn, _card("r3", "2026-07-12T09:00", 5, 0.3))   # fleet
+    s = suggest_runs(conn, min_runs=3)
+    assert s["best_shape"]["focused (<=2 sess)"] == 0.85
+    assert s["best_shape"]["fleet (3+ sess)"] == 0.3

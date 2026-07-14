@@ -545,14 +545,33 @@ def cmd_score_runs(args):
     runs = group_runs(recs, gap_min=getattr(args, "gap", 300))
     if getattr(args, "card", False):
         from helicon.db import init_db
-        from helicon.runs import build_run_card, format_run_card
+        from helicon.runs import build_run_card, format_run_card, persist_run_card
         if not runs:
             print("\n  No runs to card.\n"); return
         conn = init_db(config["db_path"])
         card = build_run_card(conn, runs[0], damage=getattr(args, "damage", 0.0) or 0.0)
         print(format_run_card(card))
+        if getattr(args, "persist", False):
+            persist_run_card(conn, card)
+            print(f"  persisted to run_cards ({card['run_id']}). See:  helicon runs\n")
         return
     print(format_runs(runs, limit=limit))
+
+
+def cmd_runs(args):
+    """Slice 1.6/1.7: the Latest-runs surface. Renders the scored run-card history
+    from run_cards, and (1.7) the suggestions read off it."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.runs import latest_run_cards, format_latest
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    cards = latest_run_cards(conn, limit=getattr(args, "limit", 15))
+    print(format_latest(cards))
+    if getattr(args, "suggest", False):
+        from helicon.runs import suggest_runs, format_suggestions
+        print(format_suggestions(suggest_runs(conn, config)))
 
 
 def cmd_snapshot(args):
@@ -2011,6 +2030,11 @@ def main():
     scoreruns_p.add_argument("--gap", type=int, default=300, help="Minutes between session starts that split one run from the next (default 300)")
     scoreruns_p.add_argument("--card", action="store_true", help="Emit ONE full run card for the latest run (cost + verified yield + score)")
     scoreruns_p.add_argument("--damage", type=float, default=0.0, help="with --card: incident penalty for this run (e.g. a machine freeze); disclosed on the card")
+    scoreruns_p.add_argument("--persist", action="store_true", help="with --card: write the card to run_cards (the Latest-runs history)")
+
+    runs_p = sub.add_parser("runs", help="Latest runs: the scored run-card history (+ --suggest for what to run next)")
+    runs_p.add_argument("--limit", type=int, default=15, help="Cards to show (default 15)")
+    runs_p.add_argument("--suggest", action="store_true", help="Also show suggestions read off the history (shape, model/route, next run)")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
@@ -2136,6 +2160,7 @@ def main():
         "review": cmd_review,
         "route": cmd_route,
         "score-runs": cmd_score_runs,
+        "runs": cmd_runs,
         "snapshot": cmd_snapshot,
         "taste": cmd_taste,
         "lens": cmd_lens,
