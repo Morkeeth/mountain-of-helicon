@@ -591,6 +591,33 @@ def cmd_runs(args):
         print(format_suggestions(suggest_runs(conn, config)))
 
 
+def cmd_attribute(args):
+    """Auto-attribution: trace a contradicted output finding back to the memory
+    cube(s) that caused it, so you can retire the actual cause when you rule."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.attribution import attribute_finding
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (args.id,)).fetchone()
+    if row is None:
+        print(f"  no finding #{args.id}")
+        return
+    res = attribute_finding(conn, row, limit=getattr(args, "limit", 5))
+    print(f"\n  ATTRIBUTION — finding #{args.id}")
+    print(f"  claim: {res['claim'][:100]}")
+    if not res["candidates"]:
+        print("  no pre-existing memory matches this claim (keywords: "
+              f"{', '.join(res['keywords']) or 'none'}).\n")
+        return
+    print(f"  memories that most likely CAUSED it (retire the real one when you rule):\n")
+    for c in res["candidates"]:
+        print(f"    {c['id']}  [{c['source']}]  {c['title'][:50]}")
+        print(f"        {c['snippet']}")
+    print(f"\n  rule + retire the cause:  helicon resolve {args.id} --truth \"<the truth>\" --retire <cube_id>\n")
+
+
 def cmd_move(args):
     """Slice 5: the context-mover. Read memory, verify it, render into another
     platform's format. Dry-run by default; --apply writes (backs up first)."""
@@ -1414,13 +1441,16 @@ def cmd_resolve(args):
         # the OUTPUT -> memory edge: a false claim ruling writes the reality
         # verdict back into the store as a correction (dismiss = it was true).
         from helicon.review_terminals import resolve_review
-        rv = resolve_review(conn, args.id, args.truth or "")
+        rv = resolve_review(conn, args.id, args.truth or "",
+                            retire_cube_id=getattr(args, "retire", None))
         conn.commit()
         if not rv["ok"]:
             print(f"error: {rv['error']}")
             return
         print(f"resolved #{rv['audit_id']}: output claim from '{rv['terminal']}' corrected")
         print(f"  correction cube {rv['correction_cube']} (approved) now serves the reality-checked truth")
+        if rv.get("retired_cube"):
+            print(f"  retired the cause: cube {rv['retired_cube']} superseded (the memory that drove the bad output)")
         return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
@@ -2193,6 +2223,11 @@ def main():
     resolve_p.add_argument("--note", help="optional context recorded on the correction memory")
     resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
+    resolve_p.add_argument("--retire", metavar="CUBE_ID", help="with an output-review ruling: retire the memory cube that caused the bad output (from `helicon attribute`)")
+
+    attr_p = sub.add_parser("attribute", help="Trace a contradicted output finding back to the memory that caused it")
+    attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review --terminals --file`)")
+    attr_p.add_argument("--limit", type=int, default=5, help="max candidate memories (default 5)")
 
     watch_p = sub.add_parser("watch", help="Ambient mode: scan + exam on a timer, notify only on NEW drift")
     watch_p.add_argument("--install", action="store_true", help="write the crontab line (idempotent)")
@@ -2254,6 +2289,7 @@ def main():
         "score-runs": cmd_score_runs,
         "runs": cmd_runs,
         "judge-bench": cmd_judge_bench,
+        "attribute": cmd_attribute,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,

@@ -326,12 +326,17 @@ def review_terminals(conn, config=None, file=False, only=None, run=False):
     return queue
 
 
-def resolve_review(conn, audit_id, note=""):
+def resolve_review(conn, audit_id, note="", retire_cube_id=None):
     """Close the loop: ruling an output-review finding writes the reality-checked
     verdict back into memory as an approved correction cube (source
     'output-review', full provenance), so the next retrieval serves the truth
     instead of the agent's unverified claim. This is the OUTPUT -> memory edge:
-    output evaluation improves the store, not just a review queue."""
+    output evaluation improves the store, not just a review queue.
+
+    With retire_cube_id (from `helicon attribute`), it also RETIRES the
+    pre-existing memory that caused the bad output - superseded, pointed at the
+    correction - so the rot is removed at its source, not just papered over. That
+    is the output -> attribute -> rule -> law path closed in one call."""
     import json
     from datetime import datetime, timezone
     row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (audit_id,)).fetchone()
@@ -364,7 +369,15 @@ def resolve_review(conn, audit_id, note=""):
         created_at=now, valid_from=now, last_reinforced=now,
         confidence=1.0, review_status="approved")
     insert_cube(conn, cube)
-    return {"ok": True, "audit_id": audit_id, "correction_cube": cube.id, "terminal": tgt}
+    retired = None
+    if retire_cube_id:
+        from helicon.attribution import retire_cube as _retire
+        if _retire(conn, retire_cube_id, superseded_by=cube.id,
+                   reason=f"caused contradicted output, ruled #{audit_id}"):
+            retired = retire_cube_id
+    conn.commit()
+    return {"ok": True, "audit_id": audit_id, "correction_cube": cube.id,
+            "terminal": tgt, "retired_cube": retired}
 
 
 def format_queue(queue, filed=False):
