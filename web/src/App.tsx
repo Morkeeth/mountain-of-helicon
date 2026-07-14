@@ -11,6 +11,7 @@ import SkillsAudit from './components/SkillsAudit';
 import FindingsView from './components/FindingsView';
 import LogView from './components/LogView';
 import RunsView from './components/RunsView';
+import RouteView from './components/RouteView';
 import GoldView from './components/GoldView';
 import ConflictMap from './components/ConflictMap';
 import Focus from './components/Focus';
@@ -26,7 +27,7 @@ import Consistency from './components/Consistency';
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs';
+type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // One honest journey on the left: the reading opens the record, then your next
 // moves, then your memory itself (with its truth gates as sub-views), what needs
@@ -36,6 +37,7 @@ const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'reading', label: 'The Reading' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'runs', label: 'Runs' },
+  { key: 'route', label: 'Route' },
   { key: 'health', label: 'Memory' },
   { key: 'gold', label: 'Golden Rules' },
 ];
@@ -320,6 +322,7 @@ function App() {
 
         {tab === 'reading' && <Reading />}
         {tab === 'runs' && <RunsView />}
+        {tab === 'route' && <RouteView />}
         {tab === 'lens' && <CausalLens />}
 
         {tab === 'tour' && <Landing onEnter={() => setTab('focus')} />}
