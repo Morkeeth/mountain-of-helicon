@@ -313,6 +313,24 @@ def format_latest(cards: list[dict]) -> str:
     return "\n".join(out)
 
 
+def close_run(conn, config=None, jsonl_dir: str | None = None,
+              run_tests: bool = False, damage: float = 0.0) -> dict | None:
+    """Slice 1.8: the closeout hook. Refresh the eval evidence (review --terminals
+    verdicts) and cut + persist the current run's card in one call, so every
+    closeout compounds the ledger. A flow/cron calls this at end of session; it is
+    a single process (no new parallelism, respects the local RAM ceiling)."""
+    from helicon.route import record_evidence
+    record_evidence(conn, config, run=run_tests)
+    jd = jsonl_dir or (config or {}).get("connectors", {}).get(
+        "claude-code", {}).get("jsonl_dir") or "~/.claude/projects"
+    runs = group_runs(scan_session_costs(jd))
+    if not runs:
+        return None
+    card = build_run_card(conn, runs[0], damage=damage)
+    persist_run_card(conn, card)
+    return card
+
+
 def suggest_runs(conn, config=None, min_runs: int = 3) -> dict:
     """Slice 1.7: suggestions read off real history, nothing invented.
       (a) best run SHAPE: avg score by focused (<=2 sess) vs fleet (3+ sess),

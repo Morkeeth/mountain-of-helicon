@@ -112,6 +112,23 @@ def _now() -> str:
     return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
 
+def upsert_evidence(conn, model, harness, task_class, verdict, terminal, repo,
+                    claim, receipt, pair_key) -> None:
+    """Idempotent per (claim, model). Never DOWNGRADES a checkable verdict
+    (verified/contradicted) to 'unverified': a fast closeout without --run must
+    not destroy richer evidence a prior --run sweep already recorded."""
+    conn.execute(
+        "INSERT INTO route_evidence "
+        "(model,harness,task_class,verdict,terminal,repo,claim,receipt,created_at,pair_key) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(pair_key) DO UPDATE SET "
+        "verdict=excluded.verdict, receipt=excluded.receipt, "
+        "created_at=excluded.created_at, model=excluded.model, harness=excluded.harness "
+        "WHERE excluded.verdict != 'unverified' OR route_evidence.verdict = 'unverified'",
+        (model, harness, task_class, verdict, terminal, repo, claim, receipt,
+         _now(), pair_key))
+
+
 def record_evidence(conn, config=None, run: bool = False, only=None) -> dict:
     """Run the review engine across every terminal, tag each real verdict with the
     model + harness that produced it and the task-class of the claim, and upsert
@@ -131,15 +148,8 @@ def record_evidence(conn, config=None, run: bool = False, only=None) -> dict:
             tc = TASK_CLASS_OF_KIND.get(claim["kind"], "other")
             h = hashlib.sha1(f"{claim['kind']}|{claim['text'].lower().strip()}".encode()).hexdigest()[:10]
             pair_key = f"route|{name}|{h}|{model}"
-            conn.execute(
-                "INSERT INTO route_evidence "
-                "(model,harness,task_class,verdict,terminal,repo,claim,receipt,created_at,pair_key) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?) "
-                "ON CONFLICT(pair_key) DO UPDATE SET "
-                "verdict=excluded.verdict, receipt=excluded.receipt, "
-                "created_at=excluded.created_at, model=excluded.model, harness=excluded.harness",
-                (model, harness, tc, verdict, name, repo, claim["text"][:200],
-                 receipt[:300], _now(), pair_key))
+            upsert_evidence(conn, model, harness, tc, verdict, name, repo,
+                            claim["text"][:200], receipt[:300], pair_key)
             rows += 1
             by_verdict[verdict] = by_verdict.get(verdict, 0) + 1
             models[model] = models.get(model, 0) + 1

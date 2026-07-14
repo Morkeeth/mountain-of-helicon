@@ -129,3 +129,25 @@ def test_empty_store_returns_no_results(conn):
     routed = route(conn, min_n=5)
     assert routed["total_classes"] == 0
     assert routed["results"] == []
+
+
+def test_upsert_never_downgrades_checkable_to_unverified(conn):
+    from helicon.route import upsert_evidence
+    # a --run sweep records a real 'verified'
+    upsert_evidence(conn, "Opus 4.8", "claude-code", "testing", "verified",
+                    "T", "/r", "c", "ran: 183 passed", "route|T|abc|Opus 4.8")
+    conn.commit()
+    # a later FAST closeout (no --run) re-sees the same claim as 'unverified'
+    upsert_evidence(conn, "Opus 4.8", "claude-code", "testing", "unverified",
+                    "T", "/r", "c", "not re-run", "route|T|abc|Opus 4.8")
+    conn.commit()
+    got = conn.execute("SELECT verdict FROM route_evidence WHERE pair_key=?",
+                       ("route|T|abc|Opus 4.8",)).fetchone()["verdict"]
+    assert got == "verified"          # richer evidence preserved, not clobbered
+    # but a real re-run CAN flip it to contradicted (checkable overwrites checkable)
+    upsert_evidence(conn, "Opus 4.8", "claude-code", "testing", "contradicted",
+                    "T", "/r", "c", "1 FAILED", "route|T|abc|Opus 4.8")
+    conn.commit()
+    got = conn.execute("SELECT verdict FROM route_evidence WHERE pair_key=?",
+                       ("route|T|abc|Opus 4.8",)).fetchone()["verdict"]
+    assert got == "contradicted"

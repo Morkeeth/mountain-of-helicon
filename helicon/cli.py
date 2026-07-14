@@ -567,6 +567,16 @@ def cmd_runs(args):
 
     config = load_config()
     conn = init_db(config["db_path"])
+    if getattr(args, "close", False):
+        from helicon.runs import close_run
+        card = close_run(conn, config, run_tests=getattr(args, "run", False),
+                         damage=getattr(args, "damage", 0.0) or 0.0)
+        if card:
+            print(f"  closed run {card['run_id']}: {card['verified']}/{card['checkable']} "
+                  f"verified, score {card['score']}  ->  persisted to run_cards")
+        else:
+            print("  no run to close.")
+        return
     cards = latest_run_cards(conn, limit=getattr(args, "limit", 15))
     print(format_latest(cards))
     if getattr(args, "suggest", False):
@@ -2035,6 +2045,9 @@ def main():
     runs_p = sub.add_parser("runs", help="Latest runs: the scored run-card history (+ --suggest for what to run next)")
     runs_p.add_argument("--limit", type=int, default=15, help="Cards to show (default 15)")
     runs_p.add_argument("--suggest", action="store_true", help="Also show suggestions read off the history (shape, model/route, next run)")
+    runs_p.add_argument("--close", action="store_true", help="Closeout hook: refresh eval evidence + cut & persist the current run's card (compounds the ledger)")
+    runs_p.add_argument("--run", action="store_true", help="with --close: run test suites to verify test claims (slower, more evidence)")
+    runs_p.add_argument("--damage", type=float, default=0.0, help="with --close: incident penalty for this run")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
