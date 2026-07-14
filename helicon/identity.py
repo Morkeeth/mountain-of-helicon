@@ -332,14 +332,25 @@ def identity_scan(conn, semantic: bool = True) -> dict:
         genera_str = " vs ".join(
             f"{g} ({len(s)} source{'s' if len(s) > 1 else ''})"
             for g, s in sorted(fork["genera"].items(), key=lambda kv: -len(kv[1])))
-        text = (f"Identity fork: '{fork['name']}' is defined as {genera_str} "
-                f"across {len(fork['scopes'])} sources — same name, forked definition")
+        resurfaced = fork.get("resurfaced", False)
+        if resurfaced:
+            # never-twice: this name was ruled, and a divergent definition came
+            # back in newer memory. Render it as a re-alarm, not a fresh fork —
+            # genus_a is the canonical (ruled) genus, genus_b the one that returned.
+            text = (f"RE-ALARM: '{fork['name']}' was ruled '{fork['genus_a']}', but a "
+                    f"'{fork['genus_b']}' definition returned in newer memory "
+                    f"(never-twice guard fired)")
+            severity = "critical"
+        else:
+            text = (f"Identity fork: '{fork['name']}' is defined as {genera_str} "
+                    f"across {len(fork['scopes'])} sources — same name, forked definition")
+            severity = "warning"
         finding = AuditResult(
             audit_type="identity",
             target_type="entity",
             target_id=fork["name"],
             finding=text,
-            severity="warning",
+            severity=severity,
             proposed_action="flag",
             details={
                 "pair_key": fork["pair_key"], "name": fork["name"],
@@ -347,6 +358,7 @@ def identity_scan(conn, semantic: bool = True) -> dict:
                 "value_a": fork["genus_a"], "value_b": fork["genus_b"],
                 "line_a": fork["gloss_a"], "line_b": fork["gloss_b"],
                 "scopes": fork["scopes"], "judged_by": "deterministic",
+                "resurfaced": resurfaced,
             },
             audited_at=now,
         )
