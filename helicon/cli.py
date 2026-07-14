@@ -501,6 +501,31 @@ def cmd_review(args):
     print(f"Reviewed {reviewed} this session. Pending: {total} -> {remaining}")
 
 
+def cmd_route(args):
+    """Routing recommendation as a read of the eval store: which model has the best
+    verified track record per task-class. --record first builds the evidence from
+    `review --terminals` (add --run to verify test counts too)."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.route import record_evidence, route, format_route
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    if getattr(args, "record", False):
+        only = set(x.lower() for x in (getattr(args, "only", None) or []))
+        summ = record_evidence(conn, config, run=getattr(args, "run", False), only=only)
+        print(f"recorded {summ['rows']} verdict(s) into route_evidence  "
+              f"({summ['by_verdict']})")
+        print(f"  models seen: {summ['models']}")
+
+    routed = route(conn, task_class=getattr(args, "task", None),
+                   min_n=getattr(args, "min_n", 5))
+    print(format_route(routed))
+    if not getattr(args, "record", False) and routed["total_classes"] == 0:
+        print("  (no evidence yet - run:  helicon route --record --run)\n")
+
+
 def cmd_snapshot(args):
     """Regression-test retrieved context: capture baselines, check for drift."""
     from helicon.config import load_config
@@ -1938,6 +1963,18 @@ def main():
     review_p.add_argument("--preview", action="store_true",
                           help="Show the queue + suggested actions without prompting or writing")
 
+    route_p = sub.add_parser("route", help="Routing recommendation: which model has the best verified track record per task-class (a read of the eval store)")
+    route_p.add_argument("--record", action="store_true",
+                         help="Build/refresh evidence from `review --terminals` before ranking")
+    route_p.add_argument("--run", action="store_true",
+                         help="with --record: actually run test suites to verify test-count claims")
+    route_p.add_argument("--only", nargs="+", metavar="NAME",
+                         help="with --record: limit to these terminals/repos")
+    route_p.add_argument("--task", metavar="CLASS",
+                         help="Filter to one task-class (testing / delivery / api-surface / claims)")
+    route_p.add_argument("--min-n", type=int, default=5, dest="min_n",
+                         help="Min pass/fail samples before a pick is made (default 5); below this: insufficient evidence")
+
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
@@ -2060,6 +2097,7 @@ def main():
         "serve": cmd_serve,
         "triage": cmd_triage,
         "review": cmd_review,
+        "route": cmd_route,
         "snapshot": cmd_snapshot,
         "taste": cmd_taste,
         "lens": cmd_lens,

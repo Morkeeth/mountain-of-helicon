@@ -205,6 +205,19 @@ CREATE TABLE IF NOT EXISTS consolidations (
     topic TEXT DEFAULT '',
     metadata TEXT DEFAULT '{}'
 );
+CREATE TABLE IF NOT EXISTS route_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model TEXT NOT NULL,
+    harness TEXT NOT NULL DEFAULT 'unknown',
+    task_class TEXT NOT NULL,
+    verdict TEXT NOT NULL,          -- verified | unverified | contradicted (reality-check)
+    terminal TEXT,
+    repo TEXT,
+    claim TEXT,
+    receipt TEXT,
+    created_at TEXT NOT NULL,
+    pair_key TEXT UNIQUE            -- idempotent: one row per (reviewed claim, model)
+);
 """
 
 
