@@ -526,6 +526,20 @@ def cmd_route(args):
         print("  (no evidence yet - run:  helicon route --record --run)\n")
 
 
+def cmd_score_runs(args):
+    """Slice 1.1: the cost side of run scoring. Parse Claude Code transcripts into
+    a per-session cost table (model, duration, tokens). Yield + score land in
+    later slices."""
+    from helicon.config import load_config
+    from helicon.runs import scan_session_costs, format_session_costs
+
+    config = load_config()
+    jsonl_dir = (config.get("connectors", {}).get("claude-code", {}) or {}).get(
+        "jsonl_dir") or "~/.claude/projects"
+    recs = scan_session_costs(jsonl_dir, since=getattr(args, "since", None))
+    print(format_session_costs(recs, limit=getattr(args, "limit", 20)))
+
+
 def cmd_snapshot(args):
     """Regression-test retrieved context: capture baselines, check for drift."""
     from helicon.config import load_config
@@ -1975,6 +1989,10 @@ def main():
     route_p.add_argument("--min-n", type=int, default=5, dest="min_n",
                          help="Min pass/fail samples before a pick is made (default 5); below this: insufficient evidence")
 
+    scoreruns_p = sub.add_parser("score-runs", help="Score whole runs (slice 1.1: per-session cost table from Claude Code transcripts)")
+    scoreruns_p.add_argument("--since", metavar="ISO", help="Only sessions active at/after this ISO date")
+    scoreruns_p.add_argument("--limit", type=int, default=20, help="Rows to show (default 20)")
+
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
@@ -2098,6 +2116,7 @@ def main():
         "triage": cmd_triage,
         "review": cmd_review,
         "route": cmd_route,
+        "score-runs": cmd_score_runs,
         "snapshot": cmd_snapshot,
         "taste": cmd_taste,
         "lens": cmd_lens,
