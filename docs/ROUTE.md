@@ -50,6 +50,21 @@ A firm *"route X to model A over model B"* needs (a) ≥ `min_n` verified sample
 
 > The model-picker you described falls out of output-verification. I built a memory system that checks each agent's output against reality — did the tests actually pass, is the endpoint real, did it ship. Attribute every verified outcome to the model that produced it and "which model for this task" is just a ranked read of that store: Wilson-scored pass-rate per task-class, sample size and confidence attached, "insufficient evidence" wherever it hasn't earned a call. Running on my own board it already catches that half my "tests green" claims didn't survive re-verification. The interesting part isn't the routing table — it's that the router won't recommend until reality has voted enough times.
 
+## Cost-aware routing (verified output per token)
+
+`route --per-token` answers the sharper version of Sriram's ask (a planner plus a cheaper daily driver): not just *which model passes*, but *which model passes per token spent*. It joins yield (verified verdicts) to cost (transcript output tokens), both keyed by a **canonical model** so the two name forms reconcile: the cost side reads `claude-opus-4-8` from the transcript, the yield side reads `Opus 4.8 (1M context)` from the git co-author trailer, and `canonical_model()` maps both to `opus-4.8`.
+
+```
+COST-AWARE ROUTING — verified output per million tokens since 2026-07-07
+  model             verified   out Mtok  verified/Mtok
+  opus-4.8                 4       27.2           0.15
+  (one model with evidence — efficiency is a baseline, not yet a comparison)
+```
+
+`--since` windows the token denominator so it shares an era with the current verdicts. Efficiency is directional (the verdicts are a current snapshot), and with one model it is a baseline, not a ranking. It becomes a real comparison the moment a second model accumulates evidence.
+
+**Harness comparison** is built in too: `route` groups by `(task-class, model, harness)`, so once the same task-class runs through Cursor and Claude Code, they rank as separate candidates. That is Sriram's ask 1 (pick the harness), and it needs only multi-harness data, not new code.
+
 ## Commands
 
 ```bash
@@ -58,6 +73,7 @@ helicon route --record              # fast checks only (ship/endpoint/url; tests
 helicon route                       # rank from existing evidence
 helicon route --task testing        # one task-class
 helicon route --min-n 8             # stricter firm-pick threshold
+helicon route --per-token --since 2026-07-07   # cost-aware: verified output per Mtok
 ```
 
 Evidence lives in the `route_evidence` table (model, harness, task_class, verdict, receipt, per-claim idempotent). It is additive across sweeps.
