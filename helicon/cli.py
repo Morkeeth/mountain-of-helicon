@@ -591,6 +591,20 @@ def cmd_runs(args):
         print(format_suggestions(suggest_runs(conn, config)))
 
 
+def cmd_move(args):
+    """Slice 5: the context-mover. Read memory, verify it, render into another
+    platform's format. Dry-run by default; --apply writes (backs up first)."""
+    from helicon.config import load_config
+    from helicon.mover import move, format_move
+
+    config = load_config()
+    res = move(args.from_path, args.to, out_path=getattr(args, "out", None),
+               apply=getattr(args, "apply", False),
+               verify_contradictions_flag=getattr(args, "verify_contradictions", False),
+               config=config)
+    print(format_move(res))
+
+
 def cmd_judge_bench(args):
     """Slice 1: benchmark Qwen tiers as the memory-rot judge vs human labels."""
     from helicon.config import load_config
@@ -2090,6 +2104,13 @@ def main():
     scoreruns_p.add_argument("--damage", type=float, default=0.0, help="with --card: incident penalty for this run (e.g. a machine freeze); disclosed on the card")
     scoreruns_p.add_argument("--persist", action="store_true", help="with --card: write the card to run_cards (the Latest-runs history)")
 
+    move_p = sub.add_parser("move", help="Context-mover: read memory, verify it, render into another platform's format (dry-run by default)")
+    move_p.add_argument("--from", dest="from_path", required=True, metavar="PATH", help="Source file or dir (rules/memory)")
+    move_p.add_argument("--to", required=True, choices=["claude-code", "cursor", "markdown"], help="Target platform format")
+    move_p.add_argument("--out", metavar="FILE", help="Target file (required with --apply)")
+    move_p.add_argument("--apply", action="store_true", help="Write the target file (backs up an existing one to .bak); default is dry-run")
+    move_p.add_argument("--verify-contradictions", action="store_true", dest="verify_contradictions", help="Also run the Qwen judge to hold items that contradict earlier ones")
+
     jb_p = sub.add_parser("judge-bench", help="Benchmark Qwen tiers as the memory-rot judge against human-labeled ground truth")
     jb_p.add_argument("--tiers", help="Comma list of tiers (default fast,default,deep)")
     jb_p.add_argument("--set", choices=["ruled", "hard", "all"], default="ruled",
@@ -2233,6 +2254,7 @@ def main():
         "score-runs": cmd_score_runs,
         "runs": cmd_runs,
         "judge-bench": cmd_judge_bench,
+        "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
         "taste": cmd_taste,

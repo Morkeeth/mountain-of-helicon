@@ -152,13 +152,17 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (40 commands)
+## CLI (41 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `route` `score-runs` `runs` `judge-bench` `leaderboard` `snapshot` `lens` `taste` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `route` `score-runs` `runs` `judge-bench` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
 `helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
 
 `helicon score-runs` and `helicon runs` score whole RUNS, the same output-verification one level up and made cost-aware: `score = verified yield / cost - damage`. Cost comes from the real transcript token usage, yield from the `review --terminals` verdicts, damage from an incident flag. Every term traces to a real source; nothing is vibed. `score-runs --card` cuts one run card, `runs` renders the scored history, `runs --suggest` reads what to run next off it. See [docs/RUNS.md](docs/RUNS.md).
+
+`helicon judge-bench` benchmarks Qwen as the memory-rot judge against the operator's own human rulings, and (with an OpenRouter key) against GPT/Claude on the same probes. Real result: Qwen-plus ties Claude Opus 4.8 and beats GPT-5.6 on memory-contradiction judging at a fraction of the cost, and every model misses the one probe that is a domain ruling rather than a logical contradiction, which is exactly what the human-ruling layer exists to catch. See [docs/ROUTE.md](docs/ROUTE.md).
+
+`helicon move` is the context-mover: read memory from one platform, VERIFY each item (freshness, and with `--verify-contradictions` the Qwen judge), and render the survivors into another platform's native format (`claude-code` / `cursor` / `markdown`). Memory moves verified, never blindly; held-back items are listed with why. Dry-run by default; `--apply` backs up the target first.
 
 `helicon leaderboard` is the population-scale version: it reads git history across many repos (where multiple models and harnesses actually co-authored commits) and ranks models by how often their commits SURVIVE vs get REVERTED, Wilson-scored. Execution-free (git only, so it is bounded and cannot freeze a machine); the revert is the honest failure signal. On 927 attributed commits across 25 local repos it already separates opus-4.6 / opus-4.8 / fable-5 / cursor by reliability.
 
