@@ -591,6 +591,26 @@ def cmd_runs(args):
         print(format_suggestions(suggest_runs(conn, config)))
 
 
+def cmd_leaderboard(args):
+    """Population-scale model reliability from git history (execution-free): rank
+    models by how often their commits survive vs get reverted, across repos."""
+    import os
+    from helicon.leaderboard import build_leaderboard, format_leaderboard
+
+    repos = list(getattr(args, "repos", None) or [])
+    if not repos:
+        code = os.path.expanduser("~/CODE")
+        repos = [os.path.join(code, d) for d in sorted(os.listdir(code))
+                 if os.path.isdir(os.path.join(code, d, ".git"))] if os.path.isdir(code) else []
+    repos = [r for r in repos if os.path.isdir(os.path.join(r, ".git"))]
+    if not repos:
+        print("  No git repos to scan (pass paths, or populate ~/CODE).")
+        return
+    lb = build_leaderboard(repos, max_commits=getattr(args, "max", 500),
+                           by_task=getattr(args, "by_task", False))
+    print(format_leaderboard(lb))
+
+
 def cmd_snapshot(args):
     """Regression-test retrieved context: capture baselines, check for drift."""
     from helicon.config import load_config
@@ -2053,6 +2073,11 @@ def main():
     scoreruns_p.add_argument("--damage", type=float, default=0.0, help="with --card: incident penalty for this run (e.g. a machine freeze); disclosed on the card")
     scoreruns_p.add_argument("--persist", action="store_true", help="with --card: write the card to run_cards (the Latest-runs history)")
 
+    lb_p = sub.add_parser("leaderboard", help="Population model-reliability leaderboard from git history (execution-free: survived vs reverted)")
+    lb_p.add_argument("repos", nargs="*", help="Repo paths to scan (default: git repos under ~/CODE)")
+    lb_p.add_argument("--max", type=int, default=500, help="Max commits per repo (default 500)")
+    lb_p.add_argument("--by-task", action="store_true", dest="by_task", help="Break the ranking down by task-class")
+
     runs_p = sub.add_parser("runs", help="Latest runs: the scored run-card history (+ --suggest for what to run next)")
     runs_p.add_argument("--limit", type=int, default=15, help="Cards to show (default 15)")
     runs_p.add_argument("--suggest", action="store_true", help="Also show suggestions read off the history (shape, model/route, next run)")
@@ -2185,6 +2210,7 @@ def main():
         "route": cmd_route,
         "score-runs": cmd_score_runs,
         "runs": cmd_runs,
+        "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
         "taste": cmd_taste,
         "lens": cmd_lens,
