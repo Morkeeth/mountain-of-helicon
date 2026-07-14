@@ -519,6 +519,13 @@ def cmd_route(args):
               f"({summ['by_verdict']})")
         print(f"  models seen: {summ['models']}")
 
+    if getattr(args, "per_token", False):
+        from helicon.route import per_token, format_per_token
+        jsonl_dir = (config.get("connectors", {}).get("claude-code", {}) or {}).get(
+            "jsonl_dir") or "~/.claude/projects"
+        print(format_per_token(per_token(conn, jsonl_dir, since=getattr(args, "since", None))))
+        return
+
     routed = route(conn, task_class=getattr(args, "task", None),
                    min_n=getattr(args, "min_n", 5))
     print(format_route(routed))
@@ -2032,6 +2039,10 @@ def main():
                          help="Filter to one task-class (testing / delivery / api-surface / claims)")
     route_p.add_argument("--min-n", type=int, default=5, dest="min_n",
                          help="Min pass/fail samples before a pick is made (default 5); below this: insufficient evidence")
+    route_p.add_argument("--per-token", action="store_true", dest="per_token",
+                         help="Cost-aware routing: rank models by verified output per million tokens (joins yield to transcript cost)")
+    route_p.add_argument("--since", metavar="ISO",
+                         help="with --per-token: window the token denominator to this ISO date")
 
     scoreruns_p = sub.add_parser("score-runs", help="Score whole runs: cost + identity from Claude Code transcripts (yield + score land in later slices)")
     scoreruns_p.add_argument("--since", metavar="ISO", help="Only sessions active at/after this ISO date")

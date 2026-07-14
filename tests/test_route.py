@@ -99,6 +99,21 @@ def test_ranks_models_by_wilson_and_makes_a_pick(conn):
     assert res["best"]["wilson_lb"] >= res["candidates"][1]["wilson_lb"]
 
 
+def test_route_compares_harnesses_separately(conn):
+    # same model + task-class, two harnesses: they must rank as distinct candidates
+    # (Sriram's ask 1 - pick the harness, not just the model)
+    for _ in range(6):
+        _ev(conn, "Opus 4.8", "coding", "verified", harness="claude-code")
+    for _ in range(3):
+        _ev(conn, "Opus 4.8", "coding", "verified", harness="cursor")
+    for _ in range(3):
+        _ev(conn, "Opus 4.8", "coding", "contradicted", harness="cursor")
+    res = [r for r in route(conn, min_n=5)["results"] if r["task_class"] == "coding"][0]
+    harnesses = {c["harness"] for c in res["candidates"]}
+    assert harnesses == {"claude-code", "cursor"}       # two distinct candidates
+    assert res["best"]["harness"] == "claude-code"      # 6/6 beats 3/6 on Wilson
+
+
 def test_contradicted_lowers_the_rate(conn):
     for _ in range(5):
         _ev(conn, "Opus 4.8", "api-surface", "verified")
@@ -129,6 +144,39 @@ def test_empty_store_returns_no_results(conn):
     routed = route(conn, min_n=5)
     assert routed["total_classes"] == 0
     assert routed["results"] == []
+
+
+def test_canonical_model_reconciles_transcript_and_trailer_forms():
+    from helicon.route import canonical_model
+    # the whole point: cost side (transcript id) and yield side (git trailer)
+    # must land on the SAME key so they can join
+    assert canonical_model("claude-opus-4-8") == "opus-4.8"
+    assert canonical_model("Opus 4.8 (1M context)") == "opus-4.8"
+    assert canonical_model("claude-opus-4-8") == canonical_model("Opus 4.8 (1M context)")
+    assert canonical_model("claude-fable-5") == canonical_model("Claude Fable 5") == "fable-5"
+    assert canonical_model("Opus 4.6") == "opus-4.6"
+
+
+def test_per_token_joins_yield_to_cost(conn, tmp_path):
+    from helicon.route import per_token, upsert_evidence
+    # yield: 4 verified for Opus (trailer form)
+    for i in range(4):
+        upsert_evidence(conn, "Opus 4.8 (1M context)", "claude-code", "testing",
+                        "verified", "T", "/r", "c", "ok", f"k{i}")
+    conn.commit()
+    # cost: a transcript (transcript-id form) with 2M output tokens
+    import json
+    p = tmp_path / "s.jsonl"
+    with open(p, "w") as fh:
+        fh.write(json.dumps({"type": "assistant", "timestamp": "2026-07-14T10:00:00Z",
+                 "message": {"model": "claude-opus-4-8",
+                             "usage": {"output_tokens": 2_000_000}}}) + "\n")
+    pt = per_token(conn, str(tmp_path))
+    row = pt["rows"][0]
+    assert row["model"] == "opus-4.8"       # joined across the two name forms
+    assert row["verified"] == 4
+    assert row["out_mtok"] == 2.0
+    assert row["verified_per_mtok"] == 2.0  # 4 verified / 2.0 Mtok
 
 
 def test_upsert_never_downgrades_checkable_to_unverified(conn):

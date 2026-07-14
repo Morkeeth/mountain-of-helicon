@@ -46,6 +46,25 @@ def normalize_model(raw: str) -> str:
     return re.sub(r"\s+", " ", s) or "unknown"
 
 
+_FAMILIES = ("opus", "sonnet", "haiku", "fable")
+
+
+def canonical_model(s: str) -> str:
+    """Reconcile the two model-name forms so cost (transcripts) and yield (git
+    trailers) can join. 'claude-opus-4-8' and 'Opus 4.8 (1M context)' both ->
+    'opus-4.8'. Falls back to the cleaned display name if no family/version is
+    found (never invents a family)."""
+    low = (s or "").lower()
+    fam = next((f for f in _FAMILIES if f in low), None)
+    m = re.search(r"(\d+)(?:[.\-](\d+))?", low)
+    if fam and m:
+        ver = m.group(1) + (f".{m.group(2)}" if m.group(2) else "")
+        return f"{fam}-{ver}"
+    if fam:
+        return fam
+    return normalize_model(s).lower()
+
+
 def harness_of(raw: str) -> str:
     """Infer the harness from the commit signature. The 'Claude … <noreply@
     anthropic.com>' co-author trailer is Claude Code's signature; Cursor/Codex
@@ -217,6 +236,59 @@ def route(conn, task_class: str | None = None, min_n: int = 5, z: float = 1.96) 
     results.sort(key=lambda r: (r["sufficient"], r["best"]["n"]), reverse=True)
     return {"task_class_filter": task_class, "min_n": min_n, "results": results,
             "total_classes": len(results)}
+
+
+def per_token(conn, jsonl_dir: str | None = None, since: str | None = None) -> dict:
+    """Slice 2.2: cost-aware routing. Join verified verdicts (yield) to the output
+    tokens that produced them (cost), both keyed by canonical model, to rank
+    models by VERIFIED OUTPUT PER MILLION TOKENS. Answers the 'planner + cheaper
+    daily driver' question with evidence, not vibes.
+
+    Scope is disclosed: `since` windows the token denominator so it shares an era
+    with the current verdicts (default: caller passes a recent cutoff). Verified
+    verdicts are the current snapshot; efficiency is directional, not absolute."""
+    from helicon.runs import scan_session_costs
+    jd = jsonl_dir or "~/.claude/projects"
+    tok: dict[str, int] = {}
+    for rec in scan_session_costs(jd, since=since):
+        tok[canonical_model(rec["model"])] = tok.get(
+            canonical_model(rec["model"]), 0) + rec["output_tokens"]
+
+    ver: dict[str, int] = {}
+    for r in conn.execute(
+            "SELECT model, COUNT(*) c FROM route_evidence WHERE verdict='verified' "
+            "GROUP BY model"):
+        ver[canonical_model(r["model"])] = ver.get(canonical_model(r["model"]), 0) + r["c"]
+
+    models = sorted(set(tok) | set(ver))
+    rows = []
+    for mdl in models:
+        out_mtok = round(tok.get(mdl, 0) / 1_000_000, 2)
+        verified = ver.get(mdl, 0)
+        eff = round(verified / out_mtok, 2) if out_mtok > 0 else None
+        rows.append({"model": mdl, "verified": verified, "out_mtok": out_mtok,
+                     "verified_per_mtok": eff})
+    rows.sort(key=lambda r: (r["verified_per_mtok"] is not None,
+                             r["verified_per_mtok"] or 0), reverse=True)
+    return {"since": since, "rows": rows, "models_compared": len(rows)}
+
+
+def format_per_token(pt: dict) -> str:
+    rows = pt["rows"]
+    if not rows:
+        return "\n  No per-token data. Record evidence (helicon route --record) first.\n"
+    win = f" since {pt['since']}" if pt["since"] else ""
+    out = ["", f"  COST-AWARE ROUTING — verified output per million tokens{win}", ""]
+    out.append(f"  {'model':16}  {'verified':>8}  {'out Mtok':>9}  {'verified/Mtok':>13}")
+    for r in rows:
+        eff = r["verified_per_mtok"] if r["verified_per_mtok"] is not None else "n/a"
+        out.append(f"  {r['model']:16}  {r['verified']:>8}  {r['out_mtok']:>9}  {str(eff):>13}")
+    if pt["models_compared"] < 2:
+        out.append("")
+        out.append("  (one model with evidence — efficiency is a baseline, not yet a "
+                   "comparison; multi-model data lights up the ranking)")
+    out.append("")
+    return "\n".join(out)
 
 
 def format_route(routed: dict) -> str:
