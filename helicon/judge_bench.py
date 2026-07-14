@@ -148,19 +148,23 @@ def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
         return {"error": "; ".join(notes) or "no judges available"}
     out = {"_notes": notes}
     for label, client, model in judges:
-        verdicts, latency = [], 0.0
+        verdicts, latency, errors = [], 0.0, 0
         start = len(_call_log)
         for p in probes:
             t0 = time.time()
             res = detect_contradictions(client, p["a"], p["b"], model=model)
             latency += time.time() - t0
-            verdicts.append(bool(res and res.get("contradicts")))
+            # None = the call errored (bad slug / no access / parse fail). Record
+            # it as "no verdict", NEVER as "judged not-a-contradiction" - scoring a
+            # broken competitor as wrong would fake a Qwen win.
+            verdicts.append(None if res is None else bool(res.get("contradicts")))
+            errors += 1 if res is None else 0
         tok = sum((e.get("input_tokens", 0) or 0) + (e.get("output_tokens", 0) or 0)
                   for e in _call_log[start:])
         cost = (round(tok / 1000 * TIER_COST_PER_1K[model], 5)
                 if model in TIER_COST_PER_1K else None)
         out[label] = {"model": model, "verdicts": verdicts, "latency_s": round(latency, 1),
-                      "tokens": tok, "cost_usd": cost}
+                      "tokens": tok, "cost_usd": cost, "errors": errors}
     return out
 
 
@@ -173,25 +177,33 @@ def score_tiers(probes: list[dict], judged: dict) -> dict:
     rows = {}
     for tier, d in judged.items():
         v = d["verdicts"]
-        tp = sum(1 for i in pos if v[i])              # contradiction, flagged
-        tn = sum(1 for i in neg if not v[i])          # consistent, passed
+        pa = [i for i in pos if v[i] is not None]      # positives the judge answered
+        na = [i for i in neg if v[i] is not None]
+        tp = sum(1 for i in pa if v[i] is True)
+        tn = sum(1 for i in na if v[i] is False)
+        answered = len(pa) + len(na)
         misses = [f"{probes[i].get('category', probes[i].get('subject', '?'))}"
                   f"({'FN' if probes[i]['is_contradiction'] else 'FP'})"
                   for i in range(len(probes))
-                  if v[i] != probes[i]["is_contradiction"]]
+                  if v[i] is not None and v[i] != probes[i]["is_contradiction"]]
         rows[tier] = {
             "model": d["model"], "latency_s": d.get("latency_s"),
             "tokens": d.get("tokens"), "cost_usd": d.get("cost_usd"),
-            "pos_n": len(pos), "neg_n": len(neg),
-            "recall": round(tp / len(pos), 3) if pos else None,
-            "specificity": round(tn / len(neg), 3) if neg else None,
-            "accuracy": round((tp + tn) / (len(pos) + len(neg)), 3) if probes else None,
+            "errors": d.get("errors", 0),
+            "coverage": round(answered / len(probes), 3) if probes else None,
+            "pos_n": len(pa), "neg_n": len(na),
+            "recall": round(tp / len(pa), 3) if pa else None,
+            "specificity": round(tn / len(na), 3) if na else None,
+            "accuracy": round((tp + tn) / answered, 3) if answered else None,
             "caught": tp, "passed": tn, "misses": misses,
         }
     tiers = list(judged)
-    inter = (round(sum(1 for i in range(len(probes))
-                       if len({judged[t]["verdicts"][i] for t in tiers}) == 1) / len(probes), 3)
-             if len(tiers) >= 2 and probes else None)
+    # agreement only over probes every judge actually answered
+    both = [i for i in range(len(probes))
+            if all(judged[t]["verdicts"][i] is not None for t in tiers)]
+    inter = (round(sum(1 for i in both
+                       if len({judged[t]["verdicts"][i] for t in tiers}) == 1) / len(both), 3)
+             if len(tiers) >= 2 and both else None)
     return {"rows": rows, "inter_tier_agreement": inter, "probes": len(probes)}
 
 
@@ -208,8 +220,9 @@ def format_judge_bench(scored: dict) -> str:
         rec = f"{r['caught']}/{r['pos_n']}" if r["recall"] is not None else "n/a"
         spec = f"{r['passed']}/{r['neg_n']}" if r["specificity"] is not None else "n/a"
         cost = f"${r['cost_usd']}" if r.get("cost_usd") is not None else "n/a"
+        err = f"  [{r['errors']} errored, cov {r['coverage']}]" if r.get("errors") else ""
         out.append(f"  {r['model']:22}  {rec:>7}  {spec:>11}  "
-                   f"{str(r['accuracy']):>8}  {cost:>9}  {str(r['latency_s'])+'s':>8}")
+                   f"{str(r['accuracy']):>8}  {cost:>9}  {str(r['latency_s'])+'s':>8}{err}")
     for tier, r in rows.items():
         if r["misses"]:
             out.append(f"      {r['model']} missed: {', '.join(r['misses'])}")
