@@ -9,7 +9,9 @@ import json
 
 import pytest
 
-from helicon.runs import parse_session_cost, scan_session_costs, group_runs
+from helicon.db import init_db
+from helicon.runs import (parse_session_cost, scan_session_costs, group_runs,
+                          run_yield, score_run, build_run_card)
 
 
 def _write(path, lines):
@@ -115,3 +117,52 @@ def test_long_open_session_does_not_bridge_days(tmp_path):
     ]
     runs = group_runs(recs, gap_min=300)
     assert len(runs) == 2       # 'next' started 24h after 'long', so separate runs
+
+
+# --- slices 1.3 + 1.5: yield join and score ----------------------------------
+
+def _evrow(conn, verdict, i):
+    conn.execute(
+        "INSERT INTO route_evidence "
+        "(model,harness,task_class,verdict,created_at,pair_key) VALUES "
+        "('Opus 4.8','claude-code','testing',?, '2026-07-14', ?)", (verdict, f"e{i}"))
+
+
+def test_run_yield_ratio_excludes_uncheckable(tmp_path):
+    conn = init_db(str(tmp_path / "h.db"))
+    for i in range(4):
+        _evrow(conn, "verified", i)
+    _evrow(conn, "contradicted", 98)
+    _evrow(conn, "unverified", 99)          # uncheckable, must not enter the ratio
+    conn.commit()
+    y = run_yield(conn)
+    assert y["verified"] == 4 and y["contradicted"] == 1
+    assert y["checkable"] == 5              # 4 + 1, not 6
+    assert y["verified_ratio"] == 0.8
+    assert y["uncheckable"] == 1
+
+
+def test_score_formula_terms_are_real_and_damage_subtracts():
+    run = {"output_tokens": 2_000_000, "duration_min": 120}   # 2 Mtok, 2.0h
+    yld = {"verified": 4}
+    s = score_run(run, yld, damage=0.3)
+    assert s["out_mtok"] == 2.0 and s["hours"] == 2.0
+    assert s["cost"] == 4.0                 # 2.0 * 2.0
+    assert s["raw"] == 1.0                  # 4 / 4.0
+    assert s["score"] == 0.7                # 1.0 - 0.3 damage
+
+
+def test_build_run_card_joins_cost_and_yield(tmp_path):
+    conn = init_db(str(tmp_path / "h.db"))
+    for i in range(4):
+        _evrow(conn, "verified", i)
+    _evrow(conn, "contradicted", 98)
+    _evrow(conn, "contradicted", 97)
+    conn.commit()
+    run = group_runs([_rec("s1", "2026-07-14T07:40:00", "2026-07-14T09:40:00",
+                           out=1_000_000)], gap_min=300)[0]
+    card = build_run_card(conn, run, damage=0.0)
+    assert card["verified"] == 4 and card["checkable"] == 6
+    assert card["verified_ratio"] == 0.667
+    assert card["output_tokens"] == 1_000_000
+    assert "score" in card and isinstance(card["score"], float)

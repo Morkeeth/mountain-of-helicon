@@ -186,6 +186,88 @@ def _finalize_run(cur: dict) -> dict:
     }
 
 
+def run_yield(conn) -> dict:
+    """Slice 1.3: the verified YIELD of the current output, read from route_evidence
+    (the verdicts `review --terminals` produced). verified = passed reality,
+    contradicted = failed, unverified = uncheckable (excluded from the ratio).
+
+    Honest scope: route_evidence reflects the CURRENT repo state, so this yield is
+    valid for the LATEST/active run (its output IS the current state). Per-run
+    historical yield needs commit-window verification (a later slice)."""
+    counts = {"verified": 0, "contradicted": 0, "unverified": 0}
+    for r in conn.execute(
+            "SELECT verdict, COUNT(*) c FROM route_evidence GROUP BY verdict"):
+        if r["verdict"] in counts:
+            counts[r["verdict"]] = r["c"]
+    checkable = counts["verified"] + counts["contradicted"]
+    return {
+        "verified": counts["verified"],
+        "contradicted": counts["contradicted"],
+        "uncheckable": counts["unverified"],
+        "checkable": checkable,
+        "verified_ratio": round(counts["verified"] / checkable, 3) if checkable else None,
+    }
+
+
+def score_run(run: dict, yld: dict, damage: float = 0.0) -> dict:
+    """Slice 1.5: score = verified yield / cost - damage. Every term is real and
+    shown on the card, nothing hidden:
+      yield = count of verified deliverables (reality-passed output)
+      cost  = output_Mtok * hours   (a run that is both long AND token-heavy costs more)
+      score = yield / cost - damage  (verified deliverables per Mtok-hour, minus incident)
+    The combination is a disclosed design choice; the inputs are not invented."""
+    out_mtok = run["output_tokens"] / 1_000_000
+    hours = run["duration_min"] / 60
+    cost = max(round(out_mtok * hours, 3), 0.01)
+    verified = yld["verified"]
+    raw = round(verified / cost, 2)
+    return {
+        "yield_verified": verified,
+        "out_mtok": round(out_mtok, 2),
+        "hours": round(hours, 2),
+        "cost": cost,
+        "raw": raw,
+        "damage": damage,
+        "score": round(raw - damage, 2),
+    }
+
+
+def build_run_card(conn, run: dict, damage: float = 0.0) -> dict:
+    """One real run card: identity + cost (from transcripts) + yield (from review
+    verdicts) + score. Every field traces to a real source."""
+    yld = run_yield(conn)
+    sc = score_run(run, yld, damage)
+    return {
+        "run_id": run["run_id"], "start": run["start"], "end": run["end"],
+        "duration_min": run["duration_min"], "model": run["model"],
+        "session_count": run["session_count"], "output_tokens": run["output_tokens"],
+        "total_tokens": run["total_tokens"], **yld, **sc,
+    }
+
+
+def format_run_card(card: dict) -> str:
+    vr = card["verified_ratio"]
+    vr_s = f"{vr}" if vr is not None else "n/a (nothing checkable)"
+    dmg = f"  -  damage {card['damage']}" if card["damage"] else ""
+    return "\n".join([
+        "",
+        f"  RUN CARD  {card['run_id']}",
+        f"  {'span':14} {(card['start'] or '')[:16].replace('T',' ')} -> "
+        f"{(card['end'] or '')[:16].replace('T',' ')}  ({card['duration_min']}m, "
+        f"{card['session_count']} session(s))",
+        f"  {'model':14} {card['model'].replace('claude-','')}",
+        f"  {'cost':14} {_fmt_tok(card['output_tokens'])} output tokens "
+        f"({card['out_mtok']}M) x {card['hours']}h  =  {card['cost']} Mtok-h",
+        f"  {'yield':14} {card['verified']}/{card['checkable']} verified "
+        f"(ratio {vr_s}; {card['uncheckable']} uncheckable, excluded)",
+        f"  {'score':14} {card['yield_verified']} verified / {card['cost']} cost "
+        f"= {card['raw']}{dmg}  ->  SCORE {card['score']}",
+        "",
+        "  (yield = review --terminals verdicts on current output; every term is real)",
+        "",
+    ])
+
+
 def _fmt_tok(n: int) -> str:
     if n >= 1_000_000:
         return f"{n/1_000_000:.1f}M"

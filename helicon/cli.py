@@ -541,9 +541,18 @@ def cmd_score_runs(args):
     limit = getattr(args, "limit", 20)
     if getattr(args, "sessions", False):
         print(format_session_costs(recs, limit=limit))
-    else:
-        runs = group_runs(recs, gap_min=getattr(args, "gap", 300))
-        print(format_runs(runs, limit=limit))
+        return
+    runs = group_runs(recs, gap_min=getattr(args, "gap", 300))
+    if getattr(args, "card", False):
+        from helicon.db import init_db
+        from helicon.runs import build_run_card, format_run_card
+        if not runs:
+            print("\n  No runs to card.\n"); return
+        conn = init_db(config["db_path"])
+        card = build_run_card(conn, runs[0], damage=getattr(args, "damage", 0.0) or 0.0)
+        print(format_run_card(card))
+        return
+    print(format_runs(runs, limit=limit))
 
 
 def cmd_snapshot(args):
@@ -2000,6 +2009,8 @@ def main():
     scoreruns_p.add_argument("--limit", type=int, default=20, help="Rows to show (default 20)")
     scoreruns_p.add_argument("--sessions", action="store_true", help="Show the raw per-session cost table instead of clustered runs")
     scoreruns_p.add_argument("--gap", type=int, default=300, help="Minutes between session starts that split one run from the next (default 300)")
+    scoreruns_p.add_argument("--card", action="store_true", help="Emit ONE full run card for the latest run (cost + verified yield + score)")
+    scoreruns_p.add_argument("--damage", type=float, default=0.0, help="with --card: incident penalty for this run (e.g. a machine freeze); disclosed on the card")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
