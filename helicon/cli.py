@@ -599,7 +599,7 @@ def cmd_judge_bench(args):
     config = load_config()
     tiers = (getattr(args, "tiers", None) or ",".join(TIERS)).split(",")
     res = run_judge_bench(config, tiers=[t.strip() for t in tiers],
-                          limit=getattr(args, "limit", 24))
+                          which=getattr(args, "set", "ruled"))
     if "error" in res:
         print(f"  judge-bench: {res['error']}")
         return
@@ -2090,7 +2090,8 @@ def main():
 
     jb_p = sub.add_parser("judge-bench", help="Benchmark Qwen tiers as the memory-rot judge against human-labeled ground truth")
     jb_p.add_argument("--tiers", help="Comma list of tiers (default fast,default,deep)")
-    jb_p.add_argument("--limit", type=int, default=24, help="Max candidate pairs to judge (default 24)")
+    jb_p.add_argument("--set", choices=["ruled", "hard", "all"], default="ruled",
+                      help="Probe set: ruled (easy, from rulings) | hard (paraphrase/overlap/dead-name) | all")
 
     lb_p = sub.add_parser("leaderboard", help="Population model-reliability leaderboard from git history (execution-free: survived vs reverted)")
     lb_p.add_argument("repos", nargs="*", help="Repo paths to scan (default: git repos under ~/CODE)")
