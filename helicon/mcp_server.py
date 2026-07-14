@@ -99,6 +99,17 @@ TOOLS = [
         },
     },
     {
+        "name": "helicon_guard",
+        "description": "Check a proposed output against the compiled law (GOLDEN_RULES) BEFORE you write it. Pass the claim/text you are about to assert; Mount Helicon returns any rulings it contradicts - a dead project name used as current, or a definition a human ruled against. verdict is 'blocked' (a critical ruling contradicts it - do not write it), 'warn', or 'clean'. Call it before asserting facts about the user's projects, names, or decisions, so a ruled-against claim never lands.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string", "description": "The output/claim you are about to write"},
+            },
+            "required": ["text"],
+        },
+    },
+    {
         "name": "helicon_context",
         "description": "Proactive memory injection. Describe what you're working on and Mount Helicon returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context. Every memory carries its id, last_verified date and used_count. If any memory is stale or wrong, call helicon_flag with that id.",
         "inputSchema": {
@@ -426,6 +437,10 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         return json.dumps(_flag_memory(
             conn, arguments.get("memory_id", ""),
             arguments.get("verdict", ""), arguments.get("reason", "")))
+
+    if name == "helicon_guard":
+        from helicon.guard import guard_output
+        return json.dumps(guard_output(conn, arguments.get("text", "")))
 
     if name == "helicon_health":
         score = compute_score(conn)

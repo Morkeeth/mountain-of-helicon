@@ -591,6 +591,19 @@ def cmd_runs(args):
         print(format_suggestions(suggest_runs(conn, config)))
 
 
+def cmd_guard(args):
+    """Live guard: check a proposed output against the law (rulings) before it's
+    written. The write-time enforcement of GOLDEN_RULES (also the helicon_guard
+    MCP tool)."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.guard import guard_output, format_guard
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    print(format_guard(guard_output(conn, args.text)))
+
+
 def cmd_attribute(args):
     """Auto-attribution: trace a contradicted output finding back to the memory
     cube(s) that caused it, so you can retire the actual cause when you rule."""
@@ -2225,6 +2238,9 @@ def main():
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
     resolve_p.add_argument("--retire", metavar="CUBE_ID", help="with an output-review ruling: retire the memory cube that caused the bad output (from `helicon attribute`)")
 
+    guard_p = sub.add_parser("guard", help="Check a proposed output against the law (rulings) before it's written")
+    guard_p.add_argument("text", help="the output/claim you're about to assert")
+
     attr_p = sub.add_parser("attribute", help="Trace a contradicted output finding back to the memory that caused it")
     attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review --terminals --file`)")
     attr_p.add_argument("--limit", type=int, default=5, help="max candidate memories (default 5)")
@@ -2290,6 +2306,7 @@ def main():
         "runs": cmd_runs,
         "judge-bench": cmd_judge_bench,
         "attribute": cmd_attribute,
+        "guard": cmd_guard,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
