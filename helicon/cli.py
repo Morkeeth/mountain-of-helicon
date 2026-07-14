@@ -591,6 +591,21 @@ def cmd_runs(args):
         print(format_suggestions(suggest_runs(conn, config)))
 
 
+def cmd_judge_bench(args):
+    """Slice 1: benchmark Qwen tiers as the memory-rot judge vs human labels."""
+    from helicon.config import load_config
+    from helicon.judge_bench import run_judge_bench, format_judge_bench, TIERS
+
+    config = load_config()
+    tiers = (getattr(args, "tiers", None) or ",".join(TIERS)).split(",")
+    res = run_judge_bench(config, tiers=[t.strip() for t in tiers],
+                          limit=getattr(args, "limit", 24))
+    if "error" in res:
+        print(f"  judge-bench: {res['error']}")
+        return
+    print(format_judge_bench(res["scored"]))
+
+
 def cmd_leaderboard(args):
     """Population-scale model reliability from git history (execution-free): rank
     models by how often their commits survive vs get reverted, across repos."""
@@ -2073,6 +2088,10 @@ def main():
     scoreruns_p.add_argument("--damage", type=float, default=0.0, help="with --card: incident penalty for this run (e.g. a machine freeze); disclosed on the card")
     scoreruns_p.add_argument("--persist", action="store_true", help="with --card: write the card to run_cards (the Latest-runs history)")
 
+    jb_p = sub.add_parser("judge-bench", help="Benchmark Qwen tiers as the memory-rot judge against human-labeled ground truth")
+    jb_p.add_argument("--tiers", help="Comma list of tiers (default fast,default,deep)")
+    jb_p.add_argument("--limit", type=int, default=24, help="Max candidate pairs to judge (default 24)")
+
     lb_p = sub.add_parser("leaderboard", help="Population model-reliability leaderboard from git history (execution-free: survived vs reverted)")
     lb_p.add_argument("repos", nargs="*", help="Repo paths to scan (default: git repos under ~/CODE)")
     lb_p.add_argument("--max", type=int, default=500, help="Max commits per repo (default 500)")
@@ -2210,6 +2229,7 @@ def main():
         "route": cmd_route,
         "score-runs": cmd_score_runs,
         "runs": cmd_runs,
+        "judge-bench": cmd_judge_bench,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
         "taste": cmd_taste,

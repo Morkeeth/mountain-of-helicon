@@ -152,9 +152,9 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (39 commands)
+## CLI (40 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `route` `score-runs` `runs` `leaderboard` `snapshot` `lens` `taste` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `route` `score-runs` `runs` `judge-bench` `leaderboard` `snapshot` `lens` `taste` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
 `helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
 
