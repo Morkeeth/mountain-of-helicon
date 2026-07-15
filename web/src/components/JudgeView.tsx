@@ -178,26 +178,31 @@ function CostAccuracyChart({ rows }: { rows: JudgeRow[] }) {
                 style={{ fontSize: 10, fill: 'var(--helicon-muted)' }}>
             cost for the full probe set (log scale) →
           </text>
-          <text transform={`translate(11, ${M.t + ih / 2}) rotate(-90)`} textAnchor="middle"
-                style={{ fontSize: 10, fill: 'var(--helicon-muted)' }}>
-            accuracy
-          </text>
+          {!narrow && (
+            <text transform={`translate(14, ${M.t + ih / 2}) rotate(-90)`} textAnchor="middle"
+                  style={{ fontSize: 10, fill: 'var(--helicon-muted)' }}>
+              accuracy
+            </text>
+          )}
 
           {pts.map((p, i) => {
-            const cx = X(p.cost_usd as number), cy = Y(p.accuracy as number);
+            const { cx, cy, x, dy } = labels[i];
             const q = isQwen(p.model);
             const on = hover === i;
-            // label left of the dot when it would run off the right edge
-            const flip = cx > M.l + iw - 86;
             return (
               <g key={p.model}>
-                {/* hit target well beyond the 8px mark (dataviz: no pinpoint dots) */}
+                {/* hit target well beyond the 6px mark (dataviz: no pinpoint dots) */}
                 <circle cx={cx} cy={cy} r={20} fill="transparent" style={{ cursor: 'pointer' }}
                         onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
+                {/* leader line when the label had to move off its dot */}
+                {Math.abs(dy) > 14 && (
+                  <line x1={cx} y1={cy} x2={x} y2={cy + dy + (dy < 0 ? 4 : -8)}
+                        stroke="var(--helicon-line-2)" strokeWidth={1} />
+                )}
                 <circle cx={cx} cy={cy} r={on ? 8 : 6} fill={q ? QWEN_INK : FIELD_INK}
                         stroke="var(--helicon-panel)" strokeWidth={2} style={{ pointerEvents: 'none' }} />
                 {/* direct label: identity never rides on colour alone */}
-                <text x={flip ? cx - 11 : cx + 11} y={cy - 9} textAnchor={flip ? 'end' : 'start'}
+                <text x={x} y={cy + dy} textAnchor="middle"
                       style={{
                         fontFamily: 'var(--helicon-mono)', fontSize: 9.5,
                         fill: 'var(--helicon-ink)', fontWeight: q ? 600 : 400, pointerEvents: 'none',
@@ -237,13 +242,17 @@ function JudgeTable({ rows }: { rows: JudgeRow[] }) {
   return (
     <div style={{ overflowX: 'auto' }}>
       <table style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
+        {/* Column order is the story order: model, accuracy, cost. At 390px the
+            table scrolls sideways inside itself, so whichever columns come last
+            are the ones cut off — recall/specificity/latency are the detail, and
+            cost must never be the number sliced in half. */}
         <thead>
           <tr>
             <th style={head}>model</th>
-            <th style={head}>recall</th>
-            <th style={head}>specificity</th>
             <th style={head}>accuracy</th>
             <th style={head}>cost</th>
+            <th style={head}>recall</th>
+            <th style={head}>specificity</th>
             <th style={head}>latency</th>
           </tr>
         </thead>
@@ -257,10 +266,10 @@ function JudgeTable({ rows }: { rows: JudgeRow[] }) {
                 }} />
                 {r.model}
               </td>
-              <td style={cell}>{r.caught != null && r.pos_n != null ? `${r.caught}/${r.pos_n}` : '—'}</td>
-              <td style={cell}>{r.passed != null && r.neg_n != null ? `${r.passed}/${r.neg_n}` : '—'}</td>
               <td style={{ ...cell, fontWeight: 600 }}>{r.accuracy ?? '—'}</td>
               <td style={cell}>{r.cost_usd != null ? fmtCost(r.cost_usd) : 'n/a'}</td>
+              <td style={cell}>{r.caught != null && r.pos_n != null ? `${r.caught}/${r.pos_n}` : '—'}</td>
+              <td style={cell}>{r.passed != null && r.neg_n != null ? `${r.passed}/${r.neg_n}` : '—'}</td>
               <td style={{ ...cell, color: 'var(--helicon-muted)' }}>{r.latency_s != null ? `${r.latency_s}s` : '—'}</td>
             </tr>
           ))}

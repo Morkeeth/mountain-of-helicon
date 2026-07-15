@@ -202,7 +202,11 @@ function MoreSheet({ tab, onPick, onClose, needsYou }: {
         <div className="overflow-y-auto pb-4" style={{ maxHeight: 'calc(82vh - 24px)' }}>
           {rest.map((t, i) => row(t, PRIMARY_TABS.findIndex(p => p.key === t.key) + 1))}
           {rest.length > 0 && <div className="my-2 mx-5 border-t" style={{ borderColor: 'var(--helicon-line)' }} />}
-          {SECONDARY_TABS.map((t, i) => row(t, i + 8))}
+          {/* Derived, never hardcoded: these numbers ARE the keyboard shortcuts
+              and must match the rail exactly. A literal `i + 8` here was correct
+              only while PRIMARY_TABS had 7 entries, and silently drifted the
+              moment one was added. */}
+          {SECONDARY_TABS.map((t, i) => row(t, PRIMARY_TABS.length + i + 1))}
         </div>
       </motion.div>
     </div>

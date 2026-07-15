@@ -8,8 +8,19 @@ import sqlite3
 
 import pytest
 
+# helicon.api.app MUST be imported before any router module. app.py builds the
+# FastAPI app at import time and pulls every router in, so importing a router
+# first lands mid-cycle and raises ImportError. This is repo-wide, not specific
+# to rot (api.findings / api.eval / api.triage behave identically) — real usage
+# always enters through app, and so does this file.
+import helicon.api.app  # noqa: F401  (import order is load-bearing, see above)
+from helicon.api import rot as rot_api
 from helicon.judge_bench import init_judge_table, latest_judge_run, save_judge_run
 from helicon.rot import run_rot_exam
+
+
+def _reset_rot_cache():
+    rot_api._cache.update({"res": None, "mono": 0.0, "ran_at": None, "took_s": None})
 
 
 @pytest.fixture
@@ -97,10 +108,24 @@ def _client(tmp_path, monkeypatch):
 
 
 def test_api_rot_runs_live(tmp_path, monkeypatch):
+    _reset_rot_cache()
     with _client(tmp_path, monkeypatch) as c:
         res = c.get("/api/rot")
         assert res.status_code == 200
-        assert res.json()["classes"] == 12
+        body = res.json()
+        assert body["classes"] == 12
+        # a held result must always be able to say when it ran
+        assert body["cached"] is False and body["ran_at"] and body["took_s"] is not None
+
+
+def test_api_rot_holds_then_refreshes(tmp_path, monkeypatch):
+    """The cache must announce itself, and ?fresh=1 must actually re-run.
+    A held verdict that reads as live is the rot this exam exists to catch."""
+    _reset_rot_cache()
+    with _client(tmp_path, monkeypatch) as c:
+        assert c.get("/api/rot").json()["cached"] is False
+        assert c.get("/api/rot").json()["cached"] is True      # served from hold
+        assert c.get("/api/rot?fresh=1").json()["cached"] is False  # forced re-run
 
 
 def test_api_judge_says_so_when_no_run_exists(tmp_path, monkeypatch):
