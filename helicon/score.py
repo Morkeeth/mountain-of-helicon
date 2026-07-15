@@ -53,7 +53,7 @@ def backfill_score_history(conn: sqlite3.Connection):
         conn.execute(
             "INSERT INTO score_history (recorded_at, score, total, reviewed, event_label) "
             "VALUES (?, 0, ?, 0, ?)",
-            (first_scan, total, f"First scan: {total} cubes ingested"),
+            (first_scan, total, f"First scan: {total} memories ingested"),
         )
 
     human_reviews = conn.execute(

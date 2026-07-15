@@ -220,7 +220,7 @@ def get_recommendations(conn, config: dict | None = None) -> list[dict]:
 
         if p["ship_rate"] == 0 and p["cube_count"] > 10:
             score += 20
-            reasons.append(f"{p['cube_count']} cubes, 0 shipped")
+            reasons.append(f"{p['cube_count']} memories, 0 shipped")
 
         action = _pick_action(p, reasons)
 
@@ -249,7 +249,7 @@ def get_recommendations(conn, config: dict | None = None) -> list[dict]:
 
 def _pick_action(p: dict, reasons: list[str]) -> str:
     if p["ship_rate"] == 0 and p["cube_count"] > 10:
-        return f"Ship or kill. {p['cube_count']} cubes, nothing approved."
+        return f"Ship or kill. {p['cube_count']} memories, nothing approved."
     if p["spin_score"] > 3.0:
         return f"Stop planning, start shipping. {p['spin_score']:.0f} sessions per shipped item."
     if p["days_since_output"] and p["days_since_output"] > 14:
@@ -260,7 +260,7 @@ def _pick_action(p: dict, reasons: list[str]) -> str:
         return f"Review backlog: {p['pending']} items waiting."
     if p["ship_rate"] > 0.3 and p["shipped"] >= 2:
         return f"Hot hand. {p['shipped']} shipped at {p['ship_rate']:.0%} rate. Keep going."
-    return f"{p['cube_count']} cubes across {len(reasons)} signals."
+    return f"{p['cube_count']} memories across {len(reasons)} signals."
 
 
 def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
@@ -268,7 +268,7 @@ def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
     model = resolve_model("fast", config)
 
     summary = "\n".join(
-        f"- {p['name']}: {p['cube_count']} cubes, ship rate {p['ship_rate']:.0%}, "
+        f"- {p['name']}: {p['cube_count']} memories, ship rate {p['ship_rate']:.0%}, "
         f"spin {p['spin_score']:.1f}x, last output {p['days_since_output'] or '?'}d ago, "
         f"action: {p['action']}"
         for p in projects[:8]

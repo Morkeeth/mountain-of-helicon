@@ -628,7 +628,7 @@ def cmd_attribute(args):
     for c in res["candidates"]:
         print(f"    {c['id']}  [{c['source']}]  {c['title'][:50]}")
         print(f"        {c['snippet']}")
-    print(f"\n  rule + retire the cause:  helicon resolve {args.id} --truth \"<the truth>\" --retire <cube_id>\n")
+    print(f"\n  rule + retire the cause:  helicon resolve {args.id} --truth \"<the truth>\" --retire <memory_id>\n")
 
 
 def cmd_move(args):
@@ -1049,7 +1049,7 @@ def cmd_heal(args):
     # store is always safe (re-seedable), so it never needs confirmation.
     if apply and not demo and not getattr(args, "yes_really", False):
         print("\n  ⚠  refusing to --apply on your REAL store "
-              "(would mark cubes killed / retire live memories).")
+              "(would kill / retire live memories).")
         print("     • see it safely first:    helicon repair --demo --apply")
         print("     • really apply for real:  helicon repair --apply --yes-really\n")
         return
@@ -1458,7 +1458,7 @@ def cmd_resolve(args):
             print(f"error: {ri['error']}")
             return
         print(f"resolved #{ri['audit_id']}: {ri['name'].title()} is canonically \"{ri['canonical']}\"")
-        print(f"  correction cube {ri['correction_cube']} (approved, provenance); the fork is settled")
+        print(f"  correction memory {ri['correction_cube']} (approved, provenance); the fork is settled")
         return
     if _row and _row["audit_type"] == "provenance":
         from helicon.relations import resolve_relation
@@ -1468,7 +1468,7 @@ def cmd_resolve(args):
             return
         print(f"resolved #{rr['audit_id']}: {rr['subj']} -/-> {rr['obj']} ruled {rr['verdict']}")
         if rr["verdict"] == "phantom" and rr["correction_cube"]:
-            print(f"  phantom recorded (cube {rr['correction_cube']}); the scan will not re-file it")
+            print(f"  phantom recorded (memory {rr['correction_cube']}); the scan will not re-file it")
         return
     if _row and _row["audit_type"] == "review":
         # the OUTPUT -> memory edge: a false claim ruling writes the reality
@@ -1481,9 +1481,9 @@ def cmd_resolve(args):
             print(f"error: {rv['error']}")
             return
         print(f"resolved #{rv['audit_id']}: output claim from '{rv['terminal']}' corrected")
-        print(f"  correction cube {rv['correction_cube']} (approved) now serves the reality-checked truth")
+        print(f"  correction memory {rv['correction_cube']} (approved) now serves the reality-checked truth")
         if rv.get("retired_cube"):
-            print(f"  retired the cause: cube {rv['retired_cube']} superseded (the memory that drove the bad output)")
+            print(f"  retired the cause: memory {rv['retired_cube']} superseded (the one that drove the bad output)")
         return
     res = resolve_pair(conn, args.id, args.truth, note=args.note or "")
     if not res["ok"]:
@@ -1491,7 +1491,7 @@ def cmd_resolve(args):
         return
     print(f"resolved #{res['audit_id']}: {res['person'].title()} {res['topic']} = {res['truth']}")
     print(f"  wrong value(s) {', '.join(res['wrong_dates'])} ruled out; "
-          f"correction cube {res['correction_cube']} (approved, provenance recorded)")
+          f"correction memory {res['correction_cube']} (approved, provenance recorded)")
     print("  never-twice armed: new memory asserting a ruled-out value will re-alarm")
 
 
@@ -2276,7 +2276,7 @@ def main():
     resolve_p.add_argument("--note", help="optional context recorded on the correction memory")
     resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
-    resolve_p.add_argument("--retire", metavar="CUBE_ID", help="with an output-review ruling: retire the memory cube that caused the bad output (from `helicon attribute`)")
+    resolve_p.add_argument("--retire", metavar="MEMORY_ID", help="with an output-review ruling: retire the memory that caused the bad output (from `helicon attribute`)")
 
     guard_p = sub.add_parser("guard", help="Check a proposed output against the law (rulings) before it's written")
     guard_p.add_argument("text", help="the output/claim you're about to assert")
@@ -2390,8 +2390,17 @@ def main():
     # and exiting 0 sent them back to `scan`, which sent them back to `init`: a
     # closed loop with no exit and no mention of the config.example.json or the
     # demo seed sitting in the same clone. Name the way out.
+    # Commands that BUILD their own config and need no user config.json. `ci`
+    # belongs here and was missed: it constructs a temp DB and an agent-rules
+    # connector for the repo it is handed, which is the entire point of running
+    # it on a fresh checkout in GitHub Actions where no config.json exists. The
+    # first version of this gate ran before dispatch for every other command and
+    # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
+    # stranger hitting a traceback broke the one caller that was already right.
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci")
+
     from helicon.config import CONFIG_FILE, load_config as _load
-    if args.command not in ("init", "doctor", "mcp"):
+    if args.command not in SELF_CONFIGURING:
         try:
             _cfg = _load()
         except FileNotFoundError as e:
