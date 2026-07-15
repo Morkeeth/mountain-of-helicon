@@ -20,10 +20,10 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 - Python (CLI scanner + FastAPI backend)
 - Qwen Cloud API (qwen3.6-flash/plus + qwen3.7-max via OpenAI-compatible SDK)
 - Distribution: BYOK + local-first; Alibaba Cloud proof via Cloud Shell (ECS dead: KYC, decided Jul 3)
-- SQLite + FTS5 + numpy embeddings (18 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, playbooks, memory_utility, cube_embeddings, context_snapshots)
+- SQLite + FTS5 + numpy embeddings (24 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards), plus the cubes_fts FTS5 index
 - React/Vite (findings-first dashboard: HEALTH / FINDINGS / LOG primary, Graph + Projects secondary)
 - Web Speech API (voice input for reviews)
-- MCP Server (11 tools for agent self-audit + context injection)
+- MCP Server (14 tools for agent self-audit + context injection)
 - Auto-triage engine (autonomous kill/keep from patterns learned on HUMAN reviews only)
 - CLI (`helicon init/scan/serve/triage/score/stack/optimize/embed/compile/playbooks/consolidate`)
 
@@ -67,10 +67,10 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 
 ## Current Stats
 
-- ~2,800 active cubes (3,800 total) from 5 connectors (Claude Code, Git, Obsidian, Cursor AI tracking, ChatGPT)
+- ~3,800 live cubes of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live cubes come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor cubes exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 cubes
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
-- 14 routers, 11 MCP tools, 20 CLI commands
+- 22 routers (~90 endpoints), 14 MCP tools, 43 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)
@@ -81,9 +81,9 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 
 ## Honest eval numbers (no self-grading, no divide-by-zero)
 
-- Composite: **74.2** (retrieval P@3 + MRR + decay-AUC; audit excluded, no labeled ground truth)
-- Retrieval: P@3 0.692, MRR 0.615 (n=13, auto-built internal benchmark, one label/query - disclose this)
-- Decay predicts human kills: **rank-AUC 0.877** (mean confidence of killed cubes 0.017 vs approved 0.256) - a real, independent signal
+- Composite: **~67** (as of 2026-07-13; run `helicon eval` to recompute. Retrieval P@3 + MRR + decay-AUC; audit excluded, no labeled ground truth)
+- Retrieval: P@3 0.692, MRR 0.603 (n=13, auto-built internal benchmark, one label/query - disclose this)
+- Decay predicts human kills: **rank-AUC 0.781** (mean confidence of killed cubes 0.141 vs approved 0.268) - a real, independent signal
 - Consolidation: ~9-10x fewer tokens (char-estimated), Qwen-judged quality favors synthesis (self-graded, show as direction not proof)
 
 ## Known gaps (do not overclaim in demo)

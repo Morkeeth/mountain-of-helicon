@@ -12,7 +12,7 @@ The record is measured and it is bad. Shown two contradicting sources, GPT-4 fla
 
 The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become stale. Agents are instructed to treat memories as guidance only."* Anthropic's memory-tool freshness strategy is one line: delete files *"that haven't been accessed in a long time."* Alibaba's own AnalyticDB team titled their blog *"Is Your AI Agent Getting Dumber?"* -- and Qwen3.7-Max markets 35-hour autonomous runs as *"resilient to context rot and instruction drift"* with no way for anyone to verify it. Mem0 ($24M) stores. Letta ($10M) organizes. Zep timestamps. Every shipped mitigation is recency deletion, write-time dedup, or "the human should review." **Nobody ships a test that asks: is this stored memory still true?**
 
-Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live 2,800-cube memory, and it has failed its own audits more than once (see receipts in the demo).
+Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live memory store (~6,900 cubes on 2026-07-15, roughly 3,800 of them live; it grows on every scan, so run `helicon doctor` for today's count), and it has failed its own audits more than once (see receipts in the demo).
 
 ## The moat: what a memory store cannot do (one command)
 
@@ -75,7 +75,7 @@ Packaged as a proper CLI (a `helicon` entry point via `pyproject.toml`), so once
 
 ## CI for agent memory (GitHub Action)
 
-The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs the ten-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot.
+The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs the 12-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot.
 
 ```yaml
 # .github/workflows/memory-ci.yml
@@ -143,6 +143,8 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 | `helicon_contradictions` | Active factual conflicts |
 | `helicon_recent_reviews` | What the human approved/killed |
 | `helicon_patterns` | Learned behavioral patterns |
+| `helicon_guard` | Check a proposed claim against the compiled law *before* writing it: `blocked` / `warn` / `clean` |
+| `helicon_portrait` | Grounded portrait of what the record shows about the person, plus its health |
 | `helicon_context` | Proactive memory injection for a task -- every memory carries its id, last_verified, used_count |
 | `helicon_flag` | Point-of-use correction: flag a memory stale/wrong/useful by id; stale/wrong become findings the human confirms |
 | `helicon_playbook` | Task playbooks from review patterns |
@@ -154,7 +156,9 @@ The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercise
 
 ## CLI (43 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `route` `score-runs` `runs` `judge-bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `audit` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `triage` `review` `route` `score-runs` `runs` `judge-bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `guard` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+
+Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
 `helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
 
@@ -206,7 +210,8 @@ A tool that audits your memory reads your memory. That access is scary, so here 
 - its own SQLite DB and `data/` (findings, verdicts, drift reports, compiled context)
 - `helicon fix-skills` and other write-backs: **dry-run by default**, `--apply` required, `.bak` written next to every file before modification, second run is a no-op
 - `helicon watch --install`: one tagged line in your crontab, removed by `--uninstall`
-- `helicon compile --inject`: skill files under `~/.claude/skills/helicon-*.md` — explicitly invoked, never automatic (and our own store still carries the pre-rename `glaze-*` artifacts from the old injector as a live example of why write-backs need lifecycle discipline; the skills audit flags them)
+- `helicon compile`: compiled context files under `data/compiled/` (`--output` redirects). It writes nothing into `~/.claude/`: an auto-inject path exists in the source (`compiler.inject_into_claude_code`) but no command calls it, so the pull path (`helicon_context` over MCP) is the working half of that loop and the push half is unwired. Our own store still carries pre-rename `glaze-*` skill files from an older injector, which the skills audit flags: a live example of why write-backs need lifecycle discipline
+- `helicon policy --inject` (alias `helicon gold --inject`): `~/.claude/GOLDEN_RULES.md`, dry-run by default, `.bak` kept
 - your vault: **never**. Corrections are cubes in Helicon's store, not edits to your files. You stay the only writer of your second brain.
 
 **Leaves your machine:** nothing, unless you configure a Qwen key — then excerpts of candidate memories (truncated cube content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
