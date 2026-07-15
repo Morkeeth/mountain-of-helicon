@@ -1,6 +1,7 @@
 {
   "db_path": "data/helicon.db",
   "qwen_api_key": "sk-your-qwen-api-key",
+  "openrouter_api_key": "",
   "qwen_model": "qwen-plus",
   "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   "connectors": {

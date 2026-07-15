@@ -104,11 +104,16 @@ def build_probes(which: str = "ruled") -> list[dict]:
     return probes
 
 
-def _openrouter_client():
+def _openrouter_client(config: dict | None = None):
     """Slice 3: any OpenAI-compatible judge (GPT/Claude/...) via OpenRouter, one
-    key. Returns None when no key is set - we never fabricate a competitor."""
+    key. Returns None when no key is set - we never fabricate a competitor.
+
+    Reads config.json first and falls back to the environment, which is how
+    every other key in this tool is resolved (config.py). This used to be
+    env-only, so the Qwen-vs-field comparison was unreachable for anyone who
+    keeps their keys where the rest of the tool keeps them."""
     import os
-    key = os.environ.get("OPENROUTER_API_KEY")
+    key = (config or {}).get("openrouter_api_key") or os.environ.get("OPENROUTER_API_KEY")
     if not key:
         return None
     from openai import OpenAI

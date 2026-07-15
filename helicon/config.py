@@ -31,6 +31,14 @@ def load_config(path: str | None = None) -> dict:
 
     config["db_path"] = expand_path(config.get("db_path", "data/helicon.db"))
     config["qwen_api_key"] = config.get("qwen_api_key") or os.environ.get("QWEN_API_KEY", "")
+    # Same shape as every other key: config.json first, env as the fallback.
+    # judge_bench used to read OPENROUTER_API_KEY from the environment and
+    # nowhere else, which made it the only component that could not be
+    # configured the way the whole rest of the tool is. The field was not even
+    # declared in config.example.json, so there was no way to discover that it
+    # belonged there.
+    config["openrouter_api_key"] = config.get("openrouter_api_key") or \
+        os.environ.get("OPENROUTER_API_KEY", "")
 
     for name, conn in config.get("connectors", {}).items():
         for key in ("jsonl_dir", "memory_dir", "sessions_index", "vault_path", "repos_dir"):
