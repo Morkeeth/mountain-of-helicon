@@ -53,6 +53,24 @@ _DATE_RES = [
     re.compile(rf"\b(\d{{1,2}})\s+{_MON}\b"),
     # 2026-05-13
     re.compile(r"\b\d{4}-(\d{2})-(\d{2})\b"),
+    # 04-11..04-13 — HELICON'S OWN canonical interval label (_iv_label). This is
+    # the format every ruling, every resolution and every GOLDEN_RULE is written
+    # in, and the parser could not read it. Resolutions are parsed by
+    # _parse_label, which understands `..`; cube CONTENT was parsed only by the
+    # prose patterns above. Two parsers, two grammars, one format.
+    #
+    # The cost was the ruling loop poisoning itself. Recording a ruling writes a
+    # line like:
+    #   #322 Casey wedding = **04-11..04-13** (the "Mar 14-22" cube was mislabeled)
+    # The truth is stated in canonical form and the DEAD value is quoted in prose
+    # to name what was wrong. The parser skipped the canonical truth it could not
+    # read, lifted "Mar 14-22" out of the sentence written to kill it, and filed
+    # the correction as if it ASSERTED the dead value — a fresh critical finding,
+    # manufactured by the act of ruling. Every ruling planted a future false
+    # alarm, which inflates R1 forever and discredits the exam that has to stay
+    # trustworthy. Reading both poles lets the existing one-cube-quotes-both
+    # guard do its job.
+    re.compile(r"\b(\d{2})-(\d{2})\.\.(\d{2})-(\d{2})\b"),
 ]
 
 _PERSON_RE = re.compile(r"\b([A-ZÀ-Þ][a-zà-öø-ÿ]{2,})\b")
@@ -115,6 +133,16 @@ def _intervals_with_pos(text: str) -> list[tuple[tuple[str, str], int]]:
     out = []
     for i, rx in enumerate(_DATE_RES):
         for m in rx.finditer(text):
+            if i == 3:
+                # MM-DD..MM-DD spans two months in the general case, so it is
+                # built directly rather than through the same-month _fmt pair.
+                m1, d1, m2, d2 = (int(m.group(1)), int(m.group(2)),
+                                  int(m.group(3)), int(m.group(4)))
+                if (1 <= m1 <= 12 and 1 <= m2 <= 12
+                        and 1 <= d1 <= 31 and 1 <= d2 <= 31
+                        and (m1, d1) <= (m2, d2)):
+                    out.append(((_fmt(m1, d1), _fmt(m2, d2)), m.start()))
+                continue
             if i == 0:
                 month, day = _MONTHS[m.group(1).lower()[:3]], int(m.group(2))
                 end_day = int(m.group(3)) if m.group(3) else day
@@ -284,13 +312,32 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
         if res:
             from helicon.timeutil import ts_norm
             truth_iv = _parse_label(res["truth"])
+            # A cube that ALSO asserts the truth is a CORRECTION, not the rot
+            # coming back. This is the loop poisoning itself: the never-twice
+            # guard re-alarms on any post-resolution cube asserting the dead
+            # value, but the memory that RECORDS a ruling is written moments
+            # after it and has to name the dead value to say what was wrong:
+            #   #322 Casey wedding = **04-11..04-13** ("Mar 14-22" was mislabeled)
+            # That line asserts the truth and quotes the corpse. Counting it as
+            # resurfacing means the act of ruling manufactures the evidence that
+            # the ruling was violated — every ruling Oscar makes plants a future
+            # false alarm, R1 inflates forever, and the one exam that has to stay
+            # trustworthy slowly discredits itself.
+            #
+            # Same shape catches enumeration: "Italy (Mar 14-22) and Casey's
+            # wedding, Sweden (Apr 11-13)" is one line about two trips, and the
+            # keyword-proximity window grabs both dates. It asserts the truth
+            # too, so it is not a resurfacing either.
+            truth_cube_ids = {c["id"] for iv, d in by_iv.items()
+                              if not _disjoint(iv, truth_iv) for c in d["cubes"]}
             by_iv = {
                 iv: {"scopes": {c["scope"] for c in cubes},
                      "cubes": cubes}
                 for iv, d in by_iv.items()
                 if _disjoint(iv, truth_iv)
                 and (cubes := [c for c in d["cubes"]
-                               if ts_norm(c["created_at"]) > res["resolved_at"]])
+                               if ts_norm(c["created_at"]) > res["resolved_at"]
+                               and c["id"] not in truth_cube_ids])
             }
             if not by_iv:
                 continue  # resolved, and nothing new contradicts the truth
