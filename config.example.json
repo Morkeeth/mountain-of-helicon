@@ -21,6 +21,10 @@
       "repos_dir": "~/projects",
       "max_commits": 30
     },
+    "skills": {
+      "enabled": true,
+      "skill_roots": ["~/.claude/skills"]
+    },
     "chatgpt": {
       "enabled": false,
       "export_path": "~/Downloads/chatgpt-export/conversations.json"

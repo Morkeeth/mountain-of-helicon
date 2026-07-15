@@ -19,7 +19,7 @@
   <rect width="900" height="560" fill="#09090b" rx="8"/>
 
   <!-- Title -->
-  <text x="40" y="40" class="title">GLAZE</text>
+  <text x="40" y="40" class="title">MOUNT HELICON</text>
   <text x="105" y="40" class="subtitle" dy="0">Architecture</text>
 
   <!-- Layer labels -->
@@ -69,7 +69,7 @@
 
   <!-- Layer 2: Review + Patterns -->
   <rect x="40" y="245" width="260" height="120" class="box-accent"/>
-  <text x="170" y="272" class="label" text-anchor="middle">GlazeCube Store</text>
+  <text x="170" y="272" class="label" text-anchor="middle">HeliconCube Store</text>
   <text x="170" y="290" class="small" text-anchor="middle">SQLite with FTS5</text>
   <text x="170" y="306" class="small" text-anchor="middle">content_hash dedup</text>
   <text x="170" y="322" class="small" text-anchor="middle">versioned confidence</text>
@@ -131,8 +131,8 @@
   <text x="780" y="42" class="small accent" text-anchor="middle">Qwen Cloud API</text>
   <text x="780" y="54" class="small" text-anchor="middle">qwen-plus via DashScope</text>
 
-  <!-- Glaze Score -->
+  <!-- Helicon Score -->
   <rect x="40" y="535" width="820" height="18" rx="3" fill="#1c1c20"/>
   <rect x="40" y="535" width="60" height="18" rx="3" fill="#d97706" fill-opacity="0.3"/>
-  <text x="450" y="548" class="small" text-anchor="middle">Glaze Score: 7.2% (91/1268 reviewed)</text>
+  <text x="450" y="548" class="small" text-anchor="middle">Helicon Score: 41% (2,846/6,986 reviewed) &#183; recompute: helicon score</text>
 </svg>
