@@ -1,0 +1,5 @@
+# SwiftPM build products
+.build/
+
+# assembled bundle (regenerate with ./make-app.sh)
+Helicon.app/

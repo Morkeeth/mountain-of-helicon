@@ -2224,7 +2224,7 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
-    rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 10 documented staleness/contradiction failure classes, checked live")
+    rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 12 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
     rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
 
