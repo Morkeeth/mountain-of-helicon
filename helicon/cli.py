@@ -1720,6 +1720,17 @@ def cmd_doctor(_args):
         checks.append(("OK" if night["ok"] else "FAIL",
                        f"nightly {night['reason']}"))
 
+        # The hands. Helicon's own MCP server was registered and silently dead
+        # for every session (invoked via `bash -lc`; the login profile blocks on
+        # stdin, which is the channel MCP speaks over). Nothing surfaced it,
+        # because nothing checked the surface that connects the tool to the
+        # agent. A process that starts is not a server that speaks, so this
+        # speaks the real protocol at it.
+        from helicon.stackwatch import mcp_status
+        for st in mcp_status():
+            checks.append(("OK" if st["ok"] else "FAIL",
+                           f"mcp '{st['name']}' — {st['reason']}"))
+
         scan = last_scan_info(conn)
         stability = config.get("forgetting", {}).get("stability", {})
         half_life_days = min(stability.values()) if stability else 7.0

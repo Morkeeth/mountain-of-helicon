@@ -287,3 +287,67 @@ def test_skills_connector_is_registered(tmp_path):
     turn the skills pillar on."""
     from helicon.connectors import CONNECTORS
     assert "skills" in CONNECTORS
+
+
+# --- the hands: Helicon's own MCP server was silently dead ------------------
+# Registered in ~/.claude.json, invoked via `bash -lc`. The login profile blocks
+# on stdin, and stdin IS the channel MCP speaks over, so the handshake never
+# happened: 14 tools missing from every session, no error anywhere. Helicon
+# audits every surface that feeds an agent and did not audit the one that
+# connects a TOOL to an agent.
+
+def _mcp_cfg(tmp_path, name, spec):
+    p = tmp_path / "claude.json"
+    p.write_text(json.dumps({"mcpServers": {name: spec}}))
+    return str(p)
+
+
+def test_a_server_that_never_handshakes_is_caught(tmp_path):
+    """The real failure shape: the process starts and never speaks MCP. A
+    liveness check on 'did it spawn' would call this healthy."""
+    from helicon.stackwatch import mcp_findings, mcp_status
+    cfg = _mcp_cfg(tmp_path, "mute", {"type": "stdio", "command": "sleep",
+                                      "args": ["30"]})
+    st = mcp_status(cfg)[0]
+    assert st["ok"] is False
+    assert "handshake" in st["reason"]
+    f = mcp_findings(cfg)
+    assert len(f) == 1 and f[0]["severity"] == "critical"
+
+
+def test_noise_on_stdout_corrupts_the_protocol_and_is_caught(tmp_path):
+    """A server whose stdout is polluted before the JSON-RPC (a login profile, a
+    version warning) is broken from byte one, however healthy the process is."""
+    from helicon.stackwatch import mcp_status
+    cfg = _mcp_cfg(tmp_path, "noisy", {
+        "type": "stdio", "command": "bash",
+        "args": ["-c", "echo 'nvm is not compatible with the npm config'; sleep 5"]})
+    st = mcp_status(cfg)[0]
+    assert st["ok"] is False
+    assert "not JSON-RPC" in st["reason"]
+
+
+def test_a_server_that_speaks_mcp_passes(tmp_path):
+    from helicon.stackwatch import mcp_findings, mcp_status
+    reply = json.dumps({"jsonrpc": "2.0", "id": 1, "result": {
+        "protocolVersion": "2024-11-05", "capabilities": {},
+        "serverInfo": {"name": "fake", "version": "9.9"}}})
+    cfg = _mcp_cfg(tmp_path, "good", {
+        "type": "stdio", "command": "bash",
+        "args": ["-c", f"read line; echo '{reply}'"]})
+    st = mcp_status(cfg)[0]
+    assert st["ok"] is True, st["reason"]
+    assert "fake 9.9" in st["reason"]
+    assert mcp_findings(cfg) == []
+
+
+def test_a_server_that_cannot_spawn_is_caught(tmp_path):
+    from helicon.stackwatch import mcp_status
+    cfg = _mcp_cfg(tmp_path, "ghost", {"type": "stdio",
+                                       "command": "/nope/not/a/binary"})
+    assert mcp_status(cfg)[0]["ok"] is False
+
+
+def test_no_mcp_config_is_not_a_finding(tmp_path):
+    from helicon.stackwatch import mcp_findings
+    assert mcp_findings(str(tmp_path / "absent.json")) == []

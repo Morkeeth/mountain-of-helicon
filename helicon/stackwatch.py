@@ -5,12 +5,16 @@ Memory was never just the database: an agent stack runs on standing context
 claim to have produced. Each of those rots in its own way, and each rot
 files into the same loop: finding -> evidence -> your ruling.
 
-Four deterministic checks, zero LLM:
+Five deterministic checks, zero LLM:
 
   routines  a scheduled job whose log went silent is a dead limb the stack
             still believes in. Crontab AND LaunchAgent entries with a log path
             are checked for freshness against their own cadence (a frequent job
             gets 3x slack; for a daily job, one missed run IS the failure).
+  mcp       an MCP server that is registered but cannot speak is a dead limb
+            too: every tool it serves goes silently missing from every session.
+            Probed with the real protocol, because a process that starts is not
+            a server that speaks.
   nightly   the stack's own consolidation, asserted from the run record it
             writes about itself — a STATE `helicon doctor` prints every time you
             look, healthy or not, because the Jul 15 skip hid in the absence of
@@ -332,6 +336,90 @@ def nightly_findings(config: dict) -> list[dict]:
                          f"{st['cadence_hours']:.0f}h"}]
 
 
+# --- the hands: an MCP server that cannot speak is a dead limb too ----------
+#
+# Helicon audits every surface that feeds an agent — memory, standing context,
+# skills, routines, output. It did not audit the surface that connects a TOOL to
+# an agent, and its own was silently dead. `helicon` was registered in
+# ~/.claude.json and invoked through `bash -lc`: the login profile blocks on
+# stdin, and stdin IS the channel MCP speaks over, so the handshake never
+# happened. 14 tools, unreachable from every session, no error anywhere. The
+# product that catches silent failure could not see its own hands.
+#
+# The probe is the real protocol: spawn the server, send `initialize`, require
+# valid JSON-RPC back. Nothing else proves a server is reachable — a process
+# that starts is not a server that speaks, and the login shell proved exactly
+# that distinction.
+
+MCP_TIMEOUT_S = 20.0
+
+
+def _mcp_servers(config_path: str | None = None) -> dict:
+    path = config_path or os.path.join(os.path.expanduser("~"), ".claude.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f).get("mcpServers") or {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _probe_mcp(name: str, spec: dict, timeout: float = MCP_TIMEOUT_S) -> dict:
+    """(ok, reason) for one stdio MCP server, by speaking MCP at it."""
+    if spec.get("type", "stdio") != "stdio" or not spec.get("command"):
+        return {"name": name, "ok": True, "reason": "not a stdio server — not probed"}
+    cmd = [spec["command"], *(spec.get("args") or [])]
+    env = {**os.environ, **(spec.get("env") or {})}
+    init = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                   "clientInfo": {"name": "helicon-stackwatch", "version": "1"}},
+    }) + "\n"
+    try:
+        p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, env=env)
+    except (OSError, ValueError) as e:
+        return {"name": name, "ok": False, "reason": f"cannot spawn: {e}"}
+    try:
+        out, _ = p.communicate(init, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        p.kill()
+        p.communicate()
+        return {"name": name, "ok": False,
+                "reason": f"no handshake in {timeout:.0f}s — the client times it "
+                          f"out and drops every tool it serves"}
+    first = next((l for l in (out or "").splitlines() if l.strip()), "")
+    if not first:
+        return {"name": name, "ok": False, "reason": "said nothing on stdout"}
+    try:
+        msg = json.loads(first)
+    except json.JSONDecodeError:
+        return {"name": name, "ok": False,
+                "reason": f"first stdout line is not JSON-RPC, so the protocol "
+                          f"is corrupt from byte one: {first[:60]!r}"}
+    info = (msg.get("result") or {}).get("serverInfo") or {}
+    return {"name": name, "ok": True,
+            "reason": f"handshake ok ({info.get('name', '?')} "
+                      f"{info.get('version', '?')})"}
+
+
+def mcp_status(config_path: str | None = None) -> list[dict]:
+    return [_probe_mcp(n, s) for n, s in sorted(_mcp_servers(config_path).items())]
+
+
+def mcp_findings(config_path: str | None = None) -> list[dict]:
+    out = []
+    for st in mcp_status(config_path):
+        if st["ok"]:
+            continue
+        out.append({"key": f"mcp|{st['name']}|dead",
+                    "finding": f"MCP server '{st['name']}' is registered but "
+                               f"cannot speak: {st['reason']}. Every tool it "
+                               f"serves is silently missing from every session",
+                    "severity": "critical",
+                    "evidence": f"~/.claude.json mcpServers.{st['name']}"})
+    return out
+
+
 EPHEMERAL = ("/tmp/", "/scratchpad/", "/T/")
 
 
@@ -395,7 +483,7 @@ def _existing_keys(conn: sqlite3.Connection) -> set:
     keys = set()
     for row in conn.execute(
         "SELECT details FROM audit_log WHERE audit_type IN "
-        "('routine', 'output', 'context', 'nightly')"
+        "('routine', 'output', 'context', 'nightly', 'mcp')"
     ):
         try:
             k = json.loads(row["details"]).get("key")
@@ -412,11 +500,12 @@ def stack_scan(conn: sqlite3.Connection, config: dict | None = None) -> dict:
     skipped rather than guessed at."""
     existing = _existing_keys(conn)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-    filed = {"routine": 0, "output": 0, "context": 0, "nightly": 0}
+    filed = {"routine": 0, "output": 0, "context": 0, "nightly": 0, "mcp": 0}
     for kind, items in (("routine", routine_findings()),
                         ("output", output_findings(conn, ephemeral=EPHEMERAL)),
                         ("context", context_findings()),
-                        ("nightly", nightly_findings(config) if config else [])):
+                        ("nightly", nightly_findings(config) if config else []),
+                        ("mcp", mcp_findings())):
         for it in items:
             if it["key"] in existing:
                 continue
