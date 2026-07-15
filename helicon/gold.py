@@ -16,13 +16,101 @@ own growth curve, rendered on the dashboard's GOLD surface.
 """
 import json
 import os
+import re
 import sqlite3
 from datetime import datetime, timezone
 
+# The rule buckets, declared. `total` and the history point count THESE, so a
+# non-rule key added to the gather dict can never silently inflate the law.
+SECTIONS = ("canon", "renames", "triage", "precedents", "resolutions",
+            "taste", "feedback")
+
+RULE_MAX = 120
+
+
+def _clip(text: str, limit: int = RULE_MAX) -> str:
+    """Clip at a word boundary and mark the cut. A rule chopped mid-word still
+    reads as a finished sentence, so the law asserts something the human never
+    said — the exact failure this file exists to prevent."""
+    text = " ".join((text or "").split())
+    if len(text) <= limit:
+        return text
+    head = text[:limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    return (head or text[:limit - 1].rstrip()) + "…"
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", (s or "").lower()).strip("_")
+
+
+def _slug_names(source_ref: str) -> tuple[str, str]:
+    """('feedback_no_em_dashes', 'no_em_dashes') from a memory's source_ref."""
+    stem = re.sub(r"\.md$", "", os.path.basename(source_ref or ""))
+    slug = _norm(re.sub(r"^memory_", "", stem))
+    return slug, re.sub(r"^feedback_?", "", slug)
+
+
+def _first_prose(content: str) -> str:
+    """The first real sentence of a memory body. Frontmatter and headings are
+    labels; the rule is the prose under them.
+
+    The strip is done by hand rather than by regex because a regex anchored on
+    '---\\n...---\\n' misses CRLF bodies, a body whose frontmatter runs to EOF
+    with no trailing newline, and a leading blank line. Each of those leaked the
+    first frontmatter FIELD through as prose, so `date: 2026-07-01` compiled into
+    the law as a standing rule."""
+    if not content:
+        return ""
+    body = content.replace("\r\n", "\n").replace("\r", "\n").lstrip("\n")
+    if body.startswith("---"):
+        end = body.find("\n---", 3)
+        body = body[end + 4:] if end != -1 else ""
+    lines = [ln.strip() for ln in body.splitlines()]
+    prose = [ln for ln in lines
+             if ln and not ln.startswith(("#", ">", "|", "---", "```", "*_"))]
+    if prose:
+        return prose[0].lstrip("-*+ ").strip()
+    heads = [ln.lstrip("# ").strip() for ln in lines if ln.startswith("#")]
+    return heads[0] if heads else ""
+
+
+def _feedback_rule(title: str, summary: str, content: str,
+                   source_ref: str) -> tuple[str | None, str | None]:
+    """(rule, warning) for a standing-feedback memory.
+
+    The title is a LABEL the connector truncates, not a guaranteed rule, and it
+    lies in three ways: it can be empty (which compiled a BLANK line into the
+    law), it can be a bare filename echo, and splitting it on its first colon
+    chops the headline off any title whose colon is punctuation rather than a
+    slug separator. So strip only an exact slug echo, fall back to summary then
+    content, and refuse to emit an empty rule."""
+    slug, body = _slug_names(source_ref)
+    t = " ".join((title or "").split())
+    if ":" in t:
+        head, tail = t.split(":", 1)
+        if _norm(head) in (slug, body) and tail.strip():
+            t = tail.strip()
+    # A title that is only its own FILENAME states no rule (feedback_index
+    # compiled to the rule "feedback_index"). But the echo test must be narrow:
+    # matching on the normalised form alone deletes real rules, because a terse
+    # title legitimately normalises to its own slug ("No hype" ->  no_hype for
+    # feedback_no_hype.md), and a non-ASCII title normalises to "" and hit the
+    # same branch. A filename echo has no spaces; prose does.
+    if not t or (" " not in t and _norm(t) in (slug, body)):
+        t = ""
+    for text, warn in ((t, None),
+                       (" ".join((summary or "").split()),
+                        "empty title — compiled from the summary"),
+                       (_first_prose(content),
+                        "empty title and summary — compiled from the content")):
+        if text:
+            return _clip(text), warn
+    return None, "no title, summary or content — refused to compile a blank rule"
+
 
 def gather(conn: sqlite3.Connection, config: dict) -> dict:
-    g: dict = {"canon": [], "renames": [], "triage": [], "precedents": [],
-               "resolutions": [], "taste": [], "feedback": []}
+    g: dict = {k: [] for k in SECTIONS}
+    g["_warnings"] = []
 
     for metric, path in (config.get("claims", {}).get("canonical", {}) or {}).items():
         g["canon"].append({"rule": f"`{metric}` lives in {path}; every other "
@@ -93,8 +181,8 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
                 "prov": f"ruling on finding #{r['id']}, {when}"})
         elif hd == "dismissed" and d.get("dismiss_reason"):
             g["precedents"].append({
-                "rule": "NOT rot: " + (r["finding"][:118].rsplit(" ", 1)[0] if len(r["finding"]) > 118 else r["finding"]),
-                "why": d["dismiss_reason"][:140],
+                "rule": "NOT rot: " + _clip(r["finding"], 118),
+                "why": _clip(d["dismiss_reason"], 140),
                 "prov": f"dismissed finding #{r['id']}, {when}"})
 
     # taste verdicts -> "avoid this shape" rules the generator obeys
@@ -121,14 +209,19 @@ def gather(conn: sqlite3.Connection, config: dict) -> dict:
                 "prov": "taste verdicts remembered from Taste Machine"})
 
     for r in conn.execute(
-        "SELECT title, source_ref FROM helicon_cubes "
+        "SELECT title, summary, content, source_ref FROM helicon_cubes "
         "WHERE source_ref LIKE '%feedback_%' AND merged_into IS NULL "
         "AND review_status IN ('pending', 'approved', 'revised') "
         "AND source = 'claude-code' ORDER BY source_ref"
     ):
         name = os.path.basename(r["source_ref"]).replace("memory_", "")
-        title = r["title"].split(":", 1)[-1].strip()
-        g["feedback"].append({"rule": title[:120], "prov": name})
+        rule, warn = _feedback_rule(r["title"], r["summary"], r["content"],
+                                    r["source_ref"])
+        if warn:
+            g["_warnings"].append(f"{name}: {warn}")
+        if rule is None:
+            continue
+        g["feedback"].append({"rule": rule, "prov": name})
 
     # feedback files appear once per scan-shape; dedupe by provenance
     seen = set()
@@ -142,7 +235,7 @@ def compile_gold(conn: sqlite3.Connection, config: dict) -> str:
 
 
 def _compile_from(g: dict) -> str:
-    total = sum(len(v) for v in g.values())
+    total = sum(len(g.get(k, [])) for k in SECTIONS)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()[:16].replace("T", " ")
     L = [
         "# GOLDEN RULES",
@@ -197,15 +290,16 @@ def write_gold(conn: sqlite3.Connection, config: dict) -> dict:
     with open(out, "w", encoding="utf-8") as f:
         f.write(md)
     point = {"ts": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-             **{k: len(v) for k, v in g.items()},
-             "total": sum(len(v) for v in g.values())}
+             **{k: len(g.get(k, [])) for k in SECTIONS},
+             "total": sum(len(g.get(k, [])) for k in SECTIONS)}
     hist = gold_history(config, limit=1)
     counts_changed = not hist or any(
         hist[-1].get(k) != point[k] for k in point if k != "ts")
     if counts_changed:
         with open(_history_path(config), "a", encoding="utf-8") as f:
             f.write(json.dumps(point) + "\n")
-    return {"path": out, "chars": len(md), "md": md, **point}
+    return {"path": out, "chars": len(md), "md": md,
+            "warnings": g["_warnings"], **point}
 
 
 def gold_history(config: dict, limit: int = 60) -> list[dict]:

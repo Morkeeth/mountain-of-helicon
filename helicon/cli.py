@@ -1252,6 +1252,10 @@ def cmd_gold(args):
           f"{res['resolutions']} rulings, {res['triage']} triage, "
           f"{res['precedents']} precedents, {res['feedback']} feedback) "
           f"-> {res['path']}")
+    for w in res.get("warnings", []):
+        # a memory that could not state its own rule used to compile a blank
+        # line into the law in total silence. Never again silently.
+        print(f"  [WARN] {w}")
     inj = inject(conn, config, apply=getattr(args, "inject", False),
                  md=res.get("md"))
     if inj["applied"]:
