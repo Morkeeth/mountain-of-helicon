@@ -266,3 +266,24 @@ def test_a_daily_job_31h_silent_is_flagged_through_the_entry_point(tmp_path, mon
     (agents / "com.test.nightly.plist").write_text(PLIST.format(log=log))
     assert 31 * 60 < 24 * 60 * LOG_SILENCE_FACTOR, "3x would not have caught it"
     assert len(routine_findings(str(agents))) == 1
+
+
+# --- the skills pillar ------------------------------------------------------
+
+def test_skills_are_found_once_on_a_case_insensitive_filesystem(tmp_path):
+    """macOS matches SKILL.md for a skill.md glob, so a set() of PATH STRINGS
+    keeps the same file twice and every skill is ingested twice. Dedupe on file
+    identity. On a case-sensitive FS this test simply passes trivially."""
+    from helicon.connectors.skills import _find_skill_files
+    root = tmp_path / "skills" / "design-taste"
+    root.mkdir(parents=True)
+    (root / "SKILL.md").write_text("---\nname: design-taste\n---\nbody")
+    found = _find_skill_files(str(tmp_path / "skills"))
+    assert len(found) == 1, f"same file counted twice: {found}"
+
+
+def test_skills_connector_is_registered(tmp_path):
+    """The module existed and was never added to CONNECTORS, so no config could
+    turn the skills pillar on."""
+    from helicon.connectors import CONNECTORS
+    assert "skills" in CONNECTORS

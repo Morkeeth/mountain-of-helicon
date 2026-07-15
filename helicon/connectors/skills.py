@@ -60,7 +60,14 @@ def _scan_skill_file(path: str, root: str) -> ConnectorResult | None:
     description = fm.get("description", "")
     # A skill's identity for retrieval is its trigger (name + description); the
     # body is the payload. Store both, description first so it drives matching.
-    content = (f"{description}\n\n{body}" if description else body).strip()[:2000]
+    full = (f"{description}\n\n{body}" if description else body).strip()
+    content = full[:SKILL_BODY_MAX]
+    # The cap is a storage/token budget, not a claim that this is the whole
+    # skill — a real skill runs 3-11k chars, so most of the body is NOT here.
+    # Record the cut: the battery reads this content to judge THINNESS and
+    # REDUNDANCY, and an unmarked truncation would have it grade an artifact of
+    # this line rather than the skill (two skills whose first 2k agree look
+    # identical; a fat skill looks thin). Downstream can now tell.
     rel = os.path.relpath(path, root)
 
     return ConnectorResult(
@@ -77,12 +84,19 @@ def _scan_skill_file(path: str, root: str) -> ConnectorResult | None:
             "has_frontmatter": bool(fm),
             "path": rel,
             "desc_len": len(description),
+            "body_truncated": len(full) > SKILL_BODY_MAX,
+            "body_full_len": len(full),
         },
     )
 
 
 # vendored / build dirs are not your skills library — never audit them
 _JUNK = ("/node_modules/", "/.git/", "/dist/", "/build/", "/.venv/", "/site-packages/")
+
+# How much of a skill body is stored. Real skills run 3-11k chars, so this
+# cuts most of them; cubes carry body_truncated + body_full_len so nothing
+# downstream mistakes the stored text for the whole skill.
+SKILL_BODY_MAX = 2000
 
 
 def _find_skill_files(root: str) -> list[str]:
@@ -94,7 +108,24 @@ def _find_skill_files(root: str) -> list[str]:
     # flat skill markdown directly under a skills/ dir (e.g. ~/.claude/skills/*.md)
     if os.path.basename(os.path.normpath(root)) == "skills":
         found += glob(os.path.join(root, "*.md"))
-    return sorted(f for f in set(found) if not any(j in f for j in _JUNK))
+    # Dedupe on file IDENTITY, not on the path string. macOS is case-insensitive,
+    # so the SKILL.md and skill.md globs return the SAME file under two
+    # spellings; a set() of paths keeps both and every skill gets ingested
+    # twice. The redundancy test would then dutifully report a duplicate that
+    # this function invented. Case-sensitive filesystems never saw it.
+    out, seen = [], set()
+    for f in sorted(found):
+        if any(j in f for j in _JUNK):
+            continue
+        try:
+            st = os.stat(f)
+            key = (st.st_dev, st.st_ino)
+        except OSError:
+            key = os.path.normcase(os.path.realpath(f))
+        if key not in seen:
+            seen.add(key)
+            out.append(f)
+    return out
 
 
 def scan(config: dict) -> list[ConnectorResult]:
