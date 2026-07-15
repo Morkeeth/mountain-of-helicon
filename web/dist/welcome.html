@@ -5,9 +5,37 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mount Helicon — CI for agent memory</title>
 <link rel="icon" href="/favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Source+Sans+3:wght@400;600&family=Fraunces:opsz,wght@9..144,900&display=swap" rel="stylesheet">
 <style>
+  /* Same faces as before, served from us instead of Google. The landing page is
+     the first thing a stranger loads, so it should not wait on a third party.
+     Fraunces and Source Sans 3 are variable: the 900 hero and the 400/600 body
+     each come out of one file. Purely a hosting change, nothing visual moves. */
+  @font-face {
+    font-family: 'Fraunces'; font-style: normal; font-weight: 300 900; font-display: swap;
+    src: url('/fonts/Fraunces-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Source Sans 3'; font-style: normal; font-weight: 200 900; font-display: swap;
+    src: url('/fonts/SourceSans3-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'Source Sans 3'; font-style: normal; font-weight: 200 900; font-display: swap;
+    src: url('/fonts/SourceSans3-latin-ext.woff2') format('woff2');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 400; font-display: swap;
+    src: url('/fonts/IBMPlexMono-400-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+  @font-face {
+    font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 600; font-display: swap;
+    src: url('/fonts/IBMPlexMono-600-latin.woff2') format('woff2');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+  }
+
   :root {
     --bg: #f7f2e8; --panel: #fffcf5; --ink: #2b2825; --muted: #6f665a;
     --line: rgba(43,40,37,.13); --ochre: #B98A4E; --accent: #c25e3a; --gold: #c9a227;
