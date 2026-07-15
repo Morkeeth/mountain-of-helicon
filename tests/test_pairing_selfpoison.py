@@ -129,3 +129,18 @@ def test_rot_that_predates_the_ruling_stays_closed(ruled):
     _cube(ruled, "gc_old", "old note",
           "Casey wedding Mar 14-22 in Italy.", BEFORE)
     assert find_conflicts(ruled) == []
+
+
+def test_real_rot_cannot_hide_in_a_doc_that_names_the_truth_elsewhere(ruled):
+    """The hole the first version of this fix opened. Excluding a whole CUBE
+    that mentions the truth let real rot hide on any other line of the same
+    document — trading a false alarm for a missed one, which is strictly worse.
+    A correction is a property of a LINE, not of a file."""
+    body = ("Casey wedding is 04-11..04-13 per the ruling.\n"
+            + "filler\n" * 88
+            + "Booking flights: Casey wedding Mar 14-22, confirm with the venue.\n")
+    _cube(ruled, "gc_long", "status", body, AFTER)
+    conflicts = find_conflicts(ruled)
+    assert conflicts, "rot re-asserted on line 90 hid behind the truth on line 1"
+    d = conflicts[0].get("details", conflicts[0])
+    assert "03-14..03-22" in d["dates"]

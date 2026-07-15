@@ -328,8 +328,17 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
             # wedding, Sweden (Apr 11-13)" is one line about two trips, and the
             # keyword-proximity window grabs both dates. It asserts the truth
             # too, so it is not a resurfacing either.
-            truth_cube_ids = {c["id"] for iv, d in by_iv.items()
-                              if not _disjoint(iv, truth_iv) for c in d["cubes"]}
+            # Keyed by (cube, LINE), not by cube. A correction is a property of
+            # a sentence: "wedding = **04-11..04-13** (the 'Mar 14-22' cube was
+            # mislabeled)" states the truth and names the corpse on ONE line.
+            # Excluding the whole CUBE instead would let real rot hide anywhere
+            # else in the same document — a status doc naming the truth on line 1
+            # and genuinely re-asserting the dead value on line 90 would go
+            # unreported, which trades a false alarm for a missed one and quietly
+            # guts the never-twice guarantee. That hole was real and is what this
+            # tuple closes.
+            truth_lines = {(c["id"], c["line"]) for iv, d in by_iv.items()
+                           if not _disjoint(iv, truth_iv) for c in d["cubes"]}
             by_iv = {
                 iv: {"scopes": {c["scope"] for c in cubes},
                      "cubes": cubes}
@@ -337,7 +346,7 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
                 if _disjoint(iv, truth_iv)
                 and (cubes := [c for c in d["cubes"]
                                if ts_norm(c["created_at"]) > res["resolved_at"]
-                               and c["id"] not in truth_cube_ids])
+                               and (c["id"], c["line"]) not in truth_lines])
             }
             if not by_iv:
                 continue  # resolved, and nothing new contradicts the truth
