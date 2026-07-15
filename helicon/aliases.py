@@ -165,7 +165,7 @@ def alias_scan(conn: sqlite3.Connection, k: int = 5) -> dict:
             target_type="entity",
             target_id=key,
             finding=(f"Dead name '{t['old_name']}' still asserted as current: "
-                     f"{t['current_claims']} live memories written AFTER the rename "
+                     f"{t['current_claims']} live memor{'y' if t['current_claims'] == 1 else 'ies'} written AFTER the rename "
                      f"to '{t['new_name']}' use only the old name"
                      + (f"; {len(t['leaked'])}/{t['retrieved_for_new_name']} top-{k} "
                         f"hits for '{t['new_name']}' serve the dead name"

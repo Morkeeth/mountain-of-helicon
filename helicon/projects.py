@@ -260,7 +260,8 @@ def _pick_action(p: dict, reasons: list[str]) -> str:
         return f"Review backlog: {p['pending']} items waiting."
     if p["ship_rate"] > 0.3 and p["shipped"] >= 2:
         return f"Hot hand. {p['shipped']} shipped at {p['ship_rate']:.0%} rate. Keep going."
-    return f"{p['cube_count']} memories across {len(reasons)} signals."
+    return (f"{p['cube_count']} memor{'y' if p['cube_count'] == 1 else 'ies'} "
+            f"across {len(reasons)} signals.")
 
 
 def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
@@ -268,7 +269,8 @@ def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
     model = resolve_model("fast", config)
 
     summary = "\n".join(
-        f"- {p['name']}: {p['cube_count']} memories, ship rate {p['ship_rate']:.0%}, "
+        f"- {p['name']}: {p['cube_count']} memor{'y' if p['cube_count'] == 1 else 'ies'}, "
+        f"ship rate {p['ship_rate']:.0%}, "
         f"spin {p['spin_score']:.1f}x, last output {p['days_since_output'] or '?'}d ago, "
         f"action: {p['action']}"
         for p in projects[:8]

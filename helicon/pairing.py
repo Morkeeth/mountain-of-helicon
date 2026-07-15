@@ -385,6 +385,12 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
     return conflicts
 
 
+def _memories(n) -> str:
+    """'1 memory' / '3 memories'. The old text said "cube(s)" to dodge
+    pluralising; the name is a real word now, so it agrees with its count."""
+    return f"{n} memor{'y' if n == 1 else 'ies'}"
+
+
 def format_pair_evidence(details: dict) -> str:
     """The human-verifiable receipt for a contradiction finding: the two
     exact lines, where each lives, and how much memory stands behind each
@@ -402,9 +408,9 @@ def format_pair_evidence(details: dict) -> str:
     sa = d.get("scope_a") or (scopes[0] if scopes else "?")
     sb = d.get("scope_b") or (scopes[-1] if len(scopes) > 1 else "?")
     out = [
-        f"A: {va}   ({support.get(va, '?')} memories)   {sa}",
+        f"A: {va}   ({_memories(support.get(va, '?'))})   {sa}",
         f"   | {(d.get('line_a') or '')[:160]}",
-        f"B: {vb}   ({support.get(vb, '?')} memories)   {sb}",
+        f"B: {vb}   ({_memories(support.get(vb, '?'))})   {sb}",
         f"   | {(d.get('line_b') or '')[:160]}",
     ]
     extra = [v for v in d.get("all_dates", []) if v not in (va, vb)]
@@ -625,8 +631,8 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
             target_type="cube",
             target_id=rep_a["id"],
             finding=(f"Cross-source contradiction: {c['person'].title()} {c['topic']} — "
-                     f"{date_a} ({rep_a['scope']}, {c['support'][date_a]} memories) vs "
-                     f"{date_b} ({rep_b['scope']}, {c['support'][date_b]} memories)"),
+                     f"{date_a} ({rep_a['scope']}, {_memories(c['support'][date_a])}) vs "
+                     f"{date_b} ({rep_b['scope']}, {_memories(c['support'][date_b])})"),
             severity=severity,
             proposed_action="flag",
             details={

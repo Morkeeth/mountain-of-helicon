@@ -182,7 +182,7 @@ enum Stamp {
 struct ClaimSide {
     let label: String     // "A" / "B"
     let value: String     // "03-14..03-22"
-    let support: String   // "1 memories"
+    let support: String   // "1 memory" / "3 memories"
     let scope: String     // "claude-code:memory_status_2026-07-11.md"
     let line: String      // the exact asserting line
 }

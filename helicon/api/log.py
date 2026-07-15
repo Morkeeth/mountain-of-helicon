@@ -109,7 +109,7 @@ def _superseded_entries(conn, limit: int) -> list[dict]:
         "ts": r["ts"],
         "actor": "helicon",
         "action": "reconcile_superseded",
-        "detail": (f"retired {r['n']} stale memories from {r['source']} "
+        "detail": (f"retired {r['n']} stale memor{'y' if r['n'] == 1 else 'ies'} from {r['source']} "
                    f"(re-scan no longer sees their content)"),
         "count": r["n"],
     } for r in rows]
