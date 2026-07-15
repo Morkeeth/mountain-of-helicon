@@ -147,7 +147,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
     claim_scan(conn, config)
     alias_scan(conn)
     from helicon.stackwatch import stack_scan
-    stack_scan(conn)
+    stack_scan(conn, config)
 
     drift = collect_drift(conn, state, repo_root)
     # First run ever = baseline: set the cursor silently. A store with months

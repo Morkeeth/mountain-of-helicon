@@ -5,11 +5,16 @@ Memory was never just the database: an agent stack runs on standing context
 claim to have produced. Each of those rots in its own way, and each rot
 files into the same loop: finding -> evidence -> your ruling.
 
-Three deterministic checks, zero LLM:
+Four deterministic checks, zero LLM:
 
   routines  a scheduled job whose log went silent is a dead limb the stack
-            still believes in. Crontab entries with a log path are checked
-            for log freshness against ~3x their interval.
+            still believes in. Crontab AND LaunchAgent entries with a log path
+            are checked for freshness against their own cadence (a frequent job
+            gets 3x slack; for a daily job, one missed run IS the failure).
+  nightly   the stack's own consolidation, asserted from the run record it
+            writes about itself — a STATE `helicon doctor` prints every time you
+            look, healthy or not, because the Jul 15 skip hid in the absence of
+            an alarm.
   outputs   agents claim 'Created: X' all day. A claimed file that does not
             exist on disk is output drift — the fake-done catalogue's most
             checkable entry.
@@ -19,8 +24,10 @@ Three deterministic checks, zero LLM:
 
 All findings are idempotent by a stable key in details, same as pairing.
 """
+import glob
 import json
 import os
+import plistlib
 import re
 import sqlite3
 import subprocess
@@ -31,6 +38,7 @@ from helicon.db import insert_audit
 
 CONTEXT_BUDGET_TOKENS = 6000
 LOG_SILENCE_FACTOR = 3.0
+DAILY_GRACE_MINUTES = 6 * 60
 
 
 def _cron_interval_minutes(spec: str) -> float | None:
@@ -57,47 +65,271 @@ def _cron_interval_minutes(spec: str) -> float | None:
     return None
 
 
-def routine_findings() -> list[dict]:
+def _silence_threshold(interval_min: float) -> float:
+    """How long a routine may be quiet before it is presumed dead.
+
+    A flat 3x was tuned for a job that runs every few hours, then silently
+    generalised: it gave the DAILY nightly a 72h blind window, so the Jul 15
+    skip had three days to hide in. A frequent job needs slack (one miss is
+    noise); for a daily job, one missed run IS the failure."""
+    if interval_min >= 12 * 60:
+        return interval_min + DAILY_GRACE_MINUTES
+    return interval_min * LOG_SILENCE_FACTOR
+
+
+def _calendar_interval_minutes(cal) -> float | None:
+    """Interval implied by a launchd StartCalendarInterval (dict or list)."""
+    entries = cal if isinstance(cal, list) else [cal]
+    if not entries or not all(isinstance(e, dict) for e in entries):
+        return None
+    # weekday/monthly jobs: same cry-wolf risk as their cron cousins, skip
+    if any(k in e for e in entries for k in ("Weekday", "Month", "Day")):
+        return None
+    if all("Hour" in e for e in entries):
+        return 24 * 60.0 / len(entries)
+    if all("Minute" in e for e in entries):
+        return 60.0 / len(entries)
+    return None
+
+
+def _cron_routines() -> list[tuple]:
+    """(name, interval_minutes, log_path, evidence) per scheduled crontab line."""
     out = []
     try:
         cron = subprocess.run(["crontab", "-l"], capture_output=True,
                               text=True, timeout=10).stdout
     except (OSError, subprocess.SubprocessError):
         return out
-    now = datetime.now().timestamp()
     for line in cron.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
         logm = re.search(r">>?\s*(\S+\.log)", line)
-        if not logm:
-            continue
         interval = _cron_interval_minutes(line)
-        if not interval:
+        if not logm or not interval:
             continue
         log_path = os.path.expanduser(logm.group(1))
         # relative log paths resolve against the cron line's cd, if any
         cdm = re.search(r"cd\s+(\S+)", line)
         if not os.path.isabs(log_path) and cdm:
             log_path = os.path.join(os.path.expanduser(cdm.group(1)), log_path)
-        cmdm = re.search(r"&&\s*(\S+(?:\s+\S+)?)", line)
-        fallback = cmdm.group(1) if cmdm else line.split()[5] if len(line.split()) > 5 else log_path
-        name = (re.search(r"#\s*(.+)$", line) or ["", fallback])[1]
+        name = (re.search(r"#\s*(.+)$", line) or ["", ""])[1].strip()
+        if not name:
+            # An untagged line used to be named by its interpreter path, so two
+            # different jobs both read as 'Routine /…/python3 silent' and no one
+            # could tell which limb died. The log is unique per job, and legible.
+            name = os.path.basename(log_path).rsplit(".", 1)[0]
+        out.append((name, interval, log_path, line[:160]))
+    return out
+
+
+def _launchd_routines(agents_dir: str | None = None) -> list[tuple]:
+    """Same, for scheduled LaunchAgents.
+
+    launchd is where the reliable half of the stack lives: unlike cron, it runs
+    a job the Mac slept through. That is exactly why the nightly moved here —
+    and exactly why this function had to exist first. The routine exam only ever
+    read `crontab -l`, so every launchd job was unwatched, and migrating a job
+    to launchd silently dropped it out of the only check that covered it."""
+    out = []
+    d = agents_dir or os.path.expanduser("~/Library/LaunchAgents")
+    for fn in sorted(glob.glob(os.path.join(d, "*.plist"))):
+        try:
+            with open(fn, "rb") as f:
+                p = plistlib.load(f)
+        except (OSError, plistlib.InvalidFileException, ValueError):
+            continue
+        log = p.get("StandardOutPath") or p.get("StandardErrorPath")
+        if not log or not isinstance(log, str):
+            continue
+        if p.get("StartInterval"):
+            interval = float(p["StartInterval"]) / 60
+        else:
+            interval = _calendar_interval_minutes(p.get("StartCalendarInterval"))
+        if not interval:
+            continue
+        name = p.get("Label") or os.path.basename(fn)
+        out.append((name, interval, os.path.expanduser(log),
+                    f"{os.path.basename(fn)} (launchd, every {interval:.0f}min)"))
+    return out
+
+
+def routine_findings(agents_dir: str | None = None) -> list[dict]:
+    out = []
+    now = datetime.now().timestamp()
+    for name, interval, log_path, evidence in (_cron_routines()
+                                               + _launchd_routines(agents_dir)):
         if not os.path.exists(log_path):
             out.append({"key": f"routine|{log_path}|missing",
-                        "finding": f"Routine '{name.strip()}' has never written its "
+                        "finding": f"Routine '{name}' has never written its "
                                    f"log ({log_path}) — scheduled but possibly dead",
-                        "severity": "warning", "evidence": line[:160]})
+                        "severity": "warning", "evidence": evidence})
             continue
         silent_min = (now - os.path.getmtime(log_path)) / 60
-        if silent_min > interval * LOG_SILENCE_FACTOR:
+        threshold = _silence_threshold(interval)
+        if silent_min > threshold:
             out.append({"key": f"routine|{log_path}|silent",
-                        "finding": f"Routine '{name.strip()}' silent for "
+                        "finding": f"Routine '{name}' silent for "
                                    f"{silent_min/60:.1f}h (runs every "
-                                   f"{interval:.0f}min) — the stack still "
+                                   f"{interval:.0f}min, presumed dead after "
+                                   f"{threshold/60:.1f}h) — the stack still "
                                    f"believes in a dead limb",
-                        "severity": "warning", "evidence": line[:160]})
+                        "severity": "warning", "evidence": evidence})
     return out
+
+
+# --- liveness: a STATE you assert, not an event you file once ---------------
+#
+# On Jul 15 the nightly consolidation did not run (the Mac slept; cron drops
+# what it sleeps through) and nothing in the stack said a word. Helicon's whole
+# claim is catching silent failure, and it missed its own. Three reasons:
+#
+#   1. the routine exam compares log mtime to 3x the interval, which gave a
+#      DAILY job a 72h blind window (fixed above in _silence_threshold);
+#   2. the log was a PROXY. `>>` touches it on any output, including a run that
+#      died at step two — and a file's mtime is a claim the FILESYSTEM makes,
+#      not one the job makes, so a manual `report > eval-latest.json`, a git
+#      checkout or an editor save could vouch for a run that never happened.
+#      The job now reports on itself: scripts/nightly.sh writes a run record
+#      carrying its own timestamp and real exit code, and nothing else writes
+#      it. The report is checked separately for being a report at all, because
+#      exiting 0 is not the same as producing output;
+#   3. `watch` speaks only when there is news, and findings are idempotent by
+#      key, so a liveness signal filed once never fires again. Absence of an
+#      alarm became indistinguishable from health.
+#
+# So liveness gets asserted, not inferred: nightly_status() returns a state with
+# an age behind it every time it is asked, and `helicon doctor` prints it
+# whether it is healthy or not. A check that only speaks on failure can itself
+# die quietly — which is the failure it was hired to catch.
+
+NIGHTLY = {
+    "label": "mount-helicon-nightly",
+    "cadence_hours": 24.0,
+    "grace_hours": 6.0,
+    "record": "nightly-run.json",    # written by scripts/nightly.sh and nothing else
+    "evidence": "eval-latest.json",  # the end of the && chain
+    "evidence_key": "overall",       # the report's headline metric
+    "log": "nightly.log",
+}
+
+
+def _data_path(config: dict, name: str) -> str:
+    return os.path.join(
+        os.path.dirname(config.get("db_path", "data/helicon.db")), name)
+
+
+def _age_hours(path: str) -> float | None:
+    try:
+        return (datetime.now().timestamp() - os.path.getmtime(path)) / 3600
+    except OSError:
+        return None
+
+
+def _read_record(path: str) -> dict | None:
+    """The nightly's own run record: when it ran, and what it exited with.
+
+    A file's MTIME is not a claim the job makes — it is a claim the filesystem
+    makes, and anything can make it: a manual `report > eval-latest.json`, a git
+    checkout, an editor save, a restore. The record carries its timestamp INSIDE
+    and is written by the nightly alone, so it cannot be forged by a passer-by."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            rec = json.load(f)
+        return rec if isinstance(rec, dict) and "ts" in rec else None
+    except (OSError, json.JSONDecodeError, ValueError, UnicodeDecodeError):
+        return None
+
+
+def _record_age_hours(rec: dict) -> float | None:
+    try:
+        ts = datetime.strptime(str(rec["ts"]).replace("Z", ""),
+                               "%Y-%m-%dT%H:%M:%S")
+    except (ValueError, KeyError, TypeError):
+        return None
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    return (now - ts).total_seconds() / 3600
+
+
+def _intact(path: str, key: str | None = None) -> bool:
+    """Whether the report at `path` is a report at all.
+
+    `>` truncates its target before the command runs, so a crash leaves a fresh
+    mtime on an empty file. And exiting 0 is not the same as producing output:
+    `null`, `0`, `[]`, `{}` and `{"error": ...}` all parse as JSON perfectly
+    well. A report is a non-empty object carrying its headline metric."""
+    try:
+        if os.path.getsize(path) == 0:
+            return False
+        if path.endswith(".json"):
+            with open(path, encoding="utf-8") as f:
+                d = json.load(f)
+            if not isinstance(d, dict) or not d:
+                return False
+            if key and key not in d:
+                return False
+        return True
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return False
+
+
+def nightly_status(config: dict) -> dict:
+    """The nightly's liveness, asserted from its own run record.
+
+    Always returns a state: 'ok' is a claim with a timestamp, an exit code and a
+    readable report behind it, never merely the absence of an alarm."""
+    spec = {**NIGHTLY, **(config.get("nightly") or {})}
+    rec_path, ev = _data_path(config, spec["record"]), _data_path(config, spec["evidence"])
+    due = spec["cadence_hours"] + spec["grace_hours"]
+    rec = _read_record(rec_path)
+    age = _record_age_hours(rec) if rec else None
+    st = {"label": spec["label"], "record": rec_path, "evidence": ev,
+          "age_hours": age, "cadence_hours": spec["cadence_hours"],
+          "due_hours": due, "exit_code": (rec or {}).get("rc"),
+          "log_age_hours": _age_hours(_data_path(config, spec["log"]))}
+    cad = f"cadence {spec['cadence_hours']:.0f}h"
+    if rec is None:
+        return {**st, "ok": False,
+                "reason": f"never completed — {os.path.basename(rec_path)} has "
+                          f"never been written"}
+    if age is None:
+        return {**st, "ok": False,
+                "reason": f"unreadable run record — {os.path.basename(rec_path)} "
+                          f"has no usable timestamp"}
+    if rec.get("rc") != 0:
+        return {**st, "ok": False,
+                "reason": f"last run FAILED (exit {rec.get('rc')}) {age:.1f}h ago"}
+    if not _intact(ev, spec.get("evidence_key")):
+        return {**st, "ok": False,
+                "reason": f"exited 0 {age:.1f}h ago but "
+                          f"{os.path.basename(ev)} is empty, unreadable or not "
+                          f"a report"}
+    if age > due:
+        return {**st, "ok": False,
+                "reason": f"last completed {age:.1f}h ago, overdue by "
+                          f"{age - due:.1f}h ({cad} + "
+                          f"{spec['grace_hours']:.0f}h grace)"}
+    return {**st, "ok": True,
+            "reason": f"last completed {age:.1f}h ago ({cad}, exit 0, "
+                      f"{os.path.basename(ev)} intact)"}
+
+
+def nightly_findings(config: dict) -> list[dict]:
+    """One finding per DAY the nightly misses. Liveness is a state, so each
+    missed night is its own event — a single key filed once would mask every
+    skip after the first."""
+    st = nightly_status(config)
+    if st["ok"]:
+        return []
+    day = datetime.now().date().isoformat()
+    age = "never" if st["age_hours"] is None else f"{st['age_hours']:.1f}h old"
+    return [{"key": f"nightly|{st['label']}|{day}",
+             "finding": f"Nightly '{st['label']}' did not complete: "
+                        f"{st['reason']}. The consolidation the rest of the "
+                        f"stack trusts silently did not run",
+             "severity": "critical",
+             "evidence": f"{st['evidence']} is {age}; cadence "
+                         f"{st['cadence_hours']:.0f}h"}]
 
 
 EPHEMERAL = ("/tmp/", "/scratchpad/", "/T/")
@@ -163,7 +395,7 @@ def _existing_keys(conn: sqlite3.Connection) -> set:
     keys = set()
     for row in conn.execute(
         "SELECT details FROM audit_log WHERE audit_type IN "
-        "('routine', 'output', 'context')"
+        "('routine', 'output', 'context', 'nightly')"
     ):
         try:
             k = json.loads(row["details"]).get("key")
@@ -174,14 +406,17 @@ def _existing_keys(conn: sqlite3.Connection) -> set:
     return keys
 
 
-def stack_scan(conn: sqlite3.Connection) -> dict:
-    """Run all three checks, file new findings idempotently."""
+def stack_scan(conn: sqlite3.Connection, config: dict | None = None) -> dict:
+    """Run the checks, file new findings idempotently. The nightly liveness
+    check needs a config to know where its evidence lives; without one it is
+    skipped rather than guessed at."""
     existing = _existing_keys(conn)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-    filed = {"routine": 0, "output": 0, "context": 0}
+    filed = {"routine": 0, "output": 0, "context": 0, "nightly": 0}
     for kind, items in (("routine", routine_findings()),
                         ("output", output_findings(conn, ephemeral=EPHEMERAL)),
-                        ("context", context_findings())):
+                        ("context", context_findings()),
+                        ("nightly", nightly_findings(config) if config else [])):
         for it in items:
             if it["key"] in existing:
                 continue

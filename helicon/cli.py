@@ -1307,7 +1307,7 @@ def cmd_evolve(args):
     relation_scan(conn)          # R12: file phantom associations
     store_asserts_edges(conn)    # R12: persist relation provenance as 'asserts' edges
     from helicon.stackwatch import stack_scan
-    stack = stack_scan(conn)
+    stack = stack_scan(conn, config)
     exam = run_rot_exam(conn)
 
     hist = gold_history(config, limit=2)
@@ -1325,7 +1325,8 @@ def cmd_evolve(args):
           f"(open now: {after_open}; negative = rulings landed mid-run)")
     print(f"  rot classes firing  {exam['rot_found']}/10")
     print(f"  stack surfaces      +{stack['routine']} routine, "
-          f"+{stack['output']} dead-path, +{stack['context']} context finding(s)")
+          f"+{stack['output']} dead-path, +{stack['context']} context, "
+          f"+{stack.get('nightly', 0)} nightly finding(s)")
     print(f"  golden rules        {prev_rules} -> {gold['total']}"
           + (f"  (+{gold['total'] - prev_rules} learned)"
              if gold["total"] > prev_rules else "  (holding)"))
@@ -1694,6 +1695,15 @@ def cmd_doctor(_args):
             "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN ('killed', 'superseded')"
         ).fetchone()[0]
         checks.append(("OK", f"DB {db_path} — {total} memories ({total - retired} live, {retired} retired)"))
+
+        # Liveness, asserted rather than inferred. This line prints healthy or
+        # not on purpose: the Jul 15 skip hid because the only signal was the
+        # ABSENCE of an alarm, and a silent check and a silent failure look the
+        # same. An age you can read cannot go quiet.
+        from helicon.stackwatch import nightly_status
+        night = nightly_status(config)
+        checks.append(("OK" if night["ok"] else "FAIL",
+                       f"nightly {night['reason']}"))
 
         scan = last_scan_info(conn)
         stability = config.get("forgetting", {}).get("stability", {})

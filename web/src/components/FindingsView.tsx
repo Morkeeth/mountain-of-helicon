@@ -10,7 +10,7 @@ import type { Finding, FindingsResponse } from '../api';
 const GROUPS: { key: string; label: string; kinds: string[]; hint: string }[] = [
   { key: 'drift', label: 'Drift', kinds: ['factual', 'supersession'],
     hint: 'two sources disagree, or a renamed thing is still called its old name' },
-  { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical', 'routine', 'output', 'context'],
+  { key: 'stale', label: 'Stale', kinds: ['temporal', 'decay', 'battery', 'logical', 'routine', 'output', 'context', 'nightly'],
     hint: 'aged past its truth, memory past its half-life, dead paths, silent routines' },
   { key: 'smartness', label: 'Smartness', kinds: ['regret', 'agent-flag', 'skill'],
     hint: 'not an error, a memory worth restoring, or a skill worth sharpening' },

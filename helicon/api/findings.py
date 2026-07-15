@@ -38,8 +38,8 @@ _SEVERITY_RANK = {"critical": 4, "high": 3, "warning": 2, "medium": 2, "info": 1
 # one cross-source contradiction matters more than the 166th stale note.
 # Order: contradictions / supersession / wrong evictions / agent flags first,
 # then the recurring hygiene kinds.
-_KIND_RANK = {"factual": 0, "supersession": 0, "output": 1, "routine": 1, "regret": 1, "agent-flag": 1,
-              "battery": 2, "skill": 2, "logical": 2, "temporal": 3, "decay": 3}
+_KIND_RANK = {"factual": 0, "supersession": 0, "nightly": 0, "output": 1, "routine": 1, "regret": 1,
+              "agent-flag": 1, "battery": 2, "skill": 2, "logical": 2, "temporal": 3, "decay": 3}
 
 # Two lanes. DECISION findings need Oscar's judgment — only a human knows
 # whether two sources contradict, whether a kill was wrong, or which skill is
@@ -68,6 +68,7 @@ _LANE_RANK = {"decision": 1, "ambient": 0}
 
 # Which named check an audit_type corresponds to, for the human "why" sentence.
 _AUDIT_CHECK = {
+    "nightly": "Nightly liveness",
     "routine": "Routine health",
     "output": "Dead path",
     "context": "Context weight",
