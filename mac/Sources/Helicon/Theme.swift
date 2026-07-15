@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import CoreText
 
 /// Alpine Wash — the locked visual identity, ported 1:1 from web/helicon-tokens.css.
 /// The six named brand colors and nothing else; no new color is invented here.
@@ -57,22 +59,83 @@ extension Color {
     }
 }
 
-/// The brand type stack is web-font-only (Fraunces / Bricolage Grotesque / IBM
-/// Plex Mono) and none of the three are installed on this machine. The design
-/// doc lists web fonts as a native anti-pattern, so each brand face maps to its
-/// closest native counterpart rather than being bundled.
+/// The brand type stack, for real (Jul 15).
+///
+/// This used to map Fraunces/Bricolage/IBM Plex Mono onto New York/SF Pro/SF
+/// Mono via `design:`, on the theory that web fonts are a native anti-pattern.
+/// The colors were already a 1:1 port of the web tokens, so type was the only
+/// thing left carrying a difference — and typography IS the brand, so the app
+/// read as a different product than the dashboard. The faces are the same files
+/// the web now self-hosts; they ship inside the target and register at launch.
+///
+/// Variable fonts, deliberately: the legacy static exports register split
+/// families ("Fraunces SemiBold" as its OWN family), which silently defeats
+/// `.weight()`. The variable files register one clean family each and CoreText
+/// resolves weights off the wght axis.
+enum BrandFont {
+    /// Registered once, at first use. `.process` scope keeps it to this app
+    /// rather than installing anything on the machine.
+    static let ready: Bool = register()
+
+    /// The families we expect after registration. If a lookup misses, that face
+    /// falls back to its closest system design rather than crashing or, worse,
+    /// silently drawing the wrong weight.
+    static let fraunces  = "Fraunces"
+    static let bricolage = "Bricolage Grotesque"
+    static let plexMono  = "IBM Plex Mono"
+
+    private static func register() -> Bool {
+        // Bundle.module covers `swift run` and the .app alike. The bundled app
+        // ALSO declares ATSApplicationFontsPath (see make-app.sh), so a second
+        // registration here is expected to be a no-op: an already-registered
+        // error is success, not failure.
+        guard let dir = Bundle.module.url(forResource: "Fonts", withExtension: nil) else {
+            return available(fraunces)   // maybe ATS already did it
+        }
+        let urls = (try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: nil))?
+            .filter { $0.pathExtension.lowercased() == "ttf" } ?? []
+        for url in urls {
+            var err: Unmanaged<CFError>?
+            if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &err) {
+                // kCTFontManagerErrorAlreadyRegistered (105) is fine.
+                let code = (err?.takeUnretainedValue() as Error?).map { ($0 as NSError).code }
+                if code != 105 {
+                    FileHandle.standardError.write(
+                        "[font] could not register \(url.lastPathComponent)\n".data(using: .utf8)!)
+                }
+            }
+        }
+        return available(fraunces)
+    }
+
+    private static func available(_ family: String) -> Bool {
+        NSFont(name: family, size: 12) != nil
+    }
+
+    /// One place decides brand-face-or-fallback, so a missing file degrades to
+    /// a readable system face instead of taking the cockpit down.
+    static func font(_ family: String, _ size: CGFloat,
+                     _ weight: Font.Weight, fallback: Font.Design) -> Font {
+        guard ready, available(family) else {
+            return .system(size: size, weight: weight, design: fallback)
+        }
+        return .custom(family, size: size).weight(weight)
+    }
+}
+
 extension Font {
-    /// Fraunces → New York. Display, headings, and hero numbers.
+    /// Fraunces. Display, headings, and hero numbers.
     static func display(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+        BrandFont.font(BrandFont.fraunces, size, weight, fallback: .serif)
     }
-    /// Bricolage Grotesque → SF Pro. Interface text.
+    /// Bricolage Grotesque. Interface text.
     static func iface(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .default)
+        BrandFont.font(BrandFont.bricolage, size, weight, fallback: .default)
     }
-    /// IBM Plex Mono → SF Mono. Data, receipts, raw claim text.
+    /// IBM Plex Mono. Data, receipts, raw claim text.
     static func data(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
+        BrandFont.font(BrandFont.plexMono, size, weight, fallback: .monospaced)
     }
 }
 

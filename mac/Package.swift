@@ -14,6 +14,10 @@ let package = Package(
         .executableTarget(
             name: "Helicon",
             path: "Sources/Helicon",
+            // The brand faces travel with the binary, so `swift run` looks the
+            // same as the .app. Without this the app falls back to New York/SF
+            // and reads as a different product than the dashboard.
+            resources: [.copy("Fonts")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

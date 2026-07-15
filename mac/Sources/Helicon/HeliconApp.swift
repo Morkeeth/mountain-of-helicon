@@ -114,6 +114,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Which faces actually drew. Type is the brand, and a missing font does
+        // not throw — it silently falls back and the app quietly becomes a
+        // different product. So the check is printed, not assumed.
+        Self.note("font: brand faces registered = \(BrandFont.ready)")
+        for family in [BrandFont.fraunces, BrandFont.bricolage, BrandFont.plexMono] {
+            let resolved = NSFont(name: family, size: 13)?.fontName ?? "MISSING -> system fallback"
+            Self.note("font: \(family) -> \(resolved)")
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
             let windows = NSApp.windows.filter { $0.isVisible }
             for w in windows {
