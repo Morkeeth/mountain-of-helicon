@@ -351,3 +351,43 @@ def test_a_server_that_cannot_spawn_is_caught(tmp_path):
 def test_no_mcp_config_is_not_a_finding(tmp_path):
     from helicon.stackwatch import mcp_findings
     assert mcp_findings(str(tmp_path / "absent.json")) == []
+
+
+# --- the config gate must not block the commands that configure themselves ---
+# The gate that stops a stranger hitting `KeyError: 'db_path'` was applied before
+# dispatch to every command except init/doctor/mcp. `helicon ci` builds its OWN
+# config (temp DB + agent-rules connector for the repo it is handed), which is
+# the whole point of running it on a fresh GitHub checkout with no config.json.
+# The gate killed it on every push. Green tests did not catch it because nothing
+# ran the CLI the way CI does.
+
+def test_ci_runs_with_no_config_at_all(tmp_path, monkeypatch):
+    """The exact GitHub Actions shape: fresh checkout, no config.json."""
+    import subprocess
+    import sys
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text("# Rules\n\nAlways ship at 80%.\n")
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-qm", "init"], cwd=repo, check=True)
+    env = {**os.environ, "HELICON_CONFIG": str(tmp_path / "absent.json")}
+    r = subprocess.run([sys.executable, "-m", "helicon.cli", "ci",
+                        "--path", str(repo), "--fail-on", "none"],
+                       capture_output=True, text=True, env=env,
+                       cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # The gate's own text. A rot class reporting "unmeasured: config not found"
+    # is honest and expected here: without a config it cannot measure, and says
+    # so rather than guessing. The gate firing is what must not happen.
+    assert "No config at" not in r.stdout, "the config gate blocked a self-configuring command"
+    assert "Mount Helicon CI" in r.stdout, r.stdout[:300]
+    assert r.returncode == 0, f"exit {r.returncode}\n{r.stdout[-500:]}\n{r.stderr[-300:]}"
+
+
+def test_self_configuring_commands_are_declared():
+    """If a command builds its own config, it must be exempt from the gate."""
+    import inspect
+    from helicon import cli
+    src = inspect.getsource(cli.main)
+    assert '"ci"' in src.split("SELF_CONFIGURING")[1].split(")")[0]
