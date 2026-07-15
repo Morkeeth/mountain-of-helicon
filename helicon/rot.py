@@ -1,6 +1,6 @@
 """The rot exam — ROT.md as an executable test suite.
 
-Ten named failure classes (R1-R10), each grounded in the public record (see
+Twelve named failure classes (R1-R12), each grounded in the public record (see
 ROT.md), each checked live against the real store. One command answers
 "which documented ways of going wrong is MY memory going wrong in right now?"
 
@@ -60,15 +60,17 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         checks.append(_check("R1", "Cross-source contradiction", "TESTED", None,
                              f"unmeasured: {e}"))
 
-    # R2 doc-drift — README numeric claims vs source truth.
+    # R2 doc-drift — doc claims vs source truth: stated counts, the lists under
+    # them, and eval metrics vs data/eval-latest.json, across every checked doc.
     try:
-        from helicon.docdrift import check_readme
-        drift = [r for r in (check_readme(repo_root) if repo_root else check_readme())
+        from helicon.docdrift import check_docs
+        drift = [r for r in (check_docs(repo_root) if repo_root else check_docs())
                  if not r["ok"]]
+        checked = len({r["doc"] for r in (check_docs(repo_root) if repo_root else check_docs())})
         checks.append(_check(
             "R2", "Doc-drift", "TESTED", bool(drift),
-            "README matches source" if not drift else
-            "; ".join(f"{d['claim']}: {d['why']}" for d in drift)))
+            f"{checked} docs match source" if not drift else
+            "; ".join(f"{d['doc']} {d['claim']}: {d['why']}" for d in drift)))
     except Exception as e:
         checks.append(_check("R2", "Doc-drift", "TESTED", None, f"unmeasured: {e}"))
 
