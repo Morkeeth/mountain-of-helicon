@@ -17,17 +17,17 @@ flowchart TD
     A6["External stores it audits but doesn't own<br/>mem0 · Letta · Graphiti"]
   end
 
-  SRC -->|"connectors (13)"| GATE
+  SRC -->|"connectors (12 modules, 4 enabled)"| GATE
 
   subgraph INGEST["② Ingestion"]
     GATE["SAGE novelty gate<br/>ADD / NOOP / MERGE"]
-    CUBES[("HeliconCubes<br/>4,013 versioned memory units<br/>SQLite · 22 tables + FTS5 + embeddings")]
+    CUBES[("HeliconCubes<br/>~6,900 versioned memory units, ~3,800 live<br/>SQLite · 24 tables + FTS5 + embeddings")]
     GATE --> CUBES
   end
 
   CUBES --> EXAM
 
-  subgraph AUDIT["③ Rot exam — 10 documented failure classes, on a timer"]
+  subgraph AUDIT["③ Rot exam — 12 documented failure classes, on a timer"]
     EXAM["contradiction · supersession (dead names)<br/>temporal · decay (Weibull per-type) · logical<br/>battery: does retrieval still serve good context?"]
   end
 
@@ -47,8 +47,8 @@ flowchart TD
   CUBES -.serves.-> SURF
   subgraph SURF["Surfaces"]
     CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
-    MCP["MCP server<br/>12 tools · JSON-RPC 2.0 / stdio"]
-    WEB["Web UI · 4 tabs<br/>Context · Reviews · Output · Routines & Skills"]
+    MCP["MCP server<br/>14 tools · JSON-RPC 2.0 / stdio"]
+    WEB["Web UI · 14 tabs<br/>Health · Findings · Gold · Log · Graph · Projects · Evals · …"]
   end
 ```
 
@@ -76,7 +76,7 @@ agent output (any platform)
   → SAGE novelty gate: ADD / NOOP / MERGE
   → HeliconCube stored (content hash, confidence, type, embedding)
   → Weibull decay applied per type (κ shapes the forgetting curve)
-  → rot exam runs on a timer: 10 failure classes, most LLM-free
+  → rot exam runs on a timer: 12 failure classes, most LLM-free
   → auto-triage clears the high-confidence rot from learned patterns
   → only uncertain findings surface, grouped Drift / Stale / Smartness
   → human rules once (Confirm / Retire / Later), voice-driven
@@ -86,9 +86,11 @@ agent output (any platform)
   → the exam re-runs nightly; a returning rot re-alarms
 ```
 
-## Storage (22 core tables + FTS5)
+## Storage (24 core tables + FTS5)
 
-`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` — plus `cubes_fts` (FTS5 full-text index).
+`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards`
+
+Plus `cubes_fts`, the FTS5 full-text index. It is an index rather than a table the count claims, which is why 24 is the number checked against `CREATE TABLE` in source.
 
 ## Research the design draws on
 
