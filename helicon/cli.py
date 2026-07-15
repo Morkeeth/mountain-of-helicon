@@ -1731,6 +1731,24 @@ def cmd_doctor(_args):
             checks.append(("OK" if st["ok"] else "FAIL",
                            f"mcp '{st['name']}' — {st['reason']}"))
 
+        # `serve` prefers static/ over web/dist (app.py). static/ is gitignored
+        # and populated by a manual copy, so a rebuild that nobody copies leaves
+        # the dashboard serving a stale bundle with no signal at all: Oscar's
+        # phone showed a UI from the previous night while every fix landed in
+        # web/dist, and no amount of rebuilding could reach him. Same seam as the
+        # rest of today. Assert it instead of remembering it.
+        _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        _static = os.path.join(_root, "static", "index.html")
+        _dist = os.path.join(_root, "web", "dist", "index.html")
+        if os.path.isfile(_static) and os.path.isfile(_dist):
+            if open(_static, "rb").read() != open(_dist, "rb").read():
+                checks.append(("FAIL", "dashboard: static/ is serving a "
+                                       "DIFFERENT build than web/dist — serve "
+                                       "prefers static/, so the browser gets the "
+                                       "stale one. Fix: cp -r web/dist/. static/"))
+            else:
+                checks.append(("OK", "dashboard: static/ matches web/dist"))
+
         scan = last_scan_info(conn)
         stability = config.get("forgetting", {}).get("stability", {})
         half_life_days = min(stability.values()) if stability else 7.0
