@@ -80,9 +80,18 @@ def code_refs(old_name: str, new_name: str = "", repos_dir: str = "~/CODE",
     root = os.path.expanduser(repos_dir)
     rx = _code_rx(old_name)
     # Same rule the prose triage already uses: a line naming BOTH the old and
-    # the new name is rename-AWARE (a migration, an alias declaration, a compat
-    # shim). It is about the rename, so it is not a dead reference.
-    new_rx = re.compile(r"\b" + re.escape(new_name) + r"\b", re.I) if new_name else None
+    # the new name is rename-AWARE (a migration, an alias declaration). It is
+    # about the rename, so it is not a dead reference.
+    #
+    # The new name must be a quoted TOKEN, exactly like the old one. Matching it
+    # as a bare word was asymmetric and it silently dropped a real outage: in
+    # seed/route.ts, lines 11, 12 and 13 all carry agentId:"relay", and line 12
+    # alone was suppressed because its product copy reads "What favour would you
+    # ask someone nearby" — prose, inside a string, matching \bfavour\b. Lines 11
+    # and 13 survived by luck ("Favours" and "favourite" do not match \b). In a
+    # codebase whose entire domain vocabulary is the new name, a bare-word rule
+    # makes every dead reference near product copy invisible.
+    new_rx = _code_rx(new_name) if new_name else None
     leads, legacy, repos = [], 0, 0
     if not os.path.isdir(root):
         return {"leads": [], "legacy_tests": 0, "repos": 0}

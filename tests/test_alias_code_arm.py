@@ -123,3 +123,26 @@ def test_no_repos_is_not_an_error(tmp_path):
 ])
 def test_the_token_rule(line, hit):
     assert bool(_code_rx("relay").search(line)) is hit
+
+
+def test_product_copy_naming_the_new_name_does_not_hide_a_dead_reference(tmp_path):
+    """D4, found by adversarial review. The new name was matched as a bare word
+    while the old one had to be a quoted token — asymmetric, and it dropped a
+    real outage. In seed/route.ts lines 11, 12 and 13 all carry agentId:"relay";
+    line 12 alone vanished because its product copy reads "What favour would you
+    ask someone nearby". Lines 11 and 13 survived by luck: "Favours" and
+    "favourite" do not match \\bfavour\\b. In a codebase whose domain vocabulary
+    IS the new name, that makes every dead reference near product copy invisible.
+    """
+    _repo(tmp_path, "app", {"src/seed.ts":
+        '{ description: "What favour would you ask someone nearby?", '
+        'agentId: "relay" },\n'})
+    leads = code_refs("relay", "favour", repos_dir=str(tmp_path))["leads"]
+    assert len(leads) == 1, "product copy naming the new name hid a dead reference"
+
+
+def test_an_alias_declaration_is_still_rename_aware(tmp_path):
+    """The token rule must not break the suppression it exists for: both names
+    as real tokens is a migration or an alias table, not a dead reference."""
+    _repo(tmp_path, "app", {"src/alias.ts": 'const A = [["relay", "favour"]];\n'})
+    assert code_refs("relay", "favour", repos_dir=str(tmp_path))["leads"] == []
