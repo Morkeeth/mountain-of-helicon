@@ -4,7 +4,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 
 ## What it does
 
-- **Layer 1:** Extracts agent output from Claude Code transcripts, Obsidian, git, and coding-agent *rules* files (CLAUDE.md / AGENTS.md / .cursorrules / .clinerules / copilot-instructions), each split into section-level memory cubes so regression can catch a single rule drifting
+- **Layer 1:** Extracts agent output from Claude Code transcripts, Obsidian, git, and coding-agent *rules* files (CLAUDE.md / AGENTS.md / .cursorrules / .clinerules / copilot-instructions), each split into section-level memories so regression can catch a single rule drifting
 - **Layer 2:** Learns review patterns (velocity, shipping rates, spin detection, kill prediction)
 - **Layer 3:** Audits its own stored patterns. Flags stale memories, contradictions, low-confidence patterns. Proposes prunes. Human reviews the memory review (meta-loop).
 
@@ -32,7 +32,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 ```bash
 pip install -e .           # install with CLI entry point
 helicon init                 # auto-detect Claude Code, Cursor, Obsidian, git
-helicon scan                 # extract memory items into HeliconCubes
+helicon scan                 # extract memory items from your sources
 helicon serve                # start web UI on :8420
 helicon triage               # run auto-triage from learned patterns
 helicon triage --dry-run     # preview what would be triaged
@@ -67,14 +67,14 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 
 ## Current Stats
 
-- ~3,800 live cubes of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live cubes come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor cubes exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 cubes
+- ~3,800 live memories of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live memories come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor memories exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 memories
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
 - 22 routers (~90 endpoints), 14 MCP tools, 43 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)
-- Semantic embeddings: all-MiniLM-L6-v2, 384 dims, all cubes embedded
+- Semantic embeddings: all-MiniLM-L6-v2, 384 dims, all memories embedded
 - Hybrid search: 60% semantic + 40% FTS5 keyword, numpy vector ops
 - Embedding-based consolidation: cosine similarity clustering + Qwen synthesis
 - Core Memory Compiler: compiles reviewed memory to injectable files (data/compiled/)
@@ -83,11 +83,11 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 
 - Composite: **~67** (as of 2026-07-13; run `helicon eval` to recompute. Retrieval P@3 + MRR + decay-AUC; audit excluded, no labeled ground truth)
 - Retrieval: P@3 0.692, MRR 0.603 (n=13, auto-built internal benchmark, one label/query - disclose this)
-- Decay predicts human kills: **rank-AUC 0.781** (mean confidence of killed cubes 0.141 vs approved 0.268) - a real, independent signal
+- Decay predicts human kills: **rank-AUC 0.781** (mean confidence of killed memories 0.141 vs approved 0.268) - a real, independent signal
 - Consolidation: ~9-10x fewer tokens (char-estimated), Qwen-judged quality favors synthesis (self-graded, show as direction not proof)
 
 ## Known gaps (do not overclaim in demo)
 
-- Q-value loop is wired but dormant (few cubes moved); surface->reward cycle not yet exercised in production
+- Q-value loop is wired but dormant (few memories moved); surface->reward cycle not yet exercised in production
 - context_impact is display-only; not fed back into ranking
 - Write-back to ~/.claude/skills/ (inject_into_claude_code) is not wired to any surface; the pull path (helicon_context MCP) is the working half of the loop

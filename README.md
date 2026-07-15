@@ -12,7 +12,7 @@ The record is measured and it is bad. Shown two contradicting sources, GPT-4 fla
 
 The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become stale. Agents are instructed to treat memories as guidance only."* Anthropic's memory-tool freshness strategy is one line: delete files *"that haven't been accessed in a long time."* Alibaba's own AnalyticDB team titled their blog *"Is Your AI Agent Getting Dumber?"* -- and Qwen3.7-Max markets 35-hour autonomous runs as *"resilient to context rot and instruction drift"* with no way for anyone to verify it. Mem0 ($24M) stores. Letta ($10M) organizes. Zep timestamps. Every shipped mitigation is recency deletion, write-time dedup, or "the human should review." **Nobody ships a test that asks: is this stored memory still true?**
 
-Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live memory store (~6,900 cubes on 2026-07-15, roughly 3,800 of them live; it grows on every scan, so run `helicon doctor` for today's count), and it has failed its own audits more than once (see receipts in the demo).
+Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live memory store (~6,900 memories on 2026-07-15, roughly 3,800 of them live; it grows on every scan, so run `helicon doctor` for today's count), and it has failed its own audits more than once (see receipts in the demo).
 
 ## The moat: what a memory store cannot do (one command)
 
@@ -40,7 +40,7 @@ Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=con
 | **Remembers preferences** | Auto-triage learns keep/kill rules from *your* past rulings; Golden Rules encode your standing decisions with provenance |
 | **Improves decisions across sessions** | Rulings compile into Golden Rules the agent obeys next session; the never-twice guard stops a corrected fact silently resurfacing |
 | **Efficient store / retrieve** | Hybrid FTS5 + semantic retrieval; the battery tests what a task *actually* retrieves, not the whole store |
-| **Timely forgetting** | 12-class rot exam + per-type Weibull decay + `reconcile` retires cubes reality no longer contains |
+| **Timely forgetting** | 12-class rot exam + per-type Weibull decay + `reconcile` retires memories reality no longer contains |
 | **Recall within limited context** | Selectors + retrieval-quality battery + Next Moves surface only what matters, each citing its source |
 | **Qwen Cloud, load-bearing** | Contradiction + grounding judging, cross-source adjudication, rule compilation, and Next Moves synthesis — cached, cost-tracked, honest keyless degrade |
 
@@ -52,7 +52,7 @@ cd mount-helicon
 pip install -e .
 
 helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
-helicon scan        # extract memory into HeliconCubes
+helicon scan        # extract memory from your sources
 helicon doctor      # health check: PATH, config, key, DB, last scan
 helicon check "what am I working on"   # context-quality verdict
 helicon audit         # the rot exam: 12 documented failure classes, checked live
@@ -96,7 +96,7 @@ Locally it's the same one command: `helicon ci` (add `--fail-on none` for report
 
 - **`helicon snapshot`** -- regression tests for retrieved context. Capture what a task retrieves today; `snapshot check` fails when tomorrow's retrieval drifts. CI for memory.
 - **`helicon check "<task>"`** -- context-quality battery on what a task retrieves: Relevance, Freshness, Redundancy, Thinness, Expiry (deterministic) + Contradiction, Grounding (judged live by Qwen). Verdict: HEALTHY / DEGRADED / BROKEN. Every verdict prints the age of the last scan, because a DEGRADED verdict is uninterpretable if the scan itself is stale. `--json` for scripts and CI.
-- **`helicon reconcile`** -- timely forgetting. Re-scans sources and retires cubes reality no longer contains (dry-run by default, never touches human decisions). On the live DB it retired 20 superseded memories in its first run.
+- **`helicon reconcile`** -- timely forgetting. Re-scans sources and retires memories reality no longer contains (dry-run by default, never touches human decisions). On the live DB it retired 20 superseded memories in its first run.
 - **`helicon fix-skills`** -- write-back: Qwen writes missing descriptions into your agent skill files (dry-run by default, `.bak` backups). It fixed 7 of this project's own skills.
 - **`helicon doctor`** -- five checks (PATH, config, key, DB, last scan), exit 1 on failure. The front door to a daily loop.
 - **`helicon rule "<natural language>"`** -- prompted rules. Qwen compiles your sentence to a restricted predicate (whitelisted fields, never code); before approval you see coverage, samples, empirical precision against YOUR past decisions, and conflicts with other rules. One approved rule governs hundreds of items; applied rules are never counted as human evidence.
@@ -105,9 +105,9 @@ Locally it's the same one command: `helicon ci` (add `--fail-on none` for report
 
 ## Three Layers
 
-**Layer 1 -- Extraction.** Nine pluggable connectors: Claude Code (JSONL transcripts + memory files), Obsidian, git history, ChatGPT exports, Cursor, agent rules files, plus read-side adapters for **Letta MemFS**, **Graphiti** (bi-temporal metadata mapped into cubes; 17 tests), and **Mem0** -- the store Alibaba's own agent-memory docs recommend (Model Studio Memory Bank, Mem0 + Hologres, Mem0 + AnalyticDB), so Mount Helicon audits the stacks Alibaba itself suggests. Rewritten and expiring Mem0 memories carry their temporal fields into the freshness tests. Agent *rules* files (CLAUDE.md, AGENTS.md, .cursorrules) are split into section-level cubes so regression catches a single rule drifting. Every item becomes a **HeliconCube**: versioned memory unit with source, confidence, content hash, review status, decay parameters (MemOS-inspired). A SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage.
+**Layer 1 -- Extraction.** Nine pluggable connectors: Claude Code (JSONL transcripts + memory files), Obsidian, git history, ChatGPT exports, Cursor, agent rules files, plus read-side adapters for **Letta MemFS**, **Graphiti** (bi-temporal metadata mapped into memories; 17 tests), and **Mem0** -- the store Alibaba's own agent-memory docs recommend (Model Studio Memory Bank, Mem0 + Hologres, Mem0 + AnalyticDB), so Mount Helicon audits the stacks Alibaba itself suggests. Rewritten and expiring Mem0 memories carry their temporal fields into the freshness tests. Agent *rules* files (CLAUDE.md, AGENTS.md, .cursorrules) are split into section-level memories so regression catches a single rule drifting. Every item becomes a **HeliconCube**: versioned memory unit with source, confidence, content hash, review status, decay parameters (MemOS-inspired). A SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage.
 
-**Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On first run it handled 585 of 1,268 cubes autonomously. Spin detection, kill prediction, Helicon Score.
+**Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On first run it handled 585 of 1,268 memories autonomously. Spin detection, kill prediction, Helicon Score.
 
 **Layer 3 -- Meta-audit.** The system audits its own stored patterns: temporal staleness ("this week" in a 27-day-old file), factual contradictions (Qwen-judged), decay, pattern staleness, anti-confabulation challenges. The human reviews the memory review.
 
@@ -115,7 +115,7 @@ Locally it's the same one command: `helicon ci` (add `--fail-on none` for report
 
 | Tier | Model | Used for |
 |------|-------|----------|
-| fast | `qwen3.6-flash` | Cube summarization, novelty gate, skill descriptions |
+| fast | `qwen3.6-flash` | Memory summarization, novelty gate, skill descriptions |
 | default | `qwen3.6-plus` | Battery judging (Contradiction, Grounding), factual audit, Next Moves |
 | deep | `qwen3.7-max` | Consolidation synthesis, optimization reports |
 | retrieval | `text-embedding-v4` | Dense vectors (1024-dim) for hybrid + semantic search |
@@ -198,7 +198,7 @@ On Jul 5 a 5-agent manual audit swept the operator's real second brain (Obsidian
 python3 scripts/rot_bench_lifeos.py    # read-only on sources, throwaway DB, zero LLM
 ```
 
-Honest numbers from the first run (232 files, 1,667 section cubes): **6/16 file-level catches, 4/16 strict facet-match** — the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
+Honest numbers from the first run (232 files, 1,667 section memories): **6/16 file-level catches, 4/16 strict facet-match** — the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
 
 ## Access & trust model (read this before connecting your vault)
 
@@ -212,9 +212,9 @@ A tool that audits your memory reads your memory. That access is scary, so here 
 - `helicon watch --install`: one tagged line in your crontab, removed by `--uninstall`
 - `helicon compile`: compiled context files under `data/compiled/` (`--output` redirects). It writes nothing into `~/.claude/`: an auto-inject path exists in the source (`compiler.inject_into_claude_code`) but no command calls it, so the pull path (`helicon_context` over MCP) is the working half of that loop and the push half is unwired. Our own store still carries pre-rename `glaze-*` skill files from an older injector, which the skills audit flags: a live example of why write-backs need lifecycle discipline
 - `helicon policy --inject` (alias `helicon gold --inject`): `~/.claude/GOLDEN_RULES.md`, dry-run by default, `.bak` kept
-- your vault: **never**. Corrections are cubes in Helicon's store, not edits to your files. You stay the only writer of your second brain.
+- your vault: **never**. Corrections are memories in Helicon's store, not edits to your files. You stay the only writer of your second brain.
 
-**Leaves your machine:** nothing, unless you configure a Qwen key — then excerpts of candidate memories (truncated cube content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
+**Leaves your machine:** nothing, unless you configure a Qwen key — then excerpts of candidate memories (truncated content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
 
 **Decisions:** every destructive or state-changing action (kill, retire, resolve, dismiss, rule application) is either made by you or made by a written rule you previewed and approved — and automated decisions are quarantined from the learning loop (rot class R9), so the tool cannot launder its own output into your evidence.
 ## Your domain, your lexicon (config, not code)
@@ -239,7 +239,7 @@ Everything destructive is dry-run by default and takes `--apply`.
 
 - Composite: **~67** (live, as of 2026-07-13 — run `helicon eval` to recompute; retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
 - Retrieval: P@3 0.69, MRR 0.60. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
-- **Decay predicts human kills at rank-AUC 0.78** (mean confidence of killed cubes 0.14 vs approved 0.27). A real, independent signal.
+- **Decay predicts human kills at rank-AUC 0.78** (mean confidence of killed memories 0.14 vs approved 0.27). A real, independent signal.
 - Consolidation: ~9-10x fewer tokens; Qwen-judged quality favors synthesis (self-graded, shown as direction, not proof).
 - Zero fake data anywhere: the demo DB is the author's real Claude Code transcripts (210+), Obsidian vault, and git repos.
 
@@ -249,7 +249,7 @@ Mount Helicon's capabilities stand on well-understood memory-systems patterns an
 
 | Capability | Established pattern | How Mount Helicon extends it |
 |-----------|--------|---------------------------|
-| Versioned memory cubes | Structured memory units, not raw text | HeliconCube: source, hash, valid_from, confidence, decay per type |
+| Versioned memory units | Structured memory units, not raw text | HeliconCube: source, hash, valid_from, confidence, decay per type |
 | Multi-axis audit | Temporal/factual/logical consistency checks | 12-class rot exam, each with a receipt and a never-twice guard |
 | Weibull decay | Non-uniform forgetting curves | Per-type kappa, and decay rank-predicts human kills (AUC 0.78) |
 | Novelty gate | ADD/NOOP/MERGE at ingestion | Gate + provenance, so a merge never loses the source it came from |
