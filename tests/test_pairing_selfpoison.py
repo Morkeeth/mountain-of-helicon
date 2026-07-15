@@ -144,3 +144,36 @@ def test_real_rot_cannot_hide_in_a_doc_that_names_the_truth_elsewhere(ruled):
     assert conflicts, "rot re-asserted on line 90 hid behind the truth on line 1"
     d = conflicts[0].get("details", conflicts[0])
     assert "03-14..03-22" in d["dates"]
+
+
+@pytest.mark.parametrize("order", ["ruling-first", "rot-first"])
+def test_real_rot_is_caught_whichever_order_the_doc_is_written_in(ruled, order):
+    """D1, found by adversarial review. The (cube, line) fix was defeated by a
+    dedupe two functions away: extract_assertions kept the FIRST occurrence of
+    (person, topic, interval), so when the ruling line came first, the real
+    re-assertion further down inherited the CORRECTION's line and was excluded
+    with it. Order-dependent, and the natural order was the broken one — a status
+    doc records the ruling near the top and plans further down.
+
+    The earlier test passed only because its truth line did not quote the corpse,
+    which is the one shape with no dedupe collision. The canonical correction
+    format — the entire subject of this fix — always quotes both poles.
+    """
+    ruling = ('- #322 Casey wedding = **04-11..04-13** (the "Mar 14-22" cube was '
+              'the Italy trip mislabeled)')
+    rot = "- Casey wedding is Mar 14-22, booking flights now."
+    body = (f"{ruling}\nfiller\n{rot}\n" if order == "ruling-first"
+            else f"{rot}\nfiller\n{ruling}\n")
+    _cube(ruled, "gc_doc", "status", body, AFTER)
+    conflicts = find_conflicts(ruled)
+    assert conflicts, f"real rot went unreported ({order})"
+    assert "03-14..03-22" in conflicts[0].get("details", conflicts[0])["dates"]
+
+
+def test_the_correction_alone_still_manufactures_nothing(ruled):
+    """The other side of the same coin: fixing the order dependence must not
+    bring #361 back."""
+    _cube(ruled, "gc_corr", "status",
+          '- #322 Casey wedding = **04-11..04-13** (the "Mar 14-22" cube was '
+          'the Italy trip mislabeled)\n', AFTER)
+    assert find_conflicts(ruled) == []

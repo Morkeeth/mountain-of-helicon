@@ -1742,6 +1742,15 @@ def cmd_doctor(_args):
             checks.append(("OK" if st["ok"] else "FAIL",
                            f"mcp '{st['name']}' — {st['reason']}"))
 
+        # Retrieval calls a remote reranker and silently keeps the hybrid order
+        # when it fails, so a dead reranker and a healthy one look identical.
+        # Retrieval is what R8 exists to test, so a silently-degraded reranker is
+        # a silently-degraded exam. Printed healthy or not, same as the nightly.
+        from helicon.embeddings import rerank_health
+        rr = rerank_health()
+        checks.append(("OK" if rr["ok"] else ("WARN" if rr["ok"] is None else "FAIL"),
+                       f"rerank — {rr['reason']}"))
+
         # `serve` prefers static/ over web/dist (app.py). static/ is gitignored
         # and populated by a manual copy, so a rebuild that nobody copies leaves
         # the dashboard serving a stale bundle with no signal at all: Oscar's

@@ -324,12 +324,36 @@ def _rerank_cache_put(conn, key: str, out: list):
 
 
 def rerank_health() -> dict:
-    """Whether reranking is actually reranking. `rerank` returns None on ANY
-    failure and the caller silently keeps the hybrid order, so a dead reranker
-    and a healthy one produced the same shaped answer with no error anywhere —
-    the ranking quietly changed strategy and nothing said so."""
-    return {"cached": len(_RERANK_CACHE), "failures": len(_RERANK_FAILURES),
-            "last_error": _RERANK_FAILURES[-1] if _RERANK_FAILURES else None}
+    """Whether reranking is actually reranking, asserted by PROBING it.
+
+    `rerank` returns None on any failure and the caller silently keeps the hybrid
+    order, so a dead reranker and a healthy one produce the same shaped answer
+    with no error anywhere: the ranking quietly changes strategy and nothing says
+    so. Retrieval is what R8 exists to test, so a silently-degraded reranker is a
+    silently-degraded exam.
+
+    This was first written as a counter over _RERANK_FAILURES, which was useless
+    and shipped claiming otherwise: every CLI invocation is a fresh process, so
+    an in-memory count is always zero at the moment anyone asks. Same lesson as
+    the nightly — liveness is a state you assert, not an event you tally. So it
+    speaks to the reranker and reports what came back.
+    """
+    kind, _c, _m, _d = _embed_provider()
+    if kind != "qwen":
+        return {"ok": None,
+                "reason": "no Qwen embeddings configured — rerank is off by "
+                          "design, retrieval uses the hybrid order"}
+    # conn=None on purpose: the durable memo would answer for a dead reranker.
+    out = rerank("helicon rerank health probe",
+                 ["alpha: a document about ranking",
+                  "beta: an unrelated document"], 2, conn=None)
+    if out is None:
+        why = _RERANK_FAILURES[-1] if _RERANK_FAILURES else "returned no order"
+        return {"ok": False,
+                "reason": f"reranker is NOT answering ({why}) — retrieval is "
+                          f"silently falling back to the hybrid order, and the "
+                          f"agent's context changed with no error anywhere"}
+    return {"ok": True, "reason": f"reranker answering ({len(out)} ranked)"}
 
 
 def rerank(query: str, documents: list[str], top_n: int, conn=None):

@@ -224,9 +224,29 @@ def extract_assertions(content: str, title: str = "") -> list[dict]:
                     for iv in _event_intervals_in(d_win):
                         assertions.append({"person": p, "topic": topic,
                                            "interval": iv, "line": line.strip()})
-    # dedupe within the cube
-    seen, out = set(), []
+    # Dedupe within the cube — but when several lines assert the same interval,
+    # keep the one that asserts it ALONE.
+    #
+    # This is load-bearing for the never-twice guard. A correction line always
+    # quotes both poles ("X = **TRUTH** (the 'DEAD' cube was mislabeled)"), and
+    # the guard excludes an assertion whose LINE also states the truth. Keeping
+    # the first occurrence meant a genuine re-assertion further down the same
+    # document inherited the CORRECTION's line and got excluded with it — so the
+    # rot went unreported. Order-dependent, and the natural order was the broken
+    # one: a status doc records the ruling near the top and plans further down.
+    #
+    #   ruling line 1, rot line 5  ->  SILENT   (rot deduped into the ruling)
+    #   rot line 1, ruling line 5  ->  fires
+    #
+    # A line asserting the interval alone is the incriminating one, and it is
+    # never a correction, because a correction names what it replaces.
+    solo = {}
     for a in assertions:
+        k = (a["person"].lower(), a["topic"], a["line"])
+        solo.setdefault(k, set()).add(a["interval"])
+    seen, out = set(), []
+    for a in sorted(assertions,
+                    key=lambda x: len(solo[(x["person"].lower(), x["topic"], x["line"])])):
         key = (a["person"].lower(), a["topic"], a["interval"])
         if key not in seen:
             seen.add(key)
