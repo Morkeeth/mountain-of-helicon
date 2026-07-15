@@ -1,10 +1,16 @@
 """R4: a dead name in prose is rot; a dead name in a code path is an outage.
 
-R4 reported 341 RELAY current-claims as a COUNT. At least one was load-bearing
-in running code: tasks post as poster:"agent:relay" -> agentId="relay" ->
-getAgent("relay") -> no such key in AGENT_REGISTRY -> null, silently, no error,
-no log. 107 production tasks carried agent:null for 13 days and eight named
-agents never fired once. Nothing in R4 could tell that reference from prose.
+R4 reported 341 RELAY current-claims as a COUNT, with no way to tell which of
+them a code path was executing. The distinction is worth drawing.
+
+CORRECTION 2026-07-15: the motivating exemplar was misattributed. The story was
+that agent:relay -> getAgent("relay") -> null blacked out FAVOUR's agent layer
+for 13 days. The blackout is real; the rename did not cause it. `relay` was never
+a key in AGENT_REGISTRY in any commit, 12 of 41 broken tasks predate the rename,
+and getAgent("favour") returns null too. Updating the dead name would REPRODUCE
+the outage under a live name — and this check would then say CLEAN. A dead name
+is a weak proxy for a dangling reference; the honest check needs the registry.
+These tests pin the capability, which stands; they do not endorse the story.
 
 The precision limit is the whole design. "relay" and "glaze" are English words,
 so this reports LEADS, not verdicts:

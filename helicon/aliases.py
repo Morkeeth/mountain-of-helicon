@@ -36,13 +36,30 @@ from helicon.db import insert_audit
 
 # --- the code arm: a dead name in prose is rot; in a code path it is an outage
 #
-# R4 reported 341 RELAY current-claims as a COUNT. At least one was load-bearing
-# in running code: tasks post as poster:"agent:relay", which strips to
-# agentId="relay", which hits getAgent("relay"), which finds no such key in
-# AGENT_REGISTRY and returns null — silently, no error, no log. 107 production
-# tasks carried agent:null for 13 days and eight named agents never fired once.
 # A dead name you can read past is prose. A dead name a lookup executes is an
-# outage. That distinction did not exist here.
+# outage. R4 reported 341 RELAY current-claims as a COUNT, with no way to tell
+# which of them a code path was executing. That distinction is worth drawing.
+#
+# CORRECTION 2026-07-15: this arm was built on a MISATTRIBUTED exemplar and the
+# error is worth keeping visible. The story was "agent:relay -> getAgent('relay')
+# -> no such key -> null, silently, for 13 days". The blackout is real, the cause
+# is not: `relay` was NEVER a key in AGENT_REGISTRY in any of the 15 commits that
+# ever touched agents.ts, 12 of the 41 broken tasks predate the rename, and
+# getAgent("favour") returns null too because `favour` is not a key either. The
+# real cause is a namespace collision (agent: means both "the platform seeded
+# this" and "a registry agent posted this"), fixed in world-relay ea2548c.
+#
+# The sharp part, and the reason this comment stays: the "fix" the old story
+# implies — update the dead name — REPRODUCES the outage under a live name, and
+# this check would then report CLEAN on a live outage. A dead name is a weak
+# proxy for a dangling reference. The honest check is "this key resolves to
+# nothing", which needs the registry, not a rename table. Until that exists, this
+# arm reports leads and claims no incident.
+#
+# How the error happened is the more useful finding: the FAVOUR lane hedged
+# ("agent:relay is ALSO a dead name, which is LIKELY how it rotted unnoticed"),
+# the hedge was promoted to a headline in a summary, and I built on the headline
+# without checking the premise. One `git log` on agents.ts would have caught it.
 #
 # This arm reports LEADS, not verdicts, and its precision limit is the point.
 # "relay" and "glaze" are English words. Walking the tree found 61 hits in
