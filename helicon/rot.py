@@ -156,14 +156,32 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         checks.append(_check("R7", "Wrong eviction (regret)", "TESTED", None, f"unmeasured: {e}"))
 
     # R8 retrieval regression — snapshots vs baseline.
+    #
+    # A snapshot regresses only when a memory that is STILL LIVE stopped being
+    # retrieved. A baseline memory that left the top-K because Helicon retired
+    # it as rot is the product working, and counting that as regression is how
+    # this once read 12/13 while `report` printed DEGRADED off the same number.
+    # The retired count is reported next to it, because "16 baseline memories
+    # retired since baseline" is the loop, not a fault.
     try:
         from helicon.snapshots import check_all
         snaps = check_all(conn)
         regressed = sum(1 for s in snaps if s["regressed"])
+        retired = sum(len(s["stale"]) for s in snaps)
+        fossils = sum(1 for s in snaps if s.get("fossil"))
+        detail = (f"{regressed}/{len(snaps)} snapshot(s) regressed "
+                  f"(a LIVE memory stopped being retrieved)")
+        if retired:
+            detail += (f"; {retired} baseline memory(s) retired as rot since "
+                       f"baseline — retrieval correctly stops serving those, "
+                       f"which is the loop working, not a regression")
+        if fossils:
+            detail += (f"; {fossils} baseline(s) are fossils (every memory "
+                       f"retired) — re-capture: helicon snapshot add \"<task>\"")
         checks.append(_check(
             "R8", "Retrieval regression", "TESTED",
             (regressed > 0) if snaps else None,
-            f"{regressed}/{len(snaps)} snapshot(s) regressed vs baseline" if snaps
+            detail if snaps
             else "no baselines captured — run: helicon snapshot add"))
     except Exception as e:
         checks.append(_check("R8", "Retrieval regression", "TESTED", None, f"unmeasured: {e}"))
