@@ -832,7 +832,7 @@ def cmd_lens(args):
 
 
 def cmd_rot(args):
-    """The rot exam: ROT.md's 10 documented failure classes checked live
+    """The rot exam: ROT.md's 12 documented failure classes checked live
     against the real store. Deterministic, zero LLM calls, free to run daily."""
     from helicon.config import load_config
     from helicon.db import init_db
@@ -872,6 +872,21 @@ def cmd_rot(args):
         print(_json.dumps(res, indent=2, default=str))
         return
     print(format_rot(res))
+
+    # The exam found rot and stopped. `resolve --list` is the best surface in
+    # the product and the exam never named it, so the loop's centre link lived
+    # only in the docs: the classes that found NOTHING printed a next step
+    # (alias add, snapshot add) and the ones that found ROT printed none. A user
+    # who cannot get from "here are your problems" to "you ruled it and the law
+    # recompiled" never sees the moat — which is the whole thesis.
+    if not getattr(args, "file", False) and res.get("rot_found"):
+        open_n = conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL"
+        ).fetchone()[0]
+        if open_n:
+            print(f"  {open_n} finding(s) waiting on your ruling:  helicon resolve --list")
+        else:
+            print("  file what the exam found, so you can rule it:  helicon audit --file")
 
 
 def _portrait_palette():
@@ -2356,6 +2371,29 @@ def main():
         "consolidate": cmd_consolidate,
         "eval-consolidation": cmd_consolidation_eval,
     }
+
+    # One gate instead of 36 tracebacks. Every command below reads
+    # config["db_path"], and with no config that raised a raw KeyError from deep
+    # inside the command — so a stranger following the README hit a stack trace
+    # on `helicon audit`, the exam that IS the product. `init` detecting nothing
+    # and exiting 0 sent them back to `scan`, which sent them back to `init`: a
+    # closed loop with no exit and no mention of the config.example.json or the
+    # demo seed sitting in the same clone. Name the way out.
+    from helicon.config import CONFIG_FILE, load_config as _load
+    if args.command not in ("init", "doctor", "mcp"):
+        try:
+            _cfg = _load()
+        except FileNotFoundError as e:
+            sys.exit(f"{e}")
+        if not _cfg:
+            sys.exit(
+                f"No config at {CONFIG_FILE}.\n\n"
+                f"  see it work in 60s:  python3 scripts/demo_seed.py\n"
+                f"                       HELICON_CONFIG=config-demo.json helicon audit\n"
+                f"  point it at yours:   helicon init\n"
+                f"  or by hand:          cp config.example.json config.json\n"
+                f"  what's wrong:        helicon doctor")
+
     cmds[args.command](args)
 
 

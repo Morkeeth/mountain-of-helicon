@@ -19,6 +19,7 @@ Run:  python3 scripts/demo_seed.py         # (re)build data/helicon-demo.db
 Idempotent: it drops and rebuilds the cubes each run, so it doubles as reset.
 """
 import hashlib
+import json
 import os
 import sys
 
@@ -169,6 +170,48 @@ def seed(db_path: str = DEMO_DB) -> dict:
     return {"db": db_path, "cubes": n}
 
 
+DEMO_CONFIG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "config-demo.json")
+
+
+def write_demo_config(path: str = DEMO_CONFIG) -> tuple[str, bool]:
+    """Write the KEYLESS config the demo store needs, if it is not already there.
+
+    config-demo.json is gitignored for a good reason (a real one holds a live
+    Qwen key), so it is absent from every clone — and the README told people to
+    run `HELICON_CONFIG=config-demo.json helicon serve` anyway. load_config
+    returned {} for the missing file, the default db_path took over, and helicon
+    CREATED an empty database and served {"status":"ok","cubes":0}. The seeded
+    cubes were sitting in the other file the whole time.
+
+    Keyless on purpose: the deterministic exam is the demo, and it needs no key.
+    QWEN_API_KEY in the environment is picked up by load_config if it is set.
+    Never overwrites an existing file — that one may hold real credentials.
+    """
+    if os.path.exists(path):
+        return path, False
+    cfg = {
+        "db_path": "data/helicon-demo.db",
+        "qwen_api_key": "",
+        "qwen_model": "qwen3.6-flash",
+        "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "connectors": {},
+        "server": {"host": "127.0.0.1", "port": 8420, "password": ""},
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+    return path, True
+
+
 if __name__ == "__main__":
     result = seed()
+    cfg_path, created = write_demo_config()
+    rel = os.path.relpath(cfg_path)
     print(f"seeded {result['cubes']} demo cubes -> {result['db']}")
+    print(f"{'wrote' if created else 'kept existing'} keyless config -> {rel}")
+    print()
+    print("next (no API key needed):")
+    print(f"  HELICON_CONFIG={rel} helicon audit      # the 12-class exam")
+    print(f"  HELICON_CONFIG={rel} helicon resolve --list   # rule what it found")
+    print(f"  HELICON_CONFIG={rel} helicon serve      # the dashboard")
