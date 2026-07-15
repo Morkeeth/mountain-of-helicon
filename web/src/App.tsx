@@ -1,39 +1,54 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import CausalLens from './components/CausalLens';
 import FocusReview from './components/FocusReview';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from './api';
 import type { Score, Connector, ProjectRollup, Consolidation, Finding, FindingsResponse } from './api';
-const Graph3D = lazy(() => import('./components/Graph3D').then(m => ({ default: m.Graph3D })));
-import { EvalView } from './components/EvalView';
-import { ConnectorStatus } from './components/ConnectorStatus';
-import SkillsAudit from './components/SkillsAudit';
 import FindingsView from './components/FindingsView';
-import LogView from './components/LogView';
-import RunsView from './components/RunsView';
-import RouteView from './components/RouteView';
-import GoldView from './components/GoldView';
-import ConflictMap from './components/ConflictMap';
-import Focus from './components/Focus';
-import Landing from './components/Landing';
-import SetupReportCard from './components/SetupReportCard';
-import StoreAudit from './components/StoreAudit';
-import Reading from './components/Reading';
-import MemoryHealthTrend from './components/MemoryHealthTrend';
-import Volatility from './components/Volatility';
-import Consistency from './components/Consistency';
+
+/* What loads before first paint (Jul 15).
+   The review device is a phone and the thing it is opened for is the ruling
+   queue, so the queue — FocusReview and FindingsView — is the only view that
+   ships in the main chunk. Every other tab is a route the thumb has not asked
+   for yet, so it arrives on demand behind the shared Suspense in <main>.
+   Switching tabs fetches a chunk that is already warm from the same origin.
+
+   This is not premature: EvalView alone dragged recharts (393K) into the main
+   bundle for a tab nobody opens on a phone, and Graph3D's three.js (1MB) was
+   already split this way for the same reason. The rule is simple — if it is not
+   the queue, it is lazy. */
+const CausalLens = lazy(() => import('./components/CausalLens'));
+const Graph3D = lazy(() => import('./components/Graph3D').then(m => ({ default: m.Graph3D })));
+const EvalView = lazy(() => import('./components/EvalView').then(m => ({ default: m.EvalView })));
+const ConnectorStatus = lazy(() => import('./components/ConnectorStatus').then(m => ({ default: m.ConnectorStatus })));
+const SkillsAudit = lazy(() => import('./components/SkillsAudit'));
+const LogView = lazy(() => import('./components/LogView'));
+const RunsView = lazy(() => import('./components/RunsView'));
+const ExamView = lazy(() => import('./components/ExamView'));
+const JudgeView = lazy(() => import('./components/JudgeView'));
+const RouteView = lazy(() => import('./components/RouteView'));
+const GoldView = lazy(() => import('./components/GoldView'));
+const ConflictMap = lazy(() => import('./components/ConflictMap'));
+const Focus = lazy(() => import('./components/Focus'));
+const Landing = lazy(() => import('./components/Landing'));
+const SetupReportCard = lazy(() => import('./components/SetupReportCard'));
+const StoreAudit = lazy(() => import('./components/StoreAudit'));
+const Reading = lazy(() => import('./components/Reading'));
+const MemoryHealthTrend = lazy(() => import('./components/MemoryHealthTrend'));
+const Volatility = lazy(() => import('./components/Volatility'));
+const Consistency = lazy(() => import('./components/Consistency'));
 
 /* Findings-first IA (Jul 3): HEALTH · FINDINGS · LOG primary,
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // One honest journey on the left: the reading opens the record, then your next
 // moves, then your memory itself (with its truth gates as sub-views), what needs
 // ruling, and the golden rules it compiles. Everything else lives under More.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'findings', label: 'Needs Ruling' },
+  { key: 'exam', label: 'The Exam' },
   { key: 'reading', label: 'The Reading' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'runs', label: 'Runs' },
@@ -46,6 +61,7 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
   { key: 'tour', label: 'Tour' },
   { key: 'routines', label: 'Routines & Skills' },
   { key: 'evals', label: 'Evals' },
+  { key: 'judge', label: 'Qwen as Judge' },
   { key: 'lens', label: 'Causal Lens' },
   { key: 'log', label: 'Log' },
   { key: 'graph', label: 'Graph' },
@@ -448,6 +464,13 @@ function App() {
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         >
+        {/* One boundary for every lazy tab. The fallback is empty height rather
+            than a spinner: the chunk lands in a blink on a warm origin, and a
+            flashing spinner would be louder than the wait it describes. */}
+        <Suspense fallback={<div className="py-12" />}>
+
+        {tab === 'exam' && <ExamView onGoToFindings={() => setTab('findings')} />}
+        {tab === 'judge' && <JudgeView />}
 
         {tab === 'reading' && <Reading />}
         {tab === 'runs' && <RunsView />}
@@ -523,7 +546,7 @@ function App() {
         {false && (
           <>
           <TabPurpose>Where the rot lives in your knowledge graph.</TabPurpose>
-          <Suspense fallback={<div className="py-12" />}><Graph3D /></Suspense>
+          <Graph3D />
           </>
         )}
 
@@ -552,6 +575,7 @@ function App() {
           />
         )}
 
+        </Suspense>
         </motion.div>
         </AnimatePresence>
       </main>
