@@ -23,16 +23,25 @@ echo "=== nightly start $(date -Iseconds) ===" >> "$LOG"
 
 # Each step logs. The old crontab line redirected only `evolve`, so a failure in
 # reconcile or triage went to cron's stdout and nowhere a human would ever read.
-# `runs --close` cuts and persists the card for the day's run: it refreshes the
-# review --terminals verdicts, then scores verified yield / cost - damage. It was
-# built (slice 1.8) and wired to nothing, so the run history only grew when Oscar
-# remembered to run it by hand — 2 cards in two weeks. On the chain it compounds
-# without anyone deciding to. Chained with && on purpose: a step that fails
-# quietly is the exact bug this nightly exists to stop being.
+# `runs --close --run` cuts and persists the card for the day's run: it refreshes
+# the review --terminals verdicts, then scores verified yield / cost - damage. It
+# was built (slice 1.8) and wired to nothing, so the run history only grew when
+# Oscar remembered to run it by hand — 2 cards in two weeks. On the chain it
+# compounds without anyone deciding to.
+#
+# --run is the whole point. Without it, every test claim an agent makes ("36
+# tests green") is filed UNVERIFIED and excluded from the ratio, so the one
+# number the thesis rests on — do agent claims survive contact with reality —
+# would be measured by not checking. The runner is bounded (150s per repo, and
+# only a recognised pytest/npm runner that is already installed), which is a
+# trade worth making at 02:47 on an idle machine.
+#
+# Chained with && like every other step: a step that fails quietly is the exact
+# bug this nightly exists to stop being.
 $PY -m helicon.cli reconcile --apply >> "$LOG" 2>&1 &&
   $PY -m helicon.cli triage          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli evolve          >> "$LOG" 2>&1 &&
-  $PY -m helicon.cli runs --close    >> "$LOG" 2>&1 &&
+  $PY -m helicon.cli runs --close --run >> "$LOG" 2>&1 &&
   $PY -m helicon.cli policy --inject >> "$LOG" 2>&1 &&
   $PY -m helicon.cli report --llm --json > data/eval-latest.json 2>> "$LOG"
 rc=$?
