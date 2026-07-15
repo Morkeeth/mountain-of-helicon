@@ -6,6 +6,7 @@ findings are behind ?include=battery so the default response stays fast; the
 skills scan is pointed at an empty root so nothing depends on the host's
 ~/.claude/skills."""
 import hashlib
+import json
 from datetime import datetime, timedelta
 
 import pytest
@@ -238,3 +239,53 @@ def test_log_includes_superseded_batch(client):
 def test_log_limit(client):
     entries = client.get("/api/log", params={"limit": 2}).json()["entries"]
     assert len(entries) == 2
+
+
+# --- a ruling made over HTTP must become law -------------------------------
+# /api/audit/confirm accepted `notes` and dropped them on the floor: it never
+# wrote details.dismiss_reason, and gold.py only compiles a precedent for
+# `dismissed AND dismiss_reason`. So a dismissal ruled from the DASHBOARD (the
+# surface a judge uses, and the only one an HTTP client has) silently failed to
+# become law, while the identical ruling from the CLI compiled fine. "A human
+# rules once and the agent obeys next time" was CLI-only.
+
+def _open_finding_id(client):
+    r = client.get("/api/findings")
+    assert r.status_code == 200
+    return int(r.json()["findings"][0]["id"].removeprefix("audit-"))
+
+
+def test_a_dismissal_with_a_reason_compiles_into_the_law(client, tmp_path):
+    import sqlite3
+    from helicon.gold import gather
+    db = str(tmp_path / "helicon.db")
+    config = {"db_path": db}
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    before = len(gather(conn, config)["precedents"])
+
+    fid = _open_finding_id(client)
+    r = client.post("/api/audit/confirm", json={
+        "finding_id": fid, "decision": "dismissed",
+        "notes": "false positive: the selector matched a place, not a person"})
+    assert r.status_code == 200
+    assert r.json()["precedent"] is True, "HTTP ruling reported no precedent"
+
+    conn2 = sqlite3.connect(db)
+    conn2.row_factory = sqlite3.Row
+    row = conn2.execute("SELECT human_decision, details FROM audit_log WHERE id=?",
+                        (fid,)).fetchone()
+    assert row["human_decision"] == "dismissed"
+    assert "matched a place" in json.loads(row["details"])["dismiss_reason"]
+    after = len(gather(conn2, config)["precedents"])
+    assert after == before + 1, "the ruling did not compile into GOLDEN_RULES"
+
+
+def test_a_dismissal_with_no_reason_says_so_rather_than_implying_law(client):
+    """It still clears the queue and still dedups, but it compiles to no law.
+    The response must not imply otherwise."""
+    fid = _open_finding_id(client)
+    r = client.post("/api/audit/confirm",
+                    json={"finding_id": fid, "decision": "dismissed", "notes": ""})
+    assert r.status_code == 200
+    assert r.json()["precedent"] is False

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from helicon.api.app import get_conn, get_config
@@ -60,6 +60,26 @@ async def resolve_identity_finding(req: ResolveIdentityRequest):
 async def confirm_finding(req: ConfirmRequest):
     conn = get_conn()
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+
+    # A dismissal only becomes law if it carries a REASON: gold.py emits a
+    # precedent for `hd == "dismissed" and d.get("dismiss_reason")` and nothing
+    # otherwise. This endpoint accepted `notes` and dropped them on the floor,
+    # never touching details, so a dismissal ruled from the DASHBOARD — the
+    # surface a judge actually uses, and the only one a future HTTP client has —
+    # silently failed to become a precedent, while the identical ruling from the
+    # CLI compiled fine. The thesis is "a human rules once and the agent obeys
+    # next time"; over HTTP it was "a human rules once and nothing happens".
+    # Route through the same function the CLI uses so there is one path, with
+    # its already-decided guard, rather than two that disagree.
+    precedent = False
+    if req.decision == "dismissed" and req.notes.strip():
+        from helicon.pairing import dismiss_finding
+        res = dismiss_finding(conn, req.finding_id, req.notes.strip())
+        if not res.get("ok"):
+            raise HTTPException(status_code=400, detail=res.get("error"))
+        return {"finding_id": req.finding_id, "decision": req.decision,
+                "killed_cubes": [], "precedent": True}
+
     conn.execute(
         "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
         (req.decision, now, req.finding_id),
@@ -87,4 +107,7 @@ async def confirm_finding(req: ConfirmRequest):
                 )
 
     conn.commit()
-    return {"finding_id": req.finding_id, "decision": req.decision, "killed_cubes": killed_cubes}
+    # precedent False: a dismissal with no reason still clears the queue and
+    # still dedups, but it compiles to no law. Say so rather than imply it.
+    return {"finding_id": req.finding_id, "decision": req.decision,
+            "killed_cubes": killed_cubes, "precedent": False}
