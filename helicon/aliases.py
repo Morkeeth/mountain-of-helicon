@@ -25,12 +25,105 @@ One audit finding per alias (audit_type='supersession'), idempotent, counts
 in the finding — never one row per cube (700 rows of backlog is its own rot).
 """
 import json
+import os
 import re
 import sqlite3
+import subprocess
 from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
+
+# --- the code arm: a dead name in prose is rot; in a code path it is an outage
+#
+# R4 reported 341 RELAY current-claims as a COUNT. At least one was load-bearing
+# in running code: tasks post as poster:"agent:relay", which strips to
+# agentId="relay", which hits getAgent("relay"), which finds no such key in
+# AGENT_REGISTRY and returns null — silently, no error, no log. 107 production
+# tasks carried agent:null for 13 days and eight named agents never fired once.
+# A dead name you can read past is prose. A dead name a lookup executes is an
+# outage. That distinction did not exist here.
+#
+# This arm reports LEADS, not verdicts, and its precision limit is the point.
+# "relay" and "glaze" are English words. Walking the tree found 61 hits in
+# world-relay, nearly all noise: .vercel build output and OpenZeppelin's
+# vendored governance relay(). `git ls-files` is the honest primitive — it is
+# what the repo actually authors and commits, which cut 879 files to 149 and
+# took build output and node_modules with it. The name must also appear as a
+# COMPLETE quoted token (an identifier or key), never a word inside prose, or
+# "Try RELAY Favours and tell us what you think" scores as a code reference.
+#
+# Tests are counted separately rather than filtered. Once the outage was fixed,
+# world-relay's `agent:relay` cases became the deliberate legacy contract, and
+# flagging those would make R4 cry wolf about code that is correct. A check that
+# cries wolf discredits the exam it belongs to.
+_CODE_EXT = (".ts", ".tsx", ".js", ".jsx", ".py", ".json", ".yml", ".yaml",
+             ".sh", ".toml", ".env")
+_VENDOR = ("/lib/", "/vendor/", "/third_party/", "/node_modules/", ".min.")
+_TEST_HINT = ("__tests__", "/test/", "/tests/", ".test.", ".spec.", "_test.")
+# a line whose first non-space character opens a comment or a docstring
+_COMMENT_RX = re.compile(r'\s*(#|//|/\*|\*|"""|\'\'\')')
+
+
+def _code_rx(name: str):
+    """The dead name as a whole quoted token ("relay") or namespaced inside one
+    ("agent:relay") — never a word inside a sentence."""
+    n = re.escape(name)
+    return re.compile(
+        "([\"'`])\\s*" + n + "\\s*\\1" + "|" + "[\"'`][a-z_-]*:" + n + "[\"'`]",
+        re.I)
+
+
+def code_refs(old_name: str, new_name: str = "", repos_dir: str = "~/CODE",
+              cap: int = 60) -> dict:
+    """Where the dead name is EXECUTABLE, not merely written."""
+    root = os.path.expanduser(repos_dir)
+    rx = _code_rx(old_name)
+    # Same rule the prose triage already uses: a line naming BOTH the old and
+    # the new name is rename-AWARE (a migration, an alias declaration, a compat
+    # shim). It is about the rename, so it is not a dead reference.
+    new_rx = re.compile(r"\b" + re.escape(new_name) + r"\b", re.I) if new_name else None
+    leads, legacy, repos = [], 0, 0
+    if not os.path.isdir(root):
+        return {"leads": [], "legacy_tests": 0, "repos": 0}
+    for entry in sorted(os.listdir(root)):
+        repo = os.path.join(root, entry)
+        if not os.path.isdir(os.path.join(repo, ".git")):
+            continue
+        try:
+            tracked = subprocess.run(["git", "ls-files"], cwd=repo, timeout=20,
+                                     capture_output=True,
+                                     text=True).stdout.splitlines()
+        except (OSError, subprocess.SubprocessError):
+            continue
+        repos += 1
+        for rel in tracked:
+            if not rel.endswith(_CODE_EXT) or any(v in "/" + rel for v in _VENDOR):
+                continue
+            try:
+                with open(os.path.join(repo, rel), encoding="utf-8",
+                          errors="replace") as f:
+                    lines = f.read().splitlines()
+            except OSError:
+                continue
+            is_test = any(t in "/" + rel for t in _TEST_HINT)
+            for i, line in enumerate(lines, 1):
+                if not rx.search(line):
+                    continue
+                # A dead name in a COMMENT is prose that happens to live in a
+                # source file — it executes nothing. Caught immediately by this
+                # function flagging its own explanatory comments, which is the
+                # cleanest possible proof of the distinction it is drawing.
+                if _COMMENT_RX.match(line):
+                    continue
+                if new_rx and new_rx.search(line):
+                    continue  # rename-aware: names both sides
+                if is_test:
+                    legacy += 1
+                elif len(leads) < cap:
+                    leads.append({"repo": entry, "file": rel, "line": i,
+                                  "text": line.strip()[:120]})
+    return {"leads": leads, "legacy_tests": legacy, "repos": repos}
 
 
 def add_alias(conn: sqlite3.Connection, old_name: str, new_name: str,
@@ -109,9 +202,13 @@ def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5) -> dict:
     except Exception:
         hits = []
 
+    code = code_refs(alias["old_name"], alias["new_name"])
+
     return {
         "old_name": alias["old_name"], "new_name": alias["new_name"],
         "renamed_at": alias["renamed_at"],
+        "code_leads": code["leads"], "code_legacy_tests": code["legacy_tests"],
+        "code_repos": code["repos"],
         "live_refs": len(history) + len(rename_aware) + len(current_claims),
         "history": len(history),
         "rename_aware": len(rename_aware),

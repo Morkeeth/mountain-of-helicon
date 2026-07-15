@@ -104,11 +104,26 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
                 f"{superseded} memories retired by reconcile; no renames declared "
                 "yet — helicon alias add <old> <new>"))
         else:
-            found = any(t["current_claims"] > 0 or t["leaked"] for t in triages)
+            found = any(t["current_claims"] > 0 or t["leaked"]
+                        or t.get("code_leads") for t in triages)
+            # A dead name in prose is rot you can read past. A dead name a lookup
+            # EXECUTES is an outage: agent:relay -> getAgent("relay") -> no such
+            # key -> null, silently, and 107 production tasks carried agent:null
+            # for 13 days. R4 had been reporting 341 dead names as a count with
+            # no way to tell which one was load-bearing. Code leads are named
+            # first and carry file:line, because that is the one a human must
+            # look at today.
             receipt = "; ".join(
-                f"{t['old_name']}->{t['new_name']}: {t['live_refs']} live dead-name "
-                f"ref(s) = {t['history']} history + {t['rename_aware']} rename-aware "
-                f"+ {t['current_claims']} current-claim(s)"
+                f"{t['old_name']}->{t['new_name']}: "
+                + (f"{len(t['code_leads'])} IN CODE ("
+                   + ", ".join(f"{l['repo']}/{l['file']}:{l['line']}"
+                               for l in t["code_leads"][:3])
+                   + (", …" if len(t["code_leads"]) > 3 else "")
+                   + f") — a dead name in a code path executes; "
+                   if t.get("code_leads") else "")
+                + f"{t['live_refs']} live dead-name "
+                f"ref(s) in prose = {t['history']} history + {t['rename_aware']} "
+                f"rename-aware + {t['current_claims']} current-claim(s)"
                 + (f", {len(t['leaked'])}/{t['retrieved_for_new_name']} top-K hits "
                    f"for '{t['new_name']}' serve the dead name" if t["leaked"] else "")
                 for t in triages)
