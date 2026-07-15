@@ -67,7 +67,7 @@ struct HeliconAPI {
         return try await run(URLRequest(url: comps.url!), as: T.self)
     }
 
-    // GET /api/health -> {"status":"ok","cubes":6880}
+    // GET /api/health -> {"status":"ok","memories":7003}  ("cubes" is a deprecated alias)
     func health() async throws -> Health {
         try await get("/api/health")
     }

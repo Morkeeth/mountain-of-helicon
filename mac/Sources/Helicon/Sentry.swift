@@ -61,8 +61,8 @@ struct SentryPanel: View {
                     .font(.iface(11))
                     .foregroundStyle(Wash.muted)
                     .padding(14)
-            case .live(let cubes):
-                liveBody(cubes: cubes)
+            case .live(let memories):
+                liveBody(memories: memories)
             }
 
             Divider().overlay(Wash.line)
@@ -89,7 +89,7 @@ struct SentryPanel: View {
         .padding(.vertical, 11)
     }
 
-    private func liveBody(cubes: Int) -> some View {
+    private func liveBody(memories: Int) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             // The hero number: what needs a human ruling.
             HStack(alignment: .firstTextBaseline, spacing: 9) {
@@ -162,7 +162,7 @@ struct SentryPanel: View {
             }
             .buttonStyle(.plain)
 
-            Text("\(cubes.formatted()) cubes indexed")
+            Text("\(memories.formatted()) memories indexed")
                 .font(.data(9.5))
                 .foregroundStyle(Wash.faint)
         }

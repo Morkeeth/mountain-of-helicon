@@ -120,7 +120,10 @@ def create_app() -> FastAPI:
     async def health():
         conn = get_conn()
         total = conn.execute("SELECT COUNT(*) FROM helicon_cubes").fetchone()[0]
-        return {"status": "ok", "cubes": total}
+        # "memories" is the name; "cubes" is a deprecated alias kept so the
+        # dashboard, the app and fc/deploy-fc.sh keep working across the
+        # rename. Drop it once every client reads "memories" (after Jul 20).
+        return {"status": "ok", "memories": total, "cubes": total}
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     # `static/` is gitignored (Cloud Shell / deploy copy web/dist there). On a

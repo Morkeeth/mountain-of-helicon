@@ -3,7 +3,7 @@ import Foundation
 // Shapes modelled from the LIVE API, not from a guess. Every field below was
 // observed in an actual response from `GET /api/findings` on 2026-07-15.
 // Nullable fields are optional here because the server genuinely emits null for
-// them (cube_source / source_ref / cube_id are NULL for non-cube findings, and
+// them (source / source_ref / memory_id are NULL for non-memory findings, and
 // regret's created_at comes from a nullable last_wanted).
 
 struct Finding: Decodable, Identifiable, Hashable {
@@ -15,7 +15,7 @@ struct Finding: Decodable, Identifiable, Hashable {
     let evidencePreview: String
     let source: String?
     let sourceRef: String?
-    let cubeID: String?
+    let memoryID: String?
     let suggestedAction: String
     let createdAt: String?
     let lane: String            // decision | ambient
@@ -24,7 +24,7 @@ struct Finding: Decodable, Identifiable, Hashable {
         case id, kind, severity, title, why, source, lane
         case evidencePreview  = "evidence_preview"
         case sourceRef        = "source_ref"
-        case cubeID           = "cube_id"
+        case memoryID         = "memory_id"
         case suggestedAction  = "suggested_action"
         case createdAt        = "created_at"
     }
@@ -39,7 +39,7 @@ struct Finding: Decodable, Identifiable, Hashable {
         evidencePreview = try c.decodeIfPresent(String.self, forKey: .evidencePreview) ?? ""
         source          = try c.decodeIfPresent(String.self, forKey: .source)
         sourceRef       = try c.decodeIfPresent(String.self, forKey: .sourceRef)
-        cubeID          = try c.decodeIfPresent(String.self, forKey: .cubeID)
+        memoryID        = try c.decodeIfPresent(String.self, forKey: .memoryID)
         suggestedAction = try c.decodeIfPresent(String.self, forKey: .suggestedAction) ?? "review"
         createdAt       = try c.decodeIfPresent(String.self, forKey: .createdAt)
         lane            = try c.decodeIfPresent(String.self, forKey: .lane) ?? "decision"
@@ -120,7 +120,7 @@ struct FindingsResponse: Decodable {
 
 struct Health: Decodable {
     let status: String
-    let cubes: Int
+    let memories: Int
 }
 
 struct ConfirmRequest: Encodable {
@@ -132,12 +132,12 @@ struct ConfirmRequest: Encodable {
 struct ConfirmResponse: Decodable {
     let findingID: Int
     let decision: String
-    let killedCubes: [String]
+    let killedMemories: [String]
 
     enum CodingKeys: String, CodingKey {
         case findingID   = "finding_id"
         case decision
-        case killedCubes = "killed_cubes"
+        case killedMemories = "killed_memories"
     }
 }
 
@@ -182,7 +182,7 @@ enum Stamp {
 struct ClaimSide {
     let label: String     // "A" / "B"
     let value: String     // "03-14..03-22"
-    let support: String   // "1 cube(s)"
+    let support: String   // "1 memories"
     let scope: String     // "claude-code:memory_status_2026-07-11.md"
     let line: String      // the exact asserting line
 }
@@ -194,9 +194,9 @@ struct PairEvidence {
     let judge: String?
 
     /// Shape emitted by format_pair_evidence():
-    ///   A: {value}   ({n} cube(s))   {scope}
+    ///   A: {value}   ({n} memories)   {scope}
     ///      | {line_a}
-    ///   B: {value}   ({n} cube(s))   {scope}
+    ///   B: {value}   ({n} memories)   {scope}
     ///      | {line_b}
     ///      also asserted: x, y
     ///      judge: {explanation}

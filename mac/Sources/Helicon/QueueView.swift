@@ -110,10 +110,10 @@ private struct TopBar: View {
             }
 
             switch store.connection {
-            case .live(let cubes):
+            case .live(let memories):
                 HStack(spacing: 5) {
                     Circle().fill(Wash.good).frame(width: 5, height: 5)
-                    Text("live · \(cubes.formatted()) cubes")
+                    Text("live · \(memories.formatted()) memories")
                         .font(.iface(10))
                         .foregroundStyle(Wash.muted)
                 }
@@ -420,7 +420,7 @@ private struct EvidencePanel: View {
 
                     Row(label: "source", value: f.source ?? "—", mono: true)
                     Row(label: "source ref", value: f.sourceRef ?? "—", mono: true)
-                    Row(label: "cube id", value: f.cubeID ?? "— (not cube-backed)", mono: true)
+                    Row(label: "memory id", value: f.memoryID ?? "— (not memory-backed)", mono: true)
                     Row(label: "filed", value: Stamp.absolute(f.createdAt), mono: true)
                     Row(label: "suggested", value: f.suggestedAction, mono: true)
                     Row(label: "lane", value: f.lane, mono: true)

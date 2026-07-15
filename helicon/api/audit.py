@@ -78,7 +78,8 @@ async def confirm_finding(req: ConfirmRequest):
         if not res.get("ok"):
             raise HTTPException(status_code=400, detail=res.get("error"))
         return {"finding_id": req.finding_id, "decision": req.decision,
-                "killed_cubes": [], "precedent": True}
+                "killed_memories": [], "killed_cubes": [],  # cube key deprecated
+                "precedent": True}
 
     conn.execute(
         "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
@@ -110,4 +111,5 @@ async def confirm_finding(req: ConfirmRequest):
     # precedent False: a dismissal with no reason still clears the queue and
     # still dedups, but it compiles to no law. Say so rather than imply it.
     return {"finding_id": req.finding_id, "decision": req.decision,
-            "killed_cubes": killed_cubes, "precedent": False}
+            "killed_memories": killed_cubes, "killed_cubes": killed_cubes,  # cube key deprecated
+            "precedent": False}

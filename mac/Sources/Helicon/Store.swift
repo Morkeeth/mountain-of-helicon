@@ -6,7 +6,7 @@ import SwiftUI
 /// this target, by project rule.
 enum Connection: Equatable {
     case connecting
-    case live(cubes: Int)
+    case live(memories: Int)
     case down(String)
 
     var isLive: Bool { if case .live = self { return true }; return false }
@@ -105,7 +105,7 @@ final class Store: ObservableObject {
             let res = try await api.findings(lane: "decision", limit: 100)
             findings = res.findings
             summary = res.summary
-            connection = .live(cubes: health.cubes)
+            connection = .live(memories: health.memories)
             lastRefresh = Date()
             // Keep a valid selection as the queue shrinks under triage.
             if selection == nil || !findings.contains(where: { $0.id == selection }) {
@@ -168,8 +168,8 @@ final class Store: ObservableObject {
                     ? findings[idx].id
                     : findings.last?.id
             }
-            if !res.killedCubes.isEmpty {
-                actionError = "Confirmed — also retired \(res.killedCubes.count) cube(s)."
+            if !res.killedMemories.isEmpty {
+                actionError = "Confirmed — also retired \(res.killedMemories.count) memories."
             }
             await refresh()
         } catch {

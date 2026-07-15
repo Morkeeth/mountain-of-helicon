@@ -21,7 +21,8 @@ async def list_connectors():
         result.append({
             "name": name,
             "enabled": enabled,
-            "cube_count": count,
+            "memory_count": count,
+            "cube_count": count,  # deprecated alias
         })
 
     return {"connectors": result}

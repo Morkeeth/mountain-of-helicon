@@ -133,7 +133,8 @@ def _audit_findings(conn) -> list[dict]:
             "evidence_preview": evidence,
             "source": r["cube_source"] if is_cube else "audit",
             "source_ref": r["cube_source_ref"] if is_cube else r["target_id"],
-            "cube_id": r["target_id"] if r["target_type"] == "cube" else None,
+            "memory_id": r["target_id"] if r["target_type"] == "cube" else None,
+            "cube_id": r["target_id"] if r["target_type"] == "cube" else None,  # deprecated alias
             "suggested_action": _AUDIT_ACTION.get(kind, "review"),
             "created_at": r["audited_at"],
         })
@@ -160,7 +161,8 @@ def _regret_findings(conn) -> list[dict]:
                                 f"(time-decayed), last wanted {(r['last_wanted'] or '')[:16]}",
             "source": r["cube_source"],
             "source_ref": r["source_ref"],
-            "cube_id": r["cube_id"],
+            "memory_id": r["cube_id"],
+            "cube_id": r["cube_id"],  # deprecated alias
             "suggested_action": "restore",
             "created_at": r["last_wanted"],
         })
@@ -209,7 +211,8 @@ def _skill_findings(now: str) -> list[dict]:
             "evidence_preview": _preview(", ".join(names)),
             "source": "skills",
             "source_ref": dup_groups[0][0]["path"],
-            "cube_id": None,
+            "memory_id": None,
+            "cube_id": None,  # deprecated alias
             "suggested_action": "fix_skill",
             "created_at": now,
         })
@@ -230,7 +233,8 @@ def _skill_findings(now: str) -> list[dict]:
             "evidence_preview": _preview(", ".join(names)),
             "source": "skills",
             "source_ref": thin[0]["path"],
-            "cube_id": None,
+            "memory_id": None,
+            "cube_id": None,  # deprecated alias
             "suggested_action": "fix_skill",
             "created_at": now,
         })
@@ -251,7 +255,8 @@ def _skill_findings(now: str) -> list[dict]:
                     "evidence_preview": _preview(a["desc"] or a["content"]),
                     "source": "skills",
                     "source_ref": a["path"],
-                    "cube_id": None,
+                    "memory_id": None,
+            "cube_id": None,  # deprecated alias
                     "suggested_action": "fix_skill",
                     "created_at": now,
                 })
@@ -305,7 +310,8 @@ def _battery_findings(conn, now: str) -> list[dict]:
             "evidence_preview": evidence,
             "source": "battery",
             "source_ref": task,
-            "cube_id": first_cube_id,
+            "memory_id": first_cube_id,
+            "cube_id": first_cube_id,  # deprecated alias
             "suggested_action": action,
             "created_at": now,
         })
