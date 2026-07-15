@@ -661,6 +661,17 @@ def cmd_judge_bench(args):
     for note in res.get("notes", []):
         print(f"  note: {note}")
 
+    # --save persists the run so the dashboard has something real to render. The
+    # dashboard never runs a bench itself (live cross-provider calls cost money),
+    # so this command is the only way that surface gets data.
+    if getattr(args, "save", False):
+        from helicon.db import init_db
+        from helicon.judge_bench import save_judge_run
+
+        conn = init_db(config.get("db_path", "data/helicon.db"))
+        rid = save_judge_run(conn, res, which=getattr(args, "set", "ruled"))
+        print(f"  saved run #{rid} — the JUDGE tab now reads this run.")
+
 
 def cmd_leaderboard(args):
     """Population-scale model reliability from git history (execution-free): rank
@@ -2216,6 +2227,8 @@ def main():
     jb_p.add_argument("--tiers", help="Comma list of tiers (default fast,default,deep)")
     jb_p.add_argument("--set", choices=["ruled", "hard", "all"], default="ruled",
                       help="Probe set: ruled (easy, from rulings) | hard (paraphrase/overlap/dead-name) | all")
+    jb_p.add_argument("--save", action="store_true",
+                      help="Persist this run so the dashboard's JUDGE tab can render it")
 
     lb_p = sub.add_parser("leaderboard", help="Population model-reliability leaderboard from git history (execution-free: survived vs reverted)")
     lb_p.add_argument("repos", nargs="*", help="Repo paths to scan (default: git repos under ~/CODE)")

@@ -19,7 +19,10 @@ numbers, cross-provider judges plug into the same harness in slice 3.
 (An earlier design scored selector-produced pairs by file label; it conflated
 file-label with pair-label and measured the selector, not the judge. Replaced.)
 """
+import json
+import sqlite3
 import time
+from datetime import datetime, timezone
 
 TIERS = ["fast", "default", "deep"]      # qwen3.6-flash / qwen3.6-plus / qwen3.7-max
 
@@ -246,3 +249,58 @@ def run_judge_bench(config: dict, tiers, which: str = "ruled") -> dict:
         return judged
     return {"probes": probes, "judged": judged, "notes": judged.get("_notes", []),
             "scored": score_tiers(probes, judged)}
+
+
+# ---------------------------------------------------------------------------
+# Persistence. A judge run costs real money and real seconds (live cross-provider
+# calls), so no surface may trigger one on page load: the dashboard reads the LAST
+# saved run or says there isn't one. Nothing is ever synthesised to fill the gap —
+# an absent run renders as absent (see api/rot.py).
+# ---------------------------------------------------------------------------
+
+def init_judge_table(conn: sqlite3.Connection):
+    conn.execute("""CREATE TABLE IF NOT EXISTS judge_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_at TEXT NOT NULL,
+        probe_set TEXT NOT NULL,          -- ruled | hard | all
+        probes INTEGER NOT NULL,
+        positives INTEGER,                -- real contradictions in the set
+        negatives INTEGER,                -- consistent controls in the set
+        inter_tier_agreement REAL,
+        notes TEXT,                       -- JSON: what was NOT measured, verbatim
+        rows_json TEXT NOT NULL           -- JSON: per-model scored rows
+    )""")
+    conn.commit()
+
+
+def save_judge_run(conn: sqlite3.Connection, res: dict, which: str = "ruled") -> int:
+    """Persist one completed bench. Returns the new run id."""
+    init_judge_table(conn)
+    scored = res["scored"]
+    probes = res.get("probes", [])
+    pos = sum(1 for p in probes if p["is_contradiction"])
+    cur = conn.execute(
+        "INSERT INTO judge_runs (run_at, probe_set, probes, positives, negatives, "
+        "inter_tier_agreement, notes, rows_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (datetime.now(timezone.utc).isoformat(timespec="seconds"), which,
+         scored["probes"], pos, len(probes) - pos, scored["inter_tier_agreement"],
+         json.dumps(res.get("notes", [])), json.dumps(scored["rows"])),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def latest_judge_run(conn: sqlite3.Connection) -> dict | None:
+    """The last saved bench, or None. None means None: the caller must say so."""
+    init_judge_table(conn)
+    row = conn.execute(
+        "SELECT id, run_at, probe_set, probes, positives, negatives, "
+        "inter_tier_agreement, notes, rows_json FROM judge_runs "
+        "ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if not row:
+        return None
+    d = dict(row)
+    d["notes"] = json.loads(d.pop("notes") or "[]")
+    d["rows"] = json.loads(d.pop("rows_json"))
+    return d

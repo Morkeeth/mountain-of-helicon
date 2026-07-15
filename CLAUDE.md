@@ -20,7 +20,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 - Python (CLI scanner + FastAPI backend)
 - Qwen Cloud API (qwen3.6-flash/plus + qwen3.7-max via OpenAI-compatible SDK)
 - Distribution: BYOK + local-first; Alibaba Cloud proof via Cloud Shell (ECS dead: KYC, decided Jul 3)
-- SQLite + FTS5 + numpy embeddings (24 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards), plus the cubes_fts FTS5 index
+- SQLite + FTS5 + numpy embeddings (25 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards, judge_runs), plus the cubes_fts FTS5 index
 - React/Vite (findings-first dashboard: HEALTH / FINDINGS / LOG primary, Graph + Projects secondary)
 - Web Speech API (voice input for reviews)
 - MCP Server (14 tools for agent self-audit + context injection)
@@ -70,7 +70,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - ~3,800 live memories of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live memories come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor memories exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 memories
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
-- 22 routers (~90 endpoints), 14 MCP tools, 43 CLI commands (+4 aliases)
+- 23 routers (~92 endpoints), 14 MCP tools, 43 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)
