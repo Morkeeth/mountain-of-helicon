@@ -19,6 +19,3 @@ scripts/make_demo_db.py
 config-demo.json
 data/helicon-demo.db
 .claude/
-
-# harness state: agent worktrees, not project source (a stray one is 22MB)
-.claude/
