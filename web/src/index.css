@@ -129,6 +129,42 @@ h1, h2, h3, .font-display {
 
 #root { min-height: 100vh; }
 
+/* ---- Phone (Jul 15) ----
+   The review device is a phone. The body must never scroll sideways: a page
+   that drifts horizontally while a thumb is reaching for "Retire" is a page
+   that mis-files law. This is the backstop, not the fix; the fix is that
+   wide things (tables, pre, diagrams) carry their own scroll container below. */
+html, body { overflow-x: hidden; max-width: 100%; }
+
+/* Wide content scrolls INSIDE itself. Evidence is mostly pre-wrapped, but a
+   receipt with a long unbroken path (or a table) would otherwise push the whole
+   page out. -webkit-overflow-scrolling keeps the momentum feel on iOS. */
+pre {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+/* long ids/paths/urls in prose break instead of shouldering the layout open */
+pre, code { overflow-wrap: anywhere; word-break: break-word; }
+
+table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+
+/* Tap targets. Pointer-coarse only, so the desktop's dense 11px chips, which
+   are correct for a cursor, are never inflated. */
+@media (pointer: coarse) {
+  button, [role="button"], a, select { min-height: 44px; }
+  /* opt-out for controls that are genuinely inline in a sentence or a row */
+  button.h-auto, [role="button"].h-auto, a.h-auto { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 ::selection {
   background: rgba(157,174,188,0.34);
   color: #16212d;

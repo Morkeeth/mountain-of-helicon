@@ -191,8 +191,13 @@ export const api = {
   getAudit: (pending_only = true) =>
     get<{ findings: AuditFinding[] }>(`/audit?pending_only=${pending_only}`),
   runAudit: () => post<{ total_findings: number }>('/audit/run'),
-  confirmAudit: (finding_id: number, decision: string, notes?: string) =>
-    post('/audit/confirm', { finding_id, decision, notes }),
+  /* `notes` is the reason a dismissal carries, and it is the whole difference
+     between a ruling that compiles into GOLDEN_RULES and one that closes
+     quietly: the server answers `precedent: true` only when a reason made law.
+     Typed so callers can read that answer instead of assuming it. */
+  confirmAudit: <T = { finding_id: number; decision: string; precedent?: boolean }>(
+    finding_id: number, decision: string, notes?: string,
+  ) => post<T>('/audit/confirm', { finding_id, decision, notes }),
   resolveIdentity: (finding_id: number, canonical: string) =>
     post('/audit/resolve-identity', { finding_id, canonical }),
   resolveRelation: (finding_id: number, verdict: string) =>

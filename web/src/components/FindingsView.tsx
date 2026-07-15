@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api';
 import type { Finding, FindingsResponse } from '../api';
+import { PrecedentReason } from './PrecedentReason';
 
 /* FINDINGS, the heart of the dashboard. One list of everything that failed
    a check, unified across audit / skills / battery. The WHY sentence leads;
@@ -67,10 +68,10 @@ function CopyChip({ cmd, title }: { cmd: string; title?: string }) {
           setTimeout(() => setCopied(false), 1500);
         });
       }}
-      className="flex items-center gap-2 text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 bg-white shadow-sm font-mono"
+      className="flex items-center gap-2 text-[11px] px-3 md:px-2.5 py-1 rounded-md border transition-all active:scale-95 bg-white shadow-sm font-mono min-h-[44px] md:min-h-0 max-w-full"
       style={{ borderColor: 'var(--helicon-line)', color: 'var(--helicon-ink)' }}
     >
-      <code>{cmd}</code>
+      <code className="truncate">{cmd}</code>
       <span style={{ color: copied ? 'var(--helicon-accent)' : 'var(--helicon-muted)', fontFamily: 'Inter, sans-serif' }}>
         {copied ? 'copied' : 'copy'}
       </span>
@@ -96,7 +97,9 @@ function ActionButton({ label, tone, disabled, onClick }: {
     <button
       onClick={e => { e.stopPropagation(); onClick(); }}
       disabled={disabled}
-      className={`text-[11px] px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 shadow-sm ${isKeep ? '' : 'bg-white'}`}
+      /* 11px/py-1 is a ~24px target: right for a cursor, unusable for a thumb.
+         Tall on a phone, unchanged for the dense desktop row. */
+      className={`text-[11px] px-3 md:px-2.5 py-1 rounded-md border transition-all active:scale-95 disabled:opacity-30 shadow-sm min-h-[44px] md:min-h-0 ${isKeep ? '' : 'bg-white'}`}
       style={styles}
     >
       {label}
@@ -107,6 +110,8 @@ function ActionButton({ label, tone, disabled, onClick }: {
 function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [acting, setActing] = useState(false);
+  // a dismissal opens the reason step: without one it compiles to no law
+  const [reasoning, setReasoning] = useState(false);
 
   const auditId = f.id.startsWith('audit-') ? parseInt(f.id.slice(6), 10) : null;
 
@@ -146,7 +151,8 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
       return (
         <>
           <ActionButton label={acting ? '...' : 'Retire'} tone="kill" disabled={acting} onClick={() => confirmAudit('acted')} />
-          <ActionButton label="Keep" tone="keep" disabled={acting} onClick={() => confirmAudit('dismissed')} />
+          {/* Keep = "not rot", the verdict that can carry a precedent */}
+          <ActionButton label="Keep" tone="keep" disabled={acting} onClick={() => { setReasoning(true); setExpanded(true); }} />
         </>
       );
     }
@@ -168,43 +174,50 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
 
   return (
     <div className="animate-fade-in">
+      {/* On a phone the actions drop BELOW the finding. Held beside it, a
+          shrink-0 button cluster (a mono CLI chip is ~200px) left the text
+          column about 40px wide and wrapped the finding one word per line,
+          unreadable, on the surface whose whole job is to be read before a
+          ruling. Unchanged from md up. */}
       <div
         role="button"
         tabIndex={0}
         onClick={() => setExpanded(x => !x)}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(x => !x); } }}
-        className="flex items-start gap-3 py-3 px-4 hover:bg-zinc-800/10 transition-colors cursor-pointer"
+        className="flex flex-col md:flex-row md:items-start gap-2 md:gap-3 py-3 px-4 hover:bg-zinc-800/10 transition-colors cursor-pointer"
       >
-        <span
-          className="w-1.5 h-1.5 rounded-full shrink-0 mt-[7px]"
-          style={{ background: sevColor(f.severity) }}
-        />
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0 mt-[7px]"
+            style={{ background: sevColor(f.severity) }}
+          />
 
-        <div className="flex-1 min-w-0">
-          {/* The WHY sentence is the finding, it leads. The title (which doc /
-              cube) is the differentiator when the why repeats across findings,
-              so keep it legible and un-truncated rather than a faint gray line. */}
-          <p className="text-[13px] text-zinc-200 leading-snug">{f.why}</p>
-          <p className="text-[12px] text-zinc-400 leading-snug mt-1">
-            {f.title}
-            <span className="text-zinc-600"> · {KIND_LABEL[f.kind] || f.kind}</span>
-          </p>
+          <div className="flex-1 min-w-0">
+            {/* The WHY sentence is the finding, it leads. The title (which doc /
+                cube) is the differentiator when the why repeats across findings,
+                so keep it legible and un-truncated rather than a faint gray line. */}
+            <p className="text-[13px] text-zinc-200 leading-snug break-words">{f.why}</p>
+            <p className="text-[12px] text-zinc-400 leading-snug mt-1 break-words">
+              {f.title}
+              <span className="text-zinc-600"> · {KIND_LABEL[f.kind] || f.kind}</span>
+            </p>
+          </div>
+
+          <svg
+            width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            className={`text-zinc-600 shrink-0 mt-1.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </div>
 
-        <svg
-          width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          className={`text-zinc-600 shrink-0 mt-1.5 transition-transform ${expanded ? 'rotate-180' : ''}`}
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-
-        <div className="flex gap-1.5 shrink-0 items-center" onClick={e => e.stopPropagation()}>
+        <div className="flex gap-1.5 md:shrink-0 items-center flex-wrap pl-[18px] md:pl-0" onClick={e => e.stopPropagation()}>
           {actions}
         </div>
       </div>
 
       {expanded && (
-        <div className="px-4 pb-4 pl-9 animate-fade-in">
+        <div className="px-4 pb-4 pl-4 md:pl-9 animate-fade-in">
           {f.evidence_preview ? (
             <pre className="text-[11px] text-zinc-400 bg-zinc-900/50 p-3 rounded-lg whitespace-pre-wrap leading-relaxed border border-zinc-800/40 max-h-44 overflow-auto">
               {f.evidence_preview}
@@ -212,9 +225,20 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
           ) : (
             <p className="text-[11px] text-zinc-600">No evidence preview for this finding.</p>
           )}
-          <p className="text-[10px] text-zinc-700 mt-2">
+          <p className="text-[10px] text-zinc-700 mt-2 break-words">
             {f.source} · {f.source_ref}
           </p>
+          {reasoning && auditId !== null && (
+            <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--helicon-line)' }}>
+              <PrecedentReason
+                auditId={auditId}
+                findingWhy={f.why}
+                compact
+                onCancel={() => setReasoning(false)}
+                onFiled={() => onGone()}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -359,9 +383,9 @@ export default function FindingsView({ data, onReload, onActed, batteryLoading, 
         </div>
       ) : (() => {
         const TIERS = [
-          { sev: 'critical', t: 'Critical', d: 'Rule on these first \u2014 the record is actively wrong.' },
+          { sev: 'critical', t: 'Critical', d: 'Rule on these first, the record is actively wrong.' },
           { sev: 'warning', t: 'Warnings', d: 'Worth a ruling when you have a moment.' },
-          { sev: 'info', t: 'Aging \u00b7 auto-managed', d: 'Age and mechanics \u2014 safe to leave; open if curious.' },
+          { sev: 'info', t: 'Aging \u00b7 auto-managed', d: 'Age and mechanics, safe to leave; open if curious.' },
         ];
         let shown = 0;
         return TIERS.map(tier => {

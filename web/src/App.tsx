@@ -54,6 +54,26 @@ const SECONDARY_TABS: { key: Tab; label: string }[] = [
 
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 
+/* Phone shell (Jul 15). The review device is a phone, so the thumb, not the
+   cursor, is the input. The 110px rail ate 28% of a 390px screen and pushed the
+   document to 559px, so the page scrolled sideways before you could rule on
+   anything. Below md the rail is replaced by a bottom bar carrying the audit
+   loop (what needs you · the record · the memory · the law) with everything else
+   behind More. Four plus More is what fits at a 44px target on a 390px screen;
+   a scrolling tab strip would have hidden the queue behind a swipe, and a
+   hamburger would have hidden it behind a tap. The rail is untouched at md+.
+
+   Bar labels are shortened, not shrunk: "Needs Ruling" and "Golden Rules" both
+   truncated to "NEEDS RULI…" / "GOLDEN RU…" in a 78px slot, and the fix is
+   fewer words, not 8px type on the surface that carries the verdict. */
+const BAR_TABS: { key: Tab; short: string }[] = [
+  { key: 'findings', short: 'Ruling' },
+  { key: 'reading', short: 'Reading' },
+  { key: 'health', short: 'Memory' },
+  { key: 'gold', short: 'Rules' },
+];
+const BAR_KEYS: Tab[] = BAR_TABS.map(t => t.key);
+
 // Left-rail nav item (brand book: numbered, calm, active = ink + accent bar)
 function RailItem({ n, label, active, badge = 0, onClick }: {
   n: number; label: string; active: boolean; badge?: number; onClick: () => void;
@@ -81,6 +101,98 @@ function RailItem({ n, label, active, badge = 0, onClick }: {
   );
 }
 
+/* Bottom-bar item. Same voice as the rail: micro-caps label, accent bar on the
+   active edge, so the phone reads as the same instrument, not a second app.
+   Icons were never in this language (the rail numbers instead), and emoji-as-icon
+   is banned, so the bar stays typographic. 56px tall clears the 44px target. */
+function BarItem({ label, active, badge = 0, onClick }: {
+  label: string; active: boolean; badge?: number; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5"
+      style={{ minHeight: 56, background: active ? 'var(--helicon-accent-dim)' : 'transparent' }}
+    >
+      {active && (
+        <span className="absolute top-0 left-1/2 -translate-x-1/2 h-[2px] w-7 rounded-full" style={{ background: 'var(--helicon-accent)' }} />
+      )}
+      <span
+        className="block text-[9.5px] uppercase leading-tight text-center px-1 truncate max-w-full"
+        style={{ letterSpacing: '0.07em', color: active ? 'var(--helicon-ink)' : 'var(--helicon-muted)', fontWeight: active ? 600 : 500 }}
+      >
+        {label}
+      </span>
+      {badge > 0 && (
+        <span className="text-[10px] tabular-nums leading-none" style={{ color: 'var(--helicon-accent)', fontWeight: 600 }}>{badge}</span>
+      )}
+    </button>
+  );
+}
+
+/* The rest of the nav. A sheet rather than a full page so ruling stays the thing
+   you came back to; it dismisses on backdrop, Escape, or pick. */
+function MoreSheet({ tab, onPick, onClose, needsYou }: {
+  tab: Tab; onPick: (t: Tab) => void; onClose: () => void; needsYou: number;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const rest = PRIMARY_TABS.filter(t => !BAR_KEYS.includes(t.key));
+  const row = (t: { key: Tab; label: string }, n: number) => (
+    <button
+      key={t.key}
+      onClick={() => { onPick(t.key); onClose(); }}
+      className="w-full flex items-center gap-3 px-5 text-left"
+      style={{ minHeight: 48, background: tab === t.key ? 'var(--helicon-accent-dim)' : 'transparent' }}
+    >
+      <span className="text-[10px] tabular-nums w-4" style={{ color: 'var(--helicon-faint)' }}>{n}</span>
+      <span
+        className="text-[12px] uppercase"
+        style={{ letterSpacing: '0.07em', color: tab === t.key ? 'var(--helicon-ink)' : 'var(--helicon-muted)', fontWeight: tab === t.key ? 600 : 500 }}
+      >
+        {t.label}
+      </span>
+      {t.key === 'findings' && needsYou > 0 && (
+        <span className="ml-auto text-[11px] tabular-nums" style={{ color: 'var(--helicon-accent)' }}>{needsYou}</span>
+      )}
+    </button>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="All surfaces">
+      <motion.div
+        className="absolute inset-0" onClick={onClose}
+        style={{ background: 'rgba(23,40,58,0.32)' }}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+      />
+      <motion.div
+        className="absolute left-0 right-0 bottom-0 rounded-t-[18px] overflow-hidden"
+        style={{
+          background: 'var(--helicon-panel)', borderTop: '1px solid var(--helicon-line)',
+          boxShadow: 'var(--helicon-shadow)', paddingBottom: 'env(safe-area-inset-bottom)',
+          maxHeight: '82vh',
+        }}
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="flex justify-center pt-2.5 pb-1">
+          <span className="h-1 w-9 rounded-full" style={{ background: 'var(--helicon-line-2)' }} />
+        </div>
+        <div className="overflow-y-auto pb-4" style={{ maxHeight: 'calc(82vh - 24px)' }}>
+          {rest.map((t, i) => row(t, PRIMARY_TABS.findIndex(p => p.key === t.key) + 1))}
+          {rest.length > 0 && <div className="my-2 mx-5 border-t" style={{ borderColor: 'var(--helicon-line)' }} />}
+          {SECONDARY_TABS.map((t, i) => row(t, i + 8))}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
@@ -104,6 +216,7 @@ function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projectConsolidations, setProjectConsolidations] = useState<Consolidation[]>([]);
   const [copied, setCopied] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     const [s, c, t] = await Promise.all([
@@ -231,12 +344,13 @@ function App() {
         src="/mountain-3.png" alt="" aria-hidden
         className="pointer-events-none select-none"
         style={{
-          position: 'fixed', bottom: 0, right: 0, width: 460, zIndex: 0, opacity: 0.05,
+          position: 'fixed', bottom: 0, right: 0, width: 'min(460px, 100vw)', maxWidth: '100vw', zIndex: 0, opacity: 0.05,
           WebkitMaskImage: 'linear-gradient(180deg, transparent, #000 70%)', maskImage: 'linear-gradient(180deg, transparent, #000 70%)',
         }}
       />
-      {/* Left rail — brand book 88–120px numbered nav */}
-      <nav className="flex-none flex flex-col" style={{ width: 110, borderRight: '1px solid var(--helicon-line)' }}>
+      {/* Left rail, brand book 88-120px numbered nav. Desktop/tablet only; the
+          phone gets the bottom bar below. */}
+      <nav className="hidden md:flex flex-none flex-col" style={{ width: 110, borderRight: '1px solid var(--helicon-line)' }}>
         <div className="px-5 pt-6 pb-5">
           <svg width="30" height="18" viewBox="0 0 44 26" fill="none" stroke="var(--helicon-ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
             <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
@@ -250,8 +364,13 @@ function App() {
               onClick={() => setTab(t.key)} />
           ))}
           <div className="my-3 mx-2 border-t" style={{ borderColor: 'var(--helicon-line)' }} />
+          {/* Numbered from the primary count, not a hardcoded offset: with 7
+              primary tabs a literal +6 restarted the sequence at 6, so two tabs
+              read 6 and two read 7, and every rail number past the divider
+              disagreed with the keyboard shortcut that actually jumps there
+              (shortcuts index ALL_TABS, i.e. primary then secondary). */}
           {SECONDARY_TABS.map((t, i) => (
-            <RailItem key={t.key} n={i + 6} label={t.label} active={tab === t.key}
+            <RailItem key={t.key} n={PRIMARY_TABS.length + i + 1} label={t.label} active={tab === t.key}
               onClick={() => { setTab(t.key); if (t.key !== 'projects') setSelectedProject(null); }} />
           ))}
         </div>
@@ -263,30 +382,38 @@ function App() {
 
       {/* Right column */}
       <div className="flex-1 min-w-0 flex flex-col">
-      <header className="px-8 pt-6 pb-4" style={{ borderBottom: '1px solid var(--helicon-line)' }}>
+      <header className="px-4 md:px-8 pt-4 md:pt-6 pb-3 md:pb-4" style={{ borderBottom: '1px solid var(--helicon-line)' }}>
         <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* the mark rides the header on phones, where the rail that carried it is gone */}
+              <svg width="22" height="13" viewBox="0 0 44 26" fill="none" stroke="var(--helicon-ink)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true" className="md:hidden shrink-0">
+                <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
+                <path d="M15 23 L27.5 4 L41.5 23" />
+              </svg>
               <h1
-                className="text-[19px] tracking-tight text-zinc-100"
+                className="text-[15px] md:text-[19px] tracking-tight text-zinc-100 whitespace-nowrap"
                 style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
               >
                 Mount Helicon
               </h1>
-              <span className="text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
+              {/* tagline + badge are desktop furniture: on a phone they pushed the
+                  header 169px past the viewport and shore the score clean off */}
+              <span className="hidden lg:inline text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
               <span
-                className="text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
+                className="hidden lg:inline text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
                 style={{ background: 'var(--helicon-accent-dim)', color: 'var(--helicon-accent)', borderColor: 'rgba(34,58,78, 0.25)' }}
               >
                 Powered by Qwen
               </span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3 shrink-0">
               {/* Attention bar: live findings severity split, click-through to FINDINGS */}
+              {/* the phone carries this count on the bottom bar already */}
               {findingsData && (criticalCount > 0 || warningCount > 0) && (
                 <button
                   onClick={() => setTab('findings')}
-                  className="text-[11px] tabular-nums transition-opacity hover:opacity-70"
+                  className="hidden md:block text-[11px] tabular-nums transition-opacity hover:opacity-70"
                 >
                   <span style={{ color: 'var(--helicon-accent)' }}>{criticalCount} critical</span>
                   <span className="text-zinc-700"> · </span>
@@ -295,7 +422,7 @@ function App() {
               )}
               {score && (
                 <div className="flex items-center gap-1.5" title={`${score.reviewed} of ${score.total} memory items triaged, review coverage, not a health grade`}>
-                  <div className="w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
+                  <div className="hidden sm:block w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
                     <div
                       className="h-full rounded-full qwen-gradient-bg transition-all duration-700"
                       style={{ width: `${score.score}%` }}
@@ -310,7 +437,9 @@ function App() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-8 py-6">
+      {/* bottom padding clears the fixed bar (56px + safe area) so the last
+          ruling in a queue is never parked under it */}
+      <main className="w-full max-w-5xl mx-auto px-4 md:px-8 py-5 md:py-6 pb-[calc(72px+env(safe-area-inset-bottom))] md:pb-6">
         <AnimatePresence mode="wait">
         <motion.div
           key={tab + (selectedProject || '')}
@@ -427,6 +556,42 @@ function App() {
         </AnimatePresence>
       </main>
       </div>
+
+      {/* Phone nav: the audit loop under the thumb, everything else behind More */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch"
+        style={{
+          background: 'var(--helicon-panel)',
+          borderTop: '1px solid var(--helicon-line)',
+          boxShadow: '0 -6px 24px rgba(23,40,58,0.06)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+        }}
+      >
+        {BAR_TABS.map(t => (
+          <BarItem
+            key={t.key}
+            label={t.short}
+            active={tab === t.key && !moreOpen}
+            badge={t.key === 'findings' ? (findingsData?.summary.needs_you || 0) : 0}
+            onClick={() => { setTab(t.key); setMoreOpen(false); }}
+          />
+        ))}
+        <BarItem
+          label="More"
+          active={moreOpen || !BAR_KEYS.includes(tab)}
+          onClick={() => setMoreOpen(o => !o)}
+        />
+      </nav>
+      <AnimatePresence>
+        {moreOpen && (
+          <MoreSheet
+            tab={tab}
+            needsYou={findingsData?.summary.needs_you || 0}
+            onPick={t => { setTab(t); if (t !== 'projects') setSelectedProject(null); }}
+            onClose={() => setMoreOpen(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -632,9 +797,11 @@ function ProjectsGrid({ projects, score, connectors, triageCount, onSelect, onRe
 
   return (
     <div className="space-y-6">
-      {/* Stats bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-5">
+      {/* Stats bar. Wraps: four stat groups plus Refresh in one unwrapping row
+          pushed the button to x=427 on a 390px screen, where the page guard
+          clipped it and the only way to refresh went off the side of the phone. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-4 md:gap-5 flex-wrap">
           <div>
             <span className="text-[10px] uppercase tracking-wider text-zinc-500 block">Projects</span>
             <span className="text-[22px] font-light tabular-nums text-zinc-200">{projects.length}</span>
