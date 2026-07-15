@@ -179,7 +179,66 @@ export interface Cluster {
   cubes: { id: string; title: string; type: string; source: string; confidence: number }[];
 }
 
+/* The rot exam (R1-R12). Zero LLM, so /api/rot runs it live on every load. */
+export interface RotCheck {
+  id: string;
+  name: string;
+  coverage: 'TESTED' | 'PARTIAL';
+  verdict: 'CLEAN' | 'ROT FOUND' | 'UNMEASURED';
+  receipt: string;
+}
+export interface RotExam {
+  exam: string;
+  classes: number;
+  tested: number;
+  partial: number;
+  rot_found: number;
+  unmeasured: number;
+  checks: RotCheck[];
+  /* Freshness is part of the verdict: R8 replays real retrieval, so the exam is
+     held briefly rather than re-run on every tab switch. The surface prints
+     ran_at so a held result can never pass itself off as a live one. */
+  ran_at: string;
+  took_s: number;
+  cached: boolean;
+}
+
+/* The judge bench. `ran: false` is a real answer, never an error and never a
+   reason to draw a chart from nothing. */
+export interface JudgeRow {
+  model: string;
+  accuracy: number | null;
+  recall: number | null;
+  specificity: number | null;
+  cost_usd: number | null;
+  latency_s: number | null;
+  tokens?: number | null;
+  errors?: number;
+  coverage?: number | null;
+  pos_n?: number;
+  neg_n?: number;
+  caught?: number;
+  passed?: number;
+  misses?: string[];
+}
+export type JudgeRun =
+  | { ran: false; command: string; why: string }
+  | {
+      ran: true;
+      id: number;
+      run_at: string;
+      probe_set: string;
+      probes: number;
+      positives: number;
+      negatives: number;
+      inter_tier_agreement: number | null;
+      notes: string[];
+      rows: Record<string, JudgeRow>;
+    };
+
 export const api = {
+  getRot: (fresh = false) => get<RotExam>(`/rot${fresh ? '?fresh=1' : ''}`),
+  getJudge: () => get<JudgeRun>('/judge'),
   getCubes: (params?: { status?: string; source?: string; type?: string; sort?: string; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams();
     if (params) Object.entries(params).forEach(([k, v]) => { if (v !== undefined) qs.set(k, String(v)); });
