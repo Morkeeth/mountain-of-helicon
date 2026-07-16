@@ -86,18 +86,20 @@ struct HeliconAPI {
     /// for a finding. It sets audit_log.human_decision + resolved_at, which is
     /// what drops the finding out of the pending queue.
     ///
-    /// Note (verified by reading helicon/api/audit.py): the endpoint accepts
-    /// `notes` but never persists it, and it does not write
-    /// details.dismiss_reason — so a dismissal made over HTTP will NOT compile
-    /// into a GOLDEN_RULES precedent the way `helicon.pairing.dismiss_finding`
-    /// (CLI-only) does. The UI must not imply otherwise.
+    /// A dismissal that carries `notes` now routes through the SAME function the
+    /// CLI uses (`helicon.pairing.dismiss_finding`), which records the reason as
+    /// details.dismiss_reason — the one field gold.py compiles a GOLDEN_RULES
+    /// precedent from. The server answers `precedent: true` when that happened,
+    /// so the UI can report the ruling became law because it did, and stays
+    /// quiet when it did not (a dismissal with no reason still clears the queue
+    /// but compiles to nothing).
     @discardableResult
-    func confirm(findingID: Int, decision: String) async throws -> ConfirmResponse {
+    func confirm(findingID: Int, decision: String, notes: String = "") async throws -> ConfirmResponse {
         var req = URLRequest(url: base.appendingPathComponent("/api/audit/confirm"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(
-            ConfirmRequest(finding_id: findingID, decision: decision, notes: "")
+            ConfirmRequest(finding_id: findingID, decision: decision, notes: notes)
         )
         return try await run(req, as: ConfirmResponse.self)
     }
