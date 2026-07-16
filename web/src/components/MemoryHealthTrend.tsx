@@ -1,21 +1,19 @@
 import { useEffect, useState } from 'react';
-import { api, type BatteryHistory, type BatteryHistoryPoint } from '../api';
+import { api, type BatteryHistory } from '../api';
+import DitherArea from './DitherArea';
 
-/* Memory health over time — the ONE honest trend on the Memory tab.
+/* Memory health over time - the ONE honest trend on the Memory tab.
    Every point is a real context-quality battery run (healthy_share), no
-   interpolation, no backfill. Rendered as a themed SVG (bklit's line chart is
-   fetched + available, but its @visx ParentSize does not measure under our
-   headless verify path, so this card uses a plain, reliable SVG on the same
-   real data). The delta since the first run is the only place the
-   improvement-orange appears; a fall stays quiet slate. */
+   interpolation, no backfill. The shape is carried by a hand-rolled Bayer-8
+   dither (see DitherArea) - density rises with the value, so the trend reads
+   without a gridline.
 
-const W = 820;
-const H = 150;
-const PAD = { l: 6, r: 6, t: 14, b: 18 };
+   Colour discipline: the improvement-orange is EARNED, not decorative. If the
+   trend is up it lerps toward improve at the floor; if health has fallen the
+   dither stays quiet slate, never orange. The delta obeys the same rule. */
 
 export default function MemoryHealthTrend() {
   const [hist, setHist] = useState<BatteryHistory | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
 
   useEffect(() => {
     api.getBatteryHistory().then(setHist).catch(() => {});
@@ -28,14 +26,6 @@ export default function MemoryHealthTrend() {
   const now = vals[vals.length - 1];
   const delta = now - vals[0];
   const up = delta >= 0;
-
-  const x = (i: number) => PAD.l + (i / (pts.length - 1)) * (W - PAD.l - PAD.r);
-  const y = (v: number) => PAD.t + (1 - v / 100) * (H - PAD.t - PAD.b);
-  const line = vals.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
-  const area = `${line} L${x(pts.length - 1).toFixed(1)} ${y(0).toFixed(1)} L${x(0).toFixed(1)} ${y(0).toFixed(1)} Z`;
-
-  const fmt = (p: BatteryHistoryPoint) =>
-    new Date(p.recorded_at + 'Z').toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-zinc-800/50 px-7 py-6">
@@ -59,35 +49,18 @@ export default function MemoryHealthTrend() {
         </span>
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', width: '100%' }} preserveAspectRatio="none">
-          {[0, 50, 100].map((g) => (
-            <line key={g} x1={PAD.l} x2={W - PAD.r} y1={y(g)} y2={y(g)} stroke="var(--helicon-line)" strokeWidth={1} />
-          ))}
-          <path d={area} fill="var(--helicon-accent)" opacity={0.06} />
-          <path d={line} fill="none" stroke="var(--helicon-ink)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-          {vals.map((v, i) => (
-            <g key={i}>
-              <circle cx={x(i)} cy={y(v)} r={i === vals.length - 1 ? 4 : 2.5}
-                fill={i === vals.length - 1 ? 'var(--helicon-accent)' : 'var(--helicon-ink)'} />
-              <rect x={x(i) - 12} y={0} width={24} height={H} fill="transparent"
-                onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} style={{ cursor: 'pointer' }} />
-            </g>
-          ))}
-        </svg>
-        {hover != null && (
-          <div style={{
-            position: 'absolute', left: `${(x(hover) / W) * 100}%`, top: 0,
-            transform: 'translate(-50%, -108%)', background: 'var(--helicon-ink)', color: 'var(--helicon-panel)',
-            borderRadius: 8, padding: '6px 9px', fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 5,
-          }}>
-            <b className="tabular-nums">{vals[hover]}%</b> healthy · {fmt(pts[hover])}
-          </div>
-        )}
-      </div>
+      <DitherArea
+        series={vals}
+        height={132}
+        topColor={up ? '--helicon-improve' : '--helicon-muted'}
+        botColor="--helicon-accent"
+        topFallback={up ? '#C67C3E' : '#4E6173'}
+        botFallback="#223A4E"
+        ariaLabel={`Memory health over time: ${now}% of retrieval tasks served healthy context now, ${vals[0]}% at the first run across ${pts.length} battery runs, a change of ${delta >= 0 ? '+' : ''}${delta} points. The dithered area rises with the healthy share.`}
+      />
 
       <div className="text-[11px] mt-3" style={{ color: 'var(--helicon-muted)' }}>
-        One real point per battery run — no interpolation, no backfill. The curve is as young as the habit.
+        One real point per battery run, no interpolation, no backfill. The curve is as young as the habit.
       </div>
     </div>
   );
