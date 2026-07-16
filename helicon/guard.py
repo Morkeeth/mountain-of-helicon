@@ -6,11 +6,15 @@ returns violations, so a ruled-against claim is caught before it lands, not
 audited after. The "ultimate solution": rulings-become-law made enforceable, not
 advisory. Exposed as the helicon_guard MCP tool so any agent can call it.
 
-v1 checks the two highest-signal, deterministic classes:
+Checks the highest-signal, deterministic classes, each tracing to a real ruling:
   - dead names (renames): asserting a renamed project's old name as current.
   - ruled identity: asserting a definition a human ruled against.
-Both trace to a real ruling; nothing is invented.
+  - ruled facts: asserting a value a human ruled WRONG for a topic (never-twice
+    at write time — the same guard find_conflicts enforces at audit time, now
+    also enforced BEFORE the agent writes).
+Nothing is invented.
 """
+import json
 import re
 
 
@@ -47,10 +51,93 @@ def guard_output(conn, text: str) -> dict:
                 "provenance": f"ruling on '{name}' at {(r.get('resolved_at') or '')[:19]}",
             })
 
+    # 3. ruled facts: proposed text asserts a value a human ruled WRONG for a topic
+    #    (e.g. "4 hackathon wins" after wins was ruled 9). This is the never-twice
+    #    guard that find_conflicts applies at AUDIT time, brought forward to WRITE
+    #    time so the wrong value is caught before it lands.
+    for r in _load_factual_resolutions(conn):
+        te = re.escape(r["topic"].lower())
+        fired = None
+        for wrong in r["wrong_values"]:
+            we = re.escape(wrong.lower())
+            # A number quantifies the noun that FOLLOWS it ("4 hackathon wins"):
+            # value, then up to 3 words (the subject), then the topic. Adjacency is
+            # the precision gate — it fires on "4 ... wins" but NOT on the canonical
+            # line "9 hackathon wins, 4 finalist placements", where the 4 quantifies
+            # "finalist" and never reaches "wins".
+            quant = re.search(rf"\b{we}\b(?:\W+[\w$%.+/-]+){{0,3}}\W+\b{te}\b", low)
+            # An explicit assignment sets the topic to the value ("wins: 4", "wins=4").
+            assign = re.search(rf"\b{te}\b\s*[:=]\s*{we}\b", low)
+            # For a DISTINCTIVE value (a word, a date, a range — not a bare 1-2 digit
+            # number that collides by chance), also catch "topic <value>" in either
+            # order within a couple of words ("birthday 07-13"). Gated on
+            # distinctiveness so it can't reopen the finalist-placements trap.
+            distinctive = (bool(re.search(r"[a-z]", wrong.lower()))
+                           or "-" in wrong or ".." in wrong
+                           or len(re.sub(r"\D", "", wrong)) >= 3)
+            loose = distinctive and re.search(
+                rf"\b{te}\b(?:\W+[\w$%.+/-]+){{0,2}}\W+\b{we}\b", low)
+            if quant or assign or loose:
+                fired = wrong
+                break
+        if fired is not None:
+            subj = f"'{r['subject']}' " if r["subject"] else ""
+            violations.append({
+                "rule": "ruled-fact", "severity": "critical",
+                "subject": "/".join(p for p in (r["subject"], r["topic"]) if p),
+                "message": f"{r['topic']} for {subj}was ruled '{r['true_value']}', "
+                           f"but this asserts '{fired}' — ruled wrong "
+                           f"(re-alarms if it returns).",
+                "provenance": f"ruling #{r['audit_id']} on {subj}{r['topic']} "
+                              f"at {(r.get('resolved_at') or '')[:19]}",
+            })
+
     return {"text": (text or "")[:200], "violations": violations,
             "clean": not violations,
             "verdict": "blocked" if any(v["severity"] == "critical" for v in violations)
                        else ("warn" if violations else "clean")}
+
+
+def _load_factual_resolutions(conn) -> list[dict]:
+    """Human-settled topic/subject rulings: each returns the ruled-true value and the
+    competing values ruled WRONG. Mirrors identity._load_identity_resolutions but for
+    factual (claim/pairing) findings resolved as 'resolved:<value>'. The wrong values
+    are every asserted value other than the truth, so a memory re-asserting one is
+    caught at write time."""
+    from helicon.timeutil import ts_norm
+    out = []
+    for row in conn.execute(
+        "SELECT id, details, human_decision, resolved_at FROM audit_log "
+        "WHERE audit_type = 'factual' AND human_decision LIKE 'resolved:%'"
+    ):
+        try:
+            d = json.loads(row["details"])
+        except (json.JSONDecodeError, TypeError):
+            continue
+        topic = (d.get("topic") or "").strip()
+        if not topic:
+            continue                       # no topic noun to anchor on — skip safely
+        true_value = row["human_decision"].split("resolved:", 1)[1].strip()
+        candidates = set()
+        for key in ("all_dates", "dates"):
+            for v in (d.get(key) or []):
+                if v:
+                    candidates.add(str(v).strip())
+        for key in ("value_a", "value_b"):
+            if d.get(key):
+                candidates.add(str(d[key]).strip())
+        wrong = [v for v in candidates if v and v != true_value]
+        if not wrong:
+            continue
+        out.append({
+            "topic": topic,
+            "subject": (d.get("person") or "").strip(),
+            "true_value": true_value,
+            "wrong_values": wrong,
+            "resolved_at": ts_norm(row["resolved_at"]) or (row["resolved_at"] or ""),
+            "audit_id": row["id"],
+        })
+    return out
 
 
 def format_guard(res: dict) -> str:
