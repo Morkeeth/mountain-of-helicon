@@ -96,20 +96,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func scheduleDiagnostics() {
         let env = ProcessInfo.processInfo.environment
         guard env["HELICON_SHOT"] != nil || env["HELICON_DEBUG"] == "1"
-                || env["HELICON_VERDICT"] != nil else { return }
+                || env["HELICON_VERDICT"] != nil || env["HELICON_COMPOSE"] != nil else { return }
+
+        // HELICON_COMPOSE=1 opens the ruling composer on the selected finding so
+        // the money shot (the sheet, not just the queue) can be screenshotted
+        // without injecting a keystroke. The composer prefills its reason from
+        // HELICON_REASON in this mode so the "compiles to" preview is populated.
+        if env["HELICON_COMPOSE"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                Task { @MainActor in
+                    guard let f = Store.shared.selected else {
+                        Self.note("compose: nothing selected"); return
+                    }
+                    Self.note("compose: opening ruling composer on \(f.id) [\(f.kind)]")
+                    Store.shared.beginDismiss(f)
+                }
+            }
+        }
 
         // HELICON_VERDICT=<decision> fires one real verdict through the app's own
         // path (Store.confirm -> POST /api/audit/confirm) so the write can be
-        // verified headlessly. Point HELICON_API at a sandbox instance first.
+        // verified headlessly. HELICON_REASON=<text> rides along on a dismissal
+        // so the reason->precedent->law flow can be proven without injecting a
+        // keystroke into the sheet. Point HELICON_API at a sandbox instance first.
         if let verdict = env["HELICON_VERDICT"] {
+            let reason = env["HELICON_REASON"] ?? ""
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 Task { @MainActor in
                     guard let f = Store.shared.selected else {
                         Self.note("verdict: nothing selected"); return
                     }
-                    Self.note("verdict: firing '\(verdict)' on \(f.id) [\(f.kind)] — queue was \(Store.shared.openCount)")
-                    await Store.shared.confirm(f, decision: verdict)
-                    Self.note("verdict: queue now \(Store.shared.openCount), note=\(Store.shared.actionError ?? "none")")
+                    Self.note("verdict: firing '\(verdict)' on \(f.id) [\(f.kind)]"
+                              + (reason.isEmpty ? "" : " reason=\"\(reason)\"")
+                              + " — queue was \(Store.shared.openCount)")
+                    let res = await Store.shared.confirm(f, decision: verdict, notes: reason)
+                    Self.note("verdict: queue now \(Store.shared.openCount), "
+                              + "precedent=\(res?.precedent ?? false), "
+                              + "note=\(Store.shared.actionError ?? "none")")
                 }
             }
         }
@@ -129,14 +152,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Self.note("window '\(w.title)' \(Int(w.frame.width))x\(Int(w.frame.height)) visible=\(w.isVisible)")
             }
             if let path = env["HELICON_SHOT"] {
-                Self.capture(windows: windows, to: path)
+                // When the composer is up, screenshot the sheet (the smaller
+                // attached window) rather than the cockpit behind it.
+                Self.capture(windows: windows, to: path,
+                             preferSheet: env["HELICON_COMPOSE"] != nil)
                 NSApp.terminate(nil)
             }
         }
     }
 
-    private static func capture(windows: [NSWindow], to path: String) {
-        guard let win = windows.first(where: { $0.frame.width > 500 }),
+    private static func capture(windows: [NSWindow], to path: String, preferSheet: Bool = false) {
+        let wide = windows.filter { $0.frame.width > 480 }
+        let target = preferSheet
+            ? wide.min(by: { $0.frame.width < $1.frame.width })
+            : wide.max(by: { $0.frame.width < $1.frame.width })
+        guard let win = target ?? windows.first(where: { $0.frame.width > 480 }),
               let view = win.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
             note("capture: no cockpit window found")

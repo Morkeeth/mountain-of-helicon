@@ -27,6 +27,21 @@ final class Store: ObservableObject {
     @Published var actionError: String?
     @Published var selection: Finding.ID?
 
+    /// The finding whose "not rot" reason is being composed. Non-nil drives the
+    /// ruling sheet. A dismissal is the one verdict that can become law, so it is
+    /// never fired blind — the operator writes the reason first.
+    @Published var composing: Finding?
+
+    /// The last ruling that compiled into GOLDEN_RULES, held briefly so the
+    /// cockpit can say the reason became law. Set only when the SERVER confirmed
+    /// a precedent (precedent:true), never on hope.
+    @Published var lawFlash: LawFlash?
+
+    struct LawFlash: Equatable {
+        let rule: String   // the "NOT rot: …" line the compiler wrote
+        let why: String    // the operator's reason, as the compiler clipped it
+    }
+
     private let api = HeliconAPI()
     private var poller: Task<Void, Never>?
 
@@ -134,16 +149,35 @@ final class Store: ObservableObject {
         selection = findings[next].id
     }
 
+    // MARK: - the ruling composer
+
+    /// Open the reason step for a dismissal. A dismissal only becomes a
+    /// GOLDEN_RULES precedent if it carries a reason, so instead of firing it
+    /// blind (the old D-key path, which compiled to no law) the cockpit asks for
+    /// the reason first. Guarded exactly like the verdict bar so a read-only or
+    /// in-flight finding never opens the sheet.
+    func beginDismiss(_ finding: Finding) {
+        guard finding.isConfirmable, connection.isLive, !busy.contains(finding.id) else { return }
+        actionError = nil
+        composing = finding
+    }
+
+    func cancelDismiss() { composing = nil }
+
     // MARK: - the real triage write
 
     /// POST /api/audit/confirm. On success the row leaves the pending queue, so
-    /// the count decrements on the next refresh and focus auto-advances.
-    func confirm(_ finding: Finding, decision: String) async {
+    /// the count decrements on the next refresh and focus auto-advances. Passing
+    /// a `notes` reason on a dismissal is what makes it compile into the law; the
+    /// server reports back whether it did (`precedent`), and this returns the
+    /// response so the caller can surface that truthfully.
+    @discardableResult
+    func confirm(_ finding: Finding, decision: String, notes: String = "") async -> ConfirmResponse? {
         guard let auditID = finding.auditID else {
             actionError = finding.notConfirmableReason
-            return
+            return nil
         }
-        guard !busy.contains(finding.id) else { return }
+        guard !busy.contains(finding.id) else { return nil }
         busy.insert(finding.id)
         defer { busy.remove(finding.id) }
         actionError = nil
@@ -152,7 +186,7 @@ final class Store: ObservableObject {
         // the last thing you do with an item.
         let idx = selectedIndex
         do {
-            let res = try await api.confirm(findingID: auditID, decision: decision)
+            let res = try await api.confirm(findingID: auditID, decision: decision, notes: notes)
             findings.removeAll { $0.id == finding.id }
             summary = FindingsSummary(
                 total: max(summary.total - 1, 0),
@@ -168,13 +202,19 @@ final class Store: ObservableObject {
                     ? findings[idx].id
                     : findings.last?.id
             }
-            if !res.killedMemories.isEmpty {
+            // Only claim law when the server actually compiled one.
+            if res.precedent {
+                lawFlash = LawFlash(rule: finding.compiledRule,
+                                    why: Gold.clip(notes, Gold.reasonClip))
+            } else if !res.killedMemories.isEmpty {
                 actionError = "Confirmed — also retired \(res.killedMemories.count) memories."
             }
             await refresh()
+            return res
         } catch {
             actionError = "Write failed: "
                 + ((error as? APIError)?.errorDescription ?? error.localizedDescription)
+            return nil
         }
     }
 }

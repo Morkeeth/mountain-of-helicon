@@ -85,6 +85,13 @@ struct Finding: Decodable, Identifiable, Hashable {
         return String(why[..<r.lowerBound])
     }
 
+    /// The precedent line a reasoned dismissal will write, exactly as gold.py
+    /// composes it: `"NOT rot: " + clip(finding, 118)`. The server keys off the
+    /// audit_log `finding` column, which the API hands back as `whyBody` (the
+    /// check name is prepended for the human sentence only). Previewed so the
+    /// operator sees the rule before filing it.
+    var compiledRule: String { Gold.clip(whyBody, Gold.findingClip) }
+
     var age: String {
         guard let createdAt, let d = Stamp.parse(createdAt) else { return "—" }
         return Stamp.relative(d)
@@ -113,6 +120,31 @@ struct FindingsSummary: Decodable {
                                        byKind: [:], bySeverity: [:])
 }
 
+/// The GOLDEN_RULES compiler's clipping, ported 1:1 from gold.py `_clip` so the
+/// composer can preview the exact rule the server will write — same limits, same
+/// word-boundary cut, same ellipsis. A preview that clipped differently than the
+/// compiler would show the operator a rule they are not actually filing.
+enum Gold {
+    /// gold.py clips the finding at 118 chars and the dismiss reason at 140.
+    static let findingClip = 118
+    static let reasonClip  = 140
+
+    static func clip(_ text: String, _ limit: Int) -> String {
+        let flat = text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        if flat.count <= limit { return flat }
+        let headSlice = String(flat.prefix(limit - 1))
+        var head = headSlice
+        if let sp = headSlice.range(of: " ", options: .backwards) {
+            head = String(headSlice[..<sp.lowerBound])
+        }
+        head = head.trimmingCharacters(in: CharacterSet(charactersIn: " ,;:-"))
+        if head.isEmpty {
+            head = String(flat.prefix(limit - 1)).trimmingCharacters(in: .whitespaces)
+        }
+        return head + "…"
+    }
+}
+
 struct FindingsResponse: Decodable {
     let findings: [Finding]
     let summary: FindingsSummary
@@ -133,11 +165,24 @@ struct ConfirmResponse: Decodable {
     let findingID: Int
     let decision: String
     let killedMemories: [String]
+    /// True only when this dismissal carried a reason and the server compiled a
+    /// GOLDEN_RULES precedent from it (audit.py returns precedent:true). The app
+    /// reports back exactly what the server did, never what it hoped happened.
+    let precedent: Bool
 
     enum CodingKeys: String, CodingKey {
         case findingID   = "finding_id"
         case decision
         case killedMemories = "killed_memories"
+        case precedent
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        findingID      = try c.decode(Int.self, forKey: .findingID)
+        decision       = try c.decode(String.self, forKey: .decision)
+        killedMemories = try c.decodeIfPresent([String].self, forKey: .killedMemories) ?? []
+        precedent      = try c.decodeIfPresent(Bool.self, forKey: .precedent) ?? false
     }
 }
 

@@ -29,14 +29,27 @@ struct QueueView: View {
         .onKeyPress(.init("k")) { store.move(-1); return .handled }
         .onKeyPress(.downArrow) { store.move(1);  return .handled }
         .onKeyPress(.upArrow)   { store.move(-1); return .handled }
-        .onKeyPress(.init("a")) { verdict("acted");     return .handled }
-        .onKeyPress(.init("d")) { verdict("dismissed"); return .handled }
+        .onKeyPress(.init("a")) { verdict("acted"); return .handled }
+        // D no longer fires a blind dismissal — it opens the ruling composer, so
+        // the reason that turns "not rot" into law is written before the row
+        // clears. A dismissal with no reason compiled to nothing.
+        .onKeyPress(.init("d")) { beginDismiss(); return .handled }
         .onKeyPress(.init("r")) { Task { await store.refresh() }; return .handled }
+        // The ruling composer: name why it is not rot, watch it compile into the
+        // law. Presented over the cockpit so the queue stays in view behind it.
+        .sheet(item: $store.composing) { finding in
+            ReasonComposer(finding: finding).environmentObject(store)
+        }
     }
 
     private func verdict(_ decision: String) {
         guard let f = store.selected else { return }
         Task { await store.confirm(f, decision: decision) }
+    }
+
+    private func beginDismiss() {
+        guard let f = store.selected else { return }
+        store.beginDismiss(f)
     }
 
     @ViewBuilder
@@ -101,7 +114,24 @@ private struct TopBar: View {
 
             Spacer()
 
-            if let err = store.actionError {
+            // The aftermath of a ruling: shown only when the server actually
+            // compiled a precedent, and cleared after a beat so it never becomes
+            // a permanent boast. Calm slate-blue, not an alarm color.
+            if let flash = store.lawFlash {
+                HStack(spacing: 5) {
+                    Image(systemName: "seal.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Wash.good)
+                    Text("compiled into the law")
+                        .font(.iface(10.5, .medium))
+                        .foregroundStyle(Wash.good)
+                }
+                .help("NOT rot: \(flash.rule)")
+                .task(id: flash) {
+                    try? await Task.sleep(for: .seconds(6))
+                    if store.lawFlash == flash { store.lawFlash = nil }
+                }
+            } else if let err = store.actionError {
                 Text(err)
                     .font(.iface(10.5))
                     .foregroundStyle(Wash.critical)
@@ -502,8 +532,8 @@ private struct VerdictBar: View {
             Verdict(key: "A", label: "Acted", tone: Wash.accent, enabled: canAct) {
                 act("acted")
             }
-            Verdict(key: "D", label: "Not rot · dismiss", tone: Wash.slate, enabled: canAct) {
-                act("dismissed")
+            Verdict(key: "D", label: "Not rot · rule", tone: Wash.slate, enabled: canAct) {
+                if let f = store.selected { store.beginDismiss(f) }
             }
 
             Divider().frame(height: 15).overlay(Wash.line)
@@ -611,5 +641,277 @@ struct EmptyQueue: View {
                 .foregroundStyle(Wash.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - the ruling composer
+
+/// The one beat that makes the cockpit worth showing: name why a finding is not
+/// rot, and watch the reason compile into GOLDEN_RULES. A dismissal is the only
+/// verdict that can become law — but only if it carries a reason (gold.py emits
+/// a precedent for `dismissed AND dismiss_reason`, nothing else). So the reason
+/// is not a nicety to skip; it IS the rule. This sheet says what the reason buys
+/// before asking for it, previews the exact line the compiler will write, and
+/// reports back what the server actually did — never what it hoped.
+struct ReasonComposer: View {
+    let finding: Finding
+    @EnvironmentObject var store: Store
+
+    @State private var reason = ""
+    @State private var busy = false
+    @State private var error: String?
+    /// nil while composing; set to the server's precedent verdict once filed.
+    @State private var filed: Bool?
+    @FocusState private var fieldFocused: Bool
+
+    private var trimmed: String {
+        reason.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var over: Bool { trimmed.count > Gold.reasonClip }
+
+    var body: some View {
+        ZStack {
+            Wash.paper
+            RadialGradient(colors: [Wash.mist.opacity(0.30), .clear],
+                           center: UnitPoint(x: 0.92, y: -0.10),
+                           startRadius: 0, endRadius: 460)
+                .allowsHitTesting(false)
+            if let filed {
+                filedState(precedent: filed)
+            } else {
+                composeState
+            }
+        }
+        .frame(width: 560)
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear {
+            fieldFocused = true
+            // Screenshot/demo affordance only: populate the reason so the
+            // "compiles to" preview is visible in a headless capture. Never
+            // fabricates in normal use — the var is unset unless explicitly given.
+            if reason.isEmpty,
+               let seed = ProcessInfo.processInfo.environment["HELICON_REASON"] {
+                reason = seed
+            }
+        }
+    }
+
+    // MARK: compose
+
+    private var composeState: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            // Which finding is being ruled on, in its own chips.
+            HStack(spacing: 6) {
+                Chip(text: finding.checkName, color: Wash.severity(finding.severity), filled: true)
+                Chip(text: finding.kind, color: Wash.slate)
+                Spacer()
+                Text(finding.id)
+                    .font(.data(9))
+                    .foregroundStyle(Wash.faint)
+                    .textSelection(.enabled)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Why is this not rot?")
+                    .font(.display(21, .regular))
+                    .foregroundStyle(Wash.ink)
+                Text("Your reason becomes law. Helicon files it under the precedents in GOLDEN_RULES, with a receipt, so this never alarms again. Rule without one and the finding just closes, compiling to nothing.")
+                    .font(.iface(12))
+                    .foregroundStyle(Wash.muted)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // The reason field.
+            ZStack(alignment: .topLeading) {
+                if reason.isEmpty {
+                    Text("selector false positive: place-as-person, fixed same hour")
+                        .font(.iface(12.5))
+                        .foregroundStyle(Wash.faint)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .allowsHitTesting(false)
+                }
+                TextEditor(text: $reason)
+                    .font(.iface(12.5))
+                    .foregroundStyle(Wash.ink)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 66)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .focused($fieldFocused)
+            }
+            .background(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                .fill(Wash.boneRaised))
+            .overlay(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                .strokeBorder(fieldFocused ? Wash.line2 : Wash.line, lineWidth: 1))
+
+            Text(over
+                 ? "\(trimmed.count)/\(Gold.reasonClip) · the compiled rule clips at \(Gold.reasonClip)"
+                 : "\(trimmed.count)/\(Gold.reasonClip)")
+                .font(.data(10))
+                .foregroundStyle(over ? Wash.stale : Wash.faint)
+
+            // What the finding becomes — gold.py's exact shape, so the operator
+            // reads the rule before writing it.
+            if !trimmed.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    RailLabel(text: "compiles to")
+                    Text("NOT rot: \(finding.compiledRule)")
+                        .font(.data(11))
+                        .foregroundStyle(Wash.ink)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("why: \(Gold.clip(trimmed, Gold.reasonClip))")
+                        .font(.data(11))
+                        .foregroundStyle(Wash.muted)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                    .fill(Wash.accentDim))
+                .overlay(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                    .strokeBorder(Wash.line, lineWidth: 1))
+            }
+
+            if let error {
+                Text("Not filed: \(error)")
+                    .font(.iface(11))
+                    .foregroundStyle(Wash.critical)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Actions.
+            HStack(spacing: 10) {
+                Button { Task { await file(withReason: true) } } label: {
+                    Text(busy ? "Filing…" : "File as precedent")
+                        .font(.iface(12, .semibold))
+                        .foregroundStyle(Wash.bone)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(trimmed.isEmpty ? Wash.accent.opacity(0.4) : Wash.accent))
+                }
+                .buttonStyle(.plain)
+                .disabled(busy || trimmed.isEmpty)
+                .keyboardShortcut(.return, modifiers: .command)
+
+                Button { store.cancelDismiss() } label: {
+                    Text("Back")
+                        .font(.iface(11.5))
+                        .foregroundStyle(Wash.muted)
+                        .padding(.horizontal, 8).padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .disabled(busy)
+                .keyboardShortcut(.cancelAction)
+
+                Spacer()
+
+                Button { Task { await file(withReason: false) } } label: {
+                    Text("Dismiss without a reason")
+                        .font(.iface(11))
+                        .foregroundStyle(Wash.faint)
+                        .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .disabled(busy)
+                .help("Closes the finding without writing a rule. It compiles to nothing.")
+            }
+        }
+        .padding(24)
+    }
+
+    // MARK: filed
+
+    @ViewBuilder
+    private func filedState(precedent: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack(spacing: 9) {
+                Image(systemName: precedent ? "seal.fill" : "tray.and.arrow.down")
+                    .font(.system(size: 17))
+                    .foregroundStyle(precedent ? Wash.good : Wash.muted)
+                Text(precedent ? "Compiled into the law" : "Dismissed")
+                    .font(.display(20, .medium))
+                    .foregroundStyle(Wash.ink)
+            }
+
+            if precedent {
+                VStack(alignment: .leading, spacing: 5) {
+                    RailLabel(text: "now in GOLDEN_RULES · precedents")
+                    Text("NOT rot: \(finding.compiledRule)")
+                        .font(.data(11))
+                        .foregroundStyle(Wash.ink)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                    Text("why: \(Gold.clip(trimmed, Gold.reasonClip))")
+                        .font(.data(11))
+                        .foregroundStyle(Wash.muted)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                    .fill(Wash.good.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                    .strokeBorder(Wash.good.opacity(0.25), lineWidth: 1))
+
+                Text("The ruling carries a receipt. The same rot re-alarms if it ever returns; until then, Helicon stays quiet about it.")
+                    .font(.iface(11.5))
+                    .foregroundStyle(Wash.muted)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("The finding is closed and will not refile. It compiled to no rule — a dismissal only becomes law when it carries a reason.")
+                    .font(.iface(11.5))
+                    .foregroundStyle(Wash.muted)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack {
+                Spacer()
+                Button { store.cancelDismiss() } label: {
+                    Text("Done")
+                        .font(.iface(12, .semibold))
+                        .foregroundStyle(Wash.bone)
+                        .padding(.horizontal, 16).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .fill(Wash.accent))
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+    }
+
+    // MARK: file
+
+    private func file(withReason: Bool) async {
+        busy = true
+        error = nil
+        let notes = withReason ? trimmed : ""
+        let res = await store.confirm(finding, decision: "dismissed", notes: notes)
+        busy = false
+        guard let res else {
+            // dismiss_finding refuses an already-decided finding; keep the sheet
+            // open and say so rather than pretend the ruling landed.
+            error = store.actionError ?? "could not file this ruling"
+            store.actionError = nil
+            return
+        }
+        if withReason {
+            // Stay on the success card so the moment is visible: the reason
+            // became law (or honestly did not).
+            filed = res.precedent
+        } else {
+            // A reasonless dismissal closes quietly, like the web.
+            store.cancelDismiss()
+        }
     }
 }
