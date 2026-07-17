@@ -207,10 +207,16 @@ def format_report(rep: dict) -> str:
     lines = [
         "MemoryAgent Compliance Report (all numbers live, thresholds printed below)",
         "",
+        # The headline counts must say which exam produced them. Without --llm,
+        # Contradiction and Grounding never run, so 7 tasks that the full exam
+        # calls DEGRADED are counted HEALTHY here (7/4/2 deterministic-only vs
+        # 2/9/2 with the judge). Printing the flattering split unqualified is the
+        # exact failure this tool exists to name.
         f"Overall: {rep['overall']}   "
         f"(battery: {b.get('healthy', 0)} healthy / {b.get('degraded', 0)} degraded / "
-        f"{b.get('broken', 0)} broken of {b['total']} tasks; "
-        f"last scan {fmt(rep['last_scan_hours_ago'])}h ago)",
+        f"{b.get('broken', 0)} broken of {b['total']} tasks"
+        + ("" if g["cross_session_accuracy"]["llm_judged"] else ", deterministic-only")
+        + f"; last scan {fmt(rep['last_scan_hours_ago'])}h ago)",
         "",
         "1. Efficient storage & retrieval          " + g["efficient_storage_retrieval"]["verdict"],
         f"   P@3 {fmt(g['efficient_storage_retrieval']['precision_at_3'])}  "
@@ -236,7 +242,12 @@ def format_report(rep: dict) -> str:
         f"of {g['cross_session_accuracy']['snapshots_total']}; "
         f"contradiction pass {fmt(g['cross_session_accuracy']['contradiction_pass_rate'])}, "
         f"grounding pass {fmt(g['cross_session_accuracy']['grounding_pass_rate'])}"
-        + ("" if g["cross_session_accuracy"]["llm_judged"] else "  (LLM tests off: no key)"),
+        # Was hardcoded "no key", which is a guess this function cannot make: it
+        # sees no config, only that no client was passed. Reported "no key" on a
+        # machine with a working key, blaming the environment for a missing flag
+        # and quietly selling the deterministic-only battery as the whole exam.
+        + ("" if g["cross_session_accuracy"]["llm_judged"]
+           else "  (LLM tests off: re-run with --llm for the full exam)"),
         f"   cross-source pairing: "
         f"{g['cross_session_accuracy']['cross_source_contradictions']['conflicts_live']} live conflict(s), "
         f"{g['cross_session_accuracy']['cross_source_contradictions']['open_findings']} open finding(s)"

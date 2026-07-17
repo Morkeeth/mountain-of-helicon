@@ -11,6 +11,18 @@
 # step before it succeeded, which is what makes its mtime an honest liveness
 # probe rather than a proxy. stackwatch.nightly_status() reads exactly that, and
 # `helicon doctor` prints its age every time you look.
+#
+# The chain guards the steps BEFORE report; it cannot guard report itself. `>`
+# truncates its target when the shell opens it, before the command runs, so a
+# report that dies mid-flight leaves a 0-byte baseline with a FRESH mtime: the
+# liveness probe reads healthiest at the exact moment it broke. That is not
+# hypothetical. 2026-07-17 07:17, `report --llm` hit a DNS error on a sleeping
+# laptop, exited 1, and zeroed the file. Every EVAL claim in docdrift then had
+# nothing to check against, so the doc-honesty harness stopped being able to
+# catch a drifted number (6 tests red, all "cannot read eval-latest.json").
+# So: write to a temp file, promote it only on success. A failed run now leaves
+# yesterday's baseline exactly where it was, which is the honest thing for a
+# failed run to do.
 set -uo pipefail
 
 cd "$(dirname "$0")/.." || exit 1
@@ -43,8 +55,12 @@ $PY -m helicon.cli reconcile --apply >> "$LOG" 2>&1 &&
   $PY -m helicon.cli evolve          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli runs --close --run >> "$LOG" 2>&1 &&
   $PY -m helicon.cli policy --inject >> "$LOG" 2>&1 &&
-  $PY -m helicon.cli report --llm --json > data/eval-latest.json 2>> "$LOG"
+  $PY -m helicon.cli report --llm --json > data/eval-latest.json.tmp 2>> "$LOG" &&
+  test -s data/eval-latest.json.tmp &&
+  mv -f data/eval-latest.json.tmp data/eval-latest.json
 rc=$?
+# Never leave a half-written baseline behind for the next run to trip over.
+rm -f data/eval-latest.json.tmp
 
 # The run record: written by this script and by nothing else, carrying its own
 # UTC timestamp and the real exit code. stackwatch.nightly_status() reads THIS
