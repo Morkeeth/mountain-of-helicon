@@ -138,9 +138,26 @@ def cmd_init(args):
                 print(f"    {k}: {v}")
         print()
 
+    # BYOK: write the Alibaba endpoints, not just an empty key slot. init used to
+    # emit `qwen_api_key: ""` and nothing else, so a new user who pasted a key got
+    # inference (qwen_base_url fell through to the DashScope default in
+    # qwen.get_client) but NOT embeddings: with no `embeddings` block,
+    # _embed_provider silently drops to the local MiniLM fallback. So the claim
+    # "the retrieval stack is Qwen-native" was true of a hand-edited config and
+    # false on a fresh install, which is the worst possible split. Write both
+    # endpoints; the keys stay empty and the user brings them.
+    env_key = os.environ.get("QWEN_API_KEY", "")
     config = {
         "db_path": "data/helicon.db",
-        "qwen_api_key": os.environ.get("QWEN_API_KEY", ""),
+        "qwen_api_key": env_key,
+        "qwen_model": "qwen3.6-plus",
+        "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "embeddings": {
+            "api_key": os.environ.get("DASHSCOPE_API_KEY", env_key),
+            "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "model": "text-embedding-v4",
+            "dim": 1024,
+        },
         "connectors": {},
         "audit": {"temporal_stale_days": 7},
         "weibull": {
@@ -165,7 +182,24 @@ def cmd_init(args):
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
     print(f"Wrote config.json with {len(detected)} connector(s)")
-    print("Next: run `helicon scan` to extract memory items")
+
+    # The key step was invisible: init printed "Next: run helicon scan" and never
+    # mentioned BYOK at all, so you could follow the instructions exactly and end
+    # up with a keyless install wondering why half the exam said n/a. Only
+    # `doctor` mentioned it, and only if you thought to run it.
+    if env_key:
+        print("Qwen key picked up from $QWEN_API_KEY (Model Studio + DashScope wired)")
+        print("Next: run `helicon scan` to extract memory items")
+    else:
+        print("\n  BYOK - one step left. Helicon is local-first and ships no key:")
+        print("    export QWEN_API_KEY='sk-...'   &&  helicon init --force")
+        print("    (or paste it into config.json -> qwen_api_key + embeddings.api_key)")
+        print("    Get one: https://modelstudio.console.alibabacloud.com  (Model Studio)")
+        print("\n  Without it: the deterministic exam, decay, guard and the rot")
+        print("  classes all still run keyless. What you lose is the Qwen-judged")
+        print("  half - contradiction, identity, grounding - and DashScope")
+        print("  embeddings (retrieval falls back to local keyword+MiniLM).")
+        print("\nNext: run `helicon scan` to extract memory items")
 
 
 def cmd_scan(args):
