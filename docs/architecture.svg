@@ -1,138 +1,174 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="Inter, -apple-system, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 840" width="1240" height="840" font-family="Charter, Georgia, 'Iowan Old Style', serif">
+  <title>Mount Helicon architecture: sources, backend, database, Qwen Cloud on Alibaba, and the surfaces</title>
+  <desc>Read-only connectors feed a SQLite store. Retrieval and the rot exam call Qwen on Alibaba Model Studio and DashScope. Findings go to a human, whose ruling compiles into GOLDEN_RULES and binds at write time via the guard. CLI, dashboard, macOS app and MCP are the surfaces.</desc>
+
   <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#4E6173"/>
+    </marker>
+    <marker id="ared" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#A94A3D"/>
+    </marker>
+    <marker id="aink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#17283A"/>
+    </marker>
     <style>
-      .title { font-size: 18px; font-weight: 600; fill: #e4e4e7; }
-      .subtitle { font-size: 11px; fill: #71717a; text-transform: uppercase; letter-spacing: 0.1em; }
-      .label { font-size: 12px; fill: #a1a1aa; }
-      .small { font-size: 10px; fill: #52525b; }
-      .accent { fill: #d97706; }
-      .box { fill: #111113; stroke: #1c1c20; stroke-width: 1; rx: 6; }
-      .box-accent { fill: #111113; stroke: #d97706; stroke-width: 1; rx: 6; stroke-opacity: 0.3; }
-      .connector { stroke: #27272a; stroke-width: 1; fill: none; }
-      .connector-accent { stroke: #d97706; stroke-width: 1; fill: none; stroke-opacity: 0.4; }
-      .arrow { fill: #27272a; }
-      .arrow-accent { fill: #d97706; fill-opacity: 0.4; }
+      .h  { font-size: 27px; fill: #17283A; letter-spacing: 2.5px; }
+      .sub{ font-size: 13px; fill: #4E6173; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+      .lbl{ font-size: 11px; fill: #4E6173; font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 1.6px; }
+      .t  { font-size: 14px; fill: #17283A; }
+      .tb { font-size: 15px; fill: #17283A; font-weight: 600; }
+      .m  { font-size: 11.5px; fill: #4E6173; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+      .red{ fill: #A94A3D; }
+      .card { fill: #F4EFE7; stroke: #D9CDBB; stroke-width: 1; }
+      .raise{ fill: #FAF7F0; stroke: #D9CDBB; stroke-width: 1; }
+      .zone { fill: none; stroke: #C9BBA6; stroke-width: 1; stroke-dasharray: 5 4; }
+      .flow { stroke: #4E6173; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+      .flowink { stroke: #17283A; stroke-width: 2; fill: none; marker-end: url(#aink); }
+      .flowred { stroke: #A94A3D; stroke-width: 2; fill: none; marker-end: url(#ared); }
+      .loop { stroke: #17283A; stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; marker-end: url(#aink); }
     </style>
   </defs>
 
-  <!-- Background -->
-  <rect width="900" height="560" fill="#09090b" rx="8"/>
+  <rect width="1240" height="840" fill="#ECE4D8"/>
 
-  <!-- Title -->
-  <text x="40" y="40" class="title">MOUNT HELICON</text>
-  <text x="105" y="40" class="subtitle" dy="0">Architecture</text>
+  <path d="M40 44 l13 -22 l13 22 z" fill="none" stroke="#17283A" stroke-width="1.6"/>
+  <path d="M60 44 l13 -22 l13 22 z" fill="none" stroke="#17283A" stroke-width="1.6"/>
+  <text class="h" x="100" y="45">MOUNT HELICON</text>
+  <text class="sub" x="100" y="66">the exam a memory store never runs on itself · Track: MemoryAgent</text>
+  <text class="m" x="1200" y="42" text-anchor="end">counts live in `helicon doctor`, never here.</text>
+  <text class="m" x="1200" y="60" text-anchor="end">a number in a diagram is a number that rots.</text>
 
-  <!-- Layer labels -->
-  <text x="40" y="80" class="subtitle">Layer 1: Extraction</text>
-  <text x="40" y="230" class="subtitle">Layer 2: Review + Pattern Learning</text>
-  <text x="40" y="390" class="subtitle">Layer 3: Meta-Audit</text>
+  <!-- ============ SOURCES ============ -->
+  <rect class="zone" x="30" y="96" width="248" height="330" rx="8"/>
+  <text class="lbl" x="46" y="118">1 · YOUR MEMORY · READ-ONLY</text>
 
-  <!-- Layer 1: Connectors -->
-  <rect x="40" y="95" width="140" height="100" class="box"/>
-  <text x="110" y="130" class="label" text-anchor="middle">Claude Code</text>
-  <text x="110" y="148" class="small" text-anchor="middle">JSONL transcripts</text>
-  <text x="110" y="164" class="small" text-anchor="middle">memory/*.md</text>
-  <text x="110" y="180" class="small" text-anchor="middle">753 cubes</text>
+  <rect class="card" x="46" y="132" width="216" height="44" rx="5"/>
+  <text class="tb" x="58" y="151">Claude Code</text><text class="m" x="58" y="168">transcripts · memory/*.md</text>
 
-  <rect x="200" y="95" width="140" height="100" class="box"/>
-  <text x="270" y="130" class="label" text-anchor="middle">Obsidian</text>
-  <text x="270" y="148" class="small" text-anchor="middle">vault markdown</text>
-  <text x="270" y="164" class="small" text-anchor="middle">YAML frontmatter</text>
-  <text x="270" y="180" class="small" text-anchor="middle">179 cubes</text>
+  <rect class="card" x="46" y="184" width="216" height="44" rx="5"/>
+  <text class="tb" x="58" y="203">Agent rules files</text><text class="m" x="58" y="220">CLAUDE.md · AGENTS.md</text>
 
-  <rect x="360" y="95" width="140" height="100" class="box"/>
-  <text x="430" y="130" class="label" text-anchor="middle">Git</text>
-  <text x="430" y="148" class="small" text-anchor="middle">commit history</text>
-  <text x="430" y="164" class="small" text-anchor="middle">~/CODE/* repos</text>
-  <text x="430" y="180" class="small" text-anchor="middle">336 cubes</text>
+  <rect class="card" x="46" y="236" width="216" height="44" rx="5"/>
+  <text class="tb" x="58" y="255">Obsidian</text><text class="m" x="58" y="272">vault markdown · frontmatter</text>
 
-  <rect x="520" y="95" width="140" height="100" class="box"/>
-  <text x="590" y="130" class="label" text-anchor="middle">ChatGPT</text>
-  <text x="590" y="148" class="small" text-anchor="middle">conversations.json</text>
-  <text x="590" y="164" class="small" text-anchor="middle">export parser</text>
+  <rect class="card" x="46" y="288" width="216" height="44" rx="5"/>
+  <text class="tb" x="58" y="307">Git</text><text class="m" x="58" y="324">commits · co-author trailers</text>
 
-  <rect x="680" y="95" width="140" height="100" class="box"/>
-  <text x="750" y="130" class="label" text-anchor="middle">Cursor</text>
-  <text x="750" y="148" class="small" text-anchor="middle">memory banks</text>
-  <text x="750" y="164" class="small" text-anchor="middle">.cursorrules</text>
+  <rect class="card" x="46" y="340" width="216" height="44" rx="5"/>
+  <text class="tb" x="58" y="359">Stores it audits, not owns</text><text class="m" x="58" y="376">Mem0 · Graphiti · Letta</text>
 
-  <!-- SAGE Gate -->
-  <rect x="340" y="200" width="200" height="20" class="box-accent"/>
-  <text x="440" y="214" class="small accent" text-anchor="middle">SAGE Novelty Gate: ADD / NOOP / MERGE</text>
+  <text class="m" x="46" y="404">nothing is written back to a</text>
+  <text class="m" x="46" y="420">source. read-only by construction.</text>
 
-  <!-- Arrows from connectors to scanner -->
-  <line x1="110" y1="195" x2="340" y2="210" class="connector"/>
-  <line x1="270" y1="195" x2="380" y2="210" class="connector"/>
-  <line x1="430" y1="195" x2="430" y2="200" class="connector"/>
-  <line x1="590" y1="195" x2="490" y2="210" class="connector"/>
-  <line x1="750" y1="195" x2="540" y2="210" class="connector"/>
+  <!-- ============ BACKEND ============ -->
+  <rect class="zone" x="300" y="96" width="470" height="600" rx="8"/>
+  <text class="lbl" x="316" y="118">2 · BACKEND · python</text>
 
-  <!-- Layer 2: Review + Patterns -->
-  <rect x="40" y="245" width="260" height="120" class="box-accent"/>
-  <text x="170" y="272" class="label" text-anchor="middle">HeliconCube Store</text>
-  <text x="170" y="290" class="small" text-anchor="middle">SQLite with FTS5</text>
-  <text x="170" y="306" class="small" text-anchor="middle">content_hash dedup</text>
-  <text x="170" y="322" class="small" text-anchor="middle">versioned confidence</text>
-  <text x="170" y="340" class="small accent" text-anchor="middle">1268 cubes, 91 reviewed</text>
+  <rect class="raise" x="316" y="132" width="438" height="46" rx="5"/>
+  <text class="tb" x="330" y="152">Scanner → SAGE novelty gate</text>
+  <text class="m" x="330" y="169">ADD / NOOP / MERGE · content-hash dedup</text>
 
-  <rect x="320" y="245" width="260" height="120" class="box"/>
-  <text x="450" y="272" class="label" text-anchor="middle">Human Review Queue</text>
-  <text x="450" y="290" class="small" text-anchor="middle">approve / revise / kill</text>
-  <text x="450" y="306" class="small" text-anchor="middle">voice notes (Web Speech)</text>
-  <text x="450" y="322" class="small" text-anchor="middle">review velocity tracking</text>
-  <text x="450" y="340" class="small" text-anchor="middle">time-to-decision capture</text>
+  <rect class="raise" x="316" y="196" width="438" height="72" rx="5" stroke="#17283A" stroke-width="1.6"/>
+  <text class="lbl" x="330" y="216">3 · DATABASE</text>
+  <text class="tb" x="330" y="237">SQLite · 25 tables · FTS5 · vector embeddings</text>
+  <text class="m" x="330" y="256">HeliconCubes: versioned, typed, confidence-decayed</text>
 
-  <rect x="600" y="245" width="260" height="120" class="box"/>
-  <text x="730" y="272" class="label" text-anchor="middle">Pattern Learner</text>
-  <text x="730" y="290" class="small" text-anchor="middle">review-decision extraction</text>
-  <text x="730" y="306" class="small" text-anchor="middle">spin detection (topic loops)</text>
-  <text x="730" y="322" class="small" text-anchor="middle">kill prediction by type+age</text>
-  <text x="730" y="340" class="small" text-anchor="middle">shipping rate analysis</text>
+  <rect class="card" x="316" y="286" width="438" height="52" rx="5"/>
+  <text class="tb" x="330" y="306">Retrieval · hybrid</text>
+  <text class="m" x="330" y="324">semantic (DashScope) + FTS5, fused by RRF, then reranked</text>
 
-  <!-- Arrows between L2 boxes -->
-  <line x1="300" y1="305" x2="320" y2="305" class="connector-accent"/>
-  <polygon points="318,302 324,305 318,308" class="arrow-accent"/>
-  <line x1="580" y1="305" x2="600" y2="305" class="connector-accent"/>
-  <polygon points="598,302 604,305 598,308" class="arrow-accent"/>
+  <rect class="card" x="316" y="356" width="438" height="68" rx="5"/>
+  <text class="tb" x="330" y="376">Rot exam · 12 documented failure classes</text>
+  <text class="m" x="330" y="394">free: decay · dead names · doc-drift · duplication</text>
+  <text class="m" x="330" y="411">judged: contradiction · identity fork (R11) · grounding</text>
 
-  <!-- Layer 3: Meta-Audit -->
-  <rect x="40" y="405" width="195" height="120" class="box"/>
-  <text x="137" y="432" class="label" text-anchor="middle">Temporal Audit</text>
-  <text x="137" y="450" class="small" text-anchor="middle">stale time references</text>
-  <text x="137" y="466" class="small" text-anchor="middle">"this week" in 27d file</text>
-  <text x="137" y="482" class="small" text-anchor="middle">52 findings</text>
+  <rect class="card" x="316" y="442" width="438" height="52" rx="5"/>
+  <text class="tb" x="330" y="462">Agent-output review</text>
+  <text class="m" x="330" y="480">did the claim survive reality? git + tests re-run</text>
 
-  <rect x="255" y="405" width="195" height="120" class="box"/>
-  <text x="352" y="432" class="label" text-anchor="middle">Factual Audit</text>
-  <text x="352" y="450" class="small" text-anchor="middle">contradictions</text>
-  <text x="352" y="466" class="small" text-anchor="middle">Qwen-enhanced pairwise</text>
-  <text x="352" y="482" class="small" text-anchor="middle">SSGM consistency gate</text>
+  <rect class="raise" x="316" y="512" width="438" height="52" rx="5" stroke="#17283A" stroke-width="1.6"/>
+  <text class="lbl" x="330" y="532">4 · HUMAN RULES ONCE · the only ground truth</text>
+  <text class="m" x="330" y="551">confirm / retire / dismiss → stored with provenance</text>
 
-  <rect x="470" y="405" width="195" height="120" class="box"/>
-  <text x="567" y="432" class="label" text-anchor="middle">Decay Audit</text>
-  <text x="567" y="450" class="small" text-anchor="middle">Ebbinghaus R=e^(-t/S)</text>
-  <text x="567" y="466" class="small" text-anchor="middle">below 5% confidence</text>
-  <text x="567" y="482" class="small" text-anchor="middle">never reviewed</text>
+  <rect class="card" x="316" y="582" width="438" height="46" rx="5"/>
+  <text class="tb" x="330" y="602">GOLD compiler → GOLDEN_RULES.md</text>
+  <text class="m" x="330" y="619">every rule carries its receipt</text>
 
-  <rect x="685" y="405" width="175" height="120" class="box"/>
-  <text x="772" y="432" class="label" text-anchor="middle">Pattern Staleness</text>
-  <text x="772" y="450" class="small" text-anchor="middle">weak data points</text>
-  <text x="772" y="466" class="small" text-anchor="middle">anti-confabulation</text>
-  <text x="772" y="482" class="small" text-anchor="middle">challenge oldest</text>
+  <rect class="raise" x="316" y="646" width="438" height="44" rx="5" stroke="#A94A3D" stroke-width="1.6"/>
+  <text class="tb" x="330" y="666"><tspan class="red">guard</tspan> · the ruling BINDS at write time</text>
+  <text class="m" x="330" y="683">blocked before it is written · never-twice</text>
 
-  <!-- Arrows L2 to L3 -->
-  <line x1="170" y1="365" x2="137" y2="405" class="connector"/>
-  <line x1="170" y1="365" x2="352" y2="405" class="connector"/>
-  <line x1="450" y1="365" x2="567" y2="405" class="connector"/>
-  <line x1="730" y1="365" x2="772" y2="405" class="connector"/>
+  <!-- ============ ALIBABA CLOUD ============ -->
+  <rect class="zone" x="800" y="96" width="410" height="330" rx="8" stroke="#A94A3D"/>
+  <text class="lbl red" x="816" y="118">5 · ALIBABA CLOUD · ap-southeast-1</text>
 
-  <!-- Qwen Cloud label -->
-  <rect x="700" y="20" width="160" height="36" class="box-accent"/>
-  <text x="780" y="42" class="small accent" text-anchor="middle">Qwen Cloud API</text>
-  <text x="780" y="54" class="small" text-anchor="middle">qwen-plus via DashScope</text>
+  <rect class="raise" x="816" y="132" width="378" height="124" rx="5"/>
+  <text class="tb" x="830" y="152">Model Studio / MaaS <tspan class="m">· inference</tspan></text>
+  <text class="m" x="830" y="173">qwen3.6-flash — the judge: contradiction, identity</text>
+  <text class="m" x="830" y="191">qwen3.6-plus — battery, patterns, synthesis</text>
+  <text class="m" x="830" y="209">qwen3.7-max — deep meta-audit</text>
+  <text class="m" x="830" y="233">temperature=0 where it judges: a verdict that</text>
+  <text class="m" x="830" y="249">changes between calls is not a verdict</text>
 
-  <!-- Helicon Score -->
-  <rect x="40" y="535" width="820" height="18" rx="3" fill="#1c1c20"/>
-  <rect x="40" y="535" width="60" height="18" rx="3" fill="#d97706" fill-opacity="0.3"/>
-  <text x="450" y="548" class="small" text-anchor="middle">Helicon Score: 41% (2,846/6,986 reviewed) &#183; recompute: helicon score</text>
+  <rect class="raise" x="816" y="268" width="378" height="66" rx="5"/>
+  <text class="tb" x="830" y="288">DashScope <tspan class="m">· embeddings</tspan></text>
+  <text class="m" x="830" y="307">text-embedding-v4 · 1024-dim</text>
+  <text class="m" x="830" y="325">the retrieval stack is Qwen-native</text>
+
+  <rect class="card" x="816" y="346" width="378" height="64" rx="5"/>
+  <text class="tb" x="830" y="366">Runs on Alibaba <tspan class="m">· the deployment proof</tspan></text>
+  <text class="m" x="830" y="384">Cloud Shell · scripts/cloudshell-run.sh</text>
+  <text class="m" x="830" y="402">Function Compute · fc/s.yaml · fc/Dockerfile</text>
+
+  <text class="m" x="816" y="448">BYOK: `helicon init` wires both endpoints, ships no key.</text>
+  <text class="m" x="816" y="464">Keyless: deterministic exam, decay, guard still run.</text>
+  <text class="m" x="816" y="480">The judged half does not, and it says so.</text>
+
+  <!-- ============ FRONTEND ============ -->
+  <rect class="zone" x="800" y="516" width="410" height="180" rx="8"/>
+  <text class="lbl" x="816" y="538">6 · FRONTEND · surfaces</text>
+  <rect class="card" x="816" y="552" width="184" height="42" rx="5"/>
+  <text class="tb" x="828" y="571">Web dashboard</text><text class="m" x="828" y="587">React · 16 tabs</text>
+  <rect class="card" x="1010" y="552" width="184" height="42" rx="5"/>
+  <text class="tb" x="1022" y="571">macOS app</text><text class="m" x="1022" y="587">SwiftUI · keyboard</text>
+  <rect class="card" x="816" y="604" width="184" height="42" rx="5"/>
+  <text class="tb" x="828" y="623">CLI</text><text class="m" x="828" y="639">43 commands</text>
+  <rect class="card" x="1010" y="604" width="184" height="42" rx="5"/>
+  <text class="tb" x="1022" y="623">MCP server</text><text class="m" x="1022" y="639">14 tools · stdio</text>
+  <rect class="card" x="816" y="656" width="378" height="34" rx="5"/>
+  <text class="m" x="828" y="677">FastAPI serves the API + the built bundle · read-only</text>
+
+  <!-- ============ FLOWS ============ -->
+  <path class="flow" d="M278 262 L 310 262"/>
+  <path class="flowink" d="M535 178 L 535 194"/>
+  <path class="flowink" d="M535 268 L 535 284"/>
+  <path class="flow" d="M535 338 L 535 354"/>
+  <path class="flow" d="M535 424 L 535 440"/>
+  <path class="flow" d="M535 494 L 535 510"/>
+  <path class="flowink" d="M535 564 L 535 580"/>
+  <path class="flowred" d="M535 628 L 535 644"/>
+
+  <path class="flow" d="M754 312 C 788 312, 788 301, 812 301"/>
+  <text class="m" x="748" y="296" text-anchor="end">embed · search</text>
+  <path class="flow" d="M754 390 C 790 390, 800 210, 812 196"/>
+  <text class="m" x="748" y="372" text-anchor="end">judged checks</text>
+
+  <path class="loop" d="M754 236 C 778 236, 778 300, 778 552 C 778 566, 792 566, 806 566"/>
+  <text class="m" x="778" y="430" transform="rotate(-90 778 430)" text-anchor="middle">serves</text>
+
+  <path class="loop" d="M316 668 C 180 668, 150 500, 150 430"/>
+  <text class="m" x="46" y="452">the agent obeys it next session: the</text>
+  <text class="m" x="46" y="468">correction sticks, and a returning</text>
+  <text class="m" x="46" y="484">ruled-wrong value re-alarms.</text>
+
+  <text class="m" x="46" y="712">Everything here runs on the author's real store.</text>
+  <text class="m" x="46" y="728">Zero fake data: the one synthetic fixture in the</text>
+  <text class="m" x="46" y="744">repo is labelled where it is used.</text>
+
+  <line x1="40" y1="768" x2="1200" y2="768" stroke="#C9BBA6" stroke-width="1"/>
+  <text class="m" x="40" y="790">github.com/MorkeethHQ/mount-helicon · MIT</text>
+  <text class="m" x="40" y="808">Alibaba code files: helicon/qwen.py · helicon/embeddings.py · fc/s.yaml</text>
+  <text class="m" x="1200" y="790" text-anchor="end">local-first · BYOK · read-only on every source</text>
+  <text class="m" x="1200" y="808" text-anchor="end">regenerated 2026-07-17</text>
 </svg>

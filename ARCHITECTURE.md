@@ -2,7 +2,9 @@
 
 **A test layer that lives *outside* the memory store.** It reads an AI coding agent's memory read-only, regression-tests it for rot on a timer, asks the human to rule only on what's uncertain, and compiles those rulings into GOLDEN RULES the agent loads next session — closing the loop so corrections stick.
 
-Numbers below are from the live demo database (`data/helicon.db`), not illustrative.
+Numbers below are from the live database (`data/helicon.db`), not illustrative.
+
+Store counts are deliberately **not** written here. `docs/architecture.svg` said "1,268 cubes, 91 reviewed" until 2026-07-17, by which point the store was ~6x that, and this file said "~6,900 / ~3,800" while a scan was adding 270 more. A count is a fast fact with a shelf life; a diagram is the slowest thing in a repo to update. Putting one inside the other guarantees rot, which is the exact failure class R2 exists to catch, and nothing was watching the diagram. Run `helicon doctor` for today's count.
 
 ## System diagram
 
@@ -21,7 +23,7 @@ flowchart TD
 
   subgraph INGEST["② Ingestion"]
     GATE["SAGE novelty gate<br/>ADD / NOOP / MERGE"]
-    CUBES[("HeliconCubes<br/>~6,900 versioned memory units, ~3,800 live<br/>SQLite · 25 tables + FTS5 + embeddings")]
+    CUBES[("HeliconCubes<br/>versioned memory units, decayed per type<br/>SQLite · 25 tables + FTS5 + embeddings")]
     GATE --> CUBES
   end
 

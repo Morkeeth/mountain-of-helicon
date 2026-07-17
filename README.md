@@ -16,7 +16,7 @@ The record is measured and it is bad. Shown two contradicting sources, GPT-4 fla
 
 The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become stale. Agents are instructed to treat memories as guidance only."* Anthropic's memory-tool freshness strategy is one line: delete files *"that haven't been accessed in a long time."* Alibaba's own AnalyticDB team titled their blog *"Is Your AI Agent Getting Dumber?"* -- and Qwen3.7-Max markets 35-hour autonomous runs as *"resilient to context rot and instruction drift"* with no way for anyone to verify it. Mem0 ($24M) stores. Letta ($10M) organizes. Zep timestamps. Every shipped mitigation is recency deletion, write-time dedup, or "the human should review." **Nobody ships a test that asks: is this stored memory still true?**
 
-Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live memory store (~6,900 memories on 2026-07-15, roughly 3,800 of them live; it grows on every scan, so run `helicon doctor` for today's count), and it has failed its own audits more than once (see receipts in the demo).
+Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live memory store (~7,800 memories as of 2026-07-17, roughly 4,200 of them live; it grows on every scan, so run `helicon doctor` for today's count), and it has failed its own audits more than once (see receipts in the demo).
 
 ## The moat: what a memory store cannot do (one command)
 
