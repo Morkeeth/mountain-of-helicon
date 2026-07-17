@@ -21,8 +21,11 @@ _cache_stats = {"hits": 0, "misses": 0}
 _route_log: list[dict] = []
 
 
-def _cache_key(system: str, user: str, model: str) -> str:
-    return hashlib.sha256(f"{model}:{system}:{user}".encode()).hexdigest()[:24]
+def _cache_key(system: str, user: str, model: str, temperature: float | None = None) -> str:
+    # temperature is part of the key: a greedy verdict and a sampled one are not
+    # interchangeable, and a cache that conflates them would serve the sampled
+    # answer to the judge that asked for greedy.
+    return hashlib.sha256(f"{model}:{temperature}:{system}:{user}".encode()).hexdigest()[:24]
 
 
 def get_client(config: dict):
@@ -84,11 +87,20 @@ def set_cache_db(conn: sqlite3.Connection):
 
 
 def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "",
-             response_format: dict | None = None, enable_thinking: bool | None = None) -> str:
+             response_format: dict | None = None, enable_thinking: bool | None = None,
+             temperature: float | None = None) -> str:
+    """temperature=None leaves the model's default sampling alone (narration and
+    synthesis want the warmth). Pass 0 for anything that JUDGES: a verdict that
+    changes between two identical calls is not a verdict. Measured 2026-07-17 on
+    the live store, the identity judge at default temperature called the same
+    pair ('Machine is a content curation tool' vs 'Machine is the eval loop')
+    clean on one run and contradicted on the next. The exam has already been
+    burned once by a non-deterministic remote call (the reranker, 11/12/11 across
+    three runs); it does not get to happen twice."""
     if client is None:
         return ""
 
-    key = _cache_key(system, user, model)
+    key = _cache_key(system, user, model, temperature)
     if key in _cache:
         _cache_stats["hits"] += 1
         _call_log.append({
@@ -116,6 +128,8 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
     }
     if response_format is not None:
         kwargs["response_format"] = response_format
+    if temperature is not None:
+        kwargs["temperature"] = temperature
     extra_body: dict = {}
     if enable_thinking is not None:
         extra_body["enable_thinking"] = enable_thinking
@@ -172,12 +186,14 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
         raise
 
 
-def complete_json(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "") -> dict | list | None:
+def complete_json(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "",
+                  temperature: float | None = None) -> dict | list | None:
     # Qwen structured output: response_format json_object requires the word
     # "json" in a message and thinking disabled; complete() falls back cleanly
     # if the model/endpoint rejects it, and we still parse the prose either way.
     raw = complete(client, system + "\n\nRespond with ONLY valid JSON. No markdown, no explanation.", user, model,
-                   operation=operation, response_format={"type": "json_object"}, enable_thinking=False)
+                   operation=operation, response_format={"type": "json_object"}, enable_thinking=False,
+                   temperature=temperature)
     if not raw:
         return None
     raw = raw.strip()
@@ -368,7 +384,10 @@ Return JSON:
     )
 
 
-def detect_contradictions(client, item_a: str, item_b: str, model: str = "qwen3.6-plus", audit_context: str = "") -> dict | None:
+def detect_contradictions(client, item_a: str, item_b: str, model: str = "qwen3.6-plus",
+                          audit_context: str = "", temperature: float | None = 0.0) -> dict | None:
+    """Greedy by default: this is a judge, and a judge that answers differently on
+    two identical calls cannot be an exam. See complete() for the measurement."""
     context_block = f"\n\nAudit context (past behavior and patterns):\n{audit_context}" if audit_context else ""
     return complete_json(
         client,
@@ -389,6 +408,7 @@ Return JSON:
 }}""",
         model,
         operation="contradiction_detect",
+        temperature=temperature,
     )
 
 

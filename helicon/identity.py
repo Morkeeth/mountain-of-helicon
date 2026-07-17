@@ -124,15 +124,35 @@ def _definition_only(gloss: str, name: str) -> str:
     return out or gloss
 
 
-def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
+def find_identity_forks(conn, semantic: bool = True, judge_client=None,
+                        judge_model: str = "qwen3.6-flash") -> list[dict]:
     """Names whose definition forks: >=2 distinct genera across >=2 source scopes,
     and the two genera are attested by DIFFERENT scopes (a real cross-source fork,
     not one cube listing two genera).
 
-    semantic=True adds the stage-2 confirmation: embed the two glosses (local model,
-    no LLM) and keep only genuinely-divergent definitions, dropping same-concept
-    rephrasings. Falls back to the deterministic genus tier if embeddings are
-    unavailable. Pass semantic=False for the fast rot exam and deterministic tests."""
+    semantic=True adds the stage-2 cosine pre-filter: embed the two glosses and
+    drop obvious same-concept rephrasings. Pass semantic=False for the fast rot
+    exam and deterministic tests.
+
+    judge_client (a Qwen client) adds stage 3, and stage 3 is the one that works.
+    Measured on the real store 2026-07-17, the cosine gate could not separate a
+    real fork from a lookalike:
+
+        yieldbound  treasury vs wallet tracker      cos 0.354   REAL
+        qwen        verification brain vs judge     cos 0.367   artifact
+        litmus      a layer vs the verification     cos 0.390   artifact
+        machine     curation tool vs eval loop      cos 0.254   name collision
+
+    Threshold 0.45 keeps all four, and the real fork sits 0.013 from an artifact.
+    That is not a tuning miss: cosine measures semantic DISTANCE, and "verification
+    brain" vs "memory judge" are distant but perfectly compatible. Contradiction is
+    a logical relation, not a distance, so no threshold can recover it.
+
+    The Qwen judge scored 4/4 on those same pairs (yieldbound CONTRA; the other
+    three clean, correctly reading litmus as "a more specific instance of A").
+    So cosine stays as the cheap pre-filter and Qwen decides. Without a client we
+    keep the cosine survivors and the caller discloses them as unconfirmed, which
+    is the honest degradation: over-report to a human, never silently drop."""
     rows = conn.execute(
         "SELECT id, title, content, source, source_ref, created_at, review_status "
         "FROM helicon_cubes "
@@ -233,7 +253,35 @@ def find_identity_forks(conn, semantic: bool = True) -> list[dict]:
         f["cosine"] = round(cos, 3)
         if cos < SEMANTIC_FORK_THRESHOLD:
             confirmed.append(f)
-    return confirmed
+    return _judge_confirm(confirmed, judge_client, judge_model)
+
+
+def _judge_confirm(forks: list[dict], client, model: str) -> list[dict]:
+    """Stage 3: the Qwen judge decides which cosine survivors are real forks.
+
+    Keeps a fork only on an explicit `contradicts`. A resurfaced fork skips the
+    judge entirely: a human already ruled that name, and a ruling is not re-argued
+    by a model. On any judge error the fork SURVIVES: an unreachable judge must
+    not silently retire rot the human never saw."""
+    if not client or not forks:
+        return forks
+    from helicon.qwen import detect_contradictions
+    kept = []
+    for f in forks:
+        if f.get("resurfaced"):
+            kept.append(f)
+            continue
+        try:
+            res = detect_contradictions(client, f["gloss_a"], f["gloss_b"], model=model) or {}
+        except Exception:
+            kept.append(f)
+            continue
+        f["judge"] = {"contradicts": bool(res.get("contradicts")),
+                      "why": (res.get("explanation") or "")[:200],
+                      "severity": res.get("severity"), "model": model}
+        if res.get("contradicts"):
+            kept.append(f)
+    return kept
 
 
 def _load_identity_resolutions(conn) -> dict:
@@ -320,12 +368,17 @@ def _existing_identity_keys(conn) -> set[str]:
     return keys
 
 
-def identity_scan(conn, semantic: bool = True) -> dict:
-    """File one finding per identity fork (idempotent by pair_key)."""
+def identity_scan(conn, semantic: bool = True, judge_client=None,
+                  judge_model: str = "qwen3.6-flash") -> dict:
+    """File one finding per identity fork (idempotent by pair_key).
+
+    Pass judge_client to file only Qwen-confirmed forks. Filing a cosine-only
+    candidate costs a human a review of something that was never rot."""
     existing = _existing_identity_keys(conn)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, skipped = [], []
-    for fork in find_identity_forks(conn, semantic=semantic):
+    for fork in find_identity_forks(conn, semantic=semantic, judge_client=judge_client,
+                                    judge_model=judge_model):
         if fork["pair_key"] in existing:
             skipped.append(fork["pair_key"])
             continue

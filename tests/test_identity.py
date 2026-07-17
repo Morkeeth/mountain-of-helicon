@@ -165,3 +165,78 @@ def test_rot_exam_reports_r11(conn):
     res = run_rot_exam(conn)
     r11 = next((c for c in res["checks"] if c["id"] == "R11"), None)
     assert r11 is not None and r11["verdict"] == "ROT FOUND"
+
+
+# --- stage 3: the Qwen judge gate ---------------------------------------------
+# Cosine cannot separate a fork from a rephrasing. Measured on the live store
+# 2026-07-17: yieldbound (real) 0.354 vs qwen (artifact) 0.367, threshold 0.45,
+# so all four candidates survived and three were false positives. The judge got
+# 4/4. These tests pin the gate's CONTRACT, not the model: a fake client asserts
+# the wiring, so they stay deterministic and keyless.
+
+class _FakeJudge:
+    """Stands in for a Qwen client. `verdicts` maps gloss_a -> contradicts."""
+
+    def __init__(self, verdicts, boom=False):
+        self.verdicts, self.boom, self.calls = verdicts, boom, []
+
+
+def _patch_judge(monkeypatch, fake):
+    def _fake_detect(client, a, b, model="", **kw):
+        client.calls.append((a, b))
+        if client.boom:
+            raise RuntimeError("judge unreachable")
+        return {"contradicts": client.verdicts.get(a, False), "explanation": "x",
+                "severity": "critical"}
+    monkeypatch.setattr("helicon.qwen.detect_contradictions", _fake_detect)
+
+
+def test_judge_drops_the_rephrasing_and_keeps_the_real_fork(monkeypatch):
+    from helicon.identity import _judge_confirm
+    forks = [
+        {"name": "yieldbound", "gloss_a": "a treasury", "gloss_b": "a wallet tracker"},
+        {"name": "qwen", "gloss_a": "the verification brain", "gloss_b": "a memory judge"},
+    ]
+    fake = _FakeJudge({"a treasury": True, "the verification brain": False})
+    _patch_judge(monkeypatch, fake)
+    kept = _judge_confirm(forks, fake, "qwen3.6-flash")
+    assert [f["name"] for f in kept] == ["yieldbound"]
+    assert kept[0]["judge"]["contradicts"] is True
+
+
+def test_no_client_keeps_every_candidate(monkeypatch):
+    """Honest degradation: over-report to a human, never silently drop."""
+    from helicon.identity import _judge_confirm
+    forks = [{"name": "qwen", "gloss_a": "a", "gloss_b": "b"}]
+    assert _judge_confirm(forks, None, "m") == forks
+
+
+def test_judge_error_keeps_the_fork(monkeypatch):
+    """An unreachable judge must not retire rot the human never saw."""
+    from helicon.identity import _judge_confirm
+    forks = [{"name": "yieldbound", "gloss_a": "a treasury", "gloss_b": "a tracker"}]
+    fake = _FakeJudge({}, boom=True)
+    _patch_judge(monkeypatch, fake)
+    assert [f["name"] for f in _judge_confirm(forks, fake, "m")] == ["yieldbound"]
+
+
+def test_a_ruled_name_is_never_re_argued_by_the_model(monkeypatch):
+    """resurfaced = a human already ruled it. Never-twice outranks the judge."""
+    from helicon.identity import _judge_confirm
+    forks = [{"name": "aurora", "gloss_a": "x", "gloss_b": "y", "resurfaced": True}]
+    fake = _FakeJudge({"x": False})     # judge would drop it
+    _patch_judge(monkeypatch, fake)
+    assert [f["name"] for f in _judge_confirm(forks, fake, "m")] == ["aurora"]
+    assert fake.calls == []             # and was never asked
+
+
+def test_the_judge_is_greedy_by_default():
+    """A verdict that changes between identical calls is not a verdict."""
+    import inspect
+    from helicon.qwen import detect_contradictions
+    assert inspect.signature(detect_contradictions).parameters["temperature"].default == 0.0
+
+
+def test_cache_key_separates_greedy_from_sampled():
+    from helicon.qwen import _cache_key
+    assert _cache_key("s", "u", "m", 0.0) != _cache_key("s", "u", "m", None)

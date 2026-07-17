@@ -25,7 +25,12 @@ def _check(rid, name, coverage, found, receipt):
     }
 
 
-def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict:
+def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
+                 judge_client=None, judge_model: str = "qwen3.6-flash") -> dict:
+    """judge_client (Qwen) upgrades R11 from the cosine gate to the judge that
+    actually separates a fork from a rephrasing. Optional: without it R11 reports
+    cosine survivors and says so, rather than pretending the weaker gate is the
+    same exam."""
     checks = []
 
     # R1 cross-source contradiction — the pair selector (helicon.pairing)
@@ -240,11 +245,17 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None) -> dict
         # genus-only pass over-reports the false positives the semantic gate
         # (local embeddings, no LLM) exists to kill. Candidates it drops are
         # reported as an unconfirmed sub-signal, never as ROT.
-        forks = find_identity_forks(conn, semantic=True)
+        forks = find_identity_forks(conn, semantic=True, judge_client=judge_client,
+                                    judge_model=judge_model)
         candidates = find_identity_forks(conn, semantic=False)
         unconfirmed = max(0, len(candidates) - len(forks))
-        note = (f" (+{unconfirmed} genus candidate(s) semantically unconfirmed)"
-                if unconfirmed else "")
+        # Name the gate that produced the number. Cosine cannot separate a fork
+        # from a rephrasing (real 0.354 vs artifact 0.367 on the live store), so
+        # a cosine-only R11 is over-reporting and must say so rather than sell
+        # its candidates as confirmed rot.
+        gate = "qwen-judged" if judge_client else "cosine-only, unjudged"
+        note = (f" (+{unconfirmed} genus candidate(s) dropped by the {gate} gate)"
+                if unconfirmed else f" [{gate}]")
         checks.append(_check(
             "R11", "Identity coherence", "TESTED", len(forks) > 0,
             (f"{len(forks)} entity definition(s) forked across sources: "

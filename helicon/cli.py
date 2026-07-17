@@ -844,13 +844,30 @@ def cmd_lens(args):
 
 def cmd_rot(args):
     """The rot exam: ROT.md's 12 documented failure classes checked live
-    against the real store. Deterministic, zero LLM calls, free to run daily."""
+    against the real store. Deterministic, zero LLM calls, free to run daily.
+
+    --judge opts R11 into the Qwen identity judge. Off by default on purpose:
+    the exam's contract is deterministic-and-free (a daily cron runs it), and
+    the judge costs a call per fork candidate. Without it R11 prints
+    'cosine-only, unjudged' rather than passing the weaker gate off as the exam."""
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon.rot import format_rot, run_rot_exam
 
     config = load_config()
     conn = init_db(config["db_path"])
+
+    judge_client, judge_model = None, "qwen3.6-flash"
+    if getattr(args, "judge", False):
+        try:
+            from helicon.qwen import get_client, resolve_model, set_cache_db
+            set_cache_db(conn)
+            judge_client = get_client(config)
+            judge_model = resolve_model("fast", config)
+            if judge_client is None:
+                print("No Qwen key; R11 stays on the cosine gate.\n")
+        except Exception as e:
+            print(f"judge unavailable ({e}); R11 stays on the cosine gate.\n")
 
     if getattr(args, "file", False):
         # File the rulable findings so `resolve --list` can surface them without
@@ -871,13 +888,13 @@ def cmd_rot(args):
         pair_scan(conn, client=client)
         claim_scan(conn, config)
         alias_scan(conn)
-        identity_scan(conn)
+        identity_scan(conn, judge_client=judge_client, judge_model=judge_model)
         relation_scan(conn)
         n = conn.execute(
             "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
         print(f"filed findings — {n} open to rule.  Next:  helicon resolve --list\n")
 
-    res = run_rot_exam(conn)
+    res = run_rot_exam(conn, judge_client=judge_client, judge_model=judge_model)
     if getattr(args, "json", False):
         import json as _json
         print(_json.dumps(res, indent=2, default=str))
@@ -2278,6 +2295,7 @@ def main():
     rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 12 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
     rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
+    rot_p.add_argument("--judge", action="store_true", help="R11: confirm identity forks with the Qwen judge (the cosine gate cannot separate a fork from a rephrasing); costs one call per candidate")
 
     heal_p = sub.add_parser("repair", aliases=["heal"], help="Self-repair loop: score the 4 truth gates, propose repairs, apply, re-score")
     heal_p.add_argument("--demo", action="store_true", help="Run on the seeded demo store (universally-legible drift), not your real store")
