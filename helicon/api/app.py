@@ -89,6 +89,7 @@ def create_app() -> FastAPI:
     from helicon.api.tokens import router as tokens_router
     from helicon.api.integrity import router as integrity_router
     from helicon.api.findings import router as findings_router
+    from helicon.api.govern import router as govern_router
     from helicon.api.log import router as log_router
     from helicon.api.focus import router as focus_router
     from helicon.api.intelligence import router as intelligence_router
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(tokens_router, prefix="/api")
     app.include_router(integrity_router, prefix="/api")
     app.include_router(findings_router, prefix="/api")
+    app.include_router(govern_router, prefix="/api")
     app.include_router(log_router, prefix="/api")
     app.include_router(focus_router, prefix="/api")
     app.include_router(intelligence_router, prefix="/api")

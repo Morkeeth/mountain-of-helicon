@@ -231,6 +231,18 @@ CREATE TABLE IF NOT EXISTS run_cards (
     cost REAL, damage REAL, score REAL,
     scored_at TEXT NOT NULL         -- when the card was cut (yield valid as-of this)
 );
+
+-- Govern-batch: one atomic Apply over N staged rulings, with the receipt and the
+-- inverse needed to undo it. Additive; the loop touches only audit_log, the
+-- correction cubes its resolvers write, and GOLDEN_RULES.
+CREATE TABLE IF NOT EXISTS govern_batches (
+    id TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL,
+    undone_at TEXT,                 -- set when reversed
+    rulings_json TEXT NOT NULL,     -- what was requested
+    receipt_json TEXT NOT NULL,     -- what actually happened, with verify-probes
+    undo_json TEXT NOT NULL         -- {correction_cubes: [...], decided_finding_ids: [...]}
+);
 """
 
 

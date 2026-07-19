@@ -23,7 +23,7 @@ flowchart TD
 
   subgraph INGEST["② Ingestion"]
     GATE["SAGE novelty gate<br/>ADD / NOOP / MERGE"]
-    CUBES[("HeliconCubes<br/>versioned memory units, decayed per type<br/>SQLite · 25 tables + FTS5 + embeddings")]
+    CUBES[("HeliconCubes<br/>versioned memory units, decayed per type<br/>SQLite · 26 tables + FTS5 + embeddings")]
     GATE --> CUBES
   end
 
@@ -88,9 +88,9 @@ agent output (any platform)
   → the exam re-runs nightly; a returning rot re-alarms
 ```
 
-## Storage (25 core tables + FTS5)
+## Storage (26 core tables + FTS5)
 
-`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards` · `judge_runs`
+`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards` · `judge_runs` · `govern_batches`
 
 Plus `cubes_fts`, the FTS5 full-text index. It is an index rather than a table the count claims, which is why 25 is the number checked against `CREATE TABLE` in source.
 
