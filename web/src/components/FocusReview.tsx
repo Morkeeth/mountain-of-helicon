@@ -103,10 +103,26 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
         <div className="text-[10px] uppercase tracking-[0.15em] mb-3 md:mb-4" style={{ color: sevColor(f.severity) }}>
           {f.severity} · {(f.kind || '').replace(/_/g, ' ')}
         </div>
-        <h2 style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[19px] md:text-[23px] leading-snug break-words">
-          {f.why}
-        </h2>
-        <p className="mt-2.5 text-[12.5px] md:text-[13px] break-words" style={{ color: MUTED }}>{f.title}</p>
+        {(() => {
+          const why = f.why || '';
+          const q = why.indexOf('?');
+          const question = q >= 0 ? why.slice(0, q + 1) : why;
+          const consequence = q >= 0 ? why.slice(q + 1).trim() : '';
+          return (
+            <>
+              <div className="text-[10px] uppercase tracking-[0.16em] mb-2" style={{ color: MUTED }}>The question</div>
+              <h2 style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[20px] md:text-[25px] leading-snug break-words">
+                {question}
+              </h2>
+              {consequence && (
+                <>
+                  <div className="text-[10px] uppercase tracking-[0.16em] mt-6 md:mt-7 mb-2" style={{ color: MUTED }}>If you get it wrong</div>
+                  <p className="text-[14px] md:text-[15px] leading-relaxed break-words" style={{ color: INK }}>{consequence}</p>
+                </>
+              )}
+            </>
+          );
+        })()}
 
         {f.evidence_preview && <Receipt text={f.evidence_preview} src={`${f.source || ''}${f.source_ref ? ' · ' + f.source_ref : ''}`} />}
 
