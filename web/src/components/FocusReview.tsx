@@ -2,10 +2,10 @@ import { useState, useMemo } from 'react';
 import { api } from '../api';
 import type { Finding, FindingsResponse, GovernReceipt } from '../api';
 
-/* Govern by exception, one batch. You rule findings fast — each verdict STAGES,
-   nothing is written yet — then apply the whole batch once and get a receipt that
-   proves each ruling landed, with a single undo. The wall of findings collapses
-   into: rule three things, apply once, trust it propagated. */
+/* Govern by exception, one tap. A finding, its evidence, your ruling — and it
+   applies immediately: propagated into the law, enforced by the guard, with a
+   receipt that proves it and one Undo. No staging, no batch screen: ruling one
+   confusion is one action, not three. */
 
 const INK = 'var(--helicon-ink)';
 const MUTED = 'var(--helicon-muted)';
@@ -20,15 +20,6 @@ function sevColor(s: string) {
   return s === 'critical' || s === 'high' ? ACCENT : s === 'warning' || s === 'medium' ? 'var(--helicon-stale)' : FAINT;
 }
 
-interface Staged {
-  key: string;
-  finding_id: number;
-  verb: string;
-  payload: Record<string, unknown>;
-  why: string;
-  effect: string;   // plain-language preview of what this ruling does
-}
-
 export default function FocusReview({ data, onActed, onSeeAll }: {
   data: FindingsResponse | null;
   onActed: (f: Finding) => void;
@@ -41,124 +32,73 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
     [data]);
 
   const [i, setI] = useState(0);
-  const [batch, setBatch] = useState<Staged[]>([]);
-  const [view, setView] = useState<'review' | 'batch' | 'receipt'>('review');
-  const [reasonText, setReasonText] = useState('');
-  const [reasoning, setReasoning] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [applyError, setApplyError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<GovernReceipt | null>(null);
   const [undone, setUndone] = useState(false);
-
-  const ambient = data?.summary?.ambient ?? 0;
+  const [reasoning, setReasoning] = useState(false);
+  const [reasonText, setReasonText] = useState('');
 
   if (!data) return <div className="py-24 text-center text-[13px]" style={{ color: MUTED }}>…</div>;
 
-  // ---- the receipt (after Apply) --------------------------------------------
-  if (view === 'receipt' && receipt) {
+  const advance = () => { setReceipt(null); setUndone(false); setReasoning(false); setReasonText(''); setError(null); setI(x => x + 1); };
+
+  // ---- the receipt (immediately after a ruling applies) ---------------------
+  if (receipt) {
     return <ReceiptView receipt={receipt} undone={undone}
       onUndo={() => api.undoBatch(receipt.undo_token).then(() => setUndone(true))}
-      onDone={() => {
-        // Only drop findings that ACTUALLY applied. Removing a failed ruling
-        // optimistically would diverge the queue from the server — a stale-UI-vs-
-        // reality gap the operator would otherwise catch by comparing two surfaces.
-        receipt.receipt.filter(r => r.applied).forEach(r => onActed({ id: `audit-${r.finding_id}` } as Finding));
-        onSeeAll();
-      }} />;
-  }
-
-  // ---- the batch review (the one object you Apply) --------------------------
-  if (view === 'batch') {
-    return (
-      <BatchReview batch={batch} applying={applying} error={applyError}
-        onRemove={k => setBatch(b => b.filter(s => s.key !== k))}
-        onBack={() => { setApplyError(null); setView('review'); }}
-        onApply={async () => {
-          setApplying(true); setApplyError(null);
-          try {
-            const r = await api.applyBatch(batch.map(s => ({ finding_id: s.finding_id, verb: s.verb, payload: s.payload })));
-            setReceipt(r); setUndone(false); setView('receipt');
-          } catch (e) {
-            // The API threw — nothing was written. Say so precisely; never leave the
-            // operator to infer from a frozen screen whether the batch applied.
-            setApplyError(e instanceof Error ? e.message : 'Apply failed — nothing was written.');
-          } finally { setApplying(false); }
-        }} />
-    );
+      onDone={() => { receipt.receipt.filter(r => r.applied).forEach(r => onActed({ id: `audit-${r.finding_id}` } as Finding)); advance(); }} />;
   }
 
   const done = queue.length === 0 || i >= queue.length;
-
-  // Staging a verdict + advancing. Nothing is written until Apply.
-  const stage = (verb: string, payload: Record<string, unknown>, effect: string) => {
-    const f = queue[i];
-    const auditId = f.id.startsWith('audit-') ? parseInt(f.id.slice(6), 10) : NaN;
-    if (!Number.isNaN(auditId)) {
-      setBatch(b => [...b, { key: `${f.id}-${b.length}`, finding_id: auditId, verb, payload, why: f.why, effect }]);
-    }
-    setReasoning(false); setReasonText('');
-    setI(x => x + 1);
-  };
-  const skip = () => { setReasoning(false); setReasonText(''); setI(x => x + 1); };
-
-  // ---- the empty / all-reviewed state ---------------------------------------
+  const ambient = data?.summary?.ambient ?? 0;
   if (done) {
     return (
-      <div className="max-w-lg mx-auto py-20 text-center animate-fade-in">
-        {batch.length > 0 ? (
-          <>
-            <div style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[26px] leading-tight">
-              {batch.length} ruling{batch.length > 1 ? 's' : ''} staged.
-            </div>
-            <p className="mt-3 text-[14px] leading-relaxed" style={{ color: MUTED }}>
-              Nothing is written yet. Review them as one, then apply once.
-            </p>
-            <button onClick={() => setView('batch')} className="mt-6 px-5 py-2.5 rounded-lg text-[14px] font-medium text-[#F4EFE7]"
-              style={{ backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }}>
-              Review &amp; apply {batch.length} →
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[30px] leading-tight">
-              The record is settled.
-            </div>
-            <p className="mt-3 text-[14px] leading-relaxed" style={{ color: MUTED }}>
-              Nothing needs your ruling.{ambient > 0 ? ` ${ambient} aging findings are auto-managed, no action needed.` : ''}
-            </p>
-            <button onClick={onSeeAll} className="mt-7 text-[13px] transition-colors hover:opacity-70" style={{ color: ACCENT }}>
-              See all findings →
-            </button>
-          </>
-        )}
+      <div className="max-w-lg mx-auto py-24 text-center animate-fade-in">
+        <div style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[30px] leading-tight">
+          The record is settled.
+        </div>
+        <p className="mt-3 text-[14px] leading-relaxed" style={{ color: MUTED }}>
+          Nothing needs your ruling.{ambient > 0 ? ` ${ambient} aging findings are auto-managed, no action needed.` : ''}
+        </p>
+        <button onClick={onSeeAll} className="mt-7 text-[13px] transition-colors hover:opacity-70" style={{ color: ACCENT }}>
+          See all findings →
+        </button>
       </div>
     );
   }
 
   const f = queue[i];
+  const auditId = f.id.startsWith('audit-') ? parseInt(f.id.slice(6), 10) : NaN;
   const sa = f.suggested_action;
+
+  // One ruling, applied immediately: rule → propagate → enforce → receipt.
+  const applyNow = async (verb: string, payload: Record<string, unknown>) => {
+    if (Number.isNaN(auditId)) return advance();
+    setApplying(true); setError(null);
+    try {
+      const r = await api.applyBatch([{ finding_id: auditId, verb, payload }]);
+      setReceipt(r); setUndone(false);
+    } catch (e) {
+      // The API threw — nothing was written. Say so; never a frozen screen.
+      setError(e instanceof Error ? e.message : 'Ruling failed — nothing was written.');
+    } finally { setApplying(false); }
+  };
+  const skip = () => advance();
+  const busy = applying;
 
   return (
     <div className="max-w-xl mx-auto">
-      {/* progress + staged count */}
-      <div className="flex items-center justify-between gap-3 mb-8 md:mb-12">
-        <div className="flex items-center gap-2.5 md:gap-3 min-w-0">
-          <span className="tabular-nums text-[13px] shrink-0" style={{ color: INK, fontFamily: MONO }}>
-            {i + 1}<span style={{ color: FAINT }}> / {queue.length}</span>
-          </span>
-          <div className="h-[3px] w-16 md:w-28 rounded-full overflow-hidden shrink-0" style={{ background: MIST }}>
-            <div className="h-full rounded-full" style={{ width: `${(i / queue.length) * 100}%`, background: ACCENT, transition: 'width 300ms ease-out' }} />
-          </div>
+      <div className="flex items-center gap-2.5 md:gap-3 mb-8 md:mb-12">
+        <span className="tabular-nums text-[13px] shrink-0" style={{ color: INK, fontFamily: MONO }}>
+          {i + 1}<span style={{ color: FAINT }}> / {queue.length}</span>
+        </span>
+        <div className="h-[3px] w-16 md:w-28 rounded-full overflow-hidden shrink-0" style={{ background: MIST }}>
+          <div className="h-full rounded-full" style={{ width: `${(i / queue.length) * 100}%`, background: ACCENT, transition: 'width 300ms ease-out' }} />
         </div>
-        {batch.length > 0 && (
-          <button onClick={() => setView('batch')} className="text-[12px] transition-colors hover:opacity-80 shrink-0"
-            style={{ color: ACCENT, fontWeight: 600 }}>
-            {batch.length} staged · Review &amp; apply →
-          </button>
-        )}
+        <button onClick={onSeeAll} className="ml-auto text-[12px] transition-colors hover:opacity-70 shrink-0" style={{ color: MUTED }}>see all →</button>
       </div>
 
-      {/* the one thing */}
       <div key={f.id} className="animate-fade-in">
         <div className="text-[10px] uppercase tracking-[0.15em] mb-3 md:mb-4" style={{ color: sevColor(f.severity) }}>
           {f.severity} · {(f.kind || '').replace(/_/g, ' ')}
@@ -173,84 +113,47 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
         <div className="mt-7 md:mt-9">
           {reasoning ? (
             <ReasonStage value={reasonText} onChange={setReasonText}
-              onStage={() => stage('precedent', { reason: reasonText.trim() }, `ruled not-rot: ${reasonText.trim().slice(0, 60)}`)}
-              onCancel={() => { setReasoning(false); setReasonText(''); }} />
+              onApply={() => applyNow('precedent', { reason: reasonText.trim() })}
+              busy={busy} onCancel={() => { setReasoning(false); setReasonText(''); }} />
+          ) : sa === 'rule_truth' && f.options && f.options.length >= 2 ? (
+            <div>
+              <p className="text-[12px] mb-2.5" style={{ color: MUTED }}>Which is current? One tap rules it and enforces it.</p>
+              <div className="flex flex-wrap gap-2.5">
+                {f.options.map(opt => (
+                  <Primary key={opt} disabled={busy} onClick={() => applyNow('rule_truth', { truth: opt })}>It&apos;s: {opt}</Primary>
+                ))}
+                <Later onClick={skip} />
+              </div>
+            </div>
           ) : sa === 'rule_truth' ? (
-            <TruthStage onStage={(t) => stage('rule_truth', { truth: t }, `ruled current: ${t} — the other value becomes enforceable-wrong`)} onSkip={skip} />
+            <TruthStage busy={busy} onApply={(t) => applyNow('rule_truth', { truth: t })} onSkip={skip} />
           ) : sa === 'resolve_identity' ? (
-            <IdentityStage onStage={(canon) => stage('rule_identity', { canonical: canon }, `'${entityOf(f)}' ruled: ${canon}`)} onSkip={skip} />
+            <IdentityStage busy={busy} onApply={(c) => applyNow('rule_identity', { canonical: c })} onSkip={skip} />
           ) : sa === 'resolve_relation' ? (
             <div className="flex flex-wrap gap-2.5">
-              <Primary onClick={() => stage('resolve_relation', { verdict: 'phantom' }, `'${entityOf(f)}' relation ruled ungrounded`)}>Confirm phantom</Primary>
-              <Ghost onClick={() => stage('resolve_relation', { verdict: 'real' }, `'${entityOf(f)}' relation ruled real`)}>It&apos;s real</Ghost>
+              <Primary disabled={busy} onClick={() => applyNow('resolve_relation', { verdict: 'phantom' })}>Confirm phantom</Primary>
+              <Ghost disabled={busy} onClick={() => applyNow('resolve_relation', { verdict: 'real' })}>It&apos;s real</Ghost>
               <Later onClick={skip} />
             </div>
           ) : (sa === 'fix_skill' || sa === 'reconcile') ? (
             <div className="flex flex-wrap gap-2.5">
-              <Primary onClick={() => setReasoning(true)}>Rule it</Primary>
-              <Later onClick={skip} />
-            </div>
-          ) : sa === 'kill_stale' ? (
-            <div className="flex flex-wrap gap-2.5">
-              <Primary onClick={() => setReasoning(true)}>Keep (rule why)</Primary>
-              <Ghost onClick={() => stage('confirm', { decision: 'acted' }, 'retired — acted on and closed')}>Retire</Ghost>
+              <Primary disabled={busy} onClick={() => setReasoning(true)}>Rule it</Primary>
               <Later onClick={skip} />
             </div>
           ) : (
             <div className="flex flex-wrap gap-2.5">
-              <Primary onClick={() => setReasoning(true)}>Keep (rule why)</Primary>
-              <Ghost onClick={() => stage('confirm', { decision: 'acted' }, 'retired — acted on and closed')}>Retire</Ghost>
+              <Primary disabled={busy} onClick={() => setReasoning(true)}>Keep (rule why)</Primary>
+              <Ghost disabled={busy} onClick={() => applyNow('confirm', { decision: 'acted' })}>Retire</Ghost>
               <Later onClick={skip} />
             </div>
           )}
+          {error && (
+            <p className="mt-4 text-[12.5px] leading-relaxed px-3 py-2 rounded-lg"
+              style={{ color: 'var(--helicon-critical)', background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
+              {error} Your ruling wasn't written — try again.
+            </p>
+          )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// The entity name for an effect preview, pulled from the finding text.
-function entityOf(f: Finding): string {
-  const m = (f.why || '').match(/'([^']+)'/);
-  return m ? m[1] : 'this';
-}
-
-function BatchReview({ batch, applying, error, onApply, onBack, onRemove }: {
-  batch: Staged[]; applying: boolean; error: string | null; onApply: () => void; onBack: () => void; onRemove: (k: string) => void;
-}) {
-  return (
-    <div className="max-w-xl mx-auto animate-fade-in">
-      <div style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[24px] leading-tight mb-1">
-        Apply {batch.length} ruling{batch.length > 1 ? 's' : ''}
-      </div>
-      <p className="text-[12.5px] mb-6" style={{ color: MUTED }}>
-        One action. Each becomes durable law your agent obeys next time — with an undo.
-      </p>
-      <div className="space-y-2.5">
-        {batch.map(s => (
-          <div key={s.key} className="flex items-start gap-3 p-3 rounded-lg" style={{ background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
-            <span className="mt-0.5 text-[15px]" style={{ color: ACCENT }}>✓</span>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] leading-snug" style={{ color: INK }}>{s.effect}</p>
-              <p className="text-[11px] mt-0.5 truncate" style={{ color: FAINT }}>{s.why}</p>
-            </div>
-            <button onClick={() => onRemove(s.key)} className="text-[11px] shrink-0 transition-opacity hover:opacity-70" style={{ color: FAINT }}>remove</button>
-          </div>
-        ))}
-      </div>
-      {error && (
-        <p className="mt-4 text-[12.5px] leading-relaxed px-3 py-2 rounded-lg"
-          style={{ color: 'var(--helicon-critical)', background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
-          Not applied: {error} — nothing was written; your staged rulings are intact. Retry.
-        </p>
-      )}
-      <div className="mt-7 flex items-center gap-3">
-        <button onClick={onApply} disabled={applying || batch.length === 0}
-          className="px-5 py-2.5 rounded-lg text-[14px] font-medium text-[#F4EFE7] disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
-          style={{ backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }}>
-          {applying ? 'Applying…' : error ? `Retry · Apply ${batch.length}` : `Apply ${batch.length}`}
-        </button>
-        <button onClick={onBack} className="text-[13px] transition-colors hover:opacity-70" style={{ color: MUTED }}>Back</button>
       </div>
     </div>
   );
@@ -261,14 +164,15 @@ function ReceiptView({ receipt, undone, onUndo, onDone }: {
 }) {
   const [undoing, setUndoing] = useState(false);
   const [undoErr, setUndoErr] = useState<string | null>(null);
+  const enforced = receipt.receipt.some(r => r.verify?.guard_blocks_the_wrong_claim);
   return (
     <div className="max-w-xl mx-auto animate-fade-in">
       <div style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[24px] leading-tight mb-1">
-        {undone ? 'Reversed.' : `Applied. ${receipt.applied} propagated${receipt.failed ? `, ${receipt.failed} held back` : ''}.`}
+        {undone ? 'Reversed.' : enforced ? 'Ruled and enforced.' : 'Ruled.'}
       </div>
       <p className="text-[12.5px] mb-6" style={{ color: MUTED }}>
-        {undone ? 'The rulings were undone; the record is back to before.'
-          : `${receipt.rules_compiled} compiled into the law your agent reads before it writes.`}
+        {undone ? 'The ruling was undone; the record is back to before.'
+          : 'Compiled into the law your agent reads before it writes.'}
       </p>
       <div className="space-y-2.5">
         {receipt.receipt.map((r, k) => (
@@ -296,21 +200,21 @@ function ReceiptView({ receipt, undone, onUndo, onDone }: {
       </div>
       <div className="mt-7 flex items-center gap-3">
         <button onClick={onDone} className="px-5 py-2.5 rounded-lg text-[14px] font-medium text-[#F4EFE7] transition-all hover:brightness-110"
-          style={{ backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }}>Done</button>
+          style={{ backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }}>Next</button>
         {!undone && (
           <button onClick={async () => { setUndoing(true); setUndoErr(null); try { await onUndo(); } catch (e) { setUndoErr(e instanceof Error ? e.message : 'undo failed'); } finally { setUndoing(false); } }}
             disabled={undoing} className="text-[13px] transition-colors hover:opacity-70 disabled:opacity-40" style={{ color: MUTED }}>
-            {undoing ? 'Undoing…' : undoErr ? 'Retry undo' : 'Undo all'}
+            {undoing ? 'Undoing…' : undoErr ? 'Retry undo' : 'Undo'}
           </button>
         )}
       </div>
-      {undoErr && <p className="mt-3 text-[12px]" style={{ color: 'var(--helicon-critical)' }}>Undo failed: {undoErr} — the rulings are still applied.</p>}
+      {undoErr && <p className="mt-3 text-[12px]" style={{ color: 'var(--helicon-critical)' }}>Undo failed: {undoErr} — the ruling is still applied.</p>}
     </div>
   );
 }
 
-function ReasonStage({ value, onChange, onStage, onCancel }: {
-  value: string; onChange: (v: string) => void; onStage: () => void; onCancel: () => void;
+function ReasonStage({ value, onChange, onApply, onCancel, busy }: {
+  value: string; onChange: (v: string) => void; onApply: () => void; onCancel: () => void; busy: boolean;
 }) {
   return (
     <div className="w-full animate-fade-in">
@@ -320,38 +224,38 @@ function ReasonStage({ value, onChange, onStage, onCancel }: {
         className="mt-2.5 w-full px-3 py-2.5 rounded-lg text-[14px] leading-relaxed outline-none resize-y"
         style={{ background: 'var(--helicon-panel-2)', color: INK, border: '1px solid var(--helicon-line)', minHeight: 72 }} />
       <div className="mt-3 flex items-center gap-2.5">
-        <Primary onClick={onStage} disabled={!value.trim()}>Stage ruling</Primary>
+        <Primary onClick={onApply} disabled={busy || !value.trim()}>{busy ? 'Applying…' : 'Rule it'}</Primary>
         <button onClick={onCancel} className="text-[13px] transition-colors hover:opacity-70" style={{ color: MUTED }}>Back</button>
       </div>
     </div>
   );
 }
 
-function TruthStage({ onStage, onSkip }: { onStage: (truth: string) => void; onSkip: () => void }) {
+function TruthStage({ onApply, onSkip, busy }: { onApply: (truth: string) => void; onSkip: () => void; busy: boolean }) {
   const [truth, setTruth] = useState('');
   return (
     <div className="flex items-center gap-2.5 flex-wrap">
       <input value={truth} onChange={e => setTruth(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && truth.trim()) onStage(truth.trim()); }}
+        onKeyDown={e => { if (e.key === 'Enter' && truth.trim()) onApply(truth.trim()); }}
         placeholder="the current truth… e.g. eats chicken"
         className="px-3 py-2 rounded-lg text-[13px] outline-none w-64"
         style={{ background: 'var(--helicon-panel-2)', color: INK, border: '1px solid var(--helicon-line)' }} />
-      <Primary onClick={() => truth.trim() && onStage(truth.trim())} disabled={!truth.trim()}>Stage ruling</Primary>
+      <Primary onClick={() => truth.trim() && onApply(truth.trim())} disabled={busy || !truth.trim()}>{busy ? 'Applying…' : 'Rule it'}</Primary>
       <Later onClick={onSkip} />
     </div>
   );
 }
 
-function IdentityStage({ onStage, onSkip }: { onStage: (canonical: string) => void; onSkip: () => void }) {
+function IdentityStage({ onApply, onSkip, busy }: { onApply: (canonical: string) => void; onSkip: () => void; busy: boolean }) {
   const [canon, setCanon] = useState('');
   return (
     <div className="flex items-center gap-2.5 flex-wrap">
       <input value={canon} onChange={e => setCanon(e.target.value)}
-        onKeyDown={e => { if (e.key === 'Enter' && canon.trim()) onStage(canon.trim()); }}
+        onKeyDown={e => { if (e.key === 'Enter' && canon.trim()) onApply(canon.trim()); }}
         placeholder="the canonical definition…"
         className="px-3 py-2 rounded-lg text-[13px] outline-none w-64"
         style={{ background: 'var(--helicon-panel-2)', color: INK, border: '1px solid var(--helicon-line)' }} />
-      <Primary onClick={() => canon.trim() && onStage(canon.trim())} disabled={!canon.trim()}>Stage ruling</Primary>
+      <Primary onClick={() => canon.trim() && onApply(canon.trim())} disabled={busy || !canon.trim()}>{busy ? 'Applying…' : 'Rule it'}</Primary>
       <Later onClick={onSkip} />
     </div>
   );

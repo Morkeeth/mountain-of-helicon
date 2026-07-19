@@ -142,6 +142,9 @@ def _audit_findings(conn) -> list[dict]:
             "memory_id": r["target_id"] if r["target_type"] == "cube" else None,
             "cube_id": r["target_id"] if r["target_type"] == "cube" else None,  # deprecated alias
             "suggested_action": _AUDIT_ACTION.get(kind, "review"),
+            # The competing values, so a contradiction is ruled in one tap (which is
+            # current?) instead of typed. Only the two answers a human chooses between.
+            "options": [v for v in (details.get("value_a"), details.get("value_b")) if v] if kind == "factual" else None,
             "created_at": r["audited_at"],
         })
     return findings

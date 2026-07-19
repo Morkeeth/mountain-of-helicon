@@ -134,7 +134,8 @@ export interface Finding {
   source: string;
   source_ref: string;
   cube_id: string | null;
-  suggested_action: string;   // kill_stale | fix_skill | reconcile | review
+  suggested_action: string;   // kill_stale | fix_skill | rule_truth | resolve_identity | review
+  options?: string[] | null;  // for a contradiction: the two competing values, ruled in one tap
   created_at: string;
   lane: string;               // decision (needs your ruling) | ambient (age/mechanics)
 }
