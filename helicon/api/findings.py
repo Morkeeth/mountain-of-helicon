@@ -88,7 +88,7 @@ _AUDIT_CHECK = {
 _AUDIT_ACTION = {
     "temporal": "kill_stale",
     "decay": "kill_stale",
-    "factual": "reconcile",
+    "factual": "rule_truth",     # a live contradiction: the human rules which value is current
     "logical": "review",
     "identity": "resolve_identity",
     "provenance": "resolve_relation",

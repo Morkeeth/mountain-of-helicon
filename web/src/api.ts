@@ -161,7 +161,7 @@ export interface GovernReceiptItem {
   error?: string | null;
   effect: string;
   protection: string;
-  verify: { recorded_in_audit_log: boolean; compiled_into_law: boolean };
+  verify: { recorded_in_audit_log: boolean; compiled_into_law: boolean; guard_blocks_the_wrong_claim?: boolean };
 }
 export interface GovernReceipt {
   batch_id: string;

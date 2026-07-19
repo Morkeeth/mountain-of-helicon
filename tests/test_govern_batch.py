@@ -77,6 +77,21 @@ def test_undo_is_total(store):
     assert _cubes(conn) == before                      # correction cube (and its FTS) gone
 
 
+def test_rule_truth_makes_the_guard_enforce_it(store):
+    """The golden thread: rule a live contradiction, and the receipt PROVES the guard
+    now blocks the ruled-wrong claim — enforcement, not just a record."""
+    conn, _ = store
+    fid = conn.execute("SELECT id FROM audit_log WHERE audit_type='factual' AND human_decision IS NULL LIMIT 1").fetchone()
+    assert fid, "the demo seeds a factual contradiction as the hero"
+    out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
+        Ruling(finding_id=fid["id"], verb="rule_truth", payload={"truth": "eats chicken"})])))
+    r = out["receipt"][0]
+    assert r["applied"] and r["verify"]["guard_blocks_the_wrong_claim"] is True
+    # independently: the guard itself now blocks a claim asserting the wrong value
+    from helicon.guard import guard_output
+    assert not guard_output(conn, "the user's diet is vegetarian").get("clean", True)
+
+
 def test_blast_radius_leaves_source_memory_untouched(store):
     conn, _ = store
     idf = _finding(conn, "identity")

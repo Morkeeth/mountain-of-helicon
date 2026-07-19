@@ -138,6 +138,19 @@ def seed(db_path: str = DEMO_DB) -> dict:
     identity_scan(conn, semantic=False)
     relation_scan(conn)
 
+    # The universally-legible hero: a live contradiction only a human can resolve.
+    # value_a/value_b feed the guard, so ruling it ('eats chicken') makes the guard
+    # block any later 'the user is vegetarian' — the whole loop on one thread.
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, severity, details, audited_at) "
+        "VALUES ('factual', 'claim', 'demo-diet', ?, 'critical', ?, ?)",
+        ("Two sources disagree: is the user vegetarian, or eating chicken again? "
+         "Only you know which is current.",
+         json.dumps({"topic": "diet", "person": "user",
+                     "value_a": "vegetarian", "value_b": "eats chicken"}),
+         "2026-06-21T09:00:00"))
+    conn.commit()
+
     # A couple of already-ruled verdicts so the Golden Rules surface reads as
     # real operating law the moment it is opened (not empty until you rule live).
     from helicon.taste import ingest_verdict

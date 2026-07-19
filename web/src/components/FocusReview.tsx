@@ -175,6 +175,8 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
             <ReasonStage value={reasonText} onChange={setReasonText}
               onStage={() => stage('precedent', { reason: reasonText.trim() }, `ruled not-rot: ${reasonText.trim().slice(0, 60)}`)}
               onCancel={() => { setReasoning(false); setReasonText(''); }} />
+          ) : sa === 'rule_truth' ? (
+            <TruthStage onStage={(t) => stage('rule_truth', { truth: t }, `ruled current: ${t} — the other value becomes enforceable-wrong`)} onSkip={skip} />
           ) : sa === 'resolve_identity' ? (
             <IdentityStage onStage={(canon) => stage('rule_identity', { canonical: canon }, `'${entityOf(f)}' ruled: ${canon}`)} onSkip={skip} />
           ) : sa === 'resolve_relation' ? (
@@ -277,9 +279,14 @@ function ReceiptView({ receipt, undone, onUndo, onDone }: {
                 <p className="text-[13px] leading-snug" style={{ color: INK }}>{r.effect}</p>
                 {r.applied && <p className="text-[11.5px] mt-1 leading-relaxed" style={{ color: MUTED }}>{r.protection}</p>}
                 {r.applied && (
-                  <div className="flex gap-3 mt-1.5 text-[10px]" style={{ color: FAINT }}>
+                  <div className="flex flex-wrap gap-3 mt-1.5 text-[10px]" style={{ color: FAINT }}>
                     <span>{r.verify.recorded_in_audit_log ? '● recorded' : '○ not recorded'}</span>
                     <span>{r.verify.compiled_into_law ? '● in GOLDEN_RULES' : '○ queue-only'}</span>
+                    {r.verify.guard_blocks_the_wrong_claim !== undefined && (
+                      <span style={{ color: r.verify.guard_blocks_the_wrong_claim ? ACCENT : FAINT, fontWeight: 600 }}>
+                        {r.verify.guard_blocks_the_wrong_claim ? '● guard now enforces it' : '○ not enforced'}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -316,6 +323,21 @@ function ReasonStage({ value, onChange, onStage, onCancel }: {
         <Primary onClick={onStage} disabled={!value.trim()}>Stage ruling</Primary>
         <button onClick={onCancel} className="text-[13px] transition-colors hover:opacity-70" style={{ color: MUTED }}>Back</button>
       </div>
+    </div>
+  );
+}
+
+function TruthStage({ onStage, onSkip }: { onStage: (truth: string) => void; onSkip: () => void }) {
+  const [truth, setTruth] = useState('');
+  return (
+    <div className="flex items-center gap-2.5 flex-wrap">
+      <input value={truth} onChange={e => setTruth(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter' && truth.trim()) onStage(truth.trim()); }}
+        placeholder="the current truth… e.g. eats chicken"
+        className="px-3 py-2 rounded-lg text-[13px] outline-none w-64"
+        style={{ background: 'var(--helicon-panel-2)', color: INK, border: '1px solid var(--helicon-line)' }} />
+      <Primary onClick={() => truth.trim() && onStage(truth.trim())} disabled={!truth.trim()}>Stage ruling</Primary>
+      <Later onClick={onSkip} />
     </div>
   );
 }

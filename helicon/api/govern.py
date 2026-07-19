@@ -45,6 +45,46 @@ def _ruling_dict(r: Ruling) -> dict:
     return {"finding_id": r.finding_id, "verb": r.verb, "payload": r.payload, "label": r.label}
 
 
+def _rule_truth(conn, fid: int, truth: str) -> dict:
+    """Rule a live contradiction: the operator names the CURRENT truth; the other
+    value(s) become ruled-wrong, which the guard then enforces on the next write.
+    Writes an approved correction cube so retrieval serves the answer, and returns
+    the wrong value(s) so the receipt can prove the guard now blocks them."""
+    row = conn.execute("SELECT audit_type, human_decision, details FROM audit_log WHERE id=?",
+                       (fid,)).fetchone()
+    if row is None:
+        return {"ok": False, "error": f"no finding #{fid}"}
+    if row["human_decision"]:
+        return {"ok": False, "error": f"finding #{fid} already decided: {row['human_decision']}"}
+    if row["audit_type"] != "factual":
+        return {"ok": False, "error": f"finding #{fid} is not a factual contradiction"}
+    truth = (truth or "").strip()
+    if not truth:
+        return {"ok": False, "error": "the current truth is required"}
+    try:
+        d = json.loads(row["details"] or "{}")
+    except (json.JSONDecodeError, TypeError):
+        d = {}
+    topic, person = d.get("topic", "claim"), d.get("person", "user")
+    wrong = [v for v in (d.get("value_a"), d.get("value_b")) if v and v != truth]
+    now = _now()
+    conn.execute("UPDATE audit_log SET human_decision=?, resolved_at=? WHERE id=?",
+                 (f"resolved:{truth}", now, fid))
+    from helicon.models import HeliconCube
+    from helicon.scanner import make_id, content_hash as _hash
+    from helicon.db import insert_cube
+    content = (f"{person.title()}'s {topic} is {truth} (human resolution of finding #{fid}, "
+               f"{now[:10]}). The competing value(s) {', '.join(wrong) or '—'} are wrong; any "
+               f"memory asserting them predates this resolution.")
+    cid = make_id()
+    insert_cube(conn, HeliconCube(
+        id=cid, source="human-resolution", source_ref=f"audit:{fid}", type="decision",
+        title=f"Resolved: {person.title()} {topic} = {truth}", content=content, summary=content[:120],
+        content_hash=_hash(content), created_at=now, valid_from=now, last_reinforced=now,
+        confidence=1.0, review_status="approved", tags=["ruling"], metadata={}))
+    return {"ok": True, "correction_cube": cid, "subject": topic, "truth": truth, "wrong": wrong}
+
+
 def _confirm(conn, fid: int, decision: str) -> dict:
     row = conn.execute("SELECT human_decision, target_id, audit_type FROM audit_log WHERE id=?",
                        (fid,)).fetchone()
@@ -74,6 +114,8 @@ def _apply_one(conn, r: Ruling) -> dict:
         elif verb == "precedent":
             from helicon.pairing import dismiss_finding
             res = dismiss_finding(conn, fid, p.get("reason", ""))
+        elif verb == "rule_truth":
+            res = _rule_truth(conn, fid, p.get("truth", ""))
         elif verb == "confirm":
             res = _confirm(conn, fid, p.get("decision", "acted"))
         else:
@@ -82,7 +124,8 @@ def _apply_one(conn, r: Ruling) -> dict:
         ok = bool(res.get("ok", True)) and not res.get("error")
         return {"finding_id": fid, "verb": verb, "applied": ok, "error": res.get("error"),
                 "correction_cube": res.get("correction_cube") or res.get("correction"),
-                "subject": (res.get("name") or res.get("subj") or p.get("canonical") or "")}
+                "subject": (res.get("name") or res.get("subj") or res.get("subject") or p.get("canonical") or ""),
+                "truth": res.get("truth"), "wrong": res.get("wrong")}
     except Exception as e:  # never let one ruling abort the batch
         return {"finding_id": fid, "verb": verb, "applied": False, "error": str(e),
                 "correction_cube": None, "subject": ""}
@@ -99,6 +142,7 @@ def _effect(res: dict) -> str:
     v, subj = res["verb"], res.get("subject", "")
     return {
         "rule_identity": f"'{subj}' ruled canonical — the competing definition loses",
+        "rule_truth": f"{subj}: ruled '{res.get('truth', '')}' current — the competing value is now wrong",
         "resolve_relation": f"'{subj}' ruling recorded — the ungrounded claim is settled",
         "precedent": "ruled not-rot — filed as a precedent",
         "confirm": "finding acted on and closed",
@@ -118,6 +162,7 @@ def _build_receipt(conn, config, results: list[dict]) -> tuple[list[dict], str]:
     the finding is settled in the record, and (where it compiles) its subject is
     present in the freshly compiled GOLDEN_RULES the agent reads."""
     from helicon.gold import compile_gold
+    from helicon.guard import guard_output
     law = compile_gold(conn, config) or ""
     low = law.lower()
     receipt = []
@@ -127,15 +172,21 @@ def _build_receipt(conn, config, results: list[dict]) -> tuple[list[dict], str]:
         subj = (res.get("subject") or "").strip()
         in_law = bool(subj) and subj.lower() in low
         applied = bool(res["applied"]) and settled
+        verify = {"recorded_in_audit_log": settled, "compiled_into_law": in_law}
+        prot = _protection({**res, "applied": applied}, in_law)
+        # For a ruled contradiction, PROVE enforcement: run the guard on a claim that
+        # asserts the ruled-wrong value and confirm it is now blocked. This is the
+        # whole thesis in the receipt — the ruling is enforced, not just recorded.
+        if res.get("verb") == "rule_truth" and applied and res.get("wrong"):
+            probe = f"the user's {subj} is {res['wrong'][0]}"
+            blocked = not guard_output(conn, probe).get("clean", True)
+            verify["guard_blocks_the_wrong_claim"] = blocked
+            if blocked:
+                prot = f"the guard now BLOCKS “{probe}” before an agent can write it"
         receipt.append({
-            "finding_id": fid,
-            "verb": res["verb"],
-            "label": "",
-            "applied": applied,
-            "error": res.get("error"),
-            "effect": _effect({**res, "applied": applied}),
-            "protection": _protection({**res, "applied": applied}, in_law),
-            "verify": {"recorded_in_audit_log": settled, "compiled_into_law": in_law},
+            "finding_id": fid, "verb": res["verb"], "label": "", "applied": applied,
+            "error": res.get("error"), "effect": _effect({**res, "applied": applied}),
+            "protection": prot, "verify": verify,
         })
     return receipt, law
 
