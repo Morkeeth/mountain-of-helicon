@@ -27,6 +27,33 @@ SECTIONS = ("canon", "renames", "triage", "precedents", "resolutions",
 
 RULE_MAX = 120
 
+# One compile, many consumers. Each target names the file it writes and the
+# sections that agent actually needs — scoping is the point, not a nicety:
+# pushing all of SECTIONS into every tool is the unconditional-push problem
+# the vault-ops audit flagged (Jul 19). A target omits a section only when
+# that section cannot act on it.
+#
+# codex drops `triage` and `precedents` on purpose: both are Helicon's own
+# detector calibration (which rot rules fire, which findings were dismissed
+# as false positives). They tune THIS tool. They are noise to any other agent.
+# It keeps canon/renames/resolutions (facts, and dead names — a dead name in a
+# current claim is rot in any tool) plus taste/feedback (the operator's law).
+TARGETS = {
+    "claude": {
+        "path": ("~", ".claude", "GOLDEN_RULES.md"),
+        "sections": SECTIONS,
+        "title": "GOLDEN RULES",
+        "hint": "add '@GOLDEN_RULES.md' to ~/.claude/CLAUDE.md if not present",
+    },
+    "codex": {
+        "path": ("~", ".codex", "AGENTS.md"),
+        "sections": ("canon", "renames", "resolutions", "taste", "feedback"),
+        "title": "GOLDEN RULES (compiled for Codex)",
+        "hint": "Codex reads ~/.codex/AGENTS.md as global instructions",
+    },
+}
+DEFAULT_TARGETS = ("claude",)
+
 
 def _clip(text: str, limit: int = RULE_MAX) -> str:
     """Clip at a word boundary and mark the cut. A rule chopped mid-word still
@@ -234,11 +261,16 @@ def compile_gold(conn: sqlite3.Connection, config: dict) -> str:
     return _compile_from(gather(conn, config))
 
 
-def _compile_from(g: dict) -> str:
-    total = sum(len(g.get(k, [])) for k in SECTIONS)
+def _compile_from(g: dict, sections: tuple = SECTIONS,
+                  title: str = "GOLDEN RULES") -> str:
+    """`sections` scopes which buckets reach this consumer. The header counts
+    what it actually WROTE, never the full store — a filtered file that claims
+    the full total is a lie about its own contents."""
+    total = sum(len(g.get(k, [])) for k in sections)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()[:16].replace("T", " ")
+    dropped = [k for k in SECTIONS if k not in sections and g.get(k)]
     L = [
-        "# GOLDEN RULES",
+        f"# {title}",
         "",
         f"_The opinionated law of this agent stack: {total} rules, every one "
         f"born from a human decision or a declared fact. Compiled {now} UTC "
@@ -246,6 +278,11 @@ def _compile_from(g: dict) -> str:
         f"Inject: `helicon gold --inject`._",
         "",
     ]
+    if dropped:
+        # Say what was withheld. A scoped file that hides its own scoping
+        # reads as the whole law and quietly becomes a wrong one.
+        L += [f"_Scoped for this consumer: {', '.join(dropped)} withheld "
+              f"(Helicon-internal detector calibration)._", ""]
 
     def section(title, items, fmt):
         if not items:
@@ -255,19 +292,22 @@ def _compile_from(g: dict) -> str:
             L.append(fmt(it))
         L.append("")
 
-    section("Single sources of truth", g["canon"],
+    def bucket(key):
+        return g[key] if key in sections else []
+
+    section("Single sources of truth", bucket("canon"),
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
-    section("Renames — dead names are history, never current", g["renames"],
+    section("Renames — dead names are history, never current", bucket("renames"),
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
-    section("Rulings — facts decided, guarded against recurrence", g["resolutions"],
+    section("Rulings — facts decided, guarded against recurrence", bucket("resolutions"),
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
-    section("Triage law — approved, previewed against history", g["triage"],
+    section("Triage law — approved, previewed against history", bucket("triage"),
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
-    section("Taste — output shapes to avoid", g["taste"],
+    section("Taste — output shapes to avoid", bucket("taste"),
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
-    section("Precedents — what is NOT rot here", g["precedents"],
+    section("Precedents — what is NOT rot here", bucket("precedents"),
             lambda it: f"- {it['rule']}  \n  _why: {it['why']}_  \n  _[{it['prov']}]_")
-    section("Standing feedback — the operator's law", g["feedback"],
+    section("Standing feedback — the operator's law", bucket("feedback"),
             lambda it: f"- {it['rule']}  \n  _[{it['prov']}]_")
 
     L.append("---")
@@ -312,26 +352,47 @@ def gold_history(config: dict, limit: int = 60) -> list[dict]:
 
 
 def inject(conn: sqlite3.Connection, config: dict, apply: bool = False,
-           md: str | None = None) -> dict:
-    """Write GOLDEN_RULES.md to ~/.claude/ so every session can obey it.
-    Dry-run by default; --inject writes with a .bak of any previous version.
-    The CLAUDE.md import line is printed, never auto-appended — standing
-    context is the operator's budget to spend."""
-    md = md if md is not None else compile_gold(conn, config)
-    target = os.path.join(os.path.expanduser("~"), ".claude", "GOLDEN_RULES.md")
-    os.makedirs(os.path.dirname(target), exist_ok=True)
-    if not apply:
-        return {"applied": False, "target": target, "chars": len(md),
-                "hint": "run with --inject to write; then add "
-                        "'@GOLDEN_RULES.md' to ~/.claude/CLAUDE.md"}
-    baked = False
-    if os.path.exists(target):
-        with open(target, encoding="utf-8") as f:
-            old = f.read()
-        with open(target + ".bak", "w", encoding="utf-8") as f:
-            f.write(old)
-        baked = True
-    with open(target, "w", encoding="utf-8") as f:
-        f.write(md)
-    return {"applied": True, "target": target, "chars": len(md), "bak": baked,
-            "hint": "add '@GOLDEN_RULES.md' to ~/.claude/CLAUDE.md if not present"}
+           md: str | None = None, targets: tuple = DEFAULT_TARGETS) -> dict:
+    """Write the compiled law to each named consumer so every session can obey
+    it. Dry-run by default; --inject writes with a .bak of any previous version.
+    The import line is printed, never auto-appended — standing context is the
+    operator's budget to spend.
+
+    ONE gather feeds every target, so two consumers can never disagree about
+    what the law says on the same run. `md` is only reused for a target whose
+    scope is the full SECTIONS; a filtered target always recompiles from the
+    same gather rather than shipping the unfiltered text.
+
+    Returns the claude result at the top level (back-compatible with every
+    existing caller) plus a per-target breakdown under "targets"."""
+    g = gather(conn, config)
+    results = {}
+    for name in targets:
+        spec = TARGETS.get(name)
+        if spec is None:
+            results[name] = {"applied": False, "error": f"unknown target '{name}'",
+                             "known": sorted(TARGETS)}
+            continue
+        scoped = tuple(spec["sections"])
+        text = (md if (md is not None and scoped == SECTIONS)
+                else _compile_from(g, sections=scoped, title=spec["title"]))
+        target = os.path.join(os.path.expanduser(spec["path"][0]), *spec["path"][1:])
+        if not apply:
+            results[name] = {"applied": False, "target": target,
+                             "chars": len(text), "sections": scoped,
+                             "hint": f"run with --inject to write; {spec['hint']}"}
+            continue
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        baked = False
+        if os.path.exists(target):
+            with open(target, encoding="utf-8") as f:
+                old = f.read()
+            with open(target + ".bak", "w", encoding="utf-8") as f:
+                f.write(old)
+            baked = True
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(text)
+        results[name] = {"applied": True, "target": target, "chars": len(text),
+                         "bak": baked, "sections": scoped, "hint": spec["hint"]}
+    primary = results.get("claude") or next(iter(results.values()), {})
+    return {**primary, "targets": results}

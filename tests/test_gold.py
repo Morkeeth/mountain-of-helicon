@@ -302,3 +302,68 @@ def test_a_body_that_is_only_frontmatter_states_no_rule(env):
     g = gather(conn, config)
     assert not any(f["prov"] == "feedback_hollow_fm.md" for f in g["feedback"])
     assert any("refused" in w for w in g["_warnings"])
+
+
+# --- multi-target injection: one gather, many scoped consumers ---------------
+
+def test_codex_target_withholds_helicon_internal_calibration(env, monkeypatch,
+                                                             tmp_path):
+    """triage + precedents tune Helicon's OWN rot detector. Shipping them to
+    another agent is noise it cannot act on."""
+    conn, config = env
+    home = tmp_path / "home"
+    monkeypatch.setattr(os.path, "expanduser", lambda p: p.replace("~", str(home)))
+    res = inject(conn, config, apply=True, targets=("claude", "codex"))
+
+    claude_md = open(res["targets"]["claude"]["target"], encoding="utf-8").read()
+    codex_md = open(res["targets"]["codex"]["target"], encoding="utf-8").read()
+
+    assert "Triage law" in claude_md and "Precedents" in claude_md
+    assert "Triage law" not in codex_md and "Precedents" not in codex_md
+    # the facts every agent needs still travel
+    assert "Renames" in codex_md and "Single sources of truth" in codex_md
+    assert len(codex_md) < len(claude_md)
+
+
+def test_a_scoped_file_declares_what_it_withheld(env, monkeypatch, tmp_path):
+    """A filtered file that reads as the whole law quietly becomes a wrong one."""
+    conn, config = env
+    home = tmp_path / "home"
+    monkeypatch.setattr(os.path, "expanduser", lambda p: p.replace("~", str(home)))
+    inject(conn, config, apply=True, targets=("codex",))
+    codex_md = open(home / ".codex" / "AGENTS.md", encoding="utf-8").read()
+    assert "withheld" in codex_md
+    assert "triage" in codex_md and "precedents" in codex_md
+
+
+def test_scoped_header_counts_only_what_it_wrote(env, monkeypatch, tmp_path):
+    """The header must count the file's OWN rules, never the full store."""
+    conn, config = env
+    home = tmp_path / "home"
+    monkeypatch.setattr(os.path, "expanduser", lambda p: p.replace("~", str(home)))
+    res = inject(conn, config, apply=True, targets=("claude", "codex"))
+    full = int(re.search(r"law of this agent stack: (\d+) rules",
+                         open(res["targets"]["claude"]["target"]).read()).group(1))
+    scoped = int(re.search(r"law of this agent stack: (\d+) rules",
+                           open(res["targets"]["codex"]["target"]).read()).group(1))
+    assert scoped < full
+
+
+def test_unknown_target_is_named_not_silently_skipped(env):
+    conn, config = env
+    res = inject(conn, config, apply=False, targets=("claude", "nope"))
+    assert res["targets"]["nope"]["error"].startswith("unknown target")
+    assert "claude" in res["targets"]["nope"]["known"]
+
+
+def test_default_targets_stay_claude_only(env, monkeypatch, tmp_path):
+    """Back-compat: an existing caller passing no targets must not suddenly
+    start writing into ~/.codex."""
+    conn, config = env
+    home = tmp_path / "home"
+    monkeypatch.setattr(os.path, "expanduser", lambda p: p.replace("~", str(home)))
+    res = inject(conn, config, apply=True)
+    assert set(res["targets"]) == {"claude"}
+    assert not (home / ".codex").exists()
+    # top-level keys still describe the claude write, as every caller expects
+    assert res["applied"] is True and res["target"].endswith("GOLDEN_RULES.md")

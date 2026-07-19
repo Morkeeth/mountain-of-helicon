@@ -1364,8 +1364,20 @@ def cmd_gold(args):
         # a memory that could not state its own rule used to compile a blank
         # line into the law in total silence. Never again silently.
         print(f"  [WARN] {w}")
+    raw = getattr(args, "targets", None) or "claude"
+    tgts = tuple(t.strip() for t in raw.split(",") if t.strip())
     inj = inject(conn, config, apply=getattr(args, "inject", False),
-                 md=res.get("md"))
+                 md=res.get("md"), targets=tgts)
+    for name, r in inj.get("targets", {}).items():
+        if r.get("error"):
+            print(f"  [WARN] {name}: {r['error']} (known: {', '.join(r['known'])})")
+            continue
+        verb = "wrote" if r.get("applied") else "would write"
+        held = [s for s in ("triage", "precedents", "canon", "renames",
+                            "resolutions", "taste", "feedback")
+                if s not in r.get("sections", ())]
+        scope = f" [scoped: -{', -'.join(held)}]" if held else ""
+        print(f"  {name}: {verb} {r['chars']:,} chars -> {r['target']}{scope}")
     if inj["applied"]:
         print(f"injected -> {inj['target']}"
               + (" (.bak kept)" if inj.get("bak") else "")
@@ -2401,6 +2413,11 @@ def main():
 
     gold_p = sub.add_parser("policy", aliases=["gold"], help="Compile the policy the agent obeys, built from your rulings, with provenance")
     gold_p.add_argument("--inject", action="store_true", help="write to ~/.claude/GOLDEN_RULES.md (.bak kept)")
+    gold_p.add_argument("--targets", default="claude",
+                        help="comma-separated consumers to write: claude "
+                             "(~/.claude/GOLDEN_RULES.md, full law) · codex "
+                             "(~/.codex/AGENTS.md, scoped: no triage/precedents). "
+                             "Default: claude")
     gold_p.add_argument("--show", action="store_true", help="print the compiled rules, write nothing")
 
     evolve_p = sub.add_parser("evolve", help="The night command: scan + exams + gold recompile + the morning delta")

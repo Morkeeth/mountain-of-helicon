@@ -54,7 +54,7 @@ $PY -m helicon.cli reconcile --apply >> "$LOG" 2>&1 &&
   $PY -m helicon.cli triage          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli evolve          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli runs --close --run >> "$LOG" 2>&1 &&
-  $PY -m helicon.cli policy --inject >> "$LOG" 2>&1 &&
+  $PY -m helicon.cli policy --inject --targets claude,codex >> "$LOG" 2>&1 &&
   $PY -m helicon.cli report --llm --json > data/eval-latest.json.tmp 2>> "$LOG" &&
   test -s data/eval-latest.json.tmp &&
   mv -f data/eval-latest.json.tmp data/eval-latest.json
