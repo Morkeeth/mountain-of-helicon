@@ -47,10 +47,15 @@ def get_q_values_batch(conn: sqlite3.Connection, cube_ids: list[str]) -> dict:
     if not cube_ids:
         return {}
     placeholders = ",".join("?" * len(cube_ids))
-    rows = conn.execute(
-        f"SELECT cube_id, q_value FROM memory_utility WHERE cube_id IN ({placeholders})",
-        cube_ids,
-    ).fetchall()
+    try:
+        rows = conn.execute(
+            f"SELECT cube_id, q_value FROM memory_utility WHERE cube_id IN ({placeholders})",
+            cube_ids,
+        ).fetchall()
+    except sqlite3.OperationalError:
+        # the utility table is created lazily on first reward/surface; a store that
+        # has not learned yet has no utility data — every memory gets the prior.
+        return {cid: DEFAULT_Q for cid in cube_ids}
     result = {r["cube_id"]: r["q_value"] for r in rows}
     for cid in cube_ids:
         if cid not in result:

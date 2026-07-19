@@ -123,6 +123,18 @@ TOOLS = [
         },
     },
     {
+        "name": "helicon_ask",
+        "description": "Guarded retrieve — ask what is safe to believe about a topic BEFORE you answer or act. The read-side mirror of helicon_guard: returns the ruled-true answer for any topic a human has settled, plus retrieved context split into safe_context (nothing contradicts a ruling) and flagged_context (still asserts a value ruled WRONG — do not believe it). Use this before asserting a fact that a stale memory could get wrong.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "What you want the trusted answer + safe context for"},
+                "limit": {"type": "integer", "description": "Max retrieved memories to screen. Default 10", "default": 10},
+            },
+            "required": ["question"],
+        },
+    },
+    {
         "name": "helicon_playbook",
         "description": "Get task-specific guidance based on learned review patterns and feedback. Describe what you're about to do and Mount Helicon returns the relevant playbook with rules, common mistakes, and a prompt template.",
         "inputSchema": {
@@ -512,6 +524,12 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         max_tokens = arguments.get("max_tokens", 4000)
         results = _proactive_context(conn, task, limit, max_tokens)
         return json.dumps(results, indent=2)
+
+    elif name == "helicon_ask":
+        from helicon.retrieve_guard import guarded_context
+        question = arguments.get("question", "")
+        limit = arguments.get("limit", 10)
+        return json.dumps(guarded_context(conn, question, limit=limit), indent=2)
 
     elif name == "helicon_playbook":
         task = arguments.get("task", "")
