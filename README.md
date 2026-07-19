@@ -93,18 +93,12 @@ Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.s
 
 ## Proof of Alibaba Cloud
 
-Local-first, and it runs on Alibaba Cloud. The rule asks for a code-file link
-demonstrating use of Alibaba Cloud services, and that the backend runs on Alibaba
-Cloud — both are met:
+The backend is **deployed and running on Alibaba Cloud** — a live public URL:
 
-- **Backend running on Alibaba Cloud** — [`scripts/cloudshell-run.sh`](scripts/cloudshell-run.sh) boots the full backend inside **Alibaba Cloud Shell** (shown in the demo video).
+- **Live on Alibaba Cloud ECS (Singapore / ap-southeast-1):** **http://47.237.3.97:8420** — `GET /api/health` → `{"status":"ok",...}`, `GET /` → the dashboard (HTTP 200). Serves the seeded demo store (no personal data). Reproducible on any Linux host via [`scripts/cloudshell-run.sh`](scripts/cloudshell-run.sh) (local-first).
 - **Qwen inference on Alibaba Model Studio** — [`helicon/qwen.py`](helicon/qwen.py) (load-bearing: contradiction + grounding judging).
 - **Embeddings on Alibaba DashScope** — [`helicon/embeddings.py`](helicon/embeddings.py) (`text-embedding-v4`).
-- **Deployable to Function Compute** — [`fc/s.yaml`](fc/s.yaml) + [`fc/Dockerfile`](fc/Dockerfile).
-
-There is no always-on public URL (a persistent ECS/Function Compute server needs a KYC
-step this account can't clear); local-first means the same backend runs on the judge's
-machine or in Cloud Shell, and we never imply a hosted endpoint exists.
+- **Also container-deployable to Function Compute** — [`fc/s.yaml`](fc/s.yaml) + [`fc/Dockerfile`](fc/Dockerfile).
 
 ## Three ways to run it (the dashboard is optional)
 
