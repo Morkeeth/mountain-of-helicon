@@ -18,7 +18,26 @@ never a fabricated number. It is surface-agnostic and READ-ONLY — the CLI prin
 the MCP serves it to an agent, the dashboard and macOS app render the same object.
 """
 
+import re
+
 from helicon.score import compute_score
+
+
+def _humanize(text: str) -> str:
+    """Turn a machine finding into a plain sentence a tired human can read.
+    Already-human findings (the demo's Stripe line) pass through untouched."""
+    t = (text or "").strip()
+    m = re.match(r"(?:Cross-source (?:claim conflict|contradiction)|[^:]*conflict):\s*(.+)", t)
+    if m:
+        t = m.group(1)
+    t = re.sub(r"\s*\[[^\]]*\]", "", t)                       # drop [scope] noise
+    t = re.sub(r"\s*\(\d+\s*(?:claim|cube|memor(?:y|ies))\(?s?\)?\)", "", t)  # drop (n claims)
+    m2 = re.match(r"(.+?)\s+[—-]\s+(.+?)\s+vs\.?\s+(.+)", t)  # "TOPIC — A vs B"
+    if m2:
+        topic, a, rest = (g.strip() for g in m2.groups())
+        rest = re.sub(r"\s+vs\.?\s+", ", ", rest)
+        return f"Your notes disagree on {topic}: is it {a} or {rest}?"
+    return t
 
 
 def _rows(conn, sql, params=()):
@@ -73,23 +92,24 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
 
     # ---- CALM: the few things worth a human's judgment ----
     exceptions = [
-        {"id": r["id"], "finding": (r["finding"] or "")[:160], "severity": r["severity"]}
+        {"id": r["id"], "finding": _humanize(r["finding"]), "severity": r["severity"]}
         for r in open_findings
         if r["severity"] in ("critical", "high")
     ]
+    n_exc = len(exceptions)
     calm = {
         "open_exceptions": len(open_findings),
         "worth_your_judgment": exceptions[:limit],
         "headline": (
-            f"{len(exceptions)} exception(s) need a ruling"
+            f"{n_exc} thing{'' if n_exc == 1 else 's'} to decide"
             if exceptions
-            else ("nothing needs a ruling right now" if not open_findings
-                  else f"{len(open_findings)} low-severity finding(s), none urgent")
+            else ("Nothing needs you right now." if not open_findings
+                  else f"{len(open_findings)} small thing(s) to look at, none urgent")
         ),
     }
 
     # ---- DIRECTION: which model earned its cost ----
-    direction = {"task_classes": [], "headline": "no routing evidence yet — run `helicon route --record --run`"}
+    direction = {"task_classes": [], "headline": "No model comparisons yet."}
     try:
         from helicon.route import route
 
@@ -109,12 +129,12 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
             direction["task_classes"] = picks[:limit]
             firm = [p for p in picks if p["sufficient"]]
             direction["headline"] = (
-                f"{firm[0]['recommendation']} leads for {firm[0]['task_class']}"
+                f"For {firm[0]['task_class']} work, {firm[0]['recommendation']} has the best track record"
                 if firm
-                else "provisional leans only — not enough verdicts for a firm route"
+                else "Early signal only — not enough runs to call it yet"
             )
         elif routed.get("results"):
-            direction["headline"] = "insufficient evidence for any route — need more verified verdicts"
+            direction["headline"] = "Not enough verified runs to recommend a model yet"
     except Exception:
         pass
 
@@ -146,9 +166,10 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
             for r in recent_runs
         ],
         "headline": (
-            f"{len(recent_batches)} ruling(s) applied, {len(recent_runs)} run(s) scored recently"
-            if (recent_batches or recent_runs)
-            else "nothing changed since the last look"
+            f"{len(recent_runs)} run{'' if len(recent_runs) == 1 else 's'} scored since you last looked"
+            if recent_runs
+            else (f"{len(recent_batches)} decision{'' if len(recent_batches) == 1 else 's'} recorded recently"
+                  if recent_batches else "Nothing's changed since you last looked.")
         ),
     }
 
@@ -159,17 +180,17 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
         "headline": None,
     }
     continuity["headline"] = (
-        f"{continuity['context_packets']} context packet(s) recorded across {continuity['task_runs']} run(s)"
+        f"{continuity['context_packets']} piece(s) of context carried between runs"
         if continuity["context_packets"]
-        else "no context carried yet — the recorder is armed, nothing captured"
+        else "Nothing carried between runs yet."
     )
 
     # Truth headline last (it summarises the store's standing)
     ntw = truth["stale_count"]
     truth["headline"] = (
-        f"grade {truth['grade']} · {ntw} memor{'y' if ntw == 1 else 'ies'} no longer trustworthy"
+        f"{ntw} memor{'y' if ntw == 1 else 'ies'} have gone stale"
         if ntw
-        else f"grade {truth['grade']} · nothing below the trust floor"
+        else "Your memory is holding — nothing stale."
     )
 
     return {
