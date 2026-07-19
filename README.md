@@ -10,6 +10,12 @@ It sits *on top of any store* (or none), reads any agent's memory read-only — 
 
 Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
 
+> **Where this is heading:** the calm **control plane for agentic work** — as your
+> work fragments across Claude Code, Cursor, Codex, and cloud agents, Helicon keeps
+> one inspectable system of record: what's true now, what changed, what it cost, and
+> the three things worth your judgment. This submission ships the governance
+> foundation of that vision. The full north star: [`VISION.md`](VISION.md).
+
 ## See it in 60 seconds (one command, no key, no personal data)
 
 ```bash
