@@ -26,6 +26,7 @@ const RunsView = lazy(() => import('./components/RunsView'));
 const ExamView = lazy(() => import('./components/ExamView'));
 const JudgeView = lazy(() => import('./components/JudgeView'));
 const RouteView = lazy(() => import('./components/RouteView'));
+const BriefView = lazy(() => import('./components/BriefView'));
 const GoldView = lazy(() => import('./components/GoldView'));
 const ConflictMap = lazy(() => import('./components/ConflictMap'));
 const Focus = lazy(() => import('./components/Focus'));
@@ -41,7 +42,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // The primary nav IS the loop, review first: what needs your ruling, the exam
 // that found it, the rules your rulings compile into, and the memory underneath.
@@ -49,6 +50,7 @@ type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judg
 // and the deeper surfaces — lives under More, so the hero is the decision, not a
 // menu of capabilities.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'brief', label: 'Morning Brief' },
   { key: 'findings', label: 'Needs Ruling' },
   { key: 'exam', label: 'The Exam' },
   { key: 'gold', label: 'Golden Rules' },
@@ -475,6 +477,7 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'brief' && <BriefView />}
         {tab === 'exam' && <ExamView onGoToFindings={() => setTab('findings')} />}
         {tab === 'judge' && <JudgeView />}
 
