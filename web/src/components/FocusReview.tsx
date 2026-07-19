@@ -153,10 +153,15 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
             />
           ) : (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2.5 sm:flex-wrap">
-            {f.suggested_action === 'fix_skill' ? (
-              <><CmdChip cmd="helicon fix-skills --apply" /><Later onClick={() => advance(f)} /></>
-            ) : f.suggested_action === 'reconcile' ? (
-              <><CmdChip cmd="helicon reconcile --apply" /><Later onClick={() => advance(f)} /></>
+            {(f.suggested_action === 'fix_skill' || f.suggested_action === 'reconcile') && auditId !== null ? (
+              /* These once handed the human a shell command to copy — the one
+                 thing a review surface must never do. A reconcile/skill-drift
+                 finding is ruled like any other: say why it stands (or doesn't)
+                 and the verdict compiles into GOLDEN_RULES, so it never alarms
+                 again. The maintenance sweep applies the mechanical part; the
+                 human's job here is the ruling, not running a command. */
+              <><Primary disabled={acting} onClick={() => setStep('reason')}>Rule it</Primary>
+                <Later onClick={() => advance(f)} /></>
             ) : f.suggested_action === 'kill_stale' && auditId !== null ? (
               <><Primary disabled={acting} onClick={() => (askReason ? setStep('reason') : confirmAudit('dismissed'))}>Keep</Primary>
                 <Ghost disabled={acting} onClick={() => confirmAudit('acted')}>Retire</Ghost>
@@ -238,16 +243,6 @@ function Ghost({ children, onClick, disabled }: { children: React.ReactNode; onC
 }
 function Later({ onClick }: { onClick: () => void }) {
   return <button onClick={onClick} className="px-3 py-2 text-[13px] transition-colors hover:opacity-70" style={{ color: FAINT }}>Later</button>;
-}
-function CmdChip({ cmd }: { cmd: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button onClick={() => { navigator.clipboard?.writeText(cmd); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
-      className="px-3 py-2 rounded-lg text-[12px] transition-colors hover:opacity-80"
-      style={{ fontFamily: MONO, color: INK, background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
-      {copied ? 'copied ✓' : `${cmd}  ⧉`}
-    </button>
-  );
 }
 
 

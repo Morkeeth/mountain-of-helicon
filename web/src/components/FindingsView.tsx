@@ -56,29 +56,6 @@ function sevColor(sev: string): string {
 }
 
 // Copyable CLI one-liner chip, the fix for skill/reconcile findings.
-function CopyChip({ cmd, title }: { cmd: string; title?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      title={title}
-      onClick={e => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(cmd).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        });
-      }}
-      className="flex items-center gap-2 text-[11px] px-3 md:px-2.5 py-1 rounded-md border transition-all active:scale-95 bg-white shadow-sm font-mono min-h-[44px] md:min-h-0 max-w-full"
-      style={{ borderColor: 'var(--helicon-line)', color: 'var(--helicon-ink)' }}
-    >
-      <code className="truncate">{cmd}</code>
-      <span style={{ color: copied ? 'var(--helicon-accent)' : 'var(--helicon-muted)', fontFamily: 'Inter, sans-serif' }}>
-        {copied ? 'copied' : 'copy'}
-      </span>
-    </button>
-  );
-}
-
 function ActionButton({ label, tone, disabled, onClick }: {
   label: string;
   tone: 'kill' | 'keep' | 'muted';
@@ -136,14 +113,14 @@ function FindingRow({ f, onGone }: { f: Finding; onGone: () => void }) {
     if (f.suggested_action === 'resolve_relation' && auditId !== null) {
       return <RelationResolve auditId={auditId} onGone={onGone} />;
     }
-    if (f.suggested_action === 'fix_skill') {
-      return <CopyChip cmd="helicon fix-skills --apply" title="writes descriptions back with .bak backups" />;
-    }
-    if (f.suggested_action === 'reconcile') {
+    if ((f.suggested_action === 'fix_skill' || f.suggested_action === 'reconcile') && auditId !== null) {
+      // Ruled like every other finding — the verdict compiles into GOLDEN_RULES
+      // and never alarms again. The old copy-this-shell-command chip is gone: a
+      // review surface tells the operator to decide, not to run maintenance.
       return (
         <>
-          <CopyChip cmd="helicon reconcile --apply" title="retires cubes a re-scan no longer sees" />
-          {auditId !== null && <ActionButton label="Later" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />}
+          <ActionButton label="Rule it" tone="keep" disabled={acting} onClick={() => { setReasoning(true); setExpanded(true); }} />
+          <ActionButton label="Later" tone="muted" disabled={acting} onClick={() => confirmAudit('dismissed')} />
         </>
       );
     }

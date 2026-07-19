@@ -200,7 +200,7 @@ function MoreSheet({ tab, onPick, onClose, needsYou }: {
           <span className="h-1 w-9 rounded-full" style={{ background: 'var(--helicon-line-2)' }} />
         </div>
         <div className="overflow-y-auto pb-4" style={{ maxHeight: 'calc(82vh - 24px)' }}>
-          {rest.map((t, i) => row(t, PRIMARY_TABS.findIndex(p => p.key === t.key) + 1))}
+          {rest.map((t) => row(t, PRIMARY_TABS.findIndex(p => p.key === t.key) + 1))}
           {rest.length > 0 && <div className="my-2 mx-5 border-t" style={{ borderColor: 'var(--helicon-line)' }} />}
           {/* Derived, never hardcoded: these numbers ARE the keyboard shortcuts
               and must match the rail exactly. A literal `i + 8` here was correct
