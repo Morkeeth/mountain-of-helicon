@@ -51,7 +51,7 @@ def test_empty_signals_degrade_honestly_not_fabricated(demo_db):
 
     b = build_brief(_conn(demo_db))
     assert b["continuity"]["context_packets"] == 0
-    assert "no context carried yet" in b["continuity"]["headline"]
+    assert "Nothing carried between runs" in b["continuity"]["headline"]
     # direction has no route evidence in the seed -> no fabricated recommendation
     assert b["direction"]["task_classes"] == []
 
