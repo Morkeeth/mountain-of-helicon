@@ -20,8 +20,9 @@ helicon demo          # seeds a labelled demo store + opens the dashboard
 
 Open **http://127.0.0.1:8420**. The dashboard opens on **Needs Ruling** with a real
 finding — *"Aurora is a payments protocol in one source, a lending market in another."*
-Rule it in plain language, watch it clear, and see it become durable law your agent
-obeys next time. That's the whole loop: **a claim → its evidence → your ruling → future
+Rule it in plain language (and the next one) — the verdicts **stage**, you **Apply once**,
+and a **receipt** proves each became durable law your agent obeys next time, with one
+**Undo all**. That's the whole loop: **a claim → its evidence → your ruling → future
 protection.** Localhost-bound, keyless, scans nothing on your machine. Full walkthrough:
 [`GOLDEN_SUBMISSION.md`](GOLDEN_SUBMISSION.md).
 
