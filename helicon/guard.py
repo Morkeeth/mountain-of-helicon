@@ -120,10 +120,11 @@ def guard_output(conn, text: str) -> dict:
                     break
         if fired is not None:
             subj = f"'{r['subject']}' " if r["subject"] else ""
+            subj_for = f"for '{r['subject']}' " if r["subject"] else ""
             violations.append({
                 "rule": "ruled-fact", "severity": "critical",
                 "subject": "/".join(p for p in (r["subject"], r["topic"]) if p),
-                "message": f"{r['topic']} for {subj}was ruled '{r['true_value']}', "
+                "message": f"{r['topic']} {subj_for}was ruled '{r['true_value']}', "
                            f"but this asserts '{fired}' — ruled wrong "
                            f"(re-alarms if it returns).",
                 "provenance": f"ruling #{r['audit_id']} on {subj}{r['topic']} "
