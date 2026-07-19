@@ -72,6 +72,12 @@ struct HeliconAPI {
         try await get("/api/health")
     }
 
+    /// GET /api/brief -> the five-pillar morning brief (read-only). Same object
+    /// the CLI, MCP, and dashboard render — the app is one more surface on it.
+    func brief(limit: Int = 3) async throws -> Brief {
+        try await get("/api/brief", [URLQueryItem(name: "limit", value: String(limit))])
+    }
+
     /// GET /api/findings?lane=decision&limit=100
     /// summary.needs_you / summary.ambient always describe the FULL set (the
     /// server counts them before the lane slice), so one call feeds both the

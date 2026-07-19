@@ -143,9 +143,8 @@ def seed(db_path: str = DEMO_DB) -> dict:
     conn.execute(
         "INSERT INTO audit_log (audit_type, target_type, target_id, finding, severity, details, audited_at) "
         "VALUES ('factual', 'claim', 'demo-stripe-live', ?, 'critical', ?, ?)",
-        ("Two sources disagree on Stripe: is it in TEST mode (charges simulated), or "
-         "LIVE with real money? An agent that believes 'test mode' will charge real "
-         "customers by mistake. Which is current?",
+        ("Stripe — test mode, or live with real money? Believe the wrong one and "
+         "your agent charges real customers.",
          json.dumps({"topic": "Stripe", "value_a": "test mode",
                      "value_b": "live — real money"}),
          "2026-07-01T09:30:00"))

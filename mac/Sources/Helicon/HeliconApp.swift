@@ -65,6 +65,34 @@ final class Cockpit {
     }
 }
 
+/// The morning-brief window, owned by AppKit so the sentry or a launch flag can
+/// open it. Same pattern as Cockpit — one path, many entry points.
+@MainActor
+final class BriefWindow {
+    static let shared = BriefWindow()
+    private var window: NSWindow?
+
+    func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let host = NSHostingController(rootView: BriefView())
+        let w = NSWindow(contentViewController: host)
+        w.title = "Morning Brief"
+        w.setContentSize(NSSize(width: 780, height: 720))
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.isReleasedWhenClosed = false
+        w.center()
+        window = w
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `--queue` opens the cockpit straight away (demo + headless verification).
     /// Without it the app is menu-bar-only and the window is opened from the
@@ -73,10 +101,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandLine.arguments.contains("--queue")
     }
 
+    /// `--brief` opens the morning brief straight away (demo + headless shot).
+    static var opensBriefAtLaunch: Bool {
+        CommandLine.arguments.contains("--brief")
+    }
+
     // Menu-bar-first: no Dock icon until a window is opened. Set in code because
     // a SwiftPM executable has no Info.plist to carry LSUIElement.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if Self.opensQueueAtLaunch {
+        if Self.opensBriefAtLaunch {
+            NSApp.setActivationPolicy(.regular)
+            BriefWindow.shared.show()
+        } else if Self.opensQueueAtLaunch {
             NSApp.setActivationPolicy(.regular)
             Cockpit.shared.show()
         } else {

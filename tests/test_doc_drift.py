@@ -118,13 +118,13 @@ def test_baseline_copy_is_clean(repo):
 
 def test_count_drift_in_claude_md_is_caught(repo):
     """The real Jul 15 lie: CLAUDE.md said 11 MCP tools while source had 14."""
-    _mutate(repo, "CLAUDE.md", "MCP Server (14 tools", "MCP Server (11 tools")
+    _mutate(repo, "CLAUDE.md", "MCP Server (16 tools", "MCP Server (11 tools")
     assert _fails(check_counts(str(repo)), "MCP tools", "CLAUDE.md")
 
 
 def test_count_drift_in_readme_still_caught(repo):
     """v1's one real skill must not regress."""
-    _mutate(repo, "README.md", "MCP Server (14 tools)", "MCP Server (8 tools)")
+    _mutate(repo, "README.md", "MCP Server (16 tools)", "MCP Server (8 tools)")
     assert _fails(check_counts(str(repo)), "MCP tools", "README.md")
 
 
@@ -218,7 +218,7 @@ def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
 
 def test_deleting_a_claim_is_not_a_way_to_pass(repo):
     """The cheapest fake fix is removing the number. It must fail, not pass."""
-    _mutate(repo, "CLAUDE.md", "- 24 routers (~94 endpoints), 14 MCP tools", "- routers, MCP tools")
+    _mutate(repo, "CLAUDE.md", "- 25 routers (~95 endpoints), 16 MCP tools", "- routers, MCP tools")
     drift = _fails(check_counts(str(repo)), "API routers", "CLAUDE.md")
     assert drift and "not found" in drift[0]["why"]
 
