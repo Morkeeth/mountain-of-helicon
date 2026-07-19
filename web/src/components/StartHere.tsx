@@ -33,25 +33,35 @@ export default function StartHere({ onExplore }: { onExplore?: () => void }) {
   }
 
   const wrap: React.CSSProperties = {
-    maxWidth: 480, margin: '0 auto', padding: '15vh 28px',
-    display: 'flex', flexDirection: 'column', gap: 18,
+    maxWidth: 460, margin: '0 auto', padding: '16vh 28px',
+    display: 'flex', flexDirection: 'column',
   };
-  const big = { ...SERIF, fontSize: 34, lineHeight: 1.2, color: 'var(--text-primary)' } as const;
-  const sub = { fontSize: 16, lineHeight: 1.5, color: 'var(--text-muted)' } as const;
+  const big = { ...SERIF, fontSize: 33, lineHeight: 1.2, color: 'var(--text-primary)' } as const;
+  const sub = { fontSize: 17, lineHeight: 1.5, color: 'var(--text-primary)' } as const;
+  const label = { fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase',
+                  color: 'var(--text-muted)', marginBottom: 8 } as const;
 
-  if (err) return <div style={wrap}><div style={big}>Almost there</div><div style={sub}>{err}</div></div>;
-  if (!finding) return <div style={wrap}><div style={sub}>…</div></div>;
+  const Block = ({ tag, children, mt = 0 }: { tag: string; children: React.ReactNode; mt?: number }) => (
+    <div style={{ marginTop: mt }}>
+      <div style={label}>{tag}</div>
+      {children}
+    </div>
+  );
+
+  if (err) return <div style={wrap}><div style={big}>Almost there</div><div style={{ ...sub, marginTop: 12, color: 'var(--text-muted)' }}>{err}</div></div>;
+  if (!finding) return <div style={wrap}><div style={{ color: 'var(--text-muted)' }}>…</div></div>;
 
   // done — enforced, in one glance
   if (done) return (
     <div style={wrap}>
-      <div style={{ ...big, color: 'var(--improve, #2f7d5b)' }}>Locked. ✓</div>
-      <div style={sub}>Your agent can no longer act on the wrong answer.</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.8 }}>
-        You ruled once · it became a rule · the guard enforces it from here.
-      </div>
+      <Block tag="Done">
+        <div style={{ ...big, color: 'var(--improve, #2f7d5b)' }}>Locked. ✓</div>
+      </Block>
+      <Block tag="What that means" mt={28}>
+        <div style={sub}>Your agent can no longer act on the wrong answer.</div>
+      </Block>
       {onExplore && (
-        <button onClick={onExplore} style={{ ...SERIF, alignSelf: 'flex-start', marginTop: 12,
+        <button onClick={onExplore} style={{ ...SERIF, alignSelf: 'flex-start', marginTop: 36,
           fontSize: 16, cursor: 'pointer', padding: '11px 20px', borderRadius: 12, border: 'none',
           background: 'var(--text-primary)', color: 'var(--bg, #fff)' }}>
           See the rest →
@@ -60,12 +70,16 @@ export default function StartHere({ onExplore }: { onExplore?: () => void }) {
     </div>
   );
 
-  // the one decision
+  // the one decision — labelled, front-loaded, no prose to parse
   return (
     <div style={wrap}>
-      <div style={big}>Is Stripe live, or in test mode?</div>
-      <div style={sub}>Believe the wrong one and your agent charges real customers.</div>
-      <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+      <Block tag="The question">
+        <div style={big}>Is Stripe live, or in test mode?</div>
+      </Block>
+      <Block tag="If you get it wrong" mt={28}>
+        <div style={sub}>Your agent charges real customers.</div>
+      </Block>
+      <div style={{ display: 'flex', gap: 12, marginTop: 36, flexWrap: 'wrap' }}>
         {finding.options.map(o => (
           <button key={o} onClick={() => rule(o)} disabled={busy} style={{
             ...SERIF, fontSize: 17, cursor: 'pointer', padding: '13px 22px', borderRadius: 12,
@@ -74,9 +88,6 @@ export default function StartHere({ onExplore }: { onExplore?: () => void }) {
             color: o.includes('live') ? 'var(--bg, #fff)' : 'var(--text-primary)',
           }}>It's {o}</button>
         ))}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', opacity: 0.7, marginTop: 4 }}>
-        Qwen flagged this — the two facts can't both be true.
       </div>
     </div>
   );
