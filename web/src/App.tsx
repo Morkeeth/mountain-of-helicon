@@ -89,8 +89,8 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
    truncated to "NEEDS RULI…" / "GOLDEN RU…" in a 78px slot, and the fix is
    fewer words, not 8px type on the surface that carries the verdict. */
 const BAR_TABS: { key: Tab; short: string }[] = [
+  { key: 'start', short: 'Start' },
   { key: 'findings', short: 'Ruling' },
-  { key: 'reading', short: 'Reading' },
   { key: 'health', short: 'Memory' },
   { key: 'gold', short: 'Rules' },
 ];
