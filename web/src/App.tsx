@@ -43,21 +43,23 @@ const Consistency = lazy(() => import('./components/Consistency'));
 
 type Tab = 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
-// One honest journey on the left: the reading opens the record, then your next
-// moves, then your memory itself (with its truth gates as sub-views), what needs
-// ruling, and the golden rules it compiles. Everything else lives under More.
+// The primary nav IS the loop, review first: what needs your ruling, the exam
+// that found it, the rules your rulings compile into, and the memory underneath.
+// Everything else — narrative, next moves, thin-evidence reads (runs/route),
+// and the deeper surfaces — lives under More, so the hero is the decision, not a
+// menu of capabilities.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'findings', label: 'Needs Ruling' },
   { key: 'exam', label: 'The Exam' },
+  { key: 'gold', label: 'Golden Rules' },
+  { key: 'health', label: 'Memory' },
+];
+
+const SECONDARY_TABS: { key: Tab; label: string }[] = [
   { key: 'reading', label: 'The Reading' },
   { key: 'focus', label: 'Next Moves' },
   { key: 'runs', label: 'Runs' },
   { key: 'route', label: 'Route' },
-  { key: 'health', label: 'Memory' },
-  { key: 'gold', label: 'Golden Rules' },
-];
-
-const SECONDARY_TABS: { key: Tab; label: string }[] = [
   { key: 'tour', label: 'Tour' },
   { key: 'routines', label: 'Routines & Skills' },
   { key: 'evals', label: 'Evals' },
