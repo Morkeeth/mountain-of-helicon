@@ -52,7 +52,7 @@ def test_trusted_answer_is_the_ruled_value(ruled_demo):
 def test_ruled_wrong_memory_is_flagged_not_served(ruled_demo):
     from helicon.retrieve_guard import guarded_context
 
-    res = guarded_context(_conn(ruled_demo), "What is the current Stripe mode for checkout?")
+    res = guarded_context(_conn(ruled_demo), "What is the current Stripe mode for checkout?", limit=20)
     # the memory still asserting "test mode" must be held back, never in safe_context
     flagged_text = " ".join(
         f"{m.get('title','')} {m.get('content_preview','')}".lower()

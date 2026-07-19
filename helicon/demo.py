@@ -91,6 +91,46 @@ CUBES = [
      "Working timezone",
      "The team works from Central European Time; schedule around CET.",
      "2026-05-01T09:00:00", {"as_of": "2026-05-01"}),
+
+    # --- team ---------------------------------------------------------------
+    ("demo-cofounder", "obsidian", "01 Projects/Ledger/team.md", "project",
+     "Cofounder",
+     "Priya is CTO and cofounder — she owns all infra and the on-call rotation.",
+     "2026-02-01T09:00:00", {}),
+    ("demo-hire", "claude-code", "session/2026-06-20", "decision",
+     "First backend hire",
+     "Signed Marco as senior backend engineer; start date 2026-08-01.",
+     "2026-06-20T09:00:00", {}),
+
+    # --- fundraise: a STALE valuation the current one contradicts ------------
+    ("demo-raise-old", "obsidian", "01 Projects/Ledger/raise.md", "decision",
+     "Seed round (plan)",
+     "Raising a $2M seed at a $10M cap — targeting a close by end of Q2.",
+     "2026-04-10T09:00:00", {"as_of": "2026-04-10"}),
+    ("demo-raise-new", "claude-code", "session/2026-07-05", "decision",
+     "Seed round (closed)",
+     "Seed CLOSED at $3M on a $15M cap on 2026-07-05. Cap table is updated.",
+     "2026-07-05T09:00:00", {"as_of": "2026-07-05"}),
+
+    # --- product + infra decisions (clean, current) -------------------------
+    ("demo-ratelimit", "obsidian", "01 Projects/Ledger/api.md", "decision",
+     "API rate limit",
+     "The public API is capped at 100 requests/minute per key; 429 above that.",
+     "2026-05-20T09:00:00", {}),
+    ("demo-region", "obsidian", "01 Projects/Ledger/infra.md", "decision",
+     "Primary region",
+     "Production runs in eu-west-1 (Ireland); disaster recovery in eu-central-1.",
+     "2026-05-15T09:00:00", {}),
+
+    # --- going stale: low-confidence memories the store no longer stands behind
+    ("demo-old-pricing", "claude-code", "session/2026-01-15", "decision",
+     "Pricing (early)",
+     "Pricing is a flat 2.9% + 30c per transaction, with no monthly fee.",
+     "2026-01-15T09:00:00", {}),
+    ("demo-old-oncall", "obsidian", "01 Projects/Ledger/ops.md", "memory",
+     "On-call (early)",
+     "On-call is just the two founders, handing off weekly.",
+     "2026-02-05T09:00:00", {}),
 ]
 
 
@@ -159,6 +199,56 @@ def seed(db_path: str = DEMO_DB) -> dict:
             "human_verdict": "kill", "content": f"draft reply {i}",
             "reason": "shoehorned a fake personal anecdote to seem relatable",
             "decided_at": "2026-07-11T10:00:00", "scores": {"relevance": 0.2}})
+
+    # --- decayed memories: a few the store no longer stands behind, so the
+    # Memory/Truth surface shows real staleness (not a wall of green 1.0s).
+    for cid in ("demo-old-pricing", "demo-old-oncall", "demo-deadname"):
+        conn.execute("UPDATE helicon_cubes SET confidence = 0.08 WHERE id = ?", (cid,))
+
+    # --- a SECOND human-rulable contradiction: the seed round's cap ($10M vs
+    # $15M). Gives the review queue and the brief more than one thread.
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, severity, details, audited_at) "
+        "VALUES ('factual', 'claim', 'demo-raise-new', ?, 'high', ?, ?)",
+        ("The seed round's cap disagrees across notes — a $10M cap or a $15M cap? "
+         "An agent quoting the wrong one misstates the cap table to investors.",
+         json.dumps({"topic": "seed round cap", "value_a": "$10M cap",
+                     "value_b": "$15M cap"}),
+         "2026-07-05T10:00:00"))
+
+    # --- model-routing evidence: real verified/contradicted verdicts per task
+    # class, so Route (and the brief's Direction pillar) recommends off data.
+    _route = [
+        ("claude-opus-4-8", "backend-fix", "verified"), ("claude-opus-4-8", "backend-fix", "verified"),
+        ("claude-opus-4-8", "backend-fix", "verified"), ("claude-opus-4-8", "backend-fix", "verified"),
+        ("claude-opus-4-8", "backend-fix", "verified"), ("claude-opus-4-8", "backend-fix", "contradicted"),
+        ("qwen3.6-plus", "backend-fix", "verified"), ("qwen3.6-plus", "backend-fix", "contradicted"),
+        ("qwen3.6-plus", "copy-writing", "verified"), ("qwen3.6-plus", "copy-writing", "verified"),
+        ("qwen3.6-plus", "copy-writing", "verified"), ("qwen3.6-plus", "copy-writing", "verified"),
+        ("qwen3.6-plus", "copy-writing", "verified"), ("claude-opus-4-8", "copy-writing", "verified"),
+    ]
+    for i, (model, tc, verdict) in enumerate(_route):
+        conn.execute(
+            "INSERT INTO route_evidence (model, harness, task_class, verdict, terminal, repo, claim, receipt, created_at, pair_key) "
+            "VALUES (?, 'claude-code', ?, ?, 'demo', 'ledger', ?, 'checked against reality', ?, ?)",
+            (model, tc, verdict, f"{tc} verdict {i}", "2026-07-18T20:00:00", f"{tc}:{model}:{i}"))
+
+    # --- scored runs: cost-aware run cards, so Runs (and Reflection) has a
+    # history. The $-per-verified spread is the point: the pricey run that did
+    # not earn it sits next to the cheap one that did.
+    _runs = [
+        ("run-2026-07-18", "claude-opus-4-8", 90, 8, 10, 0.80, 12.40, 0.62),
+        ("run-2026-07-17", "qwen3.6-plus", 60, 5, 6, 0.83, 6.20, 0.11),
+        ("run-2026-07-16", "claude-opus-4-8", 60, 3, 7, 0.43, 3.10, 0.90),
+    ]
+    for rid, model, dur, ver, chk, ratio, cost, score in _runs:
+        conn.execute(
+            "INSERT INTO run_cards (run_id, start, end, duration_min, model, session_count, "
+            "output_tokens, total_tokens, verified, checkable, verified_ratio, cost, damage, score, scored_at) "
+            "VALUES (?, ?, ?, ?, ?, 1, 40000, 100000, ?, ?, ?, ?, 0, ?, ?)",
+            (rid, f"{rid}T20:00:00", f"{rid}T21:30:00", dur, model, ver, chk, ratio, cost, score, f"{rid}T21:31:00"))
+
+    conn.commit()
     return {"db": db_path, "cubes": n}
 
 

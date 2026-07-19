@@ -46,14 +46,15 @@ def test_open_exception_surfaces_as_worth_your_judgment(demo_db):
 
 
 def test_empty_signals_degrade_honestly_not_fabricated(demo_db):
-    """No route evidence / no context packets on the seed store — say so, don't invent."""
+    """A pillar with no data says so; a pillar with data gives a REAL answer."""
     from helicon.brief import build_brief
 
     b = build_brief(_conn(demo_db))
+    # continuity has no context packets on the seed -> say so, don't invent
     assert b["continuity"]["context_packets"] == 0
     assert "Nothing carried between runs" in b["continuity"]["headline"]
-    # direction has no route evidence in the seed -> no fabricated recommendation
-    assert b["direction"]["task_classes"] == []
+    # direction HAS seeded route evidence -> a real recommendation grounded in it
+    assert b["direction"]["task_classes"], "seeded route evidence should yield a recommendation"
 
 
 def test_brief_is_read_only(demo_db):
