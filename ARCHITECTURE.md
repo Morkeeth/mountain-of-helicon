@@ -54,6 +54,30 @@ flowchart TD
   end
 ```
 
+## The operator-day loop (the Memory OS spine)
+
+Govern by exception: the machine handles the bulk, the human rules only exceptions,
+one Apply propagates with a receipt, and the guard protects the next agent write.
+
+```mermaid
+flowchart LR
+  EXAM["Exam / detectors<br/>(12 rot classes)"] --> LANES{"Escalate?<br/>consequence · resolvability · confidence"}
+  LANES -->|"most: no"| AUTO["Machine review<br/>auto-managed lane<br/>(retire / classify / mechanics)"]
+  LANES -->|"only exceptions"| HUMAN["Human review<br/>Needs Ruling queue<br/>(live contradiction · identity fork)"]
+  HUMAN --> STAGE["Stage verdicts<br/>(nothing written yet)"]
+  STAGE --> APPLY["One Apply<br/>/api/govern/apply-batch"]
+  APPLY --> RECEIPT["Receipt + Undo<br/>verify probe: recorded · in GOLDEN_RULES"]
+  RECEIPT --> LAW[("GOLDEN_RULES<br/>compiled law")]
+  LAW --> GUARD["Guard<br/>blocks a ruled-wrong claim<br/>before the next agent write"]
+  QWEN(["Qwen · Model Studio<br/>contradiction / grounding judge"]) -.-> EXAM
+  QWEN -.-> HUMAN
+  NIGHTLY["Nightly health<br/>routine · skill liveness<br/>(degraded / never-ran)"] -.-> LANES
+```
+
+*Roadmap (not shown as working): a `TaskRun`/`ContextPacket` loop feeding a causal
+consequence signal back into the escalation decision, and a reproducible A/B
+comparison surface. See `HELICON_OS_FEATURE_MAP.md`.*
+
 ## Where Qwen Cloud does the work
 
 The core rot checks (contradiction, staleness, dead-name detection) run **without an LLM** — deterministic, offline, fast. Qwen is called only where judgment is load-bearing, and the model tier is chosen per operation:
