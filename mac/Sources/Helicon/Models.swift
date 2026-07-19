@@ -155,6 +155,62 @@ struct Health: Decodable {
     let memories: Int
 }
 
+// MARK: - the morning brief (GET /api/brief)
+// Shapes modelled 1:1 from helicon.brief.build_brief. Every pillar carries a
+// headline the server already composed honestly, so the app never invents a
+// number — it renders what the record supports, empty pillars included.
+
+struct Brief: Decodable {
+    let truth: Truth
+    let continuity: Continuity
+    let direction: Direction
+    let reflection: Reflection
+    let calm: Calm
+
+    struct Truth: Decodable {
+        let grade: Double?
+        let headline: String
+        let noLongerTrustworthy: [Stale]
+        enum CodingKeys: String, CodingKey { case grade, headline; case noLongerTrustworthy = "no_longer_trustworthy" }
+        struct Stale: Decodable, Identifiable {
+            let id: String; let title: String; let confidence: Double
+        }
+    }
+    struct Continuity: Decodable { let headline: String }
+    struct Direction: Decodable {
+        let headline: String
+        let taskClasses: [Pick]
+        enum CodingKeys: String, CodingKey { case headline; case taskClasses = "task_classes" }
+        struct Pick: Decodable, Identifiable {
+            let taskClass: String; let recommendation: String?; let lean: String?; let sufficient: Bool
+            var id: String { taskClass }
+            enum CodingKeys: String, CodingKey { case taskClass = "task_class", recommendation, lean, sufficient }
+        }
+    }
+    struct Reflection: Decodable {
+        let headline: String
+        let runsScored: [Run]
+        enum CodingKeys: String, CodingKey { case headline; case runsScored = "runs_scored" }
+        struct Run: Decodable, Identifiable {
+            let runID: String; let model: String; let score: Double; let cost: Double
+            var id: String { runID }
+            enum CodingKeys: String, CodingKey { case runID = "run_id", model, score, cost }
+        }
+    }
+    struct Calm: Decodable {
+        let openExceptions: Int
+        let headline: String
+        let worthYourJudgment: [Exception]
+        enum CodingKeys: String, CodingKey {
+            case openExceptions = "open_exceptions", headline
+            case worthYourJudgment = "worth_your_judgment"
+        }
+        struct Exception: Decodable, Identifiable {
+            let id: Int; let finding: String; let severity: String
+        }
+    }
+}
+
 struct ConfirmRequest: Encodable {
     let finding_id: Int
     let decision: String
