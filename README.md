@@ -10,6 +10,21 @@ It sits *on top of any store* (or none), reads any agent's memory read-only — 
 
 Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
 
+## See it in 60 seconds (one command, no key, no personal data)
+
+```bash
+git clone https://github.com/MorkeethHQ/mount-helicon.git && cd mount-helicon
+pip install -e .
+helicon demo          # seeds a labelled demo store + opens the dashboard
+```
+
+Open **http://127.0.0.1:8420**. The dashboard opens on **Needs Ruling** with a real
+finding — *"Aurora is a payments protocol in one source, a lending market in another."*
+Rule it in plain language, watch it clear, and see it become durable law your agent
+obeys next time. That's the whole loop: **a claim → its evidence → your ruling → future
+protection.** Localhost-bound, keyless, scans nothing on your machine. Full walkthrough:
+[`GOLDEN_SUBMISSION.md`](GOLDEN_SUBMISSION.md).
+
 ## The Problem
 
 The record is measured and it is bad. Shown two contradicting sources, GPT-4 flags the conflict only **6.3%** of the time -- it just picks one and answers confidently ([WikiContradict, NeurIPS 2024](https://arxiv.org/pdf/2406.13805)). The best frontier model detects that a stored memory has been invalidated **55.2%** of the time ([STALE, 2026](https://arxiv.org/pdf/2605.06527)). **64% of memory-agent recommendation errors trace to outdated memory that was never forgotten** ([Memora, 2026](https://arxiv.org/html/2604.20006v1)), and accuracy on superseded facts collapses from 68% to 28% as session history grows -- 24x more memory buys back zero points: "the bottleneck is memory maintenance, not comprehension" ([Supersede, 2026](https://arxiv.org/html/2606.27472)). Independent production testing of a popular OSS memory store measured **49% effective accuracy after 30 days at a 38% staleness rate** ([RankSquire Infrastructure Lab, 2026](https://ranksquire.com/2026/05/06/long-term-memory-for-ai-agents/)).

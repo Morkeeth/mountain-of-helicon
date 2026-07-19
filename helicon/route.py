@@ -297,18 +297,27 @@ def format_route(routed: dict) -> str:
     if not res:
         return ("\n  No routing evidence yet. Build it:  helicon route --record [--run]\n"
                 "  (it reads verified outcomes from `review --terminals`.)\n")
+    # A route is withheld unless its Wilson lower bound clears this floor. Below
+    # it, "best model" is a coin flip, and a confounded guess dressed as a route
+    # is exactly the overclaim this whole system exists to catch.
+    QUALITY_FLOOR = 0.5
     out = ["", "  MODEL ROUTING - ranked read of verified agent output "
-           f"(Wilson LB, min n={min_n})", ""]
+           f"(Wilson LB, min n={min_n}, quality floor {QUALITY_FLOOR})", ""]
     for r in res:
         tc = r["task_class"]
-        if r["sufficient"]:
-            b = r["best"]
+        b = r["best"]
+        if r["sufficient"] and b and b["wilson_lb"] >= QUALITY_FLOOR:
             tag = "" if r["models_compared"] > 1 else "  (only model with evidence)"
             out.append(f"  ▸ {tc}:  route to  {b['model']}  [{b['harness']}]{tag}")
             out.append(f"      verified {b['pass']}/{b['n']}  ·  Wilson LB {b['wilson_lb']}  "
                        f"·  raw rate {b['rate']}")
             for c in r["candidates"][1:]:
                 out.append(f"        vs {c['model']}: {c['pass']}/{c['n']} (LB {c['wilson_lb']})")
+        elif r["sufficient"] and b:
+            # Enough samples, but the lower bound is a coin flip: withhold the route.
+            out.append(f"  ▸ {tc}:  no model clears the quality floor yet — best {b['model']}, "
+                       f"verified {b['pass']}/{b['n']}, Wilson LB {b['wilson_lb']} "
+                       f"(< {QUALITY_FLOOR}). No route emitted.")
         elif r["lean"]:
             b = r["best"]
             out.append(f"  ▸ {tc}:  leaning  {b['model']}  "
