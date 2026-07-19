@@ -293,7 +293,11 @@ def nightly_status(config: dict) -> dict:
           "log_age_hours": _age_hours(_data_path(config, spec["log"]))}
     cad = f"cadence {spec['cadence_hours']:.0f}h"
     if rec is None:
-        return {**st, "ok": False,
+        # No record has EVER been written. On a fresh clone / a machine that never
+        # set up the nightly cron this is expected, not a regression — callers that
+        # care (the doctor) downgrade it to a warning via never_ran. The liveness
+        # ok=False stays so the cron-alarm path (nightly_findings) is unaffected.
+        return {**st, "ok": False, "never_ran": True,
                 "reason": f"never completed — {os.path.basename(rec_path)} has "
                           f"never been written"}
     if age is None:

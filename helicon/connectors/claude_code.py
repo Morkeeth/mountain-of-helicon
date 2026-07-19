@@ -211,7 +211,7 @@ def scan_memory(config: dict) -> list[ConnectorResult]:
 def _is_fixture_path(file_path: str) -> bool:
     """Demo/test fixtures carry fake-by-design content (mock entities, sample
     stores). Capturing their file body as 'memory' pollutes the store — e.g. a
-    demo script's 'Aurora'/'Helios' props re-surfacing as real R11/R12 findings.
+    demo script's 'Aurora' props re-surfacing as real R11/R12 findings.
     An edit to a fixture is not a fact about the user's world, so skip its body."""
     p = file_path.replace("\\", "/").lower()
     base = os.path.basename(p)

@@ -17,6 +17,25 @@ Nothing is invented.
 import json
 import re
 
+# A date token: YYYY-MM-DD or a bare MM-DD (the granularity the wedding-range
+# rulings are stored at). Used to test a partial date against a ruled range.
+_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{2}-\d{2}\b")
+
+
+def _parse_partial_date(s: str):
+    """Return a comparable (month, day) tuple from 'YYYY-MM-DD' or 'MM-DD', else
+    None. Year is dropped: the ruled ranges are within a single year, and the
+    asserted partials carry no year, so month/day is the common granularity."""
+    m = re.fullmatch(r"(?:\d{4}-)?(\d{2})-(\d{2})", s.strip())
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _date_in_range(candidate: str, start: str, end: str) -> bool:
+    """True if candidate falls within [start, end] inclusive, comparing on
+    month/day. All three must parse as partial dates, or it is not a range hit."""
+    c, s, e = (_parse_partial_date(x) for x in (candidate, start, end))
+    return bool(c and s and e and s <= c <= e)
+
 
 def guard_output(conn, text: str) -> dict:
     """Check proposed agent output against the compiled law. Returns violations
@@ -80,6 +99,25 @@ def guard_output(conn, text: str) -> dict:
             if quant or assign or loose:
                 fired = wrong
                 break
+        # A ruled-wrong value can be a DATE RANGE ("08-14..08-22"). A partial date
+        # ("08-14") is not a substring of the range string, so the checks above miss
+        # it and the guard returns CLEAN on a date the human explicitly ruled wrong.
+        # Match a partial date against the range: any date token asserted near the
+        # topic that falls inside a ruled-wrong range fires, so every ruling binds.
+        if fired is None:
+            for wrong in r["wrong_values"]:
+                if ".." not in wrong:
+                    continue
+                start, _, end = wrong.partition("..")
+                for cand in _DATE_RE.findall(low):
+                    ce = re.escape(cand)
+                    near = (re.search(rf"\b{te}\b(?:\W+[\w$%.+/-]+){{0,3}}\W+{ce}\b", low)
+                            or re.search(rf"{ce}\b(?:\W+[\w$%.+/-]+){{0,3}}\W+\b{te}\b", low))
+                    if near and _date_in_range(cand, start.strip(), end.strip()):
+                        fired = f"{cand} (inside ruled-wrong range {wrong})"
+                        break
+                if fired is not None:
+                    break
         if fired is not None:
             subj = f"'{r['subject']}' " if r["subject"] else ""
             violations.append({

@@ -42,8 +42,8 @@ MOCK_MEMORIES = [
     {"id": "m-aurora-2", "memory": "Aurora is a lending market where users deposit "
      "collateral and borrow against it.", "created_at": "2026-05-10T09:00:00",
      "categories": ["projects"]},
-    {"id": "m-helios-phantom", "memory": "Thesis: Helios rides the wave to Solana — "
-     "as the Solana ecosystem compounds, Helios rides that liquidity straight up.",
+    {"id": "m-aurora-phantom", "memory": "Thesis: Aurora rides the wave to Solana. "
+     "As the Solana ecosystem compounds, Aurora rides that liquidity straight up.",
      "created_at": "2026-06-15T09:00:00", "categories": ["thesis"]},
     {"id": "m-name", "memory": "User prefers to be addressed by their first name.",
      "created_at": "2026-05-01T09:00:00", "categories": ["preferences"]},
@@ -127,7 +127,7 @@ def main() -> int:
             resolve_relation(conn, pid[0], "phantom")
         print("── PHASE 2 · you rule them (Helicon remembers the verdict) ──")
         print("  Aurora ruled canonical: a payments protocol (the 'lending market' fork loses).")
-        print("  Helios → Solana ruled: phantom (an ungrounded association).")
+        print("  Aurora → Solana ruled: phantom (an ungrounded association).")
         # The ruling BECOMES law — compiled into the Golden Rules the agent reads
         # before it writes. A store keeps both memories; Helicon turns your verdict
         # into policy. This is the half a memory store structurally cannot do.

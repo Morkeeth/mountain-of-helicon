@@ -93,6 +93,22 @@ def test_ruled_fact_no_false_positive_on_canonical_line(conn):
     assert res["clean"] is True
 
 
+def test_ruled_range_matches_partial_date(conn):
+    # A ruling whose values are DATE RANGES (the casey-wedding case). A partial
+    # date ('03-14') is not a substring of the ruled-wrong range '03-14..03-22',
+    # so before the range check the guard returned CLEAN on a date the human
+    # explicitly ruled wrong. Asserting a partial inside the wrong range must block.
+    aid = _file_factual(conn, "casey", "wedding", ["03-14..03-22", "04-11..04-13"])
+    resolve_pair(conn, aid, "04-11..04-13")               # human rules the Sept range
+    res = guard_output(conn, "casey wedding is 03-14")
+    assert res["verdict"] == "blocked"
+    assert any(v["rule"] == "ruled-fact" for v in res["violations"])
+    # a partial mid-range ('03-18') is inside the wrong range too — still blocks
+    assert guard_output(conn, "the casey wedding lands 03-18")["verdict"] == "blocked"
+    # the ruled-true Sept dates are NOT in the wrong range — stay clean
+    assert guard_output(conn, "casey wedding is 04-12")["clean"] is True
+
+
 def test_reasserting_the_ruled_truth_is_clean(conn):
     _cube(conn, "Yieldbound is a yield treasury.", "a.md")
     _cube(conn, "Yieldbound is a wallet tracker.", "b.md")

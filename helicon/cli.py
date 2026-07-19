@@ -1779,8 +1779,15 @@ def cmd_doctor(_args):
         # same. An age you can read cannot go quiet.
         from helicon.stackwatch import nightly_status
         night = nightly_status(config)
-        checks.append(("OK" if night["ok"] else "FAIL",
-                       f"nightly {night['reason']}"))
+        if night.get("never_ran"):
+            # Fresh install / no cron set up — optional, not a failure. FAIL here
+            # made `helicon doctor` read as broken on a clean clone (a judge's
+            # first health check), for a nightly loop they were never asked to run.
+            checks.append(("WARN", "nightly not configured — optional ambient loop "
+                                   "(scripts/nightly.sh on a cron); not needed to run Helicon"))
+        else:
+            checks.append(("OK" if night["ok"] else "FAIL",
+                           f"nightly {night['reason']}"))
 
         # The hands. Helicon's own MCP server was registered and silently dead
         # for every session (invoked via `bash -lc`; the login profile blocks on

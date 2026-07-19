@@ -1,7 +1,7 @@
 # Mount Helicon
 
 <p align="center">
-  <img src="docs/img/helicon-desktop-1440.png" alt="Mount Helicon: the review queue, ruling on a finding against a live 7,070-memory store" width="100%">
+  <img src="docs/img/helicon-desktop-1440.png" alt="Mount Helicon: the review queue, ruling on a finding against the author's live memory store" width="100%">
 </p>
 
 **The test-and-focus layer for AI agent memory.** Mem0 stores it, Letta organizes it, Zep timestamps it — none of them test whether what's remembered is still *true*. Mount Helicon is the exam: it regression-tests what your agent retrieves, scores whether that context is still true, retires what isn't, and turns what's left into your next move — every answer citing the exact memory it came from. **CI for memory, with receipts.**
@@ -111,7 +111,7 @@ Locally it's the same one command: `helicon ci` (add `--fail-on none` for report
 
 **Layer 1 -- Extraction.** Nine pluggable connectors: Claude Code (JSONL transcripts + memory files), Obsidian, git history, ChatGPT exports, Cursor, agent rules files, plus read-side adapters for **Letta MemFS**, **Graphiti** (bi-temporal metadata mapped into memories; 17 tests), and **Mem0** -- the store Alibaba's own agent-memory docs recommend (Model Studio Memory Bank, Mem0 + Hologres, Mem0 + AnalyticDB), so Mount Helicon audits the stacks Alibaba itself suggests. Rewritten and expiring Mem0 memories carry their temporal fields into the freshness tests. Agent *rules* files (CLAUDE.md, AGENTS.md, .cursorrules) are split into section-level memories so regression catches a single rule drifting. Every item becomes a **HeliconCube**: versioned memory unit with source, confidence, content hash, review status, decay parameters (MemOS-inspired). A SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage.
 
-**Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On first run it handled 585 of 1,268 memories autonomously. Spin detection, kill prediction, Helicon Score.
+**Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On its first run it handled 585 of the 1,268 memories the store held at that time autonomously. Spin detection, kill prediction, Helicon Score.
 
 **Layer 3 -- Meta-audit.** The system audits its own stored patterns: temporal staleness ("this week" in a 27-day-old file), factual contradictions (Qwen-judged), decay, pattern staleness, anti-confabulation challenges. The human reviews the memory review.
 
