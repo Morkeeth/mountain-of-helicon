@@ -46,6 +46,7 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
   const [reasonText, setReasonText] = useState('');
   const [reasoning, setReasoning] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [applyError, setApplyError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<GovernReceipt | null>(null);
   const [undone, setUndone] = useState(false);
 
@@ -56,21 +57,31 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
   // ---- the receipt (after Apply) --------------------------------------------
   if (view === 'receipt' && receipt) {
     return <ReceiptView receipt={receipt} undone={undone}
-      onUndo={async () => { await api.undoBatch(receipt.undo_token); setUndone(true); }}
-      onDone={() => { batch.forEach(s => onActed({ id: `audit-${s.finding_id}` } as Finding)); onSeeAll(); }} />;
+      onUndo={() => api.undoBatch(receipt.undo_token).then(() => setUndone(true))}
+      onDone={() => {
+        // Only drop findings that ACTUALLY applied. Removing a failed ruling
+        // optimistically would diverge the queue from the server — a stale-UI-vs-
+        // reality gap the operator would otherwise catch by comparing two surfaces.
+        receipt.receipt.filter(r => r.applied).forEach(r => onActed({ id: `audit-${r.finding_id}` } as Finding));
+        onSeeAll();
+      }} />;
   }
 
   // ---- the batch review (the one object you Apply) --------------------------
   if (view === 'batch') {
     return (
-      <BatchReview batch={batch} applying={applying}
+      <BatchReview batch={batch} applying={applying} error={applyError}
         onRemove={k => setBatch(b => b.filter(s => s.key !== k))}
-        onBack={() => setView('review')}
+        onBack={() => { setApplyError(null); setView('review'); }}
         onApply={async () => {
-          setApplying(true);
+          setApplying(true); setApplyError(null);
           try {
             const r = await api.applyBatch(batch.map(s => ({ finding_id: s.finding_id, verb: s.verb, payload: s.payload })));
             setReceipt(r); setUndone(false); setView('receipt');
+          } catch (e) {
+            // The API threw — nothing was written. Say so precisely; never leave the
+            // operator to infer from a frozen screen whether the batch applied.
+            setApplyError(e instanceof Error ? e.message : 'Apply failed — nothing was written.');
           } finally { setApplying(false); }
         }} />
     );
@@ -202,8 +213,8 @@ function entityOf(f: Finding): string {
   return m ? m[1] : 'this';
 }
 
-function BatchReview({ batch, applying, onApply, onBack, onRemove }: {
-  batch: Staged[]; applying: boolean; onApply: () => void; onBack: () => void; onRemove: (k: string) => void;
+function BatchReview({ batch, applying, error, onApply, onBack, onRemove }: {
+  batch: Staged[]; applying: boolean; error: string | null; onApply: () => void; onBack: () => void; onRemove: (k: string) => void;
 }) {
   return (
     <div className="max-w-xl mx-auto animate-fade-in">
@@ -225,11 +236,17 @@ function BatchReview({ batch, applying, onApply, onBack, onRemove }: {
           </div>
         ))}
       </div>
+      {error && (
+        <p className="mt-4 text-[12.5px] leading-relaxed px-3 py-2 rounded-lg"
+          style={{ color: 'var(--helicon-critical)', background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
+          Not applied: {error} — nothing was written; your staged rulings are intact. Retry.
+        </p>
+      )}
       <div className="mt-7 flex items-center gap-3">
         <button onClick={onApply} disabled={applying || batch.length === 0}
           className="px-5 py-2.5 rounded-lg text-[14px] font-medium text-[#F4EFE7] disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
           style={{ backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }}>
-          {applying ? 'Applying…' : `Apply ${batch.length}`}
+          {applying ? 'Applying…' : error ? `Retry · Apply ${batch.length}` : `Apply ${batch.length}`}
         </button>
         <button onClick={onBack} className="text-[13px] transition-colors hover:opacity-70" style={{ color: MUTED }}>Back</button>
       </div>
@@ -238,9 +255,10 @@ function BatchReview({ batch, applying, onApply, onBack, onRemove }: {
 }
 
 function ReceiptView({ receipt, undone, onUndo, onDone }: {
-  receipt: GovernReceipt; undone: boolean; onUndo: () => void; onDone: () => void;
+  receipt: GovernReceipt; undone: boolean; onUndo: () => Promise<void>; onDone: () => void;
 }) {
   const [undoing, setUndoing] = useState(false);
+  const [undoErr, setUndoErr] = useState<string | null>(null);
   return (
     <div className="max-w-xl mx-auto animate-fade-in">
       <div style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[24px] leading-tight mb-1">
@@ -273,12 +291,13 @@ function ReceiptView({ receipt, undone, onUndo, onDone }: {
         <button onClick={onDone} className="px-5 py-2.5 rounded-lg text-[14px] font-medium text-[#F4EFE7] transition-all hover:brightness-110"
           style={{ backgroundImage: 'linear-gradient(180deg, #35526d 0%, #223A4E 100%)' }}>Done</button>
         {!undone && (
-          <button onClick={async () => { setUndoing(true); try { await onUndo(); } finally { setUndoing(false); } }}
+          <button onClick={async () => { setUndoing(true); setUndoErr(null); try { await onUndo(); } catch (e) { setUndoErr(e instanceof Error ? e.message : 'undo failed'); } finally { setUndoing(false); } }}
             disabled={undoing} className="text-[13px] transition-colors hover:opacity-70 disabled:opacity-40" style={{ color: MUTED }}>
-            {undoing ? 'Undoing…' : 'Undo all'}
+            {undoing ? 'Undoing…' : undoErr ? 'Retry undo' : 'Undo all'}
           </button>
         )}
       </div>
+      {undoErr && <p className="mt-3 text-[12px]" style={{ color: 'var(--helicon-critical)' }}>Undo failed: {undoErr} — the rulings are still applied.</p>}
     </div>
   );
 }
