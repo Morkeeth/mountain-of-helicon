@@ -82,7 +82,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 ## Honest eval numbers (no self-grading, no divide-by-zero)
 
 - Composite: **~67** (as of 2026-07-13; run `helicon eval` to recompute. Retrieval P@3 + MRR + decay-AUC; audit excluded, no labeled ground truth)
-- Retrieval: P@3 0.692, MRR 0.603 (n=13, auto-built internal benchmark, one label/query - disclose this)
+- Retrieval: P@3 0.615, MRR 0.596 (n=13, auto-built internal benchmark, one label/query - disclose this)
 - Decay predicts human kills: **rank-AUC 0.781** (mean confidence of killed memories 0.141 vs approved 0.268) - a real, independent signal
 - Consolidation: ~9-10x fewer tokens (char-estimated), Qwen-judged quality favors synthesis (self-graded, show as direction not proof)
 

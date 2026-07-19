@@ -78,11 +78,17 @@ def test_all_three_shapes_are_covered():
 
 @pytest.fixture
 def repo(tmp_path):
-    """A copy of the docs + data the checkers read, so we can lie to them safely."""
+    """A copy of the docs + data the checkers read, so we can lie to them safely.
+
+    The eval baseline is copied from the committed tests/fixtures/ copy, NOT from
+    data/eval-latest.json: the live file is gitignored and absent on a fresh clone,
+    so sourcing it here made every mutation test error with FileNotFoundError the
+    moment a stranger cloned the repo. The fixture's four graded fields mirror a
+    real eval run (see the fixture's _comment)."""
     for doc in DOCS:
         shutil.copy(os.path.join(REPO_ROOT, doc), tmp_path / doc)
     os.mkdir(tmp_path / "data")
-    shutil.copy(os.path.join(REPO_ROOT, "data", "eval-latest.json"),
+    shutil.copy(os.path.join(REPO_ROOT, "tests", "fixtures", "eval-latest.json"),
                 tmp_path / "data" / "eval-latest.json")
     return tmp_path
 
@@ -193,9 +199,15 @@ def test_eval_follows_the_json_not_a_hardcoded_copy(repo):
 
 
 def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
-    """README rounds 0.692 to 0.69, which is honest. 0.71 is not."""
+    """Source P@3 is 0.615. A doc may round it honestly to 0.62; 0.71 is a lie.
+
+    Written as mutations off the real README so it does not hardcode the doc's
+    exact precision — the gate's rule (|literal - source| <= half a unit in the
+    last place) is what's under test, not a specific string in README.
+    """
+    _mutate(repo, "README.md", "P@3 0.615,", "P@3 0.62,")   # honest 2-dp rounding of 0.615
     assert not _fails(check_evals(str(repo)), "retrieval P@3", "README.md")
-    _mutate(repo, "README.md", "P@3 0.69,", "P@3 0.71,")
+    _mutate(repo, "README.md", "P@3 0.62,", "P@3 0.71,")     # not a rounding, a lie
     assert _fails(check_evals(str(repo)), "retrieval P@3", "README.md")
 
 
