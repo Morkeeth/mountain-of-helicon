@@ -20,7 +20,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 - Python (CLI scanner + FastAPI backend)
 - Qwen Cloud API (qwen3.6-flash/plus + qwen3.7-max via OpenAI-compatible SDK)
 - Distribution: BYOK + local-first; Alibaba Cloud proof via Cloud Shell (ECS dead: KYC, decided Jul 3)
-- SQLite + FTS5 + numpy embeddings (26 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards, judge_runs, govern_batches), plus the cubes_fts FTS5 index
+- SQLite + FTS5 + numpy embeddings (29 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards, judge_runs, govern_batches, task_runs, context_packets, context_packet_items), plus the cubes_fts FTS5 index
 - React/Vite (findings-first dashboard: HEALTH / FINDINGS / LOG primary, Graph + Projects secondary)
 - Web Speech API (voice input for reviews)
 - MCP Server (14 tools for agent self-audit + context injection)

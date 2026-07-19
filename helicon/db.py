@@ -243,6 +243,50 @@ CREATE TABLE IF NOT EXISTS govern_batches (
     receipt_json TEXT NOT NULL,     -- what actually happened, with verify-probes
     undo_json TEXT NOT NULL         -- {correction_cubes: [...], decided_finding_ids: [...]}
 );
+
+-- TaskRun + ContextPacket: the read-only, local-only recorder that binds a task's
+-- objective <-> the exact frozen context it was given <-> its artifact <-> a
+-- verification outcome. Additive; the recorder READS helicon_cubes and writes ONLY
+-- these three tables. It never promotes memory, touches retrieval/regret/utility,
+-- or runs anything (verification is attach-only in this slice).
+CREATE TABLE IF NOT EXISTS task_runs (
+    id TEXT PRIMARY KEY,
+    objective TEXT NOT NULL,
+    task_class TEXT,
+    task_spec_hash TEXT,            -- identity for A/B: hash of objective+class+test+model+harness+skills
+    acceptance_test TEXT,          -- declared BEFORE work
+    model TEXT, harness TEXT,
+    skill_versions TEXT,           -- json
+    context_mode TEXT,             -- compact | current-global
+    comparison_group_id TEXT,      -- set only for an A/B pair
+    repo_ref TEXT,
+    artifact_manifest TEXT,        -- json: [{path_or_ref, content_hash, observed_at}]
+    verification_outcome TEXT,     -- verified | contradicted | unverified
+    verification_receipt TEXT,     -- json: {source: attached, evidence, ...}
+    human_acceptance TEXT,         -- pending | accepted | rework | rollback
+    opened_at TEXT, execution_started_at TEXT, artifact_attached_at TEXT, verified_at TEXT,
+    cost_observation TEXT,         -- json: {status: known|unknown, ...}
+    egress_receipt TEXT,           -- json: {policy_result, observed_calls}
+    status TEXT NOT NULL           -- opened | executing | artifact_attached | verified | reviewed
+);
+CREATE TABLE IF NOT EXISTS context_packets (
+    id TEXT PRIMARY KEY,
+    task_run_id TEXT UNIQUE NOT NULL,   -- the only link between run and packet
+    created_at TEXT NOT NULL,           -- must predate artifact_attached_at
+    policy_version TEXT,
+    classification_policy_version TEXT,
+    packet_hash TEXT NOT NULL,          -- over the ordered rendered payload + item metadata
+    token_estimate INTEGER,
+    excluded_relevant TEXT              -- json: [{opaque, category, reason}] -- OPAQUE only, no private content
+);
+CREATE TABLE IF NOT EXISTS context_packet_items (
+    packet_id TEXT NOT NULL,
+    cube_id TEXT NOT NULL,
+    cube_content_hash TEXT,
+    ordered_position INTEGER,
+    rendered_fragment_hash TEXT,
+    provenance TEXT, freshness TEXT, scope TEXT, sensitivity TEXT, selection_reason TEXT
+);
 """
 
 
