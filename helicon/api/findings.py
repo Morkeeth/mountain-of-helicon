@@ -173,7 +173,16 @@ def _skill_findings(now: str) -> list[dict]:
     """Skills-integrity issues as findings — same checks as /api/integrity/skills
     (duplicates / trigger collisions / thin descriptions), but scanned here with
     the description kept so evidence_preview shows the actual SKILL.md text."""
-    roots = [r for r in _SKILL_ROOTS if os.path.exists(os.path.expanduser(r))]
+    # Only scan skills the operator has explicitly wired via the connector.
+    # Without this gate the review queue scanned a hardcoded ~/.claude/skills on
+    # every request, so a demo store (connectors: {}) surfaced findings about the
+    # host machine's REAL skills — personal data leaking into a keyless demo.
+    from helicon.api.app import get_config
+    sk = (get_config().get("connectors") or {}).get("skills") or {}
+    if not sk.get("enabled"):
+        return []
+    roots = [r for r in (sk.get("skill_roots") or _SKILL_ROOTS)
+             if os.path.exists(os.path.expanduser(r))]
     if not roots:
         return []
     found = skills_connector.scan({"skill_roots": roots})

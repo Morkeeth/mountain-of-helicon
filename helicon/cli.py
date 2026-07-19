@@ -315,13 +315,44 @@ def cmd_fix_skills(args):
         print("Dry-run: nothing written. Run with --apply to write (creates .bak backups).")
 
 
+def _serve_host(explicit=None, default="127.0.0.1"):
+    """Bind address. Default 127.0.0.1: the API mutates the store without auth,
+    so it must not face the network unless the operator opts in explicitly."""
+    if explicit:
+        return explicit
+    try:
+        from helicon.config import load_config
+        return load_config().get("server", {}).get("host") or default
+    except Exception:
+        return default
+
+
 def cmd_serve(args):
-    """Start the web UI."""
+    """Start the web UI (bound to localhost by default)."""
     port = args.port or 8420
-    print(f"Starting Mount Helicon at http://localhost:{port}")
+    host = _serve_host(getattr(args, "host", None))
+    print(f"Starting Mount Helicon at http://{host}:{port}")
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        print(f"  ⚠  {host} exposes an UNAUTHENTICATED mutation API to your network.")
     print("Press Ctrl+C to stop\n")
     import uvicorn
-    uvicorn.run("helicon.api.app:app", host="0.0.0.0", port=port)
+    uvicorn.run("helicon.api.app:app", host=host, port=port)
+
+
+def cmd_demo(args):
+    """Seed the demo store and open the dashboard — one command, no key, no
+    personal data, bound to localhost."""
+    from helicon.demo import ensure_demo
+    info = ensure_demo()
+    os.environ["HELICON_CONFIG"] = info["config"]
+    port = args.port or 8420
+    print("Mount Helicon — demo")
+    print(f"  {info['cubes']} planted memories seeded · no personal data · local only")
+    print(f"  open  http://127.0.0.1:{port}")
+    print("  start on 'Needs Ruling' — rule one finding and watch it become law")
+    print("\nPress Ctrl+C to stop\n")
+    import uvicorn
+    uvicorn.run("helicon.api.app:app", host="127.0.0.1", port=port)
 
 
 def cmd_triage(args):
@@ -2239,6 +2270,13 @@ def main():
 
     serve_p = sub.add_parser("serve", help="Start the web UI")
     serve_p.add_argument("--port", type=int, default=8420)
+    serve_p.add_argument("--host", default=None,
+                         help="Bind address (default 127.0.0.1; the API is unauthenticated, "
+                              "so only expose it to the network if you understand the risk)")
+
+    demo_p = sub.add_parser("demo", help="Seed a demo store and open the dashboard "
+                                         "(one command, no key, no personal data)")
+    demo_p.add_argument("--port", type=int, default=8420)
 
     triage_p = sub.add_parser("triage", help="Run auto-triage")
     triage_p.add_argument("--dry-run", action="store_true", help="Preview without acting")
@@ -2438,6 +2476,7 @@ def main():
         "reconcile": cmd_reconcile,
         "fix-skills": cmd_fix_skills,
         "serve": cmd_serve,
+        "demo": cmd_demo,
         "triage": cmd_triage,
         "review": cmd_review,
         "route": cmd_route,

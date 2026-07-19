@@ -70,7 +70,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - ~3,800 live memories of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live memories come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor memories exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 memories
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
-- 23 routers (~92 endpoints), 14 MCP tools, 43 CLI commands (+4 aliases)
+- 23 routers (~92 endpoints), 14 MCP tools, 44 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)

@@ -41,12 +41,14 @@ fi
 "$TMP/venv/bin/helicon" --help >/dev/null 2>&1 || fail "CLI entry point missing after install"
 ok "pip install -e . gives a working CLI"
 
-echo "== boot (the Cloud Shell path: web/dist -> static, keyless config) =="
+echo "== boot (the golden path: helicon demo -> seeded, keyless, localhost) =="
 mkdir -p static && cp -r web/dist/. static/
-cat > config.json <<JSON
-{"db_path": "data/helicon.db", "connectors": {}, "server": {"host": "127.0.0.1", "port": ${PORT}}}
-JSON
-"$TMP/venv/bin/python" -m uvicorn helicon.api.app:app --port "$PORT" >"$TMP/server.log" 2>&1 &
+# The judge's one command is `helicon demo`: seed a populated store + keyless
+# config, no personal data. Seed here, then boot the same app the demo boots.
+"$TMP/venv/bin/python" -c "from helicon.demo import seed, write_demo_config; seed(); write_demo_config()" \
+  >"$TMP/seed.log" 2>&1 || { cat "$TMP/seed.log"; fail "helicon demo seed"; }
+export HELICON_CONFIG="$PWD/config-demo.json"
+"$TMP/venv/bin/python" -m uvicorn helicon.api.app:app --host 127.0.0.1 --port "$PORT" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 30); do
   curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break
@@ -56,6 +58,12 @@ done
 
 HEALTH="$(curl -sf "http://127.0.0.1:$PORT/api/health")" || { cat "$TMP/server.log"; fail "/api/health"; }
 ok "/api/health -> $HEALTH"
+echo "$HEALTH" | grep -q '"cubes":0' && { cat "$TMP/server.log"; fail "dashboard opened EMPTY — the demo must seed a populated store"; }
+ok "seeded store is populated (not an empty warehouse)"
+NEEDS="$(curl -sf "http://127.0.0.1:$PORT/api/findings?lane=decision")" || fail "/api/findings"
+echo "$NEEDS" | grep -q '"finding' || fail "review queue is empty — no finding to rule on"
+echo "$NEEDS" | grep -qi 'qwencloud\|/Users/\|/home/' && fail "personal data leaked into the demo review queue"
+ok "review queue has rulings and leaks no personal data"
 
 INDEX="$(curl -sf "http://127.0.0.1:$PORT/")" || fail "GET /"
 echo "$INDEX" | grep -q "Mount Helicon" || fail "GET / did not return the dashboard"

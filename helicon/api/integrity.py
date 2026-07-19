@@ -121,7 +121,17 @@ async def integrity_skills():
     """Audit the local Agent-Skills library for dead weight (real, no ground truth).
     Skills are the newest durable agent-memory surface; nobody regression-tests
     them. Same lens as retrieved memory, aimed at SKILL.md."""
-    roots = [r for r in _SKILL_ROOTS if os.path.exists(os.path.expanduser(r))]
+    # Gated on the configured skills connector: a demo/keyless store (connectors
+    # {}) must never scan the host's real ~/.claude/skills. Off -> empty audit.
+    from helicon.api.app import get_config
+    sk = (get_config().get("connectors") or {}).get("skills") or {}
+    if not sk.get("enabled"):
+        return {"roots": [], "files": 0, "unique": 0, "duplicates": [],
+                "collisions": [], "thin": [],
+                "summary": {"duplicated": 0, "collisions": 0, "thin": 0},
+                "note": "skills connector not configured"}
+    roots = [r for r in (sk.get("skill_roots") or _SKILL_ROOTS)
+             if os.path.exists(os.path.expanduser(r))]
     found = skills_connector.scan({"skill_roots": roots})
 
     meta = []
