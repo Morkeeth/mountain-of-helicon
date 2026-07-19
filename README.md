@@ -83,6 +83,21 @@ helicon serve       # dashboard at http://localhost:8420
 
 Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.sh` clones, installs, boots, and fails loudly on any crack. `scripts/cloudshell-run.sh` is the same flow inside Alibaba Cloud Shell.
 
+## Proof of Alibaba Cloud
+
+Local-first, and it runs on Alibaba Cloud. The rule asks for a code-file link
+demonstrating use of Alibaba Cloud services, and that the backend runs on Alibaba
+Cloud — both are met:
+
+- **Backend running on Alibaba Cloud** — [`scripts/cloudshell-run.sh`](scripts/cloudshell-run.sh) boots the full backend inside **Alibaba Cloud Shell** (shown in the demo video).
+- **Qwen inference on Alibaba Model Studio** — [`helicon/qwen.py`](helicon/qwen.py) (load-bearing: contradiction + grounding judging).
+- **Embeddings on Alibaba DashScope** — [`helicon/embeddings.py`](helicon/embeddings.py) (`text-embedding-v4`).
+- **Deployable to Function Compute** — [`fc/s.yaml`](fc/s.yaml) + [`fc/Dockerfile`](fc/Dockerfile).
+
+There is no always-on public URL (a persistent ECS/Function Compute server needs a KYC
+step this account can't clear); local-first means the same backend runs on the judge's
+machine or in Cloud Shell, and we never imply a hosted endpoint exists.
+
 ## Three ways to run it (the dashboard is optional)
 
 You don't have to host anything, and you don't need the browser.
