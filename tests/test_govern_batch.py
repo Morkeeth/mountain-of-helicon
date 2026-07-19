@@ -38,10 +38,10 @@ def _decided(conn, fid):
 
 def test_one_coherent_apply_with_real_propagation(store):
     conn, _ = store
-    idf = _finding(conn, "identity")
+    idf = _finding(conn, "factual")
     assert idf, "demo store should carry an identity fork to rule"
     out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
-        Ruling(finding_id=idf, verb="rule_identity", payload={"canonical": "a payments protocol"})])))
+        Ruling(finding_id=idf, verb="rule_truth", payload={"truth": "live — real money"})])))
     assert out["applied"] == 1
     r = out["receipt"][0]
     assert r["applied"] and r["verify"]["recorded_in_audit_log"]
@@ -51,12 +51,12 @@ def test_one_coherent_apply_with_real_propagation(store):
 
 def test_partial_failure_isolates(store):
     conn, _ = store
-    idf = _finding(conn, "identity")
+    idf = _finding(conn, "factual")
     asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
-        Ruling(finding_id=idf, verb="rule_identity", payload={"canonical": "a payments protocol"})])))
+        Ruling(finding_id=idf, verb="rule_truth", payload={"truth": "live — real money"})])))
     rel = _finding(conn, "provenance")
     out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
-        Ruling(finding_id=idf, verb="rule_identity", payload={"canonical": "x"}),   # already decided -> fails
+        Ruling(finding_id=idf, verb="rule_truth", payload={"truth": "x"}),   # already decided -> fails
         Ruling(finding_id=rel, verb="resolve_relation", payload={"verdict": "phantom"})])))
     by_id = {r["finding_id"]: r for r in out["receipt"]}
     assert not by_id[idf]["applied"] and by_id[idf]["error"]
@@ -66,10 +66,10 @@ def test_partial_failure_isolates(store):
 
 def test_undo_is_total(store):
     conn, _ = store
-    idf = _finding(conn, "identity")
+    idf = _finding(conn, "factual")
     before = _cubes(conn)
     out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
-        Ruling(finding_id=idf, verb="rule_identity", payload={"canonical": "a payments protocol"})])))
+        Ruling(finding_id=idf, verb="rule_truth", payload={"truth": "live — real money"})])))
     assert _cubes(conn) > before, "the ruling writes a correction cube"
     undo = asyncio.run(govern.undo_batch(UndoReq(undo_token=out["undo_token"])))
     assert undo["fully_reversed"]
@@ -84,21 +84,22 @@ def test_rule_truth_makes_the_guard_enforce_it(store):
     fid = conn.execute("SELECT id FROM audit_log WHERE audit_type='factual' AND human_decision IS NULL LIMIT 1").fetchone()
     assert fid, "the demo seeds a factual contradiction as the hero"
     out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
-        Ruling(finding_id=fid["id"], verb="rule_truth", payload={"truth": "eats chicken"})])))
+        Ruling(finding_id=fid["id"], verb="rule_truth", payload={"truth": "live — real money"})])))
     r = out["receipt"][0]
     assert r["applied"] and r["verify"]["guard_blocks_the_wrong_claim"] is True
-    # independently: the guard itself now blocks a claim asserting the wrong value
+    # independently: the guard now blocks a DANGEROUS claim (an agent about to charge
+    # real cards because it thinks Stripe is still in test mode)
     from helicon.guard import guard_output
-    assert not guard_output(conn, "the user's diet is vegetarian").get("clean", True)
+    assert not guard_output(conn, "Stripe is in test mode, safe to run a live checkout as a test").get("clean", True)
 
 
 def test_blast_radius_leaves_source_memory_untouched(store):
     conn, _ = store
-    idf = _finding(conn, "identity")
+    idf = _finding(conn, "factual")
     src_before = [dict(r) for r in conn.execute(
         "SELECT id, content_hash, review_status FROM helicon_cubes WHERE id LIKE 'demo-%' ORDER BY id")]
     asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
-        Ruling(finding_id=idf, verb="rule_identity", payload={"canonical": "a payments protocol"})])))
+        Ruling(finding_id=idf, verb="rule_truth", payload={"truth": "live — real money"})])))
     src_after = [dict(r) for r in conn.execute(
         "SELECT id, content_hash, review_status FROM helicon_cubes WHERE id LIKE 'demo-%' ORDER BY id")]
     assert src_before == src_after, "ruling must not mutate the source memories it ruled on"

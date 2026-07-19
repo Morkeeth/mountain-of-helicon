@@ -35,17 +35,17 @@ def test_packet_provenance_is_reconstructible(conn):
 def test_no_private_or_unclassified_item_enters_a_packet(conn):
     rid = _open(conn)
     tr.build_packet(conn, rid, query="")   # everything live
-    # the demo's balance-in-finance memory is hard-private -> excluded, never in items
+    # the demo's runway/finance memory (bank balance) is hard-private -> excluded
     items = conn.execute("SELECT cube_id FROM context_packet_items cpi "
                          "JOIN context_packets cp ON cp.id=cpi.packet_id WHERE cp.task_run_id=?", (rid,)).fetchall()
     ids = {r["cube_id"] for r in items}
-    assert "demo-balance" not in ids
+    assert "demo-runway" not in ids
     # and the exclusion log is OPAQUE — no title / ref / content of the private item
     import json
     excl = json.loads(conn.execute("SELECT excluded_relevant FROM context_packets WHERE task_run_id=?", (rid,)).fetchone()["excluded_relevant"])
     assert excl, "the private item should be logged as excluded"
     blob = json.dumps(excl)
-    assert "balance" not in blob.lower() and "finance" not in blob.lower() and "4,200" not in blob
+    assert "balance" not in blob.lower() and "finance" not in blob.lower() and "180,000" not in blob
 
 
 def test_build_packet_does_not_contaminate_any_existing_table(conn):

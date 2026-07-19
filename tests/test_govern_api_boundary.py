@@ -25,14 +25,14 @@ def client(tmp_path, monkeypatch):
 
 
 def _identity_id(conn):
-    return conn.execute("SELECT id FROM audit_log WHERE audit_type='identity' AND human_decision IS NULL LIMIT 1").fetchone()["id"]
+    return conn.execute("SELECT id FROM audit_log WHERE audit_type='factual' AND human_decision IS NULL LIMIT 1").fetchone()["id"]
 
 
 def test_apply_persists_what_it_claims(client):
     c, conn = client
     fid = _identity_id(conn)
     r = c.post("/api/govern/apply-batch", json={"rulings": [
-        {"finding_id": fid, "verb": "rule_identity", "payload": {"canonical": "a payments protocol"}}]})
+        {"finding_id": fid, "verb": "rule_truth", "payload": {"truth": "live — real money"}}]})
     assert r.status_code == 200
     body = r.json()
     assert body["applied"] == 1 and body["receipt"][0]["applied"]
@@ -43,7 +43,7 @@ def test_apply_persists_what_it_claims(client):
 def test_apply_never_reports_success_on_a_bad_ruling(client):
     c, conn = client
     r = c.post("/api/govern/apply-batch", json={"rulings": [
-        {"finding_id": 999999, "verb": "rule_identity", "payload": {"canonical": "x"}}]})
+        {"finding_id": 999999, "verb": "rule_truth", "payload": {"truth": "x"}}]})
     assert r.status_code == 200
     body = r.json()
     assert body["applied"] == 0 and body["failed"] == 1
@@ -59,7 +59,7 @@ def test_double_undo_is_prevented(client):
     c, conn = client
     fid = _identity_id(conn)
     tok = c.post("/api/govern/apply-batch", json={"rulings": [
-        {"finding_id": fid, "verb": "rule_identity", "payload": {"canonical": "a payments protocol"}}]}).json()["undo_token"]
+        {"finding_id": fid, "verb": "rule_truth", "payload": {"truth": "live — real money"}}]}).json()["undo_token"]
     assert c.post("/api/govern/undo-batch", json={"undo_token": tok}).status_code == 200
     # a second undo (double-click, back-button, retry) must not double-reverse
     assert c.post("/api/govern/undo-batch", json={"undo_token": tok}).status_code == 400

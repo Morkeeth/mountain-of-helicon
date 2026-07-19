@@ -65,7 +65,8 @@ def _rule_truth(conn, fid: int, truth: str) -> dict:
         d = json.loads(row["details"] or "{}")
     except (json.JSONDecodeError, TypeError):
         d = {}
-    topic, person = d.get("topic", "claim"), d.get("person", "user")
+    topic, person = d.get("topic", "claim"), d.get("person", "")
+    subj_str = f"{person.title()}'s {topic}" if person else topic
     wrong = [v for v in (d.get("value_a"), d.get("value_b")) if v and v != truth]
     now = _now()
     conn.execute("UPDATE audit_log SET human_decision=?, resolved_at=? WHERE id=?",
@@ -73,16 +74,17 @@ def _rule_truth(conn, fid: int, truth: str) -> dict:
     from helicon.models import HeliconCube
     from helicon.scanner import make_id, content_hash as _hash
     from helicon.db import insert_cube
-    content = (f"{person.title()}'s {topic} is {truth} (human resolution of finding #{fid}, "
+    content = (f"{subj_str} is {truth} (human resolution of finding #{fid}, "
                f"{now[:10]}). The competing value(s) {', '.join(wrong) or '—'} are wrong; any "
                f"memory asserting them predates this resolution.")
     cid = make_id()
     insert_cube(conn, HeliconCube(
         id=cid, source="human-resolution", source_ref=f"audit:{fid}", type="decision",
-        title=f"Resolved: {person.title()} {topic} = {truth}", content=content, summary=content[:120],
+        title=f"Resolved: {subj_str} = {truth}", content=content, summary=content[:120],
         content_hash=_hash(content), created_at=now, valid_from=now, last_reinforced=now,
         confidence=1.0, review_status="approved", tags=["ruling"], metadata={}))
-    return {"ok": True, "correction_cube": cid, "subject": topic, "truth": truth, "wrong": wrong}
+    return {"ok": True, "correction_cube": cid, "subject": topic, "person": person,
+            "truth": truth, "wrong": wrong}
 
 
 def _confirm(conn, fid: int, decision: str) -> dict:
@@ -125,7 +127,7 @@ def _apply_one(conn, r: Ruling) -> dict:
         return {"finding_id": fid, "verb": verb, "applied": ok, "error": res.get("error"),
                 "correction_cube": res.get("correction_cube") or res.get("correction"),
                 "subject": (res.get("name") or res.get("subj") or res.get("subject") or p.get("canonical") or ""),
-                "truth": res.get("truth"), "wrong": res.get("wrong")}
+                "truth": res.get("truth"), "wrong": res.get("wrong"), "person": res.get("person")}
     except Exception as e:  # never let one ruling abort the batch
         return {"finding_id": fid, "verb": verb, "applied": False, "error": str(e),
                 "correction_cube": None, "subject": ""}
@@ -178,7 +180,8 @@ def _build_receipt(conn, config, results: list[dict]) -> tuple[list[dict], str]:
         # asserts the ruled-wrong value and confirm it is now blocked. This is the
         # whole thesis in the receipt — the ruling is enforced, not just recorded.
         if res.get("verb") == "rule_truth" and applied and res.get("wrong"):
-            probe = f"the user's {subj} is {res['wrong'][0]}"
+            _pp = res.get('person')
+            probe = f"{_pp}'s {subj} is {res['wrong'][0]}" if _pp else f"{subj} is {res['wrong'][0]}"
             blocked = not guard_output(conn, probe).get("clean", True)
             verify["guard_blocks_the_wrong_claim"] = blocked
             if blocked:

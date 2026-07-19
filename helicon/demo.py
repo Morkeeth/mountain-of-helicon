@@ -22,76 +22,75 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEMO_DB = os.path.join(_REPO, "data", "helicon-demo.db")
 DEMO_CONFIG = os.path.join(_REPO, "config-demo.json")
 
+# A coherent, HIGH-STAKES vault: one founder shipping a live payments product,
+# "Ledger". The memories are what their agents actually know — and the rot is
+# dangerous, not trivial. A judge feels the stakes: believe the wrong memory and
+# an agent charges real customers, writes to the wrong system, or leaks runway.
 # (id, source, source_ref, type, title, content, created_at, metadata)
-# Qualifiers are planted so the REAL deterministic selectors bind them: the two
-# diet memories share "dietary/preference"; the marathon carries stale_when; the
-# balance line carries a $ + "last week" fast-fact signal.
 CUBES = [
-    # --- consistency: the stale-preference contradiction (the hero) ----------
-    ("demo-diet-old", "claude-code", "session/2025-11-02", "preference",
-     "Dietary preference",
-     "User's dietary preference: strict vegetarian. Never suggest meat or "
-     "chicken recipes; keep every meal plan plant-based.",
-     "2025-11-02T09:00:00", {}),
-    ("demo-diet-new", "chatgpt", "chat/2026-06-20", "preference",
-     "Dietary preference update",
-     "User's dietary preference changed: started eating chicken and fish "
-     "again after three years. Wants high-protein meals now.",
-     "2026-06-20T18:30:00", {"as_of": "2026-06-20"}),
+    # --- HERO contradiction: is Stripe in TEST mode, or LIVE with real money? --
+    # An agent that believes "test mode, safe to run a checkout" charges real cards.
+    ("demo-stripe-test", "claude-code", "session/2026-03-04", "decision",
+     "Stripe mode",
+     "Stripe runs in TEST mode — charges are simulated, so it's safe to run the "
+     "full checkout end to end while building features.",
+     "2026-03-04T10:00:00", {}),
+    ("demo-stripe-live", "obsidian", "01 Projects/Ledger/go-live.md", "decision",
+     "Stripe is live",
+     "We went LIVE on Stripe on 2026-07-01. Every charge is real money now — "
+     "never run a live checkout as a test.",
+     "2026-07-01T09:00:00", {"as_of": "2026-07-01"}),
 
-    # --- freshness: a dated goal whose date has passed ------------------------
-    ("demo-marathon", "obsidian", "goals.md", "decision",
-     "Current training goal",
-     "Currently training for the Berlin marathon on 2026-03-15. Long runs "
-     "every Sunday, tapering the last two weeks.",
-     "2025-12-01T08:00:00", {"as_of": "2025-12-01", "stale_when": "2026-03-15"}),
+    # --- identity fork: what IS 'Ledger'? (an agent writes to the wrong thing) --
+    ("demo-ledger-db", "obsidian", "01 Projects/Ledger/architecture.md", "project",
+     "Ledger — the database",
+     "Ledger is a Postgres database — the production system of record where every "
+     "settled transaction is written directly.",
+     "2026-05-01T09:00:00", {}),
+    ("demo-ledger-svc", "claude-code", "session/2026-06-10", "memory",
+     "Ledger notes",
+     "Reminder: Ledger is a microservice — it reconciles Stripe payouts nightly "
+     "and stores nothing itself.",
+     "2026-06-10T09:00:00", {}),
 
-    # --- volatility: a fast fact stored as durable memory ---------------------
-    ("demo-balance", "claude-code", "memory/finance.md", "file_created",
-     "Account balance",
-     "User's checking account balance is $4,200 as of last week; they are "
-     "saving toward a deposit.",
-     "2026-06-28T12:00:00", {}),
+    # --- dead name still asserted (an agent calls a decommissioned service) ----
+    ("demo-deadname", "claude-code", "session/2026-02-20", "memory",
+     "Charge endpoint",
+     "To take a payment, POST to the PayCore service at api.paycore.internal/charge.",
+     "2026-02-20T09:00:00", {}),
 
-    # --- retrieval: a dead memory nothing has retrieved in months -----------
-    ("demo-noteapps", "obsidian", "scratch/2025-10-10.md", "decision",
-     "Note-taking app comparison",
-     "User is comparing Obsidian vs Notion vs Roam for note-taking; leaning "
-     "Obsidian for now. Revisit after the trial.",
-     "2025-10-10T09:00:00", {"as_of": "2025-10-10"}),
+    # --- freshness: a launch date that has passed -----------------------------
+    ("demo-launch", "obsidian", "01 Projects/Ledger/roadmap.md", "decision",
+     "Public launch date",
+     "Public launch is set for 2026-06-15; freeze new features the week before.",
+     "2026-05-01T08:00:00", {"as_of": "2026-05-01", "stale_when": "2026-06-15"}),
 
-    # --- identity coherence: one entity, two forked definitions --------------
-    ("demo-aurora-a", "obsidian", "01 Projects/Aurora/overview.md", "project",
-     "Aurora — overview",
-     "Aurora is a payments protocol for cross-border stablecoin settlement; it "
-     "routes transfers between chains.",
-     "2026-04-01T09:00:00", {}),
-    ("demo-aurora-b", "claude-code", "session/2026-05-10", "memory",
-     "Aurora notes",
-     "Reminder: Aurora is a lending market — users deposit collateral and borrow "
-     "against it at a variable rate.",
-     "2026-05-10T09:00:00", {}),
-
-    # --- phantom association: a relation no source grounds --------------------
-    ("demo-aurora-phantom", "obsidian", "03 Ideas/aurora-thesis.md", "idea",
-     "Aurora thesis",
-     "Aurora rides the wave to Solana — if the Solana ecosystem keeps growing, "
-     "Aurora rides that momentum straight up.",
+    # --- phantom: a speculative claim nothing grounds (auto-managed) -----------
+    ("demo-phantom", "obsidian", "03 Ideas/eu-thesis.md", "idea",
+     "EU thesis",
+     "Ledger rides SEPA to the whole EU market — once SEPA lands, Ledger owns "
+     "European payments.",
      "2026-06-15T09:00:00", {}),
 
-    # --- clean control memories (so scores are not 0/100 and gates are honest) -
-    ("demo-name", "claude-code", "session/2025-10-01", "preference",
-     "How the user is addressed",
-     "User prefers to be called by their first name in all replies.",
-     "2025-10-01T09:00:00", {"as_of": "2025-10-01"}),
+    # --- private: a finance fact that must NEVER enter an agent's context ------
+    ("demo-runway", "claude-code", "memory/finance.md", "file_created",
+     "Runway",
+     "Company bank balance is $180,000; runway is roughly 9 months at current burn.",
+     "2026-06-28T12:00:00", {}),
+
+    # --- clean controls (so the store isn't all rot, and gates stay honest) ----
+    ("demo-stack", "obsidian", "01 Projects/Ledger/architecture.md", "decision",
+     "Stack",
+     "Ledger's backend is TypeScript on Node with a Fastify API; infra runs on AWS.",
+     "2026-05-01T09:00:00", {"as_of": "2026-05-01"}),
+    ("demo-name", "claude-code", "session/2026-01-10", "preference",
+     "How the founder is addressed",
+     "The founder prefers to be called by their first name in all replies.",
+     "2026-01-10T09:00:00", {"as_of": "2026-01-10"}),
     ("demo-tz", "obsidian", "profile.md", "preference",
      "Working timezone",
-     "User works from the Central European Time zone; schedule around CET.",
+     "The team works from Central European Time; schedule around CET.",
      "2026-05-01T09:00:00", {"as_of": "2026-05-01"}),
-    ("demo-style", "chatgpt", "chat/2026-05-15", "preference",
-     "Code style",
-     "User prefers concise code with no unnecessary comments.",
-     "2026-05-15T11:00:00", {"as_of": "2026-05-15"}),
 ]
 
 
@@ -121,7 +120,7 @@ def seed(db_path: str = DEMO_DB) -> dict:
     recent = (_dt.datetime.utcnow() - _dt.timedelta(days=3)).isoformat()
     conn.execute("DELETE FROM retrieval_log")
     for cid, *_ in CUBES:
-        if cid == "demo-noteapps":
+        if cid == "demo-deadname":   # a dead service name nothing has retrieved in months
             continue
         for _ in range(2):
             conn.execute(
@@ -143,12 +142,13 @@ def seed(db_path: str = DEMO_DB) -> dict:
     # block any later 'the user is vegetarian' — the whole loop on one thread.
     conn.execute(
         "INSERT INTO audit_log (audit_type, target_type, target_id, finding, severity, details, audited_at) "
-        "VALUES ('factual', 'claim', 'demo-diet', ?, 'critical', ?, ?)",
-        ("Two sources disagree: is the user vegetarian, or eating chicken again? "
-         "Only you know which is current.",
-         json.dumps({"topic": "diet", "person": "user",
-                     "value_a": "vegetarian", "value_b": "eats chicken"}),
-         "2026-06-21T09:00:00"))
+        "VALUES ('factual', 'claim', 'demo-stripe-live', ?, 'critical', ?, ?)",
+        ("Two sources disagree on Stripe: is it in TEST mode (charges simulated), or "
+         "LIVE with real money? An agent that believes 'test mode' will charge real "
+         "customers by mistake. Which is current?",
+         json.dumps({"topic": "Stripe", "value_a": "test mode",
+                     "value_b": "live — real money"}),
+         "2026-07-01T09:30:00"))
     conn.commit()
 
     # A couple of already-ruled verdicts so the Golden Rules surface reads as

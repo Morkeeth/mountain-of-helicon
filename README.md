@@ -18,12 +18,14 @@ pip install -e .
 helicon demo          # seeds a labelled demo store + opens the dashboard
 ```
 
-Open **http://127.0.0.1:8420**. The dashboard opens on **Needs Ruling** with a real
-finding — *"Aurora is a payments protocol in one source, a lending market in another."*
-Rule it in plain language (and the next one) — the verdicts **stage**, you **Apply once**,
-and a **receipt** proves each became durable law your agent obeys next time, with one
-**Undo all**. That's the whole loop: **a claim → its evidence → your ruling → future
-protection.** Localhost-bound, keyless, scans nothing on your machine. Full walkthrough:
+Open **http://127.0.0.1:8420**. The dashboard opens on **Needs Ruling** with a
+*dangerous* contradiction from a live payments store — *"Stripe is in test mode
+(March) vs. we went live, every charge is real money (July)."* Believe the stale
+one and an agent charges real customers. **One tap** on the current answer and it's
+ruled — compiled into the law, and the receipt proves the **guard now blocks** the
+dangerous claim before an agent can act on it, with **Undo**. That's the whole loop:
+**a claim → its evidence → your ruling → enforced protection.** Localhost-bound,
+keyless, scans nothing on your machine. Full walkthrough:
 [`GOLDEN_SUBMISSION.md`](GOLDEN_SUBMISSION.md).
 
 ## The Problem
