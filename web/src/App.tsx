@@ -27,6 +27,7 @@ const ExamView = lazy(() => import('./components/ExamView'));
 const JudgeView = lazy(() => import('./components/JudgeView'));
 const RouteView = lazy(() => import('./components/RouteView'));
 const BriefView = lazy(() => import('./components/BriefView'));
+const StartHere = lazy(() => import('./components/StartHere'));
 const GoldView = lazy(() => import('./components/GoldView'));
 const ConflictMap = lazy(() => import('./components/ConflictMap'));
 const Focus = lazy(() => import('./components/Focus'));
@@ -42,7 +43,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // The primary nav IS the loop, review first: what needs your ruling, the exam
 // that found it, the rules your rulings compile into, and the memory underneath.
@@ -50,6 +51,7 @@ type Tab = 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exa
 // and the deeper surfaces — lives under More, so the hero is the decision, not a
 // menu of capabilities.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'start', label: 'Start Here' },
   { key: 'brief', label: 'Morning Brief' },
   { key: 'findings', label: 'Needs Ruling' },
   { key: 'exam', label: 'The Exam' },
@@ -221,7 +223,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'findings';
+    return ALL_TABS.includes(h) ? h : 'start';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -477,6 +479,7 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'start' && <StartHere onExplore={() => setTab('brief')} />}
         {tab === 'brief' && <BriefView />}
         {tab === 'exam' && <ExamView onGoToFindings={() => setTab('findings')} />}
         {tab === 'judge' && <JudgeView />}
