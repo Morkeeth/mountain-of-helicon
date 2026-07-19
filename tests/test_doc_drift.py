@@ -67,8 +67,13 @@ def test_every_doc_is_actually_checked():
         assert doc in checked, f"{doc} has claims but nothing checks it"
 
 
-def test_all_three_shapes_are_covered():
-    kinds = {r["kind"] for r in check_docs()}
+def test_all_three_shapes_are_covered(repo):
+    """Run against the fixture repo, which HAS an eval baseline. Against the live
+    REPO_ROOT this asserted the eval shape while data/eval-latest.json is gitignored
+    and absent on a fresh clone — so the checker's own coverage test went red the
+    moment a stranger cloned the repo. The property under test is that the checker
+    grades all three shapes when all three sources are present."""
+    kinds = {r["kind"] for r in check_docs(str(repo))}
     assert kinds == {"count", "list", "eval"}
 
 
