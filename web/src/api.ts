@@ -152,6 +152,27 @@ export interface FindingsResponse {
   summary: FindingsSummary;
 }
 
+// The receipt from one govern-batch Apply: each ruling's effect + protection,
+// with a verify probe checked against real post-apply state.
+export interface GovernReceiptItem {
+  finding_id: number;
+  verb: string;
+  applied: boolean;
+  error?: string | null;
+  effect: string;
+  protection: string;
+  verify: { recorded_in_audit_log: boolean; compiled_into_law: boolean };
+}
+export interface GovernReceipt {
+  batch_id: string;
+  undo_token: string;
+  applied: number;
+  failed: number;
+  rules_compiled: number;
+  findings_settled: number;
+  receipt: GovernReceiptItem[];
+}
+
 // One receipt of the LOG surface (/api/log)
 export interface LogEntry {
   ts: string;
@@ -261,6 +282,12 @@ export const api = {
     post('/audit/resolve-identity', { finding_id, canonical }),
   resolveRelation: (finding_id: number, verdict: string) =>
     post('/audit/resolve-relation', { finding_id, verdict }),
+  /* Govern-batch: stage N rulings, apply once, get a receipt whose proof is real
+     post-apply state, plus an undo token that fully reverses it. */
+  applyBatch: (rulings: { finding_id: number; verb: string; payload?: Record<string, unknown>; label?: string }[]) =>
+    post<GovernReceipt>('/govern/apply-batch', { rulings }),
+  undoBatch: (undo_token: string) =>
+    post<{ undone: boolean; fully_reversed: boolean }>('/govern/undo-batch', { undo_token }),
   getPatterns: () => get<{ patterns: Pattern[] }>('/patterns'),
   extractPatterns: () => post<{ extracted: number }>('/patterns/extract'),
   getDecayStats: () => get<DecayStats>('/decay/stats'),
