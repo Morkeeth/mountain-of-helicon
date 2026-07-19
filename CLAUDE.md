@@ -23,7 +23,7 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 - SQLite + FTS5 + numpy embeddings (29 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards, judge_runs, govern_batches, task_runs, context_packets, context_packet_items), plus the cubes_fts FTS5 index
 - React/Vite (findings-first dashboard: HEALTH / FINDINGS / LOG primary, Graph + Projects secondary)
 - Web Speech API (voice input for reviews)
-- MCP Server (15 tools for agent self-audit + context injection)
+- MCP Server (16 tools for agent self-audit + context injection)
 - Auto-triage engine (autonomous kill/keep from patterns learned on HUMAN reviews only)
 - CLI (`helicon init/scan/serve/triage/score/stack/optimize/embed/compile/playbooks/consolidate`)
 
@@ -70,7 +70,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - ~3,800 live memories of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live memories come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor memories exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 memories
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
-- 24 routers (~94 endpoints), 15 MCP tools, 45 CLI commands (+4 aliases)
+- 25 routers (~95 endpoints), 16 MCP tools, 46 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)

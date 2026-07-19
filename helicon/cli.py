@@ -669,6 +669,24 @@ def cmd_guard(args):
     print(format_guard(guard_output(conn, args.text)))
 
 
+def cmd_brief(args):
+    """The morning brief — the product vision in one screen. Assembles all five
+    pillars (Truth, Continuity, Direction, Reflection, Calm) into one honest,
+    read-only view: what's no longer trustworthy, what needs a ruling, which model
+    earned its cost, what changed, and the few things worth your judgment."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.brief import build_brief, format_brief
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    b = build_brief(conn, config)
+    if getattr(args, "json", False):
+        print(json.dumps(b, indent=2))
+    else:
+        print(format_brief(b))
+
+
 def cmd_ask(args):
     """Guarded retrieve: ask what is safe to believe about a topic. The read-side
     mirror of `helicon guard` — it retrieves context, then screens it through the
@@ -2450,6 +2468,9 @@ def main():
     guard_p = sub.add_parser("guard", help="Check a proposed output against the law (rulings) before it's written")
     guard_p.add_argument("text", help="the output/claim you're about to assert")
 
+    brief_p = sub.add_parser("brief", help="The morning brief: all five pillars in one screen (Truth/Continuity/Direction/Reflection/Calm)")
+    brief_p.add_argument("--json", action="store_true", help="emit the structured brief for another surface")
+
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
@@ -2522,6 +2543,7 @@ def main():
         "attribute": cmd_attribute,
         "guard": cmd_guard,
         "ask": cmd_ask,
+        "brief": cmd_brief,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,

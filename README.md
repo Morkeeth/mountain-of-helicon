@@ -105,7 +105,7 @@ The backend is **deployed and running on Alibaba Cloud** — a live public URL:
 You don't have to host anything, and you don't need the browser.
 
 - **CLI** — `helicon audit`, `helicon check "<task>"`, `helicon doctor`, `helicon policy`. The full audit, headless. `helicon watch` runs it on a cron and only pings you when something *new* rots — the ambient, no-browser daily loop.
-- **In your IDE / agent (MCP)** — `helicon mcp` exposes 15 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
+- **In your IDE / agent (MCP)** — `helicon mcp` exposes 16 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
 - **Dashboard** (`helicon serve`) — for when you want to sit down and review visually: Next Moves, findings, golden rules.
 
 Packaged as a proper CLI (a `helicon` entry point via `pyproject.toml`), so once it's on PyPI the install is `pipx install mount-helicon` (or `uvx mount-helicon` for zero-install). Today, from the clone: `pip install -e .`, then `helicon init`. Semantic search is an optional extra (`pip install "mount-helicon[embeddings]"`); the core install is slim (no torch) so the CLI, the rot exam, and CI stay fast.
@@ -160,7 +160,7 @@ Locally it's the same one command: `helicon ci` (add `--fail-on none` for report
 
 All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
-## MCP Server (15 tools)
+## MCP Server (16 tools)
 
 Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
@@ -182,6 +182,7 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 | `helicon_patterns` | Learned behavioral patterns |
 | `helicon_guard` | Check a proposed claim against the compiled law *before* writing it: `blocked` / `warn` / `clean` |
 | `helicon_ask` | Guarded retrieve — what is safe to believe about a topic: the ruled-true answer + retrieved context split into safe vs. ruled-wrong |
+| `helicon_brief` | The morning brief — all five pillars in one call: truth, continuity, direction, reflection, calm |
 | `helicon_portrait` | Grounded portrait of what the record shows about the person, plus its health |
 | `helicon_context` | Proactive memory injection for a task -- every memory carries its id, last_verified, used_count |
 | `helicon_flag` | Point-of-use correction: flag a memory stale/wrong/useful by id; stale/wrong become findings the human confirms |
@@ -192,9 +193,9 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
-## CLI (45 commands)
+## CLI (46 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `judge-bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `guard` `ask` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `judge-bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `guard` `ask` `brief` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `compile` `consolidate` `eval-consolidation`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
@@ -302,7 +303,7 @@ Mount Helicon's capabilities stand on well-understood memory-systems patterns an
 </p>
 
 
-- **Backend:** Python 3.12, FastAPI (94 endpoints), SQLite + FTS5 (29 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
+- **Backend:** Python 3.12, FastAPI (95 endpoints), SQLite + FTS5 (29 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
 - **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. Proof-of-run on Alibaba Cloud via Cloud Shell (`scripts/cloudshell-run.sh`)

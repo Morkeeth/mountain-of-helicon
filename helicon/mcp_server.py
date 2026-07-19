@@ -135,6 +135,16 @@ TOOLS = [
         },
     },
     {
+        "name": "helicon_brief",
+        "description": "The morning brief — the whole system of record in one call. Returns all five pillars: truth (what's no longer trustworthy + grade), continuity (verified context carried), direction (which model earned its cost, or insufficient evidence), reflection (what changed), calm (the few findings worth a human ruling). Use to self-orient at the start of a session — what is true, what needs a decision, what to do next.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {"type": "integer", "description": "Max items per pillar section. Default 3", "default": 3},
+            },
+        },
+    },
+    {
         "name": "helicon_playbook",
         "description": "Get task-specific guidance based on learned review patterns and feedback. Describe what you're about to do and Mount Helicon returns the relevant playbook with rules, common mistakes, and a prompt template.",
         "inputSchema": {
@@ -530,6 +540,11 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         question = arguments.get("question", "")
         limit = arguments.get("limit", 10)
         return json.dumps(guarded_context(conn, question, limit=limit), indent=2)
+
+    elif name == "helicon_brief":
+        from helicon.brief import build_brief
+        limit = arguments.get("limit", 3)
+        return json.dumps(build_brief(conn, limit=limit), indent=2)
 
     elif name == "helicon_playbook":
         task = arguments.get("task", "")
