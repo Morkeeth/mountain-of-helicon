@@ -41,13 +41,19 @@ _SEVERITY_RANK = {"critical": 4, "high": 3, "warning": 2, "medium": 2, "info": 1
 _KIND_RANK = {"factual": 0, "supersession": 0, "nightly": 0, "output": 1, "routine": 1, "regret": 1,
               "agent-flag": 1, "battery": 2, "skill": 2, "logical": 2, "temporal": 3, "decay": 3}
 
-# Two lanes. DECISION findings need Oscar's judgment — only a human knows
-# whether two sources contradict, whether a kill was wrong, or which skill is
-# canonical. AMBIENT findings are age/mechanics the system can manage in bulk
-# (a note went stale, a git commit decayed, a path moved). The daily queue is
-# the decision lane; ambient is a collapsed, auto-manageable pile. This is
-# Oscar's Jul-3 verdict made real: "CI shows failing checks, not every line."
-_AMBIENT_KINDS = {"temporal", "decay", "output", "routine", "context", "logical"}
+# Two lanes. DECISION findings need a human's judgment — only a human knows
+# whether two LIVE claims contradict, or which of two definitions of an entity is
+# canonical. AMBIENT findings are things the engine can resolve alone: age /
+# mechanics (a note went stale, a git commit decayed) AND low-confidence,
+# ungrounded, single-source flags the engine is confident are noise. The daily
+# queue is the decision lane; ambient is a collapsed, auto-managed pile.
+#
+# 'provenance' (phantom associations) moved here (Jul 19): an ungrounded relation
+# no other source grounds is exactly what the engine should auto-retire, not put
+# in front of a human — surfacing it broke the "handle what needs you" promise.
+# The real fix (learning these criteria from a human reviewing the ENGINE's own
+# judgments) is the meta-review surface; this is the honest interim default.
+_AMBIENT_KINDS = {"temporal", "decay", "output", "routine", "context", "logical", "provenance"}
 
 
 def _lane(kind: str) -> str:
