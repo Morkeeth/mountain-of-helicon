@@ -19,7 +19,7 @@ flowchart TD
     A6["External stores it audits but doesn't own<br/>mem0 · Letta · Graphiti"]
   end
 
-  SRC -->|"connectors (12 modules, 4 enabled)"| GATE
+  SRC -->|"connectors (12 modules, 5 enabled)"| GATE
 
   subgraph INGEST["② Ingestion"]
     GATE["SAGE novelty gate<br/>ADD / NOOP / MERGE"]
@@ -43,14 +43,14 @@ flowchart TD
   EXAM --> FIND["Findings — grouped for humans:<br/>Drift · Stale · Smartness"]
   FIND --> HUMAN["④ Human rules once<br/>Confirm / Retire / Later<br/>(voice-dictation driven)"]
   HUMAN --> GOLD["⑤ GOLD compiler<br/>rulings → GOLDEN RULES, each with provenance"]
-  GOLD -->|"helicon gold --inject"| INJECT["~/.claude/GOLDEN_RULES.md"]
+  GOLD -->|"helicon gold --inject --targets claude,codex"| INJECT["~/.claude/GOLDEN_RULES.md · 103 rules<br/>~/.codex/AGENTS.md · 82 rules, scoped"]
   INJECT -.->|"agent loads it next session — the loop closes"| SRC
 
   CUBES -.serves.-> SURF
   subgraph SURF["Surfaces"]
     CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
     MCP["MCP server<br/>16 tools · JSON-RPC 2.0 / stdio"]
-    WEB["Web UI · 16 tabs<br/>Health · Findings · Gold · Exam · Judge · Log · Graph · Projects · Evals · …"]
+    WEB["Web UI · 17 tabs<br/>Health · Findings · Gold · Exam · Judge · Log · Graph · Projects · Evals · …"]
   end
 ```
 
