@@ -188,7 +188,9 @@ def seed(db_path: str = DEMO_DB) -> dict:
         ("Stripe — test mode, or live with real money? Believe the wrong one and "
          "your agent charges real customers.",
          json.dumps({"topic": "Stripe", "value_a": "test mode",
-                     "value_b": "live — real money"}),
+                     "value_b": "live — real money",
+                     "question": "Is Stripe in test mode, or live with real money?",
+                     "consequence": "Believe the wrong one and your agent charges real customers."}),
          "2026-07-01T09:30:00"))
     conn.commit()
 
@@ -215,8 +217,34 @@ def seed(db_path: str = DEMO_DB) -> dict:
         ("The seed round's cap disagrees across notes — a $10M cap or a $15M cap? "
          "An agent quoting the wrong one misstates the cap table to investors.",
          json.dumps({"topic": "seed round cap", "value_a": "$10M cap",
-                     "value_b": "$15M cap"}),
+                     "value_b": "$15M cap",
+                     "question": "Is the seed round's cap $10M or $15M?",
+                     "consequence": "An agent quoting the wrong one misstates the cap table to investors."}),
          "2026-07-05T10:00:00"))
+
+    # --- a THIRD contradiction: what IS 'Ledger'? (identity fork, human-rulable) --
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, severity, details, audited_at) "
+        "VALUES ('factual', 'claim', 'demo-ledger-svc', ?, 'high', ?, ?)",
+        ("'Ledger' means two different things across notes — the Postgres database or a "
+         "microservice? An agent writes settled transactions to the wrong system.",
+         json.dumps({"topic": "what Ledger is", "value_a": "the Postgres database",
+                     "value_b": "a microservice",
+                     "question": "Is 'Ledger' the Postgres database, or the microservice?",
+                     "consequence": "Pick wrong and your agent writes settled transactions to the wrong system."}),
+         "2026-06-10T10:00:00"))
+
+    # --- a FOURTH contradiction: who owns on-call? (staffing rot) ----------------
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, severity, details, audited_at) "
+        "VALUES ('factual', 'claim', 'demo-old-oncall', ?, 'warning', ?, ?)",
+        ("On-call ownership disagrees — Priya (CTO) or the two founders weekly? "
+         "An incident pages the wrong person.",
+         json.dumps({"topic": "who owns on-call", "value_a": "Priya (CTO)",
+                     "value_b": "the two founders, weekly",
+                     "question": "Who owns the on-call rotation — Priya, or the two founders?",
+                     "consequence": "Get it wrong and an incident pages the wrong person."}),
+         "2026-06-25T10:00:00"))
 
     # --- model-routing evidence: real verified/contradicted verdicts per task
     # class, so Route (and the brief's Direction pillar) recommends off data.

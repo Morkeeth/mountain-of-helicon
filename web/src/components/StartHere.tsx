@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 
 const SERIF = { fontFamily: '"Fraunces", serif' } as const;
 
-type Finding = { id: string; options: string[] };
+type Finding = { id: string; options: string[]; question?: string; consequence?: string };
 
 export default function StartHere({ onExplore }: { onExplore?: () => void }) {
   const [finding, setFinding] = useState<Finding | null>(null);
@@ -74,10 +74,10 @@ export default function StartHere({ onExplore }: { onExplore?: () => void }) {
   return (
     <div style={wrap}>
       <Block tag="The question">
-        <div style={big}>Is Stripe live, or in test mode?</div>
+        <div style={big}>{finding.question ?? 'Which value is current?'}</div>
       </Block>
       <Block tag="If you get it wrong" mt={28}>
-        <div style={sub}>Your agent charges real customers.</div>
+        <div style={sub}>{finding.consequence ?? 'Your agent acts on the wrong answer.'}</div>
       </Block>
       <div style={{ display: 'flex', gap: 12, marginTop: 36, flexWrap: 'wrap' }}>
         {finding.options.map(o => (

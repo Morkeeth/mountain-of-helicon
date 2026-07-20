@@ -145,6 +145,8 @@ def _audit_findings(conn) -> list[dict]:
             # The competing values, so a contradiction is ruled in one tap (which is
             # current?) instead of typed. Only the two answers a human chooses between.
             "options": [v for v in (details.get("value_a"), details.get("value_b")) if v] if kind == "factual" else None,
+            "question": details.get("question") if kind == "factual" else None,
+            "consequence": details.get("consequence") if kind == "factual" else None,
             "created_at": r["audited_at"],
         })
     return findings
