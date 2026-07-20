@@ -140,6 +140,8 @@ def seed(db_path: str = DEMO_DB) -> dict:
     # Idempotent reset: clear cubes + any findings from a prior run.
     conn.execute("DELETE FROM helicon_cubes")
     conn.execute("DELETE FROM audit_log")
+    conn.execute("DELETE FROM route_evidence")
+    conn.execute("DELETE FROM run_cards")
     conn.commit()
 
     n = 0
