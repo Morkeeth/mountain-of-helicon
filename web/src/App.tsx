@@ -767,7 +767,7 @@ function ContextHero({ score, needsYou, onReview }: { score: Score | null; needs
         <span style={{ opacity: 0.4 }}>→</span>
         {step('you rule')} <span>what's rotting</span>
         <span style={{ opacity: 0.4 }}>→</span>
-        {step('compiles')} <span>GOLDEN RULES you paste into the next session</span>
+        {step('compiles')} <span>into Golden Rules your agent obeys, and that re-alarm if violated</span>
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-x-10 gap-y-4">

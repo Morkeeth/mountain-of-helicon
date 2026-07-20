@@ -40,7 +40,7 @@ function Exhibit({ n, title, sub, children }: { n: string; title: string; sub: s
 
 const CARDS_DASH = [
   ['Next Moves', 'Memory → your move', 'Qwen turns the state of your memory into 2-4 cited next prompts. Uncited ones are dropped.'],
-  ['Memory', 'Setup report card', 'Graded live against the seven MemoryAgent criteria, storage, forgetting, recall, cross-session.'],
+  ['Memory', 'Setup report card', 'Graded live against the MemoryAgent criteria: storage, forgetting, recall, cross-session accuracy.'],
   ['Needs Ruling', 'The cases', 'Every finding as a case: the why leads, evidence follows. Rule once, it sticks.'],
   ['Golden Rules', 'The precedent', "Your rulings compiled into your agent's operating law, each with provenance."],
 ];
@@ -59,10 +59,10 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
         <div className="px-8 py-12">
           <div className="text-[10px] uppercase tracking-[0.3em] mb-5" style={{ color: '#C5A25A' }}>The court of record for agent memory</div>
           <h1 className="text-[clamp(30px,5vw,52px)] leading-[1.1] max-w-[16ch] m-0" style={{ ...SERIF, color: '#f6f1e9', fontWeight: 500 }}>
-            Memory stores remember. Mount Helicon judges what is <span style={{ color: '#C5A25A', fontStyle: 'italic' }}>still true.</span>
+            Memory stores remember. Mount Helicon knows what's <span style={{ color: '#C5A25A', fontStyle: 'italic' }}>still true.</span>
           </h1>
           <p className="text-[17px] mt-5 max-w-[60ch]" style={{ color: '#c3cad9' }}>
-            It runs a ten-class rot exam against your agent's live memory, turns your rulings into precedent, and hands back your next move, every answer citing the memory it came from.
+            It runs a twelve-class rot exam across your agent's live memory, context, and output, turns your rulings into precedent, and hands back your next move, every answer citing the memory it came from.
           </p>
           <div className="flex gap-3 mt-7 flex-wrap">
             <button onClick={onEnter} className="text-[14px] font-semibold px-4 py-2.5 rounded-lg" style={{ background: '#C5A25A', color: '#141b2b' }}>
@@ -104,16 +104,16 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
         </div>
 
         <Exhibit n="i." title="In the terminal" sub="the 10-second daily check">
-          <p className="text-[14px] m-0 mb-3" style={{ color: 'var(--helicon-muted)' }}>Ten documented rot classes against your real store, no key, no LLM, free to run daily and in CI.</p>
+          <p className="text-[14px] m-0 mb-3" style={{ color: 'var(--helicon-muted)' }}>Twelve documented rot classes against your real store, no key, no LLM, free to run daily and in CI.</p>
           <Term>{`$ `}<CMD c="helicon rot" />{`
-The rot exam, 10 documented failure classes, checked live
+The rot exam, 12 documented failure classes, checked live
 
    R1  Cross-source contradiction   `}<ROT c="ROT FOUND" />{`
        wins[hackathon]: 4 vs 9 · decision-status: executed vs open
    R4  Supersession / rename        `}<ROT c="ROT FOUND" />{`
        RELAY→FAVOUR: 438 live dead-name claim(s) still current
    R5  Duplicate / echo memory      `}<OK c="CLEAN" />{`
-   `}<NUM c="6/10" />{` classes show rot right now · 10/10 fully tested
+   `}<NUM c="7/12" />{` classes show rot right now · 12/12 fully tested
 
 $ `}<CMD c="helicon doctor" />{`
   `}<OK c="[OK]" />{` Qwen key configured   `}<OK c="[OK]" />{` DB, `}<NUM c="4,214" />{` cubes`}</Term>
@@ -128,7 +128,7 @@ $ `}<CMD c="helicon doctor" />{`
         </Exhibit>
 
         <Exhibit n="ii." title="Inside your IDE, over MCP" sub="the agent audits its own memory">
-          <p className="text-[14px] m-0 mb-3" style={{ color: 'var(--helicon-muted)' }}>A 12-tool MCP server drops into Cursor or Claude Code. The agent pulls its own memory with provenance and flags stale context at the point of use.</p>
+          <p className="text-[14px] m-0 mb-3" style={{ color: 'var(--helicon-muted)' }}>A 16-tool MCP server drops into Cursor or Claude Code. The agent pulls its own memory with provenance and flags stale context at the point of use.</p>
           <Term>{`$ `}<DIM c="# ~/.cursor/mcp.json" />{`
   `}<P c='"helicon"' />{`: { `}<CMD c='"command":"helicon","args":["mcp"]' />{` }
 

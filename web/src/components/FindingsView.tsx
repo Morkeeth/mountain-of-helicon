@@ -29,7 +29,7 @@ function HowItWorks() {
       </div>
       <ol className="mt-2 text-[12.5px] leading-relaxed text-zinc-600 list-decimal ml-4 space-y-0.5">
         <li><b className="text-zinc-800">It reads your memory</b>, transcripts, vault, rules files, git, read-only, into its own store.</li>
-        <li><b className="text-zinc-800">Checks run on a timer</b>, ten documented failure classes (contradictions, staleness, dead names…). No LLM needed for the core.</li>
+        <li><b className="text-zinc-800">Checks run on a timer</b>, twelve documented failure classes (contradictions, staleness, dead names…). No LLM needed for the core.</li>
         <li><b className="text-zinc-800">Everything below failed a check</b>, each row carries its evidence. Nothing here is a suggestion; it is a receipt.</li>
         <li><b className="text-zinc-800">You rule, once</b>, confirm it's still true, correct it with the truth, or retire it. Rulings stick: the same rot re-alarms if it returns. Every decision is reversible.</li>
       </ol>
