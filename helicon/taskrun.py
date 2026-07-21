@@ -63,6 +63,9 @@ def open_run(conn, objective, acceptance_test, *, task_class="", model="", harne
     'verified' later cannot be hindsight."""
     if not objective.strip():
         raise TaskRunError("objective is required")
+    if not (acceptance_test or "").strip():
+        raise TaskRunError("acceptance_test is required — declare what 'accepted' "
+                           "means BEFORE work, so 'verified' can never be hindsight")
     rid = "tr_" + uuid.uuid4().hex[:12]
     conn.execute(
         "INSERT INTO task_runs (id, objective, task_class, task_spec_hash, acceptance_test, "
@@ -199,6 +202,37 @@ def attach_verification(conn, task_run_id, outcome: str, *, evidence="") -> None
         "UPDATE task_runs SET verification_outcome=?, verification_receipt=?, verified_at=?, status='verified' WHERE id=?",
         (outcome, json.dumps({"source": "attached", "evidence": evidence}), _now(), task_run_id))
     conn.commit()
+
+
+def record_event(conn, task_run_id, kind, *, actor="human", detail="") -> None:
+    """Append-only run history. Never rewrites; a correction is a new row."""
+    conn.execute(
+        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) VALUES (?,?,?,?,?)",
+        (task_run_id, _now(), kind, actor,
+         detail if isinstance(detail, str) else json.dumps(detail)))
+    conn.commit()
+
+
+def accept_run(conn, task_run_id, verdict, *, note="") -> dict:
+    """Human acceptance closes the state machine (the piece the recorder was
+    missing). verdict ∈ accepted | rework | rollback. Append-only: the verdict
+    and note are recorded as a run_event AND set on the run; a later change adds
+    a new event rather than overwriting history. Only 'accepted' is allowed to
+    promote a prompt (caller enforces)."""
+    if verdict not in ("accepted", "rework", "rollback"):
+        raise TaskRunError("verdict must be accepted | rework | rollback")
+    run = _get_run(conn, task_run_id)
+    if run is None:
+        raise TaskRunError(f"no such task run: {task_run_id}")
+    if run["status"] not in ("artifact_attached", "verified", "reviewed"):
+        raise TaskRunError(f"cannot accept before an artifact exists (status: {run['status']})")
+    conn.execute(
+        "UPDATE task_runs SET human_acceptance=?, status='reviewed' WHERE id=?",
+        (verdict, task_run_id))
+    record_event(conn, task_run_id, verdict, actor="human", detail=note)
+    conn.commit()
+    return {"ok": True, "task_run_id": task_run_id, "human_acceptance": verdict,
+            "note": note, "promotable": verdict == "accepted"}
 
 
 def render_receipt(conn, task_run_id) -> str:
