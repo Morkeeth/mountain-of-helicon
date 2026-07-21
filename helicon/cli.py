@@ -768,6 +768,37 @@ def cmd_run(args):
         return
 
 
+def cmd_hook(args):
+    """Claude Code UserPromptSubmit hook — deliver your approved rulings INTO a
+    live session (privacy-gated to safe repos) and record the delivery, so
+    'delivered to a live run' is provable. Reads the hook JSON on stdin, prints
+    hook JSON on stdout. `--print-config` prints the settings snippet; Helicon
+    NEVER auto-installs into your live ~/.claude/settings.json."""
+    import json as _json
+    if getattr(args, "print_config", False):
+        cfg = {"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command",
+               "command": "HELICON_CONFIG=/path/to/config.json helicon hook userprompt"}]}]}}
+        print("# Paste into ~/.claude/settings.json (Helicon does not auto-install):")
+        print(_json.dumps(cfg, indent=2))
+        return
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.capture import hook_deliver
+    raw = sys.stdin.read()
+    try:
+        payload = _json.loads(raw) if raw.strip() else {}
+    except Exception:
+        payload = {}
+    cwd = payload.get("cwd") or os.getcwd()
+    session = str(payload.get("session_id", ""))[:16]
+    config = load_config()
+    conn = init_db(config["db_path"])
+    ctx = hook_deliver(conn, cwd, session)
+    if ctx:
+        print(_json.dumps({"hookSpecificOutput": {
+            "hookEventName": "UserPromptSubmit", "additionalContext": ctx}}))
+
+
 def cmd_guard(args):
     """Live guard: check a proposed output against the law (rulings) before it's
     written. The write-time enforcement of GOLDEN_RULES (also the helicon_guard
@@ -2515,6 +2546,10 @@ def main():
     run_p.add_argument("--reject", action="store_true", help="close: rejected/rollback (no promotion)")
     run_p.add_argument("--note", default="", help="close: the verdict note")
 
+    hook_p = sub.add_parser("hook", help="Claude Code UserPromptSubmit hook: deliver your rulings into a live session (--print-config for the settings snippet)")
+    hook_p.add_argument("event", nargs="?", default="userprompt", help="hook event (userprompt)")
+    hook_p.add_argument("--print-config", action="store_true", help="print the settings.json snippet (never auto-installs)")
+
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
@@ -2702,6 +2737,7 @@ def main():
         "consolidate": cmd_consolidate,
         "eval-consolidation": cmd_consolidation_eval,
         "run": cmd_run,
+        "hook": cmd_hook,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads
