@@ -287,6 +287,43 @@ CREATE TABLE IF NOT EXISTS context_packet_items (
     rendered_fragment_hash TEXT,
     provenance TEXT, freshness TEXT, scope TEXT, sensitivity TEXT, selection_reason TEXT
 );
+CREATE TABLE IF NOT EXISTS run_captures (
+    id TEXT PRIMARY KEY,
+    task_run_id TEXT,              -- link to a governed task_run (NULL for pure imported)
+    provenance TEXT NOT NULL,      -- imported | governed
+    session_ids TEXT,              -- json
+    repo TEXT, branch TEXT, worktree TEXT, start_commit TEXT,
+    prompt_chain TEXT,             -- json: [{ts, text, source}] verbatim, in order
+    prompt_count INTEGER,
+    model TEXT, models TEXT,       -- modal model + json histogram
+    harness TEXT,
+    tokens TEXT,                   -- json: {input, output, cache_read, cache_creation, total}
+    cost_status TEXT,              -- known | unknown (never fabricate 0)
+    first_ts TEXT, last_ts TEXT, duration_min REAL,
+    artifact_manifest TEXT,        -- json: [{path, content_hash, observed_at}]
+    captured_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_run_captures_taskrun ON run_captures(task_run_id);
+CREATE TABLE IF NOT EXISTS run_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_run_id TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    kind TEXT NOT NULL,            -- opened | packet | artifact | verified | accepted | rework | rollback | amend
+    actor TEXT,                    -- human | helicon | qwen | opus
+    detail TEXT                    -- json/text, append-only; history is never rewritten
+);
+CREATE INDEX IF NOT EXISTS idx_run_events_taskrun ON run_events(task_run_id);
+CREATE TABLE IF NOT EXISTS prompt_library (
+    id TEXT PRIMARY KEY,
+    task_run_id TEXT,
+    prompt TEXT NOT NULL,
+    objective TEXT,
+    task_class TEXT,
+    model TEXT, harness TEXT,
+    outcome TEXT,                  -- accepted (only accepted outcomes promote)
+    promoted_at TEXT NOT NULL,
+    promoted_by TEXT               -- accepted-outcome | operator-ruling
+);
 """
 
 
