@@ -181,6 +181,126 @@ def cockpit_view(conn, config=None, only=None, run=False, terminals=None) -> dic
     }
 
 
+_SEV = {"contradicted": "critical", "unverified": "warning", "verified": "info"}
+
+
+def _find_finding_id(conn, pair_key):
+    """The audit_log id for an already-filed review claim, by pair_key."""
+    import json
+    for row in conn.execute(
+            "SELECT id, details FROM audit_log WHERE audit_type='review'"):
+        try:
+            if json.loads(row["details"] or "{}").get("pair_key") == pair_key:
+                return row["id"]
+        except Exception:
+            pass
+    return None
+
+
+def file_claim(conn, terminal, repo_path, claim) -> int | None:
+    """Ensure a review claim exists as an audit finding (idempotent by
+    pair_key) so it can be ruled. Returns the finding id."""
+    from helicon.models import AuditResult
+    from helicon.db import insert_audit
+    existing = _find_finding_id(conn, claim["pair_key"])
+    if existing:
+        return existing
+    res = AuditResult(
+        audit_type="review", target_type="terminal", target_id=terminal,
+        finding=f"[{terminal}] {claim['verdict'].upper()}: {claim['text']}",
+        severity=_SEV.get(claim["verdict"], "warning"),
+        proposed_action="verify against reality, then rule",
+        details={"pair_key": claim["pair_key"], "receipt": claim.get("receipt", ""),
+                 "kind": claim.get("kind", ""), "repo": repo_path,
+                 "branch": claim.get("branch", "")})
+    fid = insert_audit(conn, res)
+    conn.commit()
+    return fid or _find_finding_id(conn, claim["pair_key"])
+
+
+def _continuity_proof(conn, config, terminal, claim, cube_id) -> dict:
+    """PROVE CONTINUITY (pull side): after a ruling writes a correction cube,
+    show the next agent's context read now surfaces it. 'included' is NOT
+    'obeyed' — a database write alone never proves propagation."""
+    if not cube_id:
+        return {"included": False, "why": "no correction cube written"}
+    query = f"{terminal} {(claim.get('text') or '')[:80]}"
+    try:
+        from helicon.mcp_server import _proactive_context
+        ctx = _proactive_context(conn, query, limit=8, max_tokens=1500)
+    except Exception as e:
+        return {"included": None, "query": query,
+                "why": f"context reader unavailable: {type(e).__name__}"}
+    items = ctx.get("cubes") or ctx.get("items") or ctx.get("results") or []
+    ids = [(c.get("id") if isinstance(c, dict) else None) for c in items]
+    return {
+        "included": cube_id in ids, "query": query,
+        "context_size": len(ids), "correction_cube": cube_id,
+        "note": "correction is now RETRIEVABLE by the next agent (pull path). "
+                "'included in context' != 'the model obeyed it'.",
+    }
+
+
+def rule_claim(conn, config, terminal, repo_path, claim, decision,
+               correction="") -> dict:
+    """RULE + APPLY: keep / revise / reject one claim. Revise CAPTURES the
+    correction verbatim (Oscar's words) into a governed correction cube — the
+    write-back seed. Returns a receipt + a continuity proof."""
+    if _is_private(repo_path):
+        return {"ok": False, "error": "private repo — refused"}
+    if decision not in ("keep", "revise", "reject"):
+        return {"ok": False, "error": f"unknown decision '{decision}'"}
+    if decision == "revise" and not (correction or "").strip():
+        return {"ok": False, "error": "revise requires the correction text"}
+    fid = file_claim(conn, terminal, repo_path, claim)
+    if not fid:
+        return {"ok": False, "error": "could not file the claim"}
+    note = {
+        "keep": f"kept — verified true: {correction}".rstrip(": ").rstrip(),
+        "revise": correction.strip(),
+        "reject": f"rejected — claim is false: {correction}".rstrip(": ").rstrip(),
+    }[decision]
+    from helicon.review_terminals import resolve_review
+    r = resolve_review(conn, fid, note=note)
+    if not r.get("ok"):
+        return r
+    proof = _continuity_proof(conn, config, terminal, claim, r.get("correction_cube"))
+    return {
+        "ok": True, "finding_id": fid, "decision": decision,
+        "correction_captured": note if decision != "keep" else "",
+        "correction_cube": r.get("correction_cube"),
+        "retired_cube": r.get("retired_cube"),
+        "continuity": proof,
+        "receipt": [
+            {"applied": True, "effect": f"{decision.title()} recorded for [{terminal}] claim",
+             "detail": f"finding #{fid} resolved; correction cube {r.get('correction_cube')} written "
+                       f"(source 'output-review'), retrievable by the next agent."},
+        ],
+    }
+
+
+def unrule_claim(conn, finding_id) -> dict:
+    """UNDO: reverse a ruling — delete the correction cube it wrote and
+    re-open the finding, so the record is exactly back to before."""
+    row = conn.execute("SELECT id FROM audit_log WHERE id=?", (finding_id,)).fetchone()
+    if not row:
+        return {"ok": False, "error": f"no finding #{finding_id}"}
+    cubes = [r["id"] for r in conn.execute(
+        "SELECT id FROM helicon_cubes WHERE source='output-review' AND source_ref=?",
+        (f"audit:{finding_id}",)).fetchall()]
+    for cid in cubes:
+        conn.execute("DELETE FROM helicon_cubes WHERE id=?", (cid,))
+        try:
+            conn.execute("DELETE FROM cube_embeddings WHERE cube_id=?", (cid,))
+        except Exception:
+            pass
+    conn.execute("UPDATE audit_log SET human_decision=NULL, resolved_at=NULL WHERE id=?",
+                 (finding_id,))
+    conn.commit()
+    return {"ok": True, "finding_id": finding_id, "deleted_cubes": cubes,
+            "note": "ruling reversed; finding re-opened; correction cube removed."}
+
+
 def load_artifact(terminal_repo_path: str, kind: str, ref: str,
                   max_chars: int = 60000) -> dict:
     """INSPECT: the actual artifact content, rendered in native form. Re-checks

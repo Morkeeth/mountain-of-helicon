@@ -7,10 +7,23 @@ Read-only. Reuses the wired review_terminals verify() engine via helicon.cockpit
 The heavy per-request work is a capped git scan of a SAFE allowlist of repos.
 """
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from helicon.api.app import get_conn, get_config
 
 router = APIRouter()
+
+
+class RuleReq(BaseModel):
+    terminal: str
+    repo_path: str
+    claim: dict
+    decision: str  # keep | revise | reject
+    correction: str = ""
+
+
+class UndoReq(BaseModel):
+    finding_id: int
 
 
 @router.get("/cockpit")
@@ -33,3 +46,19 @@ async def cockpit_artifact(repo_path: str, kind: str, ref: str):
     if not safe or _is_private(repo_path):
         return {"type": "blocked", "text": "", "why": "repo not in safe allowlist"}
     return load_artifact(repo_path, kind, ref)
+
+
+@router.post("/cockpit/rule")
+async def cockpit_rule(req: RuleReq):
+    """RULE + APPLY one claim (keep/revise/reject). Revise captures the
+    correction verbatim; returns a receipt + continuity proof + undo target."""
+    from helicon.cockpit import rule_claim
+    return rule_claim(get_conn(), get_config(), req.terminal, req.repo_path,
+                      req.claim, req.decision, req.correction)
+
+
+@router.post("/cockpit/undo")
+async def cockpit_undo(req: UndoReq):
+    """UNDO a ruling — delete the correction cube and re-open the finding."""
+    from helicon.cockpit import unrule_claim
+    return unrule_claim(get_conn(), req.finding_id)

@@ -88,3 +88,49 @@ def test_inspect_blocks_private_path(conn, tmp_path):
     repo = _fixture_terminal(tmp_path, name="rekt-trading")
     blocked = load_artifact(str(repo), "markdown", "NIGHTRUN.md")
     assert blocked["type"] == "blocked"
+
+
+def test_revise_captures_correction_and_undo_reverses(conn, tmp_path):
+    from helicon.cockpit import rule_claim, unrule_claim
+    repo = _fixture_terminal(tmp_path)
+    view = cockpit_view(conn, terminals=[("world-relay", str(repo))],
+                        only={"world-relay"})
+    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "ship")
+
+    correction = "the branch was never pushed; it is local-only, not in production"
+    res = rule_claim(conn, {}, "world-relay", str(repo), claim,
+                     "revise", correction)
+    assert res["ok"] is True
+    # Revise captured the exact correction (V1 discarded it)
+    assert res["correction_captured"] == correction
+    cube_id = res["correction_cube"]
+    assert cube_id
+    # the correction is a real, approved cube in the store
+    row = conn.execute(
+        "SELECT source, review_status, content FROM helicon_cubes WHERE id=?",
+        (cube_id,)).fetchone()
+    assert row["source"] == "output-review"
+    assert row["review_status"] == "approved"
+    # finding is now resolved -> it leaves the queue (RETURN CALMER)
+    fid = res["finding_id"]
+    dec = conn.execute("SELECT human_decision FROM audit_log WHERE id=?", (fid,)).fetchone()
+    assert dec["human_decision"] is not None
+    # continuity proof is present and honest about include-vs-obey
+    assert "included" in res["continuity"]
+
+    # UNDO restores: cube gone, finding re-opened
+    undo = unrule_claim(conn, fid)
+    assert undo["ok"] is True and cube_id in undo["deleted_cubes"]
+    assert conn.execute("SELECT id FROM helicon_cubes WHERE id=?", (cube_id,)).fetchone() is None
+    dec2 = conn.execute("SELECT human_decision FROM audit_log WHERE id=?", (fid,)).fetchone()
+    assert dec2["human_decision"] is None
+
+
+def test_reject_requires_no_correction_but_revise_does(conn, tmp_path):
+    from helicon.cockpit import rule_claim
+    repo = _fixture_terminal(tmp_path)
+    view = cockpit_view(conn, terminals=[("world-relay", str(repo))], only={"world-relay"})
+    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "ship")
+    # revise with no correction is refused
+    bad = rule_claim(conn, {}, "world-relay", str(repo), claim, "revise", "")
+    assert bad["ok"] is False
