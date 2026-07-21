@@ -42,4 +42,13 @@ pwd/branch/status/worktree/HEAD all verified. Only `config.night.json` untracked
 - **P0-2 server-authoritative:** forged `pair_key` POST → `ok=False: claim not present in server-verified state`. Fix: `rule_claim` re-derives claim+verdict server-side by (terminal,pair_key); API drops client `claim`/`repo_path`/`verdict`. Test `test_p0_rule_is_server_authoritative`.
 - **P0-3 honest delivery + no manufacture:** rule → `retrieval_log` 5→5 (unmutated); continuity `{recorded:true, delivered_to_files:false, delivered_to_live_run:false, obeyed:null}`. Fix: removed the mutating `_proactive_context` self-match; `_delivery_state` is read-only. Tests `test_p0_ruling_does_not_manufacture_retrieval_evidence`, `test_revise_captures...`.
 - **P0-4 undo reverses propagation:** propagate `delivered_to_files=True`; feed had correction; undo `ok=True reversed=True absent=True`; feed no longer has it. Fix: `unrule_claim` regenerates the sandbox via `_write_context_sandbox`; frontend honors the undo response. Test `test_p0_undo_reverses_propagation`.
-- Suite: **405 passed** (402 + 3 P0 regressions). Commit: (below).
+- Suite: **405 passed** (402 + 3 P0 regressions). Commit `0f95726`.
+
+### Real Run Capture + Acceptance Closure — DONE + driven on real data
+- Dynamic discovery: `/api/run/sessions` → real safe sessions (all world-relay; wallet/okx/treasury/journal excluded by context_policy + safe-root allowlist).
+- Capture (no hand-copy): real session → verbatim prompt "Smoke test: run 'git log…'", model `claude-sonnet-5`, 80,245 real tokens, harness `claude-code 2.1.201`, commit `9fcb9513`, artifact `DailyFavour.tsx` sha256 `218584c9f69cdc15`. provenance=imported; cost=unknown (never 0).
+- Governed lifecycle: open(objective+acceptance) → packet → artifact → **human Accept/Rework/Reject** → append-only receipt (`opened→packet→artifact→accepted`). Promotion ONLY on accepted (prompt_library grew on accept, not on rework).
+- **Driven in Brave** desktop + 390px: run list, run detail (envelope + verbatim prompt + native code artifact + verdict buttons), Accept → "prompt promoted". Screenshots `artifacts/v2.2-night-run-2026-07-22/01,04,05,06`.
+- **Persistence (DoD #9):** after uvicorn restart, the accepted run reconstructs with prompts+artifact+events.
+- Commits: `4798e4a` capture backend, `3789ffe` Runs UI. Suite **408 passed**.
+- Remaining honest gaps: forward-governed (hook-opened before execution) not wired; delivery-to-live-run unproven; verification human-only; P2 museum debt (header/tabs) untouched. Detail in `NIGHTRUN-2026-07-22.md`.
