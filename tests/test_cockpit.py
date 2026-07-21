@@ -126,6 +126,26 @@ def test_revise_captures_correction_and_undo_reverses(conn, tmp_path):
     assert dec2["human_decision"] is None
 
 
+def test_propagate_writes_correction_to_sandbox_not_live(conn, tmp_path):
+    from helicon.cockpit import rule_claim, propagate_correction
+    repo = _fixture_terminal(tmp_path)
+    view = cockpit_view(conn, terminals=[("world-relay", str(repo))], only={"world-relay"})
+    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "ship")
+    res = rule_claim(conn, {}, "world-relay", str(repo), claim, "revise",
+                     "the branch was never pushed; local only")
+    sandbox = tmp_path / "sandbox"
+    prop = propagate_correction(conn, {}, res["correction_cube"], str(sandbox))
+    assert prop["ok"] is True
+    # the correction is provably IN the next agent's context files
+    assert prop["contains_correction"] is True
+    assert (sandbox / "helicon-corrections.md").exists()
+    txt = (sandbox / "helicon-corrections.md").read_text()
+    assert "world-relay" in txt
+    # NEVER the live agent config
+    assert ".claude/skills" not in prop["sandbox_dir"]
+    assert prop["real_target"].endswith(".claude/skills")
+
+
 def test_reject_requires_no_correction_but_revise_does(conn, tmp_path):
     from helicon.cockpit import rule_claim
     repo = _fixture_terminal(tmp_path)
