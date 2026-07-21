@@ -41,6 +41,59 @@ def _is_private(path: str) -> bool:
     return bool(PRIVATE_RX.search(path or ""))
 
 
+CODE_ROOT = os.path.realpath(os.path.expanduser("~/CODE"))
+
+
+def _safe_repo_root(repo: str, allowed_roots=None) -> str | None:
+    """Server-side allowlist for artifact reads (P0-1). A repo is servable only
+    if it resolves into the allowed set and is not private. The caller-supplied
+    path is never trusted by basename/prefix — that was the confirmed traversal
+    hole. Default allow set = DIRECT children of ~/CODE with a safe basename
+    (or a helicon* worktree). `allowed_roots` (a set of realpaths) overrides the
+    default and is how the server pins the exact repos in scope."""
+    if not repo:
+        return None
+    rr = os.path.realpath(repo)
+    if allowed_roots is not None:
+        return rr if (rr in allowed_roots and not _is_private(rr)) else None
+    if os.path.dirname(rr) != CODE_ROOT:
+        return None
+    name = os.path.basename(rr).lower()
+    if not (name in {s.lower() for s in SAFE_TERMINALS} or name.startswith("helicon")):
+        return None
+    if _is_private(rr):
+        return None
+    return rr
+
+
+def _context_sandbox_dir() -> str:
+    return os.path.join(os.getcwd(), "data", "agent-context-sandbox")
+
+
+def _write_context_sandbox(conn, sandbox: str) -> dict:
+    """Compile the CURRENT approved corrections + skills into the sandbox context
+    files. Used by both propagate (write) and undo (regenerate, so a reverted
+    correction is removed from the files — P0-4). Reflects current DB state only."""
+    from helicon.compiler import inject_into_claude_code
+    os.makedirs(sandbox, exist_ok=True)
+    inj = inject_into_claude_code(conn, output_dir=sandbox)
+    rows = conn.execute(
+        "SELECT id, title, content, created_at FROM helicon_cubes "
+        "WHERE source='output-review' AND review_status='approved' "
+        "ORDER BY created_at DESC LIMIT 50").fetchall()
+    lines = ["# Helicon — output-review corrections (auto-generated)", "",
+             "Rulings you made on agent output. Regenerated from current state.", ""]
+    for r in rows:
+        lines.append(f"## {r['title']}")
+        lines.append(r["content"])
+        lines.append("")
+    feed = "\n".join(lines)
+    with open(os.path.join(sandbox, "helicon-corrections.md"), "w") as fh:
+        fh.write(feed)
+    return {"files": {**inj.get("files", {}), "helicon-corrections.md": len(feed)},
+            "feed": feed, "corrections_written": len(rows)}
+
+
 def _git(repo, *args):
     try:
         return subprocess.run(["git", "-C", repo, *args], capture_output=True,
@@ -218,48 +271,57 @@ def file_claim(conn, terminal, repo_path, claim) -> int | None:
     return fid or _find_finding_id(conn, claim["pair_key"])
 
 
-def _continuity_proof(conn, config, terminal, claim, cube_id) -> dict:
-    """PROVE CONTINUITY (pull side): after a ruling writes a correction cube,
-    show the next agent's context read now surfaces it. 'included' is NOT
-    'obeyed' — a database write alone never proves propagation."""
+def _delivery_state(conn, cube_id) -> dict:
+    """HONEST continuity (P0-3). A ruling RECORDS a correction cube. That is not
+    delivery: nothing is delivered to a live run until propagation writes it into
+    the agent's context files, and it is NEVER 'obeyed' without a fresh run
+    actually loading and following it. Read-only — mutates no retrieval/utility/
+    regret state (the old proof called the mutating retrieval path and recorded
+    the correction as 'surfaced' before any agent existed)."""
     if not cube_id:
-        return {"included": False, "why": "no correction cube written"}
-    query = f"{terminal} {(claim.get('text') or '')[:80]}"
-    try:
-        from helicon.mcp_server import _proactive_context
-        ctx = _proactive_context(conn, query, limit=8, max_tokens=1500)
-    except Exception as e:
-        return {"included": None, "query": query,
-                "why": f"context reader unavailable: {type(e).__name__}"}
-    # the pull path (_proactive_context) returns ranked cubes under
-    # 'relevant_memories' — this is the exact list a real agent receives.
-    items = (ctx.get("relevant_memories") or ctx.get("cubes")
-             or ctx.get("items") or ctx.get("results") or [])
-    ids = [(c.get("id") if isinstance(c, dict) else None) for c in items]
+        return {"recorded": False, "delivered_to_files": False,
+                "delivered_to_live_run": False, "obeyed": None,
+                "note": "no correction cube was written"}
+    exists = conn.execute("SELECT 1 FROM helicon_cubes WHERE id=?",
+                          (cube_id,)).fetchone() is not None
     return {
-        "included": cube_id in ids, "query": query,
-        "context_size": len(ids), "correction_cube": cube_id,
-        "note": "correction is now RETRIEVABLE by the next agent (pull path). "
-                "'included in context' != 'the model obeyed it'.",
+        "recorded": exists, "delivered_to_files": False,
+        "delivered_to_live_run": False, "obeyed": None,
+        "correction_cube": cube_id,
+        "note": "Correction is RECORDED. Not yet delivered to any live run. Use "
+                "'Send to agent context' to stage it into the next agent's files; "
+                "even then delivered != obeyed (only a fresh run proves obedience).",
     }
 
 
-def rule_claim(conn, config, terminal, repo_path, claim, decision,
-               correction="") -> dict:
-    """RULE + APPLY: keep / revise / reject one claim. Revise CAPTURES the
-    correction verbatim (Oscar's words) into a governed correction cube — the
-    write-back seed. Returns a receipt + a continuity proof."""
-    if _is_private(repo_path):
-        return {"ok": False, "error": "private repo — refused"}
+def rule_claim(conn, config, terminal, pair_key, decision,
+               correction="", terminals=None) -> dict:
+    """RULE + APPLY: keep / revise / reject one claim, addressed by
+    (terminal, pair_key). SERVER-AUTHORITATIVE (P0-2): the claim text, verdict
+    and repo_path are re-derived from a fresh server-side discovery — the browser
+    payload is never trusted to assert what the claim or its verdict is, so a
+    caller cannot manufacture an approved cube. `terminals` is a test-only
+    injection (the API never forwards it); production always re-discovers live.
+    Revise captures the correction verbatim into a governed correction cube."""
     if decision not in ("keep", "revise", "reject"):
         return {"ok": False, "error": f"unknown decision '{decision}'"}
     if decision == "revise" and not (correction or "").strip():
         return {"ok": False, "error": "revise requires the correction text"}
-    fid = file_claim(conn, terminal, repo_path, claim)
+    # re-derive the claim server-side; never trust a caller-supplied claim/verdict
+    view = cockpit_view(conn, config, only={terminal.lower()}, terminals=terminals)
+    term = next((t for t in view["terminals"] if t["terminal"] == terminal), None)
+    if term is None:
+        return {"ok": False, "error": f"terminal '{terminal}' not found in server-verified state"}
+    if _is_private(term["repo_path"]):
+        return {"ok": False, "error": "private repo — refused"}
+    claim = next((c for c in term["claims"] if c["pair_key"] == pair_key), None)
+    if claim is None:
+        return {"ok": False, "error": "claim not present in server-verified state (stale or forged)"}
+    fid = file_claim(conn, terminal, term["repo_path"], claim)
     if not fid:
         return {"ok": False, "error": "could not file the claim"}
     note = {
-        "keep": f"kept — verified true: {correction}".rstrip(": ").rstrip(),
+        "keep": f"kept — verified true ({claim['verdict']}): {correction}".rstrip(": ").rstrip(),
         "revise": correction.strip(),
         "reject": f"rejected — claim is false: {correction}".rstrip(": ").rstrip(),
     }[decision]
@@ -267,30 +329,38 @@ def rule_claim(conn, config, terminal, repo_path, claim, decision,
     r = resolve_review(conn, fid, note=note)
     if not r.get("ok"):
         return r
-    proof = _continuity_proof(conn, config, terminal, claim, r.get("correction_cube"))
+    delivery = _delivery_state(conn, r.get("correction_cube"))
     return {
         "ok": True, "finding_id": fid, "decision": decision,
+        "server_verdict": claim["verdict"],
         "correction_captured": note if decision != "keep" else "",
         "correction_cube": r.get("correction_cube"),
         "retired_cube": r.get("retired_cube"),
-        "continuity": proof,
+        "continuity": delivery,
         "receipt": [
             {"applied": True, "effect": f"{decision.title()} recorded for [{terminal}] claim",
-             "detail": f"finding #{fid} resolved; correction cube {r.get('correction_cube')} written "
-                       f"(source 'output-review'), retrievable by the next agent."},
+             "detail": f"finding #{fid} resolved; correction cube {r.get('correction_cube')} "
+                       f"recorded (source 'output-review'). NOT yet delivered to a live run."},
         ],
     }
 
 
 def unrule_claim(conn, finding_id) -> dict:
-    """UNDO: reverse a ruling — delete the correction cube it wrote and
-    re-open the finding, so the record is exactly back to before."""
-    row = conn.execute("SELECT id FROM audit_log WHERE id=?", (finding_id,)).fetchone()
+    """UNDO: reverse a ruling — delete the correction cube it wrote, re-open the
+    finding, AND regenerate the agent-context sandbox so the reverted correction
+    is removed from the files propagation wrote (P0-4). Only review findings can
+    be undone here (P1: don't reopen unrelated audit findings)."""
+    row = conn.execute("SELECT id, audit_type FROM audit_log WHERE id=?",
+                       (finding_id,)).fetchone()
     if not row:
         return {"ok": False, "error": f"no finding #{finding_id}"}
-    cubes = [r["id"] for r in conn.execute(
-        "SELECT id FROM helicon_cubes WHERE source='output-review' AND source_ref=?",
-        (f"audit:{finding_id}",)).fetchall()]
+    if row["audit_type"] != "review":
+        return {"ok": False, "error": f"finding #{finding_id} is not an output-review finding"}
+    rows = conn.execute(
+        "SELECT id, content FROM helicon_cubes WHERE source='output-review' AND source_ref=?",
+        (f"audit:{finding_id}",)).fetchall()
+    cubes = [r["id"] for r in rows]
+    contents = [r["content"] or "" for r in rows]  # captured BEFORE deletion
     for cid in cubes:
         conn.execute("DELETE FROM helicon_cubes WHERE id=?", (cid,))
         try:
@@ -300,76 +370,81 @@ def unrule_claim(conn, finding_id) -> dict:
     conn.execute("UPDATE audit_log SET human_decision=NULL, resolved_at=NULL WHERE id=?",
                  (finding_id,))
     conn.commit()
+    # P0-4: reverse propagation — regenerate the sandbox from current DB state so
+    # the deleted correction no longer sits in the agent-context files.
+    reversed_dir = None
+    absent = None
+    sandbox = _context_sandbox_dir()
+    if os.path.isdir(sandbox):
+        w = _write_context_sandbox(conn, sandbox)
+        reversed_dir = sandbox
+        # prove the reverted correction's CONTENT is gone from the regenerated feed
+        absent = all((c[:50] not in w["feed"]) for c in contents if c) if contents else True
     return {"ok": True, "finding_id": finding_id, "deleted_cubes": cubes,
-            "note": "ruling reversed; finding re-opened; correction cube removed."}
+            "propagation_reversed": reversed_dir,
+            "correction_absent_from_files": absent,
+            "note": "ruling reversed; finding re-opened; correction cube removed"
+                    + ("; agent-context files regenerated without it." if reversed_dir
+                       else " (no propagation to reverse).")}
 
 
 def propagate_correction(conn, config, correction_cube=None,
                          sandbox_dir=None) -> dict:
-    """PROVE CONTINUITY (write-back edge): compile the corrections into the
-    files the next agent auto-loads. Writes to a SANDBOX by default — never
-    Oscar's live ~/.claude/skills without an explicit gate. Proof = the
-    correction's content is present in the written files. 'contains' proves
-    INCLUSION, never OBEDIENCE."""
-    import os
-    from helicon.compiler import inject_into_claude_code
-    sandbox = sandbox_dir or os.path.join(os.getcwd(), "data", "agent-context-sandbox")
-    os.makedirs(sandbox, exist_ok=True)
-    # 1) the general compiled write-back (skills + core memory) to the sandbox
-    inj = inject_into_claude_code(conn, output_dir=sandbox)
-    # 2) the targeted correction feed — the rulings the next agent must receive
-    rows = conn.execute(
-        "SELECT id, title, content, created_at FROM helicon_cubes "
-        "WHERE source='output-review' AND review_status='approved' "
-        "ORDER BY created_at DESC LIMIT 50").fetchall()
-    lines = ["# Helicon — output-review corrections (auto-generated)", "",
-             "Rulings you made on agent output. The next agent loads these "
-             "before it writes.", ""]
-    for r in rows:
-        lines.append(f"## {r['title']}")
-        lines.append(r["content"])
-        lines.append("")
-    feed = "\n".join(lines)
-    with open(os.path.join(sandbox, "helicon-corrections.md"), "w") as fh:
-        fh.write(feed)
-    # 3) prove the specific correction is present in the written context
-    contains = False
+    """Stage the corrections into the files a next agent would auto-load. Writes
+    to a SANDBOX by default — never Oscar's live ~/.claude/skills without an
+    explicit gate. HONEST delivery language (P0-3): `delivered_to_files` proves
+    the correction is IN the files; it is NOT delivered to a live run and NEVER
+    obeyed until a fresh run loads and follows it. Undo regenerates this same
+    sandbox (P0-4)."""
+    sandbox = sandbox_dir or _context_sandbox_dir()
+    w = _write_context_sandbox(conn, sandbox)
+    delivered_to_files = False
     if correction_cube:
         row = conn.execute("SELECT content FROM helicon_cubes WHERE id=?",
                            (correction_cube,)).fetchone()
-        contains = bool(row and row["content"] and row["content"][:50] in feed)
+        delivered_to_files = bool(row and row["content"] and row["content"][:50] in w["feed"])
     return {
-        "ok": True, "sandbox_dir": sandbox,
-        "files": {**inj.get("files", {}), "helicon-corrections.md": len(feed)},
-        "corrections_written": len(rows), "contains_correction": contains,
+        "ok": True, "sandbox_dir": sandbox, "files": w["files"],
+        "corrections_written": w["corrections_written"],
+        "delivered_to_files": delivered_to_files,
+        "contains_correction": delivered_to_files,  # back-compat alias
+        "delivered_to_live_run": False, "obeyed": None,
         "real_target": os.path.expanduser("~/.claude/skills"),
         "gate": "Writing to your real ~/.claude/skills is gated on your approval; "
                 "the sandbox proves the mechanism without touching your live agent.",
-        "distinction": "'contains' proves the correction is IN the next agent's "
-                       "context files. It does NOT prove the model obeyed it — "
-                       "that needs a live run.",
+        "distinction": "delivered_to_files = the correction is IN the next agent's "
+                       "context files. It is NOT delivered to a live run and NOT "
+                       "obeyed until a fresh run loads and follows it.",
     }
 
 
+_DIFF_REF_RX = re.compile(r"^[\w./-]+\.\.\.HEAD$")
+
+
 def load_artifact(terminal_repo_path: str, kind: str, ref: str,
-                  max_chars: int = 60000) -> dict:
-    """INSPECT: the actual artifact content, rendered in native form. Re-checks
-    privacy on every load (never serve a private path even if asked)."""
-    repo = terminal_repo_path
-    if _is_private(repo):
-        return {"type": "blocked", "text": "", "why": "private repo — not served"}
+                  max_chars: int = 60000, *, allowed_roots=None) -> dict:
+    """INSPECT: the actual artifact content, rendered in native form.
+
+    P0-1: the repo must resolve to an allowed ~/CODE safe root (server-side, not
+    by caller-supplied basename/prefix), and the artifact realpath must be TRULY
+    contained in that root (== root or startswith root + os.sep) — a sibling
+    worktree sharing a name prefix can no longer escape. Diff refs are restricted
+    to the `<base>...HEAD` form so a crafted ref can't reach arbitrary git."""
+    rr = _safe_repo_root(terminal_repo_path, allowed_roots)
+    if rr is None:
+        return {"type": "blocked", "text": "", "why": "repo is not an allowed ~/CODE safe root"}
     if kind == "markdown":
-        path = os.path.join(repo, ref)
-        if _is_private(path) or not os.path.isfile(path):
-            return {"type": "blocked", "text": "", "why": "not found or private"}
-        # keep inside the repo (no path traversal)
-        if os.path.realpath(path).startswith(os.path.realpath(repo)) is False:
+        cand = os.path.realpath(os.path.join(rr, ref))
+        if not (cand == rr or cand.startswith(rr + os.sep)):
             return {"type": "blocked", "text": "", "why": "path escapes repo"}
-        with open(path, errors="ignore") as fh:
-            return {"type": "markdown", "label": os.path.basename(path),
+        if _is_private(cand) or not os.path.isfile(cand):
+            return {"type": "blocked", "text": "", "why": "not found or private"}
+        with open(cand, errors="ignore") as fh:
+            return {"type": "markdown", "label": os.path.basename(cand),
                     "text": fh.read()[:max_chars]}
     if kind == "diff":
-        base = ref if "..." in ref else f"{ref}...HEAD"
-        text = _git(repo, "diff", base)
-        return {"type": "diff", "label": base, "text": text[:max_chars]}
+        if not _DIFF_REF_RX.match(ref or ""):
+            return {"type": "blocked", "text": "", "why": "invalid diff ref (want <base>...HEAD)"}
+        text = _git(rr, "diff", ref)
+        return {"type": "diff", "label": ref, "text": text[:max_chars]}
     return {"type": "unknown", "text": "", "why": f"no renderer for kind '{kind}'"}

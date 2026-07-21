@@ -187,7 +187,7 @@ function ClaimCard({ t, claim, onRuled }: { t: Terminal; claim: Claim; onRuled: 
     try {
       const r: Receipt = await fetch('/api/cockpit/rule', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ terminal: t.terminal, repo_path: t.repo_path, claim, decision, correction: text }),
+        body: JSON.stringify({ terminal: t.terminal, pair_key: claim.pair_key, decision, correction: text }),
       }).then(x => x.json());
       if (!r.ok) { setError(r.error || 'ruling failed'); setStage(decision === 'revise' ? 'revise' : 'idle'); return; }
       setReceipt(r); setStage('done');
@@ -195,8 +195,8 @@ function ClaimCard({ t, claim, onRuled }: { t: Terminal; claim: Claim; onRuled: 
   };
   const undo = async () => {
     if (!receipt?.finding_id) return;
-    await fetch('/api/cockpit/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ finding_id: receipt.finding_id }) });
-    setUndone(true);
+    const r = await fetch('/api/cockpit/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ finding_id: receipt.finding_id }) }).then(x => x.json()).catch(() => ({ ok: false }));
+    if (r.ok) setUndone(true); else setError(r.error || 'undo failed — the ruling is still applied');
   };
   const propagate = async () => {
     setPropBusy(true);
@@ -233,7 +233,7 @@ function ClaimCard({ t, claim, onRuled }: { t: Terminal; claim: Claim; onRuled: 
                   <div className="animate-fade-in">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ color: 'var(--helicon-on-dark)', background: prop.contains_correction ? 'var(--helicon-good)' : FAINT }}>
-                        {prop.contains_correction ? '● the next agent receives this correction' : '○ not found in context files'}
+                        {prop.contains_correction ? '● staged into the next agent’s context files' : '○ not found in context files'}
                       </span>
                       <span className="text-[10px]" style={{ color: FAINT, fontFamily: MONO }}>{Object.keys(prop.files).length} files written</span>
                     </div>
