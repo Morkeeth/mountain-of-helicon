@@ -16,8 +16,7 @@ router = APIRouter()
 
 class RuleReq(BaseModel):
     terminal: str
-    repo_path: str
-    claim: dict
+    pair_key: str  # the claim is re-derived server-side by (terminal, pair_key)
     decision: str  # keep | revise | reject
     correction: str = ""
 
@@ -40,25 +39,21 @@ async def cockpit(run: bool = False):
 
 @router.get("/cockpit/artifact")
 async def cockpit_artifact(repo_path: str, kind: str, ref: str):
-    """INSPECT: render one artifact natively (markdown / diff). Privacy is
-    re-checked on every load; a private path is never served."""
-    from helicon.cockpit import load_artifact, SAFE_TERMINALS, _is_private
-    import os
-    # the repo must be one of the safe terminals' repos, never an arbitrary path
-    base = os.path.basename(repo_path.rstrip("/")).lower()
-    safe = base in {s.lower() for s in SAFE_TERMINALS} or base.startswith("helicon")
-    if not safe or _is_private(repo_path):
-        return {"type": "blocked", "text": "", "why": "repo not in safe allowlist"}
+    """INSPECT: render one artifact natively (markdown / diff). All allowlist +
+    containment + privacy enforcement is server-side in load_artifact (P0-1) —
+    the caller-supplied path is validated, never trusted."""
+    from helicon.cockpit import load_artifact
     return load_artifact(repo_path, kind, ref)
 
 
 @router.post("/cockpit/rule")
 async def cockpit_rule(req: RuleReq):
-    """RULE + APPLY one claim (keep/revise/reject). Revise captures the
-    correction verbatim; returns a receipt + continuity proof + undo target."""
+    """RULE + APPLY one claim (keep/revise/reject), addressed by
+    (terminal, pair_key). The claim + verdict are re-derived server-side; the
+    browser payload is never trusted to assert them (P0-2)."""
     from helicon.cockpit import rule_claim
-    return rule_claim(get_conn(), get_config(), req.terminal, req.repo_path,
-                      req.claim, req.decision, req.correction)
+    return rule_claim(get_conn(), get_config(), req.terminal, req.pair_key,
+                      req.decision, req.correction)
 
 
 @router.post("/cockpit/undo")

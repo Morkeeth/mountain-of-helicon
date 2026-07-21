@@ -1,6 +1,7 @@
 """V2 Cockpit engine tests — run the ORIENT/INSPECT/COMPARE pipeline on a
 synthetic git fixture (deterministic, no dependence on live ~/CODE) and prove
 the privacy allowlist drops wallet/trading repos."""
+import os
 import subprocess
 
 import pytest
@@ -66,11 +67,12 @@ def test_cockpit_view_grounds_claims_against_git(conn, tmp_path):
 
 def test_inspect_renders_native_artifacts(conn, tmp_path):
     repo = _fixture_terminal(tmp_path)
-    md = load_artifact(str(repo), "markdown", "NIGHTRUN.md")
+    roots = {os.path.realpath(str(repo))}
+    md = load_artifact(str(repo), "markdown", "NIGHTRUN.md", allowed_roots=roots)
     assert md["type"] == "markdown"
     assert "Ship the escrow release" in md["text"]
 
-    diff = load_artifact(str(repo), "diff", "main...HEAD")
+    diff = load_artifact(str(repo), "diff", "main...HEAD", allowed_roots=roots)
     assert diff["type"] == "diff"
     assert "NIGHTRUN.md" in diff["text"]
 
@@ -86,37 +88,45 @@ def test_privacy_allowlist_drops_wallet_repo(conn, tmp_path):
 
 def test_inspect_blocks_private_path(conn, tmp_path):
     repo = _fixture_terminal(tmp_path, name="rekt-trading")
-    blocked = load_artifact(str(repo), "markdown", "NIGHTRUN.md")
+    # a private repo is blocked even when explicitly in the allowed roots
+    blocked = load_artifact(str(repo), "markdown", "NIGHTRUN.md",
+                            allowed_roots={os.path.realpath(str(repo))})
     assert blocked["type"] == "blocked"
 
 
-def test_revise_captures_correction_and_undo_reverses(conn, tmp_path):
-    from helicon.cockpit import rule_claim, unrule_claim
-    repo = _fixture_terminal(tmp_path)
-    view = cockpit_view(conn, terminals=[("world-relay", str(repo))],
-                        only={"world-relay"})
-    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "ship")
+def _server_rule(conn, name, repo, kind, decision, correction=""):
+    """Drive rule_claim exactly like the API does — by (terminal, pair_key),
+    server re-deriving the claim — with a test-only terminals injection."""
+    from helicon.cockpit import rule_claim
+    view = cockpit_view(conn, terminals=[(name, str(repo))], only={name.lower()})
+    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == kind)
+    return rule_claim(conn, {}, name, claim["pair_key"], decision, correction,
+                      terminals=[(name, str(repo))]), claim
 
+
+def test_revise_captures_correction_and_undo_reverses(conn, tmp_path):
+    from helicon.cockpit import unrule_claim
+    repo = _fixture_terminal(tmp_path)
     correction = "the branch was never pushed; it is local-only, not in production"
-    res = rule_claim(conn, {}, "world-relay", str(repo), claim,
-                     "revise", correction)
+    res, _ = _server_rule(conn, "world-relay", repo, "ship", "revise", correction)
     assert res["ok"] is True
     # Revise captured the exact correction (V1 discarded it)
     assert res["correction_captured"] == correction
     cube_id = res["correction_cube"]
     assert cube_id
-    # the correction is a real, approved cube in the store
     row = conn.execute(
-        "SELECT source, review_status, content FROM helicon_cubes WHERE id=?",
+        "SELECT source, review_status FROM helicon_cubes WHERE id=?",
         (cube_id,)).fetchone()
-    assert row["source"] == "output-review"
-    assert row["review_status"] == "approved"
-    # finding is now resolved -> it leaves the queue (RETURN CALMER)
+    assert row["source"] == "output-review" and row["review_status"] == "approved"
+    # finding resolved -> leaves the queue (RETURN CALMER)
     fid = res["finding_id"]
     dec = conn.execute("SELECT human_decision FROM audit_log WHERE id=?", (fid,)).fetchone()
     assert dec["human_decision"] is not None
-    # continuity proof is present and honest about include-vs-obey
-    assert "included" in res["continuity"]
+    # HONEST continuity (P0-3): recorded, but NOT delivered to a live run, never obeyed
+    cont = res["continuity"]
+    assert cont["recorded"] is True
+    assert cont["delivered_to_live_run"] is False
+    assert cont["obeyed"] is None
 
     # UNDO restores: cube gone, finding re-opened
     undo = unrule_claim(conn, fid)
@@ -127,23 +137,41 @@ def test_revise_captures_correction_and_undo_reverses(conn, tmp_path):
 
 
 def test_propagate_writes_correction_to_sandbox_not_live(conn, tmp_path):
-    from helicon.cockpit import rule_claim, propagate_correction
+    from helicon.cockpit import propagate_correction
     repo = _fixture_terminal(tmp_path)
-    view = cockpit_view(conn, terminals=[("world-relay", str(repo))], only={"world-relay"})
-    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "ship")
-    res = rule_claim(conn, {}, "world-relay", str(repo), claim, "revise",
-                     "the branch was never pushed; local only")
+    res, _ = _server_rule(conn, "world-relay", repo, "ship", "revise",
+                          "the branch was never pushed; local only")
     sandbox = tmp_path / "sandbox"
     prop = propagate_correction(conn, {}, res["correction_cube"], str(sandbox))
     assert prop["ok"] is True
-    # the correction is provably IN the next agent's context files
-    assert prop["contains_correction"] is True
+    # delivered TO FILES (honest) — not to a live run, not obeyed
+    assert prop["delivered_to_files"] is True
+    assert prop["delivered_to_live_run"] is False and prop["obeyed"] is None
     assert (sandbox / "helicon-corrections.md").exists()
-    txt = (sandbox / "helicon-corrections.md").read_text()
-    assert "world-relay" in txt
+    assert "world-relay" in (sandbox / "helicon-corrections.md").read_text()
     # NEVER the live agent config
     assert ".claude/skills" not in prop["sandbox_dir"]
     assert prop["real_target"].endswith(".claude/skills")
+
+
+def test_p0_undo_reverses_propagation(conn, tmp_path, monkeypatch):
+    """P0-4: after propagate stages a correction into the context files, undo
+    must regenerate those files so the correction is gone — not just delete the
+    DB cube."""
+    from helicon.cockpit import propagate_correction, unrule_claim
+    monkeypatch.chdir(tmp_path)  # so _context_sandbox_dir() lives under tmp
+    repo = _fixture_terminal(tmp_path)
+    res, _ = _server_rule(conn, "world-relay", repo, "ship", "revise",
+                          "UNIQUE-REVERSAL-MARKER the branch was never pushed")
+    prop = propagate_correction(conn, {}, res["correction_cube"])  # default sandbox
+    feed = os.path.join(prop["sandbox_dir"], "helicon-corrections.md")
+    assert "UNIQUE-REVERSAL-MARKER" in open(feed).read()
+    undo = unrule_claim(conn, res["finding_id"])
+    assert undo["ok"] is True
+    assert undo["propagation_reversed"] is not None
+    assert undo["correction_absent_from_files"] is True
+    # the correction is really gone from the regenerated files
+    assert "UNIQUE-REVERSAL-MARKER" not in open(feed).read()
 
 
 def test_truth_pass_honest_closeout_is_not_falsely_flagged(conn, tmp_path):
@@ -168,44 +196,59 @@ def test_truth_pass_honest_closeout_is_not_falsely_flagged(conn, tmp_path):
     assert ship == [], f"honest closeout falsely flagged: {ship}"
 
 
-def test_continuity_pull_path_retrieves_the_correction(conn, tmp_path):
-    """PROVE CONTINUITY (pull side, for real): after a ruling, the correction
-    cube is returned by the same retrieval path a real agent calls
-    (_proactive_context -> relevant_memories). 'included' must be True on a
-    store where the correction is retrievable."""
-    from helicon.cockpit import rule_claim
-    from helicon.db import insert_cube
-    from helicon.models import HeliconCube
-    from helicon.scanner import make_id, content_hash
-    # a small labeled synthetic store so retrieval has signal (FTS/embeddings)
-    seed = HeliconCube(
-        id=make_id(), source="obsidian", source_ref="fixture:test-count",
-        type="decision", title="Helicon test count",
-        content="The Helicon suite test count is tracked in the release notes.",
-        summary="", content_hash=content_hash("seed"),
-        created_at="2026-07-21T00:00:00", valid_from="2026-07-21T00:00:00",
-        last_reinforced="2026-07-21T00:00:00", confidence=1.0,
-        review_status="approved")
-    insert_cube(conn, seed)
-    conn.commit()
-
+def test_p0_ruling_does_not_manufacture_retrieval_evidence(conn, tmp_path):
+    """P0-3: ruling must NOT touch the mutating retrieval path (the old proof
+    called _proactive_context / record_surfaced and inserted retrieval_log rows,
+    manufacturing 'surfaced' evidence before any agent existed). Snapshot
+    retrieval_log before/after — it must be byte-identical."""
+    def snap():
+        try:
+            return conn.execute("SELECT COUNT(*) FROM retrieval_log").fetchone()[0]
+        except Exception:
+            return 0
     repo = _fixture_terminal(tmp_path)
-    view = cockpit_view(conn, terminals=[("Helicon", str(repo))], only={"Helicon"})
-    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "test")
-    res = rule_claim(conn, {}, "Helicon", str(repo), claim, "revise",
-                     "the suite is 393 not 344; the closeout count is stale")
+    before = snap()
+    res, _ = _server_rule(conn, "world-relay", repo, "ship", "revise",
+                          "the branch was never pushed; local only")
     assert res["ok"] is True
-    cont = res["continuity"]
-    # the correction is retrievable by the next agent's context read
-    assert cont["included"] is True, cont
-    assert cont["correction_cube"] == res["correction_cube"]
+    assert snap() == before, "ruling mutated retrieval_log (manufactured evidence)"
+    # and continuity is honest: never claims delivery/obedience from a DB write
+    assert res["continuity"]["delivered_to_live_run"] is False
+
+
+def test_p0_rule_is_server_authoritative(conn, tmp_path):
+    """P0-2: a caller cannot manufacture an approved cube by supplying a forged
+    claim/verdict. The claim is addressed by pair_key and re-derived server-side;
+    a pair_key not present in the server-verified state is refused."""
+    from helicon.cockpit import rule_claim
+    repo = _fixture_terminal(tmp_path)
+    forged = rule_claim(conn, {}, "world-relay", "review|world-relay|FORGEDKEY",
+                        "revise", "a lie I want promoted to approved truth",
+                        terminals=[("world-relay", str(repo))])
+    assert forged["ok"] is False
+    assert "server-verified" in forged["error"] or "not present" in forged["error"]
+    # no approved output-review cube was created
+    assert conn.execute(
+        "SELECT COUNT(*) FROM helicon_cubes WHERE source='output-review'"
+    ).fetchone()[0] == 0
+
+
+def test_p0_artifact_no_sibling_traversal(conn, tmp_path):
+    """P0-1: the confirmed exploit — repo=.../helicon, ref=../helicon-secrets/file
+    — must be blocked. A sibling sharing a name prefix cannot escape via
+    startswith; true path containment is enforced."""
+    (tmp_path / "helicon").mkdir()
+    sibling = tmp_path / "helicon-secrets"
+    sibling.mkdir()
+    (sibling / "leak.md").write_text("SECRET")
+    allowed = {os.path.realpath(str(tmp_path / "helicon"))}
+    blocked = load_artifact(str(tmp_path / "helicon"), "markdown",
+                            "../helicon-secrets/leak.md", allowed_roots=allowed)
+    assert blocked["type"] == "blocked", blocked
+    assert "SECRET" not in blocked.get("text", "")
 
 
 def test_reject_requires_no_correction_but_revise_does(conn, tmp_path):
-    from helicon.cockpit import rule_claim
     repo = _fixture_terminal(tmp_path)
-    view = cockpit_view(conn, terminals=[("world-relay", str(repo))], only={"world-relay"})
-    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "ship")
-    # revise with no correction is refused
-    bad = rule_claim(conn, {}, "world-relay", str(repo), claim, "revise", "")
+    bad, _ = _server_rule(conn, "world-relay", repo, "ship", "revise", "")
     assert bad["ok"] is False
