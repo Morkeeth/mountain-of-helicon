@@ -254,6 +254,31 @@ def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
     return {"ok": True, "task_run_id": rid, "capture_id": capture_id}
 
 
+def hook_deliver(conn, cwd, session="") -> str | None:
+    """The delivery edge, made real (closes the Codex P0-3 gap honestly). A
+    Claude Code UserPromptSubmit hook calls this: it returns the approved
+    output-review rulings as text that the harness injects into a LIVE session,
+    and records a 'delivered' event — so delivery is PROVEN (the harness received
+    it), not asserted from a DB write. Privacy-gated: a non-safe repo gets
+    nothing. Still not 'obeyed' — only the run's output shows that."""
+    if _safe_repo_root(cwd) is None:
+        return None
+    rows = conn.execute(
+        "SELECT content FROM helicon_cubes WHERE source='output-review' "
+        "AND review_status='approved' ORDER BY created_at DESC LIMIT 20").fetchall()
+    if not rows:
+        return None
+    ctx = ("## Helicon — rulings to obey before you write (delivered live)\n"
+           + "\n".join(f"- {r['content']}" for r in rows))
+    conn.execute(
+        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) VALUES (?,?,?,?,?)",
+        (f"hook:{session}"[:40], _now(), "delivered", "helicon",
+         json.dumps({"repo": os.path.basename(cwd), "rulings": len(rows),
+                     "session": session, "bytes": len(ctx)})))
+    conn.commit()
+    return ctx
+
+
 def promote_prompt(conn, task_run_id, by="accepted-outcome") -> dict:
     """Outcome gate: only an ACCEPTED run promotes its prompt into the reusable
     library. Rejected/rework prompts stay history and never rank as good."""
