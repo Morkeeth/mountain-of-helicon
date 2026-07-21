@@ -231,7 +231,10 @@ def _continuity_proof(conn, config, terminal, claim, cube_id) -> dict:
     except Exception as e:
         return {"included": None, "query": query,
                 "why": f"context reader unavailable: {type(e).__name__}"}
-    items = ctx.get("cubes") or ctx.get("items") or ctx.get("results") or []
+    # the pull path (_proactive_context) returns ranked cubes under
+    # 'relevant_memories' — this is the exact list a real agent receives.
+    items = (ctx.get("relevant_memories") or ctx.get("cubes")
+             or ctx.get("items") or ctx.get("results") or [])
     ids = [(c.get("id") if isinstance(c, dict) else None) for c in items]
     return {
         "included": cube_id in ids, "query": query,
