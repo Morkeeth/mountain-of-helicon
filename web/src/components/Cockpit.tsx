@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArtifactView, type ArtifactRef } from './ArtifactView';
+import GovernedRuns from './GovernedRuns';
 
 /* THE COCKPIT — the V2 opening experience.
    Five agents ran. See what each produced, catch the wrong claim before it
@@ -35,6 +36,7 @@ const stateColor: Record<string, string> = {
 const verdictLabel: Record<Verdict, string> = { contradicted: 'contradicted by reality', unverified: 'unverified', verified: 'verified' };
 
 export default function Cockpit() {
+  const [mode, setMode] = useState<'runs' | 'terminals'>('runs');
   const [data, setData] = useState<CockpitResp | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -53,30 +55,46 @@ export default function Cockpit() {
 
   const selected = useMemo(() => data?.terminals.find(t => t.terminal === sel) || null, [data, sel]);
 
-  if (err) return <Center>Could not reach the cockpit backend: {err}</Center>;
-  if (!data) return <Center>Reading your terminals…</Center>;
-  if (data.total === 0) return <Center>No recent agent runs found across your safe terminals. The board is clear.</Center>;
+  const terminalsBody = () => {
+    if (err) return <Center>Could not reach the cockpit backend: {err}</Center>;
+    if (!data) return <Center>Reading your terminals…</Center>;
+    if (data.total === 0) return <Center>No recent agent runs found across your safe terminals. The board is clear.</Center>;
+    return (
+      <>
+        <Brief total={data.total} needs={data.needs_you} />
+        <div className="md:flex md:gap-8 mt-6">
+          <div className={`md:w-[320px] md:shrink-0 ${selected ? 'hidden md:block' : 'block'}`}>
+            <div className="text-[10px] uppercase tracking-[0.16em] mb-3" style={{ color: MUTED }}>Every terminal · needs-you first</div>
+            <div className="space-y-2">
+              {data.terminals.map(t => (
+                <TerminalRow key={t.terminal} t={t} active={t.terminal === sel} onClick={() => setSel(t.terminal)} />
+              ))}
+            </div>
+          </div>
+          <div className={`flex-1 min-w-0 ${selected ? 'block' : 'hidden md:block'}`}>
+            {selected
+              ? <Detail key={selected.terminal} t={selected} onBack={() => setSel(null)} onRuled={load} />
+              : <Center>Select a terminal to review what it produced.</Center>}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  const tab = (m: 'runs' | 'terminals', label: string) => (
+    <button onClick={() => setMode(m)} className="px-3.5 py-1.5 rounded-lg text-[12.5px] transition-colors"
+      style={{ color: mode === m ? 'var(--helicon-on-dark)' : MUTED, background: mode === m ? ACCENT : 'transparent', border: `1px solid ${mode === m ? ACCENT : 'var(--helicon-line)'}` }}>
+      {label}
+    </button>
+  );
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Brief total={data.total} needs={data.needs_you} />
-      <div className="md:flex md:gap-8 mt-6">
-        {/* ORIENT — the queue */}
-        <div className={`md:w-[320px] md:shrink-0 ${selected ? 'hidden md:block' : 'block'}`}>
-          <div className="text-[10px] uppercase tracking-[0.16em] mb-3" style={{ color: MUTED }}>Every terminal · needs-you first</div>
-          <div className="space-y-2">
-            {data.terminals.map(t => (
-              <TerminalRow key={t.terminal} t={t} active={t.terminal === sel} onClick={() => setSel(t.terminal)} />
-            ))}
-          </div>
-        </div>
-        {/* INSPECT + COMPARE + RULE */}
-        <div className={`flex-1 min-w-0 ${selected ? 'block' : 'hidden md:block'}`}>
-          {selected
-            ? <Detail key={selected.terminal} t={selected} onBack={() => setSel(null)} onRuled={load} />
-            : <Center>Select a terminal to review what it produced.</Center>}
-        </div>
+      <div className="flex items-center gap-1.5 mb-5">
+        {tab('runs', 'Governed Runs')}
+        {tab('terminals', `Terminal review${data?.needs_you ? ` · ${data.needs_you}` : ''}`)}
       </div>
+      {mode === 'runs' ? <GovernedRuns /> : terminalsBody()}
     </div>
   );
 }
