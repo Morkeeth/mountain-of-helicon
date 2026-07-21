@@ -16,6 +16,7 @@ import FindingsView from './components/FindingsView';
    bundle for a tab nobody opens on a phone, and Graph3D's three.js (1MB) was
    already split this way for the same reason. The rule is simple — if it is not
    the queue, it is lazy. */
+const Cockpit = lazy(() => import('./components/Cockpit'));
 const CausalLens = lazy(() => import('./components/CausalLens'));
 const Graph3D = lazy(() => import('./components/Graph3D').then(m => ({ default: m.Graph3D })));
 const EvalView = lazy(() => import('./components/EvalView').then(m => ({ default: m.EvalView })));
@@ -43,7 +44,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // The primary nav IS the loop, review first: what needs your ruling, the exam
 // that found it, the rules your rulings compile into, and the memory underneath.
@@ -51,6 +52,7 @@ type Tab = 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findin
 // and the deeper surfaces — lives under More, so the hero is the decision, not a
 // menu of capabilities.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'cockpit', label: 'The Cockpit' },
   { key: 'start', label: 'Start Here' },
   { key: 'brief', label: 'Morning Brief' },
   { key: 'findings', label: 'Needs Ruling' },
@@ -89,7 +91,7 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
    truncated to "NEEDS RULI…" / "GOLDEN RU…" in a 78px slot, and the fix is
    fewer words, not 8px type on the surface that carries the verdict. */
 const BAR_TABS: { key: Tab; short: string }[] = [
-  { key: 'start', short: 'Start' },
+  { key: 'cockpit', short: 'Cockpit' },
   { key: 'findings', short: 'Ruling' },
   { key: 'health', short: 'Memory' },
   { key: 'gold', short: 'Rules' },
@@ -223,7 +225,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'start';
+    return ALL_TABS.includes(h) ? h : 'cockpit';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -479,6 +481,7 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'cockpit' && <Cockpit />}
         {tab === 'start' && <StartHere onExplore={() => setTab('brief')} />}
         {tab === 'brief' && <BriefView />}
         {tab === 'exam' && <ExamView onGoToFindings={() => setTab('findings')} />}

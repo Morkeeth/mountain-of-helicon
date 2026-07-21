@@ -210,15 +210,21 @@ def write_compiled_files(conn: sqlite3.Connection, output_dir: str) -> dict:
     }
 
 
-def inject_into_claude_code(conn: sqlite3.Connection) -> dict:
-    """Auto-inject compiled files into Claude Code's skill directory.
+def inject_into_claude_code(conn: sqlite3.Connection,
+                            output_dir: str | None = None) -> dict:
+    """Auto-inject compiled files into Claude Code's skill directory — the
+    write-back edge that closes the loop (the next agent auto-loads these).
 
     Writes:
-    - ~/.claude/skills/helicon-*.md  (skill files per category)
-    - Appends Mount Helicon section to project CLAUDE.md if it exists
+    - <output_dir or ~/.claude/skills>/helicon-*.md  (skill files per category)
+    - helicon-core-memory.md
+
+    `output_dir` targets a SANDBOX instead of the live ~/.claude/skills, so the
+    propagation mechanism can be proven without mutating a running agent's
+    config. Default (None) preserves the original live-inject behavior.
     """
     home = os.path.expanduser("~")
-    skills_dir = os.path.join(home, ".claude", "skills")
+    skills_dir = output_dir or os.path.join(home, ".claude", "skills")
     os.makedirs(skills_dir, exist_ok=True)
 
     injected = {}
@@ -241,4 +247,5 @@ def inject_into_claude_code(conn: sqlite3.Connection) -> dict:
         "skills_dir": skills_dir,
         "files_injected": len(injected),
         "files": injected,
+        "sandboxed": output_dir is not None,
     }

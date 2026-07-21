@@ -26,6 +26,10 @@ class UndoReq(BaseModel):
     finding_id: int
 
 
+class PropagateReq(BaseModel):
+    correction_cube: str = ""
+
+
 @router.get("/cockpit")
 async def cockpit(run: bool = False):
     """ORIENT + COMPARE: the finite review queue. `run=true` actually re-runs
@@ -62,3 +66,12 @@ async def cockpit_undo(req: UndoReq):
     """UNDO a ruling — delete the correction cube and re-open the finding."""
     from helicon.cockpit import unrule_claim
     return unrule_claim(get_conn(), req.finding_id)
+
+
+@router.post("/cockpit/propagate")
+async def cockpit_propagate(req: PropagateReq):
+    """PROVE CONTINUITY: compile corrections into the next agent's context
+    files (sandboxed) and prove the correction is included. Real ~/.claude is
+    a human gate."""
+    from helicon.cockpit import propagate_correction
+    return propagate_correction(get_conn(), get_config(), req.correction_cube or None)

@@ -301,6 +301,53 @@ def unrule_claim(conn, finding_id) -> dict:
             "note": "ruling reversed; finding re-opened; correction cube removed."}
 
 
+def propagate_correction(conn, config, correction_cube=None,
+                         sandbox_dir=None) -> dict:
+    """PROVE CONTINUITY (write-back edge): compile the corrections into the
+    files the next agent auto-loads. Writes to a SANDBOX by default — never
+    Oscar's live ~/.claude/skills without an explicit gate. Proof = the
+    correction's content is present in the written files. 'contains' proves
+    INCLUSION, never OBEDIENCE."""
+    import os
+    from helicon.compiler import inject_into_claude_code
+    sandbox = sandbox_dir or os.path.join(os.getcwd(), "data", "agent-context-sandbox")
+    os.makedirs(sandbox, exist_ok=True)
+    # 1) the general compiled write-back (skills + core memory) to the sandbox
+    inj = inject_into_claude_code(conn, output_dir=sandbox)
+    # 2) the targeted correction feed — the rulings the next agent must receive
+    rows = conn.execute(
+        "SELECT id, title, content, created_at FROM helicon_cubes "
+        "WHERE source='output-review' AND review_status='approved' "
+        "ORDER BY created_at DESC LIMIT 50").fetchall()
+    lines = ["# Helicon — output-review corrections (auto-generated)", "",
+             "Rulings you made on agent output. The next agent loads these "
+             "before it writes.", ""]
+    for r in rows:
+        lines.append(f"## {r['title']}")
+        lines.append(r["content"])
+        lines.append("")
+    feed = "\n".join(lines)
+    with open(os.path.join(sandbox, "helicon-corrections.md"), "w") as fh:
+        fh.write(feed)
+    # 3) prove the specific correction is present in the written context
+    contains = False
+    if correction_cube:
+        row = conn.execute("SELECT content FROM helicon_cubes WHERE id=?",
+                           (correction_cube,)).fetchone()
+        contains = bool(row and row["content"] and row["content"][:50] in feed)
+    return {
+        "ok": True, "sandbox_dir": sandbox,
+        "files": {**inj.get("files", {}), "helicon-corrections.md": len(feed)},
+        "corrections_written": len(rows), "contains_correction": contains,
+        "real_target": os.path.expanduser("~/.claude/skills"),
+        "gate": "Writing to your real ~/.claude/skills is gated on your approval; "
+                "the sandbox proves the mechanism without touching your live agent.",
+        "distinction": "'contains' proves the correction is IN the next agent's "
+                       "context files. It does NOT prove the model obeyed it — "
+                       "that needs a live run.",
+    }
+
+
 def load_artifact(terminal_repo_path: str, kind: str, ref: str,
                   max_chars: int = 60000) -> dict:
     """INSPECT: the actual artifact content, rendered in native form. Re-checks
