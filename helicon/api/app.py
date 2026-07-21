@@ -95,6 +95,7 @@ def create_app() -> FastAPI:
     from helicon.api.intelligence import router as intelligence_router
     from helicon.api.rot import router as rot_router
     from helicon.api.brief import router as brief_router
+    from helicon.api.cockpit import router as cockpit_router
 
     app.include_router(cubes_router, prefix="/api")
     app.include_router(review_router, prefix="/api")
@@ -121,6 +122,7 @@ def create_app() -> FastAPI:
     app.include_router(intelligence_router, prefix="/api")
     app.include_router(rot_router, prefix="/api")
     app.include_router(brief_router, prefix="/api")
+    app.include_router(cockpit_router, prefix="/api")
 
     @app.get("/api/health")
     async def health():
