@@ -168,6 +168,39 @@ def test_truth_pass_honest_closeout_is_not_falsely_flagged(conn, tmp_path):
     assert ship == [], f"honest closeout falsely flagged: {ship}"
 
 
+def test_continuity_pull_path_retrieves_the_correction(conn, tmp_path):
+    """PROVE CONTINUITY (pull side, for real): after a ruling, the correction
+    cube is returned by the same retrieval path a real agent calls
+    (_proactive_context -> relevant_memories). 'included' must be True on a
+    store where the correction is retrievable."""
+    from helicon.cockpit import rule_claim
+    from helicon.db import insert_cube
+    from helicon.models import HeliconCube
+    from helicon.scanner import make_id, content_hash
+    # a small labeled synthetic store so retrieval has signal (FTS/embeddings)
+    seed = HeliconCube(
+        id=make_id(), source="obsidian", source_ref="fixture:test-count",
+        type="decision", title="Helicon test count",
+        content="The Helicon suite test count is tracked in the release notes.",
+        summary="", content_hash=content_hash("seed"),
+        created_at="2026-07-21T00:00:00", valid_from="2026-07-21T00:00:00",
+        last_reinforced="2026-07-21T00:00:00", confidence=1.0,
+        review_status="approved")
+    insert_cube(conn, seed)
+    conn.commit()
+
+    repo = _fixture_terminal(tmp_path)
+    view = cockpit_view(conn, terminals=[("Helicon", str(repo))], only={"Helicon"})
+    claim = next(c for c in view["terminals"][0]["claims"] if c["kind"] == "test")
+    res = rule_claim(conn, {}, "Helicon", str(repo), claim, "revise",
+                     "the suite is 393 not 344; the closeout count is stale")
+    assert res["ok"] is True
+    cont = res["continuity"]
+    # the correction is retrievable by the next agent's context read
+    assert cont["included"] is True, cont
+    assert cont["correction_cube"] == res["correction_cube"]
+
+
 def test_reject_requires_no_correction_but_revise_does(conn, tmp_path):
     from helicon.cockpit import rule_claim
     repo = _fixture_terminal(tmp_path)
