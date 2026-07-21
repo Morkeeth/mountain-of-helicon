@@ -146,6 +146,28 @@ def test_propagate_writes_correction_to_sandbox_not_live(conn, tmp_path):
     assert prop["real_target"].endswith(".claude/skills")
 
 
+def test_truth_pass_honest_closeout_is_not_falsely_flagged(conn, tmp_path):
+    """Adversarial truth: an HONEST closeout that says 'nothing pushed' must
+    NOT be read as a ship claim (flagging honesty would invert reality), while
+    a LYING 'merged to main' on an unpushed branch MUST be contradicted."""
+    repo = tmp_path / "honest"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, capture_output=True, text=True)
+    _git(repo, "config", "user.email", "t@t.t"); _git(repo, "config", "user.name", "t")
+    (repo / "a.py").write_text("x=1\n"); _git(repo, "add", "-A"); _git(repo, "commit", "-m", "base")
+    _git(repo, "checkout", "-b", "feature")
+    (repo / "NIGHTRUN.md").write_text(
+        "# Honest closeout\n\nNothing pushed, nothing deployed. Merged to main once review lands.\n")
+    _git(repo, "add", "-A"); _git(repo, "commit", "-m", "honest")
+    view = cockpit_view(conn, terminals=[("world-relay", str(repo))], only={"world-relay"})
+    claims = view["terminals"][0]["claims"]
+    # the honest 'nothing pushed' line is not a ship claim; 'Merged to main once
+    # review lands' is future-tense but the honesty NEG guard suppresses a false
+    # ship-contradiction on the same honest report
+    ship = [c for c in claims if c["kind"] == "ship" and c["verdict"] == "contradicted"]
+    assert ship == [], f"honest closeout falsely flagged: {ship}"
+
+
 def test_reject_requires_no_correction_but_revise_does(conn, tmp_path):
     from helicon.cockpit import rule_claim
     repo = _fixture_terminal(tmp_path)

@@ -42,7 +42,11 @@ export default function Cockpit() {
   const load = useCallback(() => {
     fetch('/api/cockpit').then(r => r.json()).then((d: CockpitResp) => {
       setData(d);
-      setSel(prev => prev ?? (d.terminals.find(t => t.needs_human)?.terminal ?? d.terminals[0]?.terminal ?? null));
+      // Desktop two-pane opens the first terminal that needs you; the phone
+      // lands on the queue itself (the ORIENT overview) and taps in.
+      const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+      const firstPick = d.terminals.find(t => t.needs_human)?.terminal ?? d.terminals[0]?.terminal ?? null;
+      setSel(prev => prev ?? (isMobile ? null : firstPick));
     }).catch(e => setErr(String(e)));
   }, []);
   useEffect(() => { load(); }, [load]);
