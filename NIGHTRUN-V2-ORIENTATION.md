@@ -26,17 +26,18 @@ Loop: ORIENT → INSPECT → COMPARE → RULE → APPLY (staged, receipt, undo) 
 - **Native artifact renderer** (markdown/diff/test-receipt/claim+source) — the one true net-new piece; nothing renders artifacts today.
 - Continuity proof surface (after Apply → next context read contains the correction).
 
-## Queue (build straight down, commit each, keep suite green)
-- [ ] S0 groundwork: worktree DB + dogfood `review --terminals` (real data) + baseline pytest green count + npm install
-- [ ] S1 backend `/api/cockpit` — real terminals → enriched RunCards (objective, changes, artifacts, claims+verdicts, needs_human)
-- [ ] S2 frontend `Cockpit.tsx` default tab — calm ORIENT queue on real data; `npm run build` green
-- [ ] S3 INSPECT native artifact renderer — click terminal → rendered md / diff / test-receipt / claim+source
-- [ ] S4 COMPARE+RULE+APPLY — wire cockpit rule buttons to govern apply-batch; Revise→rule_truth; staged preview → receipt → undo
-- [ ] S5 PROVE continuity — wire inject_into_claude_code to SANDBOX + build/deliver ContextPacket; show correction now in next agent context (include vs obey distinction)
-- [ ] S6 RETURN CALMER — ruled items leave queue (never-twice), noise removed
-- [ ] S7 adversarial: attack truth (stale branch, missing artifact, deceptive closeout, false propagation) + attack experience (cold start, overload, buried artifact, mobile clip, dead button); fix + re-run
-- [ ] S8 verify in Brave desktop + 390px, screenshots to artifacts/v2-night-run-2026-07-21/
-- [ ] S9 closeout NIGHTRUN-2026-07-21.md (required sections)
+## Queue — ALL DONE (see NIGHTRUN-2026-07-21.md)
+- [x] S0 groundwork: worktree DB + dogfood real data + baseline 393 green + npm install
+- [x] S1 backend `/api/cockpit` — real terminals, enriched, privacy allowlist
+- [x] S2 frontend `Cockpit.tsx` default tab — builds green
+- [x] S3 INSPECT native artifact renderer (markdown + diff, dependency-free)
+- [x] S4 COMPARE+RULE+APPLY — rule/revise/reject → receipt → undo (resolve_review)
+- [x] S5 PROVE continuity — inject_into_claude_code → SANDBOX; contains-proof; include≠obey
+- [x] S6 RETURN CALMER — ruled claims leave the queue
+- [x] S7 adversarial — mobile-queue fix + honesty-guard test; keep/reject no dead buttons
+- [x] S8 Brave desktop + 390px screenshots (01–08), no clipping
+- [x] S9 closeout NIGHTRUN-2026-07-21.md
+- Final: 401 passed, main frozen 0eef89f, nothing pushed.
 
 ## Guardrails
 No push/merge/deploy. No commit on main. No `git add -A` (add named files only). Real non-sensitive local data only (NEVER vault journal/finance/wallet). Synthetic fixtures labeled as fixtures. inject write-back → sandbox, real ~/.claude gated. premise→probe→observed→decision for any causal claim.
