@@ -656,6 +656,118 @@ def cmd_runs(args):
         print(format_suggestions(suggest_runs(conn, config)))
 
 
+def _diff_manifest(repo, base):
+    """Files changed since the run's frozen base commit + uncommitted, each with
+    a content hash + observation time (a path+mtime is never proof on its own)."""
+    import hashlib
+    from helicon.capture import _git
+    from helicon.taskrun import _now
+    files = []
+    if base:
+        files += [l.strip() for l in _git(repo, "diff", "--name-only", f"{base}...HEAD").splitlines()]
+    # porcelain is "XY path"; _git strips the whole output so the first line can
+    # lose leading spaces — split on whitespace instead of a fixed index.
+    for l in _git(repo, "status", "--porcelain").splitlines():
+        parts = l.split(maxsplit=1)
+        if len(parts) == 2:
+            files.append(parts[1])
+    seen, out = set(), []
+    for p in files:
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        full = os.path.join(repo, p)
+        h = None
+        if os.path.isfile(full):
+            try:
+                h = hashlib.sha256(open(full, "rb").read()).hexdigest()[:16]
+            except OSError:
+                pass
+        out.append({"path": p, "content_hash": h, "observed_at": _now(), "state": "changed"})
+        if len(out) >= 60:
+            break
+    return out
+
+
+def _latest_open_run(conn):
+    r = conn.execute(
+        "SELECT id FROM task_runs WHERE status IN "
+        "('opened','executing','artifact_attached','verified') "
+        "ORDER BY opened_at DESC LIMIT 1").fetchone()
+    return r["id"] if r else None
+
+
+def cmd_run(args):
+    """Govern a task run FORWARD: freeze objective + acceptance + base commit
+    BEFORE work, then close on the real outcome. This is the 'steer by outcome'
+    lifecycle from the terminal (the hook in the next slice auto-opens it)."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import taskrun, capture
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    if args.action == "open":
+        if not args.objective or not args.acceptance:
+            sys.exit('  usage: helicon run open "<objective>" --acceptance "<what accepted means>"')
+        repo = os.path.abspath(args.repo or os.getcwd())
+        commit = capture._git(repo, "rev-parse", "HEAD")
+        try:
+            rid = taskrun.open_run(conn, args.objective, args.acceptance,
+                                   harness="claude-code", repo_ref=f"{repo}@{commit}")
+        except taskrun.TaskRunError as e:
+            sys.exit(f"  {e}")
+        taskrun.record_event(conn, rid, "opened", detail=args.objective)
+        taskrun.build_packet(conn, rid, query=args.objective[:40])
+        taskrun.record_event(conn, rid, "packet", actor="helicon")
+        print(f"  opened {rid}")
+        print(f"  objective:  {args.objective}")
+        print(f"  acceptance: {args.acceptance}")
+        print(f"  base:       {os.path.basename(repo)}@{commit[:8]}")
+        print(f"  close with: helicon run close --accept | --rework | --reject")
+        return
+
+    if args.action == "status":
+        rows = conn.execute(
+            "SELECT id, objective, status, human_acceptance, repo_ref FROM task_runs "
+            "WHERE status != 'reviewed' ORDER BY opened_at DESC").fetchall()
+        if not rows:
+            print("  no open runs.")
+            return
+        for r in rows:
+            print(f"  {r['id']}  [{r['status']}]  {r['objective'][:56]}")
+        return
+
+    if args.action == "close":
+        verdict = ("accepted" if args.accept else "rework" if args.rework
+                   else "rollback" if args.reject else None)
+        if not verdict:
+            sys.exit("  need one of --accept | --rework | --reject")
+        rid = args.id or _latest_open_run(conn)
+        if not rid:
+            sys.exit("  no open run to close (open one with `helicon run open`)")
+        run = conn.execute("SELECT repo_ref, status FROM task_runs WHERE id=?", (rid,)).fetchone()
+        if run is None:
+            sys.exit(f"  no run {rid}")
+        repo, _, base = (run["repo_ref"] or "").partition("@")
+        if run["status"] in ("opened", "executing"):
+            manifest = _diff_manifest(repo, base)
+            taskrun.attach_artifact(conn, rid, manifest, cost_observation={"status": "unknown"})
+            taskrun.record_event(conn, rid, "artifact", actor="helicon",
+                                 detail=f"{len(manifest)} changed file(s) since {base[:8]}")
+        try:
+            taskrun.accept_run(conn, rid, verdict, note=args.note or "")
+        except taskrun.TaskRunError as e:
+            sys.exit(f"  {e}")
+        promoted = ""
+        if verdict == "accepted":
+            pr = capture.promote_prompt(conn, rid, by="operator-ruling")
+            promoted = "  · prompt promoted to the reusable library" if pr.get("ok") else ""
+        print(f"  closed {rid}: {verdict}{promoted}")
+        print(taskrun.render_receipt(conn, rid))
+        return
+
+
 def cmd_guard(args):
     """Live guard: check a proposed output against the law (rulings) before it's
     written. The write-time enforcement of GOLDEN_RULES (also the helicon_guard
@@ -2392,6 +2504,17 @@ def main():
     runs_p.add_argument("--run", action="store_true", help="with --close: run test suites to verify test claims (slower, more evidence)")
     runs_p.add_argument("--damage", type=float, default=0.0, help="with --close: incident penalty for this run")
 
+    run_p = sub.add_parser("run", help="Govern a task run FORWARD: open (freeze objective+acceptance+base) -> close --accept/--rework/--reject")
+    run_p.add_argument("action", choices=["open", "status", "close"], help="open / status / close")
+    run_p.add_argument("objective", nargs="?", help="for open: the task objective")
+    run_p.add_argument("--acceptance", help="for open: what 'accepted' means (frozen before work)")
+    run_p.add_argument("--repo", help="repo path (default: cwd)")
+    run_p.add_argument("--id", help="for close: the run id (default: latest open)")
+    run_p.add_argument("--accept", action="store_true", help="close: accepted (promotes the prompt)")
+    run_p.add_argument("--rework", action="store_true", help="close: needs rework (no promotion)")
+    run_p.add_argument("--reject", action="store_true", help="close: rejected/rollback (no promotion)")
+    run_p.add_argument("--note", default="", help="close: the verdict note")
+
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
     snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
     snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
@@ -2578,6 +2701,7 @@ def main():
         "compile": cmd_compile,
         "consolidate": cmd_consolidate,
         "eval-consolidation": cmd_consolidation_eval,
+        "run": cmd_run,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads
