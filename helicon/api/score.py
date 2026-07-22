@@ -68,7 +68,7 @@ async def health_report():
     audit_stats = conn.execute("""
         SELECT severity, COUNT(*) as cnt
         FROM audit_log
-        WHERE human_decision IS NULL
+        WHERE human_decision IS NULL AND machine_decision IS NULL
         GROUP BY severity
     """).fetchall()
 

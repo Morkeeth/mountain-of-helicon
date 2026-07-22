@@ -101,8 +101,13 @@ def build_packet(conn, task_run_id, query="", *, policy_version=SELECTION_POLICY
 
     like = f"%{query.lower()}%" if query else "%"
     rows = conn.execute(
+        # Retired means retired on EVERY path. This used to exclude only
+        # 'killed', so a superseded memory — one explicitly replaced by a newer
+        # version — could still be packed into a governed run's context while
+        # db.search_cubes and embeddings both refused to serve it. A status is
+        # terminal only if all consumers agree; this was the one that didn't.
         "SELECT id, source, source_ref, title, content, created_at, metadata "
-        "FROM helicon_cubes WHERE review_status != 'killed' "
+        "FROM helicon_cubes WHERE review_status NOT IN ('killed', 'superseded') "
         "AND (lower(content) LIKE ? OR lower(title) LIKE ?) ORDER BY created_at DESC",
         (like, like)).fetchall()
 
@@ -143,11 +148,12 @@ def build_packet(conn, task_run_id, query="", *, policy_version=SELECTION_POLICY
     for i in included:
         conn.execute(
             "INSERT INTO context_packet_items (packet_id, cube_id, cube_content_hash, "
-            "ordered_position, rendered_fragment_hash, provenance, freshness, scope, sensitivity, selection_reason) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "ordered_position, rendered_fragment_hash, rendered_fragment, provenance, "
+            "freshness, scope, sensitivity, selection_reason) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (packet_id, i["cube_id"], i["cube_content_hash"], i["ordered_position"],
-             i["rendered_fragment_hash"], i["provenance"], i["freshness"], i["scope"],
-             i["sensitivity"], i["selection_reason"]))
+             i["rendered_fragment_hash"], i["_rendered"], i["provenance"],
+             i["freshness"], i["scope"], i["sensitivity"], i["selection_reason"]))
     conn.execute("UPDATE task_runs SET status='executing', execution_started_at=? WHERE id=?",
                  (now, task_run_id))
     conn.commit()
@@ -169,6 +175,44 @@ def reconstruct_packet_hash(conn, task_run_id) -> str:
               "cube_content_hash": r["cube_content_hash"], "rendered_fragment_hash": r["rendered_fragment_hash"]}
              for r in rows]
     return _hash_packet(items, p["policy_version"])
+
+
+def render_packet(conn, task_run_id) -> dict:
+    """Render the exact frozen packet for harness delivery.
+
+    The rendered fragments are stored at packet-build time; current cube content
+    is never substituted. Legacy packets without snapshots fail closed.
+    """
+    packet = conn.execute(
+        "SELECT id, packet_hash FROM context_packets WHERE task_run_id=? "
+        "ORDER BY created_at DESC LIMIT 1",
+        (task_run_id,),
+    ).fetchone()
+    if packet is None:
+        raise TaskRunError("no packet for this run")
+    rows = conn.execute(
+        "SELECT rendered_fragment, rendered_fragment_hash "
+        "FROM context_packet_items WHERE packet_id=? ORDER BY ordered_position",
+        (packet["id"],),
+    ).fetchall()
+    fragments = []
+    for row in rows:
+        rendered = row["rendered_fragment"]
+        if rendered is None:
+            raise TaskRunError("legacy packet has no frozen rendered content")
+        if hashlib.sha1(rendered.encode()).hexdigest() != row["rendered_fragment_hash"]:
+            raise TaskRunError("stored packet fragment failed its content hash")
+        fragments.append(rendered)
+    if reconstruct_packet_hash(conn, task_run_id) != packet["packet_hash"]:
+        raise TaskRunError("stored packet failed its packet hash")
+    text = "## Helicon — frozen context for this governed run\n"
+    text += "\n".join(f"- {fragment}" for fragment in fragments)
+    return {
+        "packet_id": packet["id"],
+        "packet_hash": packet["packet_hash"],
+        "items": len(fragments),
+        "text": text,
+    }
 
 
 def attach_artifact(conn, task_run_id, artifact_manifest: list, *, cost_observation=None) -> None:
@@ -216,15 +260,25 @@ def record_event(conn, task_run_id, kind, *, actor="human", detail="") -> None:
 def accept_run(conn, task_run_id, verdict, *, note="") -> dict:
     """Human acceptance closes the state machine (the piece the recorder was
     missing). verdict ∈ accepted | rework | rollback. Append-only: the verdict
-    and note are recorded as a run_event AND set on the run; a later change adds
-    a new event rather than overwriting history. Only 'accepted' is allowed to
-    promote a prompt (caller enforces)."""
+    and note are recorded as a run_event AND set on the run. A reviewed Run is
+    immutable: reworked output opens a new Run instead of laundering the same
+    artifact from rework into accepted. Only 'accepted' may promote a prompt."""
     if verdict not in ("accepted", "rework", "rollback"):
         raise TaskRunError("verdict must be accepted | rework | rollback")
     run = _get_run(conn, task_run_id)
     if run is None:
         raise TaskRunError(f"no such task run: {task_run_id}")
-    if run["status"] not in ("artifact_attached", "verified", "reviewed"):
+    if run["status"] == "reviewed":
+        current = run["human_acceptance"]
+        if verdict == current:
+            return {"ok": True, "task_run_id": task_run_id,
+                    "human_acceptance": current, "note": note,
+                    "promotable": current == "accepted", "unchanged": True}
+        raise TaskRunError(
+            f"run already has final verdict '{current}'; open a new run for "
+            "reworked artifacts instead of rewriting accepted outcome history"
+        )
+    if run["status"] not in ("artifact_attached", "verified"):
         raise TaskRunError(f"cannot accept before an artifact exists (status: {run['status']})")
     conn.execute(
         "UPDATE task_runs SET human_acceptance=?, status='reviewed' WHERE id=?",
@@ -252,5 +306,38 @@ def render_receipt(conn, task_run_id) -> str:
         f"  outcome:    {run['verification_outcome'] or 'unverified'} "
         f"(source: {'attached' if run['verification_outcome'] else '—'})",
         f"  egress:     {_loads(run['egress_receipt']).get('policy_result', 'local-only')}",
+        f"  {_delivery_line(conn, task_run_id)}",
     ]
     return "\n".join(lines)
+
+
+def _delivery_line(conn, task_run_id) -> str:
+    """The three-state honesty the product claims and the receipt never showed.
+
+    RECORDED  a ruling exists in the store.
+    DELIVERED a live session's hook actually received it — proven by a
+              'delivered' run_event the harness caused, not by a DB write.
+    OBEYED    never asserted. Only the next run's OUTPUT can show obedience, and
+              nothing here observes that. Saying 'delivered' and meaning
+              'recorded' is the single easiest lie for a governance tool to tell,
+              so the receipt states all three and claims only what it can prove.
+    """
+    delivered = conn.execute(
+        "SELECT COUNT(DISTINCT json_extract(detail, '$.cube_id')) "
+        "FROM run_events WHERE task_run_id=? AND kind='delivered' "
+        "AND json_extract(detail, '$.cube_id') IS NOT NULL",
+        (task_run_id,),
+    ).fetchone()[0]
+    packet_delivered = conn.execute(
+        "SELECT COUNT(*) FROM run_events WHERE task_run_id=? "
+        "AND kind='context_delivered'",
+        (task_run_id,),
+    ).fetchone()[0]
+    return (
+        f"context:    packet delivery "
+        f"{'proven' if packet_delivered else 'unproven'} · "
+        f"{delivered} ruling delivery record(s) linked to this run · "
+        f"recorded: yes · delivered: "
+        f"{'proven' if packet_delivered or delivered else 'unproven'} · "
+        f"obeyed: unproven"
+    )

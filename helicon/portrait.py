@@ -35,7 +35,8 @@ def _top_entities(conn: sqlite3.Connection, limit: int = 14) -> list[dict]:
 def _output_mix(conn: sqlite3.Connection, cap: int = 2500) -> list[tuple[str, int]]:
     rows = conn.execute(
         "SELECT title, source, source_ref, summary FROM helicon_cubes "
-        "WHERE merged_into IS NULL AND review_status != 'killed' "
+        "WHERE merged_into IS NULL "
+        "AND review_status NOT IN ('killed', 'superseded') "
         "ORDER BY created_at DESC LIMIT ?", (cap,)
     ).fetchall()
     c = Counter()
@@ -47,6 +48,7 @@ def _output_mix(conn: sqlite3.Connection, cap: int = 2500) -> list[tuple[str, in
 def _areas(conn: sqlite3.Connection, limit: int = 8) -> list[tuple[str, int]]:
     rows = conn.execute(
         "SELECT source_ref FROM helicon_cubes WHERE merged_into IS NULL "
+        "AND review_status NOT IN ('killed', 'superseded') "
         "AND source_ref LIKE '%01 Projects/%'"
     ).fetchall()
     c = Counter()
@@ -60,6 +62,7 @@ def _areas(conn: sqlite3.Connection, limit: int = 8) -> list[tuple[str, int]]:
 def _recent(conn: sqlite3.Connection, limit: int = 8) -> list[str]:
     rows = conn.execute(
         "SELECT title FROM helicon_cubes WHERE merged_into IS NULL "
+        "AND review_status NOT IN ('killed', 'superseded') "
         "AND source IN ('obsidian','chatgpt','memory') AND title != '' "
         "ORDER BY created_at DESC LIMIT ?", (limit,)
     ).fetchall()

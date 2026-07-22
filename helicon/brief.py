@@ -63,6 +63,7 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
         conn,
         "SELECT id, finding, severity FROM audit_log "
         "WHERE audit_type='factual' AND human_decision IS NULL "
+        "AND machine_decision IS NULL "
         "ORDER BY CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 "
         "WHEN 'medium' THEN 2 ELSE 3 END, audited_at DESC",
     )

@@ -289,3 +289,65 @@ def test_a_dismissal_with_no_reason_says_so_rather_than_implying_law(client):
                     json={"finding_id": fid, "decision": "dismissed", "notes": ""})
     assert r.status_code == 200
     assert r.json()["precedent"] is False
+
+
+def test_queue_preview_apply_and_scoped_undo_are_visible_over_http(client, tmp_path):
+    conn = init_db(str(tmp_path / "helicon.db"))
+    insert_cube(conn, _cube("queue-dead", "Retired queue target", "old fact"))
+    conn.execute(
+        "UPDATE helicon_cubes SET review_status='killed' WHERE id='queue-dead'"
+    )
+    conn.execute(
+        "INSERT INTO audit_log "
+        "(audit_type,target_type,target_id,finding,severity,audited_at) "
+        "VALUES ('temporal','cube','queue-dead','old fact drifted','high',?)",
+        (NOW.isoformat(),),
+    )
+    conn.commit()
+
+    preview = client.get("/api/queue").json()
+    assert preview["applied"] is False
+    assert preview["auto_retired"] >= 1
+
+    applied = client.post("/api/queue/apply").json()
+    assert applied["applied"] is True
+    assert applied["batch_id"]
+    pending_ids = {r["id"] for r in client.get("/api/audit").json()["findings"]}
+    fid = conn.execute(
+        "SELECT id FROM audit_log WHERE target_id='queue-dead'"
+    ).fetchone()[0]
+    assert fid not in pending_ids
+
+    undone = client.post(
+        "/api/queue/undo", json={"batch_id": applied["batch_id"]}
+    ).json()
+    assert undone["restored"] == applied["auto_retired"]
+    pending_ids = {r["id"] for r in client.get("/api/audit").json()["findings"]}
+    assert fid in pending_ids
+
+
+def test_human_confirmation_not_agent_flag_trains_utility(client, tmp_path):
+    conn = init_db(str(tmp_path / "helicon.db"))
+    insert_cube(conn, _cube("agent-signal", "Agent signal", "useful context"))
+    cur = conn.execute(
+        "INSERT INTO audit_log "
+        "(audit_type,target_type,target_id,finding,severity,proposed_action,audited_at) "
+        "VALUES ('agent-flag','cube','agent-signal','Agent flagged as useful',"
+        "'low','keep',?)",
+        (NOW.isoformat(),),
+    )
+    conn.commit()
+    assert conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_utility'"
+    ).fetchone() is None
+
+    response = client.post("/api/audit/confirm", json={
+        "finding_id": cur.lastrowid,
+        "decision": "dismissed",
+        "notes": "confirmed useful in the delivered answer",
+    })
+    assert response.status_code == 200
+    q = conn.execute(
+        "SELECT q_value FROM memory_utility WHERE cube_id='agent-signal'"
+    ).fetchone()
+    assert q is not None and q[0] > 0.5

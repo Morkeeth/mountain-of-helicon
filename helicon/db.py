@@ -285,6 +285,7 @@ CREATE TABLE IF NOT EXISTS context_packet_items (
     cube_content_hash TEXT,
     ordered_position INTEGER,
     rendered_fragment_hash TEXT,
+    rendered_fragment TEXT,
     provenance TEXT, freshness TEXT, scope TEXT, sensitivity TEXT, selection_reason TEXT
 );
 CREATE TABLE IF NOT EXISTS run_captures (
@@ -408,6 +409,23 @@ def init_db(db_path: str) -> sqlite3.Connection:
             rebuild_fts(conn)
     except sqlite3.OperationalError:
         pass
+    # Valuation gate columns (V2.3). Additive ALTERs, because audit_log predates
+    # them and the idempotent-create idiom above never reaches an existing table.
+    # Kept strictly separate from human_decision: gold.py compiles the Golden
+    # Rules from human rulings, so a machine verdict landing there would forge law.
+    audit_cols = {r["name"] for r in conn.execute("PRAGMA table_info(audit_log)")}
+    for col in ("machine_decision", "machine_reason", "machine_decided_at",
+                "machine_batch_id"):
+        if col not in audit_cols:
+            conn.execute(f"ALTER TABLE audit_log ADD COLUMN {col} TEXT")
+    packet_cols = {
+        r["name"] for r in conn.execute("PRAGMA table_info(context_packet_items)")
+    }
+    if "rendered_fragment" not in packet_cols:
+        conn.execute(
+            "ALTER TABLE context_packet_items ADD COLUMN rendered_fragment TEXT"
+        )
+    conn.commit()
     return conn
 
 
@@ -617,7 +635,8 @@ def get_cubes(
 
 
 def get_audit_results(conn: sqlite3.Connection, pending_only: bool = True) -> list[dict]:
-    where = "WHERE human_decision IS NULL" if pending_only else ""
+    where = ("WHERE human_decision IS NULL AND machine_decision IS NULL"
+             if pending_only else "")
     rows = conn.execute(
         f"SELECT * FROM audit_log {where} ORDER BY severity DESC, audited_at DESC"
     ).fetchall()

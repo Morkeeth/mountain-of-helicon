@@ -41,7 +41,8 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
     # (that would mute watch's flip alert for real contradictions).
     open_pairing = conn.execute(
         "SELECT COUNT(*) FROM audit_log WHERE audit_type = 'factual' "
-        "AND details LIKE '%pair_key%' AND human_decision IS NULL"
+        "AND details LIKE '%pair_key%' AND human_decision IS NULL "
+        "AND machine_decision IS NULL"
     ).fetchone()[0]
     try:
         from helicon.pairing import find_conflicts

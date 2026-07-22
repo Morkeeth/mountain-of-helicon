@@ -84,12 +84,58 @@ def _run_view(conn, cap) -> dict:
     return d
 
 
+def _taskrun_view(tr) -> dict:
+    """Represent a forward CLI-opened TaskRun in the same Cockpit shape.
+
+    Forward runs have no retrospective transcript capture by design. Unknown
+    fields stay empty rather than making the real pre-execution run invisible.
+    """
+    task = dict(tr)
+    repo_ref = task.get("repo_ref") or ""
+    repo, sep, commit = repo_ref.rpartition("@")
+    if not sep:
+        repo, commit = repo_ref, ""
+    return {
+        "id": task["id"],
+        "task_run_id": task["id"],
+        "provenance": "forward",
+        "session_ids": [],
+        "repo": repo,
+        "branch": None,
+        "worktree": repo,
+        "start_commit": commit,
+        "prompt_chain": [],
+        "prompt_count": 0,
+        "model": task.get("model"),
+        "models": {},
+        "harness": task.get("harness"),
+        "tokens": {},
+        "cost_status": "unknown",
+        "first_ts": task.get("opened_at"),
+        "last_ts": None,
+        "duration_min": None,
+        "artifact_manifest": json.loads(task.get("artifact_manifest") or "[]"),
+        "captured_at": task.get("opened_at"),
+        "governed": task,
+        "human_acceptance": task.get("human_acceptance"),
+        "status": task.get("status"),
+        "needs_human": task.get("human_acceptance") == "pending",
+    }
+
+
 @router.get("/run/list")
 async def run_list():
     from helicon.capture import list_captures  # noqa: F401 (ensures module import)
     conn = get_conn()
     rows = conn.execute("SELECT * FROM run_captures ORDER BY captured_at DESC").fetchall()
     runs = [_run_view(conn, r) for r in rows]
+    forward = conn.execute(
+        "SELECT tr.* FROM task_runs tr "
+        "LEFT JOIN run_captures rc ON rc.task_run_id=tr.id "
+        "WHERE rc.id IS NULL ORDER BY tr.opened_at DESC"
+    ).fetchall()
+    runs.extend(_taskrun_view(r) for r in forward)
+    runs.sort(key=lambda r: r.get("captured_at") or "", reverse=True)
     return {
         "runs": runs,
         "needs_you": sum(1 for r in runs if r["needs_human"]),
@@ -111,9 +157,15 @@ async def run_detail(task_run_id: str = "", capture_id: str = ""):
                            (task_run_id,)).fetchone()
     if cap is None and capture_id:
         cap = conn.execute("SELECT * FROM run_captures WHERE id=?", (capture_id,)).fetchone()
-    if cap is None:
+    if cap is not None:
+        view = _run_view(conn, cap)
+    elif task_run_id:
+        tr = conn.execute("SELECT * FROM task_runs WHERE id=?", (task_run_id,)).fetchone()
+        if tr is None:
+            return {"ok": False, "error": "run not found"}
+        view = _taskrun_view(tr)
+    else:
         return {"ok": False, "error": "run not found"}
-    view = _run_view(conn, cap)
     events = []
     receipt = ""
     if task_run_id:

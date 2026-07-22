@@ -46,37 +46,44 @@ const Consistency = lazy(() => import('./components/Consistency'));
 
 type Tab = 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
-// The primary nav IS the loop, review first: what needs your ruling, the exam
-// that found it, the rules your rulings compile into, and the memory underneath.
-// Everything else — narrative, next moves, thin-evidence reads (runs/route),
-// and the deeper surfaces — lives under More, so the hero is the decision, not a
-// menu of capabilities.
+// SUBTRACTION (Jul 22): 19 tabs -> 5, and the More sheet is gone. The nav is
+// now exactly the loop from the vision: agent output arrives (Cockpit), the
+// exceptions that need a human surface (Needs Ruling), rulings compile into law
+// (Golden Rules), the day opens calm (Morning Brief), and the store underneath
+// is inspectable (Memory). Nothing else earned a permanent seat.
+//
+// What was cut and why — measured against Oscar's real store, not taste:
+//   Qwen as Judge   417 lines, 3 judge_runs ever      — worst effort/use ratio
+//   Graph           464 lines of three.js             — answers no question in the loop
+//   Runs (RunCards) 8 run_cards, and the name now      — collided with Governed Runs
+//                   belongs to the V2 governed runs
+//   Route           15 route_evidence rows            — too thin to steer by
+//   Causal Lens / Evals / Log / Projects / Next Moves  — real, but detail views
+//   Start Here / The Exam / The Reading / Tour         — built for hackathon judges;
+//                   submitted Jul 21, so their audience no longer exists
+//
+// Every component still exists and every `tab === '<key>'` branch still renders.
+// This is a navigation cut, not a delete: restoring any surface is one line here.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'cockpit', label: 'The Cockpit' },
-  { key: 'start', label: 'Start Here' },
-  { key: 'brief', label: 'Morning Brief' },
   { key: 'findings', label: 'Needs Ruling' },
-  { key: 'exam', label: 'The Exam' },
   { key: 'gold', label: 'Golden Rules' },
+  { key: 'brief', label: 'Morning Brief' },
   { key: 'health', label: 'Memory' },
 ];
 
-const SECONDARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'reading', label: 'The Reading' },
-  { key: 'focus', label: 'Next Moves' },
-  { key: 'runs', label: 'Runs' },
-  { key: 'route', label: 'Route' },
-  { key: 'tour', label: 'Tour' },
-  { key: 'routines', label: 'Routines & Skills' },
-  { key: 'evals', label: 'Evals' },
-  { key: 'judge', label: 'Qwen as Judge' },
-  { key: 'lens', label: 'Causal Lens' },
-  { key: 'log', label: 'Log' },
-  { key: 'graph', label: 'Graph' },
-  { key: 'projects', label: 'Projects' },
-];
+// Deliberately empty. The More sheet and the rail divider both collapse when
+// this is empty, which is the point: there is no second menu to browse.
+const SECONDARY_TABS: { key: Tab; label: string }[] = [];
 
 const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
+// Navigation is intentionally five items, but old receipts and bookmarks remain
+// valid. Hidden routes are explicit compatibility entry points, not a second menu.
+const ROUTABLE_TABS: Tab[] = [
+  'cockpit', 'start', 'brief', 'reading', 'tour', 'focus', 'health', 'findings',
+  'exam', 'judge', 'gold', 'log', 'graph', 'projects', 'routines', 'evals',
+  'lens', 'runs', 'route',
+];
 
 /* Phone shell (Jul 15). The review device is a phone, so the thumb, not the
    cursor, is the input. The 110px rail ate 28% of a 390px screen and pushed the
@@ -89,14 +96,19 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 
    Bar labels are shortened, not shrunk: "Needs Ruling" and "Golden Rules" both
    truncated to "NEEDS RULI…" / "GOLDEN RU…" in a 78px slot, and the fix is
-   fewer words, not 8px type on the surface that carries the verdict. */
+   fewer words, not 8px type on the surface that carries the verdict.
+
+   Jul 22: More is gone. It survived only to hold one item (Morning Brief) once
+   the nav was cut to five, and a menu holding one thing is a menu that exists to
+   look like a product. Five slots cost the same 78px as four-plus-More did, so
+   the bar now IS the whole nav — nothing on the phone is behind a second tap. */
 const BAR_TABS: { key: Tab; short: string }[] = [
   { key: 'cockpit', short: 'Cockpit' },
   { key: 'findings', short: 'Ruling' },
-  { key: 'health', short: 'Memory' },
   { key: 'gold', short: 'Rules' },
+  { key: 'brief', short: 'Brief' },
+  { key: 'health', short: 'Memory' },
 ];
-const BAR_KEYS: Tab[] = BAR_TABS.map(t => t.key);
 
 // Left-rail nav item (brand book: numbered, calm, active = ink + accent bar)
 function RailItem({ n, label, active, badge = 0, onClick }: {
@@ -155,77 +167,11 @@ function BarItem({ label, active, badge = 0, onClick }: {
   );
 }
 
-/* The rest of the nav. A sheet rather than a full page so ruling stays the thing
-   you came back to; it dismisses on backdrop, Escape, or pick. */
-function MoreSheet({ tab, onPick, onClose, needsYou }: {
-  tab: Tab; onPick: (t: Tab) => void; onClose: () => void; needsYou: number;
-}) {
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [onClose]);
-
-  const rest = PRIMARY_TABS.filter(t => !BAR_KEYS.includes(t.key));
-  const row = (t: { key: Tab; label: string }, n: number) => (
-    <button
-      key={t.key}
-      onClick={() => { onPick(t.key); onClose(); }}
-      className="w-full flex items-center gap-3 px-5 text-left"
-      style={{ minHeight: 48, background: tab === t.key ? 'var(--helicon-accent-dim)' : 'transparent' }}
-    >
-      <span className="text-[10px] tabular-nums w-4" style={{ color: 'var(--helicon-faint)' }}>{n}</span>
-      <span
-        className="text-[12px] uppercase"
-        style={{ letterSpacing: '0.07em', color: tab === t.key ? 'var(--helicon-ink)' : 'var(--helicon-muted)', fontWeight: tab === t.key ? 600 : 500 }}
-      >
-        {t.label}
-      </span>
-      {t.key === 'findings' && needsYou > 0 && (
-        <span className="ml-auto text-[11px] tabular-nums" style={{ color: 'var(--helicon-accent)' }}>{needsYou}</span>
-      )}
-    </button>
-  );
-
-  return (
-    <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="All surfaces">
-      <motion.div
-        className="absolute inset-0" onClick={onClose}
-        style={{ background: 'rgba(23,40,58,0.32)' }}
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-      />
-      <motion.div
-        className="absolute left-0 right-0 bottom-0 rounded-t-[18px] overflow-hidden"
-        style={{
-          background: 'var(--helicon-panel)', borderTop: '1px solid var(--helicon-line)',
-          boxShadow: 'var(--helicon-shadow)', paddingBottom: 'env(safe-area-inset-bottom)',
-          maxHeight: '82vh',
-        }}
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      >
-        <div className="flex justify-center pt-2.5 pb-1">
-          <span className="h-1 w-9 rounded-full" style={{ background: 'var(--helicon-line-2)' }} />
-        </div>
-        <div className="overflow-y-auto pb-4" style={{ maxHeight: 'calc(82vh - 24px)' }}>
-          {rest.map((t) => row(t, PRIMARY_TABS.findIndex(p => p.key === t.key) + 1))}
-          {rest.length > 0 && <div className="my-2 mx-5 border-t" style={{ borderColor: 'var(--helicon-line)' }} />}
-          {/* Derived, never hardcoded: these numbers ARE the keyboard shortcuts
-              and must match the rail exactly. A literal `i + 8` here was correct
-              only while PRIMARY_TABS had 7 entries, and silently drifted the
-              moment one was added. */}
-          {SECONDARY_TABS.map((t, i) => row(t, PRIMARY_TABS.length + i + 1))}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ALL_TABS.includes(h) ? h : 'cockpit';
+    return ROUTABLE_TABS.includes(h) ? h : 'cockpit';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -244,17 +190,14 @@ function App() {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [projectConsolidations, setProjectConsolidations] = useState<Consolidation[]>([]);
   const [copied, setCopied] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [s, c, t] = await Promise.all([
+    const [s, c] = await Promise.all([
       api.getScore(),
       api.getConnectors(),
-      api.getTriageStats().catch(() => ({ total_triaged: 0 })),
     ]);
     setScore(s);
     setConnectors(c.connectors);
-    setTriageCount(t.total_triaged);
   }, []);
 
   const loadFindings = useCallback(async (includeBattery: boolean) => {
@@ -292,9 +235,35 @@ function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([refresh(), loadFindings(false), loadProjects(), loadConsolidations()])
+    Promise.all([refresh(), loadFindings(false)])
       .then(() => setLoading(false));
-  }, [refresh, loadFindings, loadProjects, loadConsolidations]);
+  }, [refresh, loadFindings]);
+
+  useEffect(() => {
+    if (tab !== 'projects') return;
+    Promise.all([
+      loadProjects(),
+      loadConsolidations(),
+      api.getTriageStats().catch(() => ({ total_triaged: 0 }))
+        .then(t => setTriageCount(t.total_triaged)),
+    ]);
+  }, [tab, loadProjects, loadConsolidations]);
+
+  useEffect(() => {
+    const expected = `#${tab}`;
+    if (window.location.hash !== expected) {
+      window.history.replaceState(null, '', expected);
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    const followHash = () => {
+      const next = window.location.hash.replace('#', '') as Tab;
+      if (ROUTABLE_TABS.includes(next)) setTab(next);
+    };
+    window.addEventListener('hashchange', followHash);
+    return () => window.removeEventListener('hashchange', followHash);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -391,7 +360,9 @@ function App() {
               badge={t.key === 'findings' ? (findingsData?.summary.needs_you || 0) : 0}
               onClick={() => setTab(t.key)} />
           ))}
-          <div className="my-3 mx-2 border-t" style={{ borderColor: 'var(--helicon-line)' }} />
+          {SECONDARY_TABS.length > 0 && (
+            <div className="my-3 mx-2 border-t" style={{ borderColor: 'var(--helicon-line)' }} />
+          )}
           {/* Numbered from the primary count, not a hardcoded offset: with 7
               primary tabs a literal +6 restarted the sequence at 6, so two tabs
               read 6 and two read 7, and every rail number past the divider
@@ -508,6 +479,7 @@ function App() {
         {tab === 'findings' && reviewMode === 'focus' && (
           <>
           <TabPurpose>One ruling at a time. Handle what needs you; the rest is auto-managed.</TabPurpose>
+          <QueueGate onChanged={() => { loadFindings(false); refresh(); }} />
           <FocusReview
             data={findingsData}
             onActed={handleFindingActed}
@@ -519,6 +491,7 @@ function App() {
           <>
           <button onClick={() => setReviewMode('focus')} className="text-[12px] mb-3 transition-colors hover:opacity-70" style={{ color: 'var(--helicon-accent)' }}>← back to focus</button>
           <TabPurpose>What Helicon caught in your memory, drift, staleness, and things worth sharpening. You rule once; it sticks.</TabPurpose>
+          <QueueGate onChanged={() => { loadFindings(false); refresh(); }} />
           <FindingsView
             data={findingsData}
             onReload={loadFindings}
@@ -596,7 +569,7 @@ function App() {
       </main>
       </div>
 
-      {/* Phone nav: the audit loop under the thumb, everything else behind More */}
+      {/* Phone nav: the complete five-item daily loop under the thumb. */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch"
         style={{
@@ -610,27 +583,12 @@ function App() {
           <BarItem
             key={t.key}
             label={t.short}
-            active={tab === t.key && !moreOpen}
+            active={tab === t.key}
             badge={t.key === 'findings' ? (findingsData?.summary.needs_you || 0) : 0}
-            onClick={() => { setTab(t.key); setMoreOpen(false); }}
+            onClick={() => setTab(t.key)}
           />
         ))}
-        <BarItem
-          label="More"
-          active={moreOpen || !BAR_KEYS.includes(tab)}
-          onClick={() => setMoreOpen(o => !o)}
-        />
       </nav>
-      <AnimatePresence>
-        {moreOpen && (
-          <MoreSheet
-            tab={tab}
-            needsYou={findingsData?.summary.needs_you || 0}
-            onPick={t => { setTab(t); if (t !== 'projects') setSelectedProject(null); }}
-            onClose={() => setMoreOpen(false)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -638,6 +596,89 @@ function App() {
 // One muted line under each tab's top bar stating what the screen is for.
 function TabPurpose({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] text-zinc-600 mb-5 leading-relaxed">{children}</p>;
+}
+
+type QueueResult = {
+  considered: number;
+  escalated: number;
+  auto_retired: number;
+  applied: boolean;
+  batch_id?: string | null;
+  last_batch?: { batch_id: string | null; handled: number; decided_at?: string } | null;
+};
+
+function QueueGate({ onChanged }: { onChanged: () => void }) {
+  const [result, setResult] = useState<QueueResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = useCallback(() => {
+    fetch('/api/queue').then(r => r.json()).then(setResult).catch(e => setError(String(e)));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const apply = async () => {
+    setBusy(true); setError('');
+    try {
+      const r = await fetch('/api/queue/apply', { method: 'POST' });
+      const data = await r.json();
+      setResult(data);
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const batchId = result?.batch_id || result?.last_batch?.batch_id || '';
+  const handled = result?.applied ? result.auto_retired : (result?.last_batch?.handled || 0);
+  const undo = async () => {
+    setBusy(true); setError('');
+    try {
+      await fetch('/api/queue/undo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batch_id: batchId }),
+      });
+      load();
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!result) return null;
+  return (
+    <div className="mb-5 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-2"
+      style={{ background: 'var(--helicon-panel)', border: '1px solid var(--helicon-line)' }}>
+      <div className="flex-1 min-w-[220px]">
+        <p className="text-[13px]" style={{ color: 'var(--helicon-ink)' }}>
+          {handled > 0 ? `${handled} handled without you` : `${result.auto_retired} can be auto-handled`}
+          {` · ${result.escalated} remain visible`}
+        </p>
+        <p className="text-[10.5px] mt-0.5" style={{ color: 'var(--helicon-faint)' }}>
+          The Ruling badge is the smaller decision lane. Machine decisions never become Golden Rules.
+        </p>
+      </div>
+      {handled > 0 ? (
+        <button disabled={busy} onClick={undo}
+          className="text-[11px] px-3 py-1.5 rounded-lg disabled:opacity-40"
+          style={{ color: 'var(--helicon-muted)', border: '1px solid var(--helicon-line-2)' }}>
+          Undo batch
+        </button>
+      ) : result.auto_retired > 0 ? (
+        <button disabled={busy} onClick={apply}
+          className="text-[11px] px-3 py-1.5 rounded-lg disabled:opacity-40"
+          style={{ color: 'var(--helicon-on-dark)', background: 'var(--helicon-accent)' }}>
+          Apply reviewed cut
+        </button>
+      ) : null}
+      {error && <p className="w-full text-[11px]" style={{ color: 'var(--helicon-critical)' }}>{error}</p>}
+    </div>
+  );
 }
 
 

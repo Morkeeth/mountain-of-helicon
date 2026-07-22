@@ -10,6 +10,7 @@ trading/wallet/personal repos) AND a hard-private substring filter on the repo
 path and closeout path. `review_terminals.discover_terminals` auto-includes
 rekt-capital (trading) and okx-agent-oracle (wallet); this module drops them.
 """
+import hashlib
 import os
 import re
 import subprocess
@@ -284,13 +285,30 @@ def _delivery_state(conn, cube_id) -> dict:
                 "note": "no correction cube was written"}
     exists = conn.execute("SELECT 1 FROM helicon_cubes WHERE id=?",
                           (cube_id,)).fetchone() is not None
+    # Read the DELIVERY EVIDENCE instead of asserting its absence. This was
+    # hardcoded False, which meant that after `helicon hook` genuinely delivered
+    # a ruling into a live session — privacy-gated, harness-received, event
+    # written — the Cockpit still told the operator "Not yet delivered to any
+    # live run." A governance tool understating its own proof teaches the
+    # operator to distrust it exactly when it is telling the truth.
+    delivered = conn.execute(
+        "SELECT COUNT(DISTINCT task_run_id) FROM run_events "
+        "WHERE kind='delivered' AND json_extract(detail, '$.cube_id')=?",
+        (cube_id,),
+    ).fetchone()[0]
+    note = ("Correction is RECORDED. Not yet delivered to any live run. Use "
+            "'Send to agent context' to stage it into the next agent's files; "
+            "even then delivered != obeyed (only a fresh run proves obedience).")
+    if delivered:
+        note = (f"Correction is RECORDED and DELIVERED into {delivered} live "
+                f"session(s) by the UserPromptSubmit hook. Delivered is still "
+                f"not obeyed — only the run's own output shows that.")
     return {
         "recorded": exists, "delivered_to_files": False,
-        "delivered_to_live_run": False, "obeyed": None,
+        "delivered_to_live_run": bool(delivered), "delivered_count": delivered,
+        "obeyed": None,
         "correction_cube": cube_id,
-        "note": "Correction is RECORDED. Not yet delivered to any live run. Use "
-                "'Send to agent context' to stage it into the next agent's files; "
-                "even then delivered != obeyed (only a fresh run proves obedience).",
+        "note": note,
     }
 
 
@@ -422,7 +440,8 @@ _DIFF_REF_RX = re.compile(r"^[\w./-]+\.\.\.HEAD$")
 
 
 def load_artifact(terminal_repo_path: str, kind: str, ref: str,
-                  max_chars: int = 60000, *, allowed_roots=None) -> dict:
+                  max_chars: int = 60000, *, allowed_roots=None,
+                  expected_hash: str = "") -> dict:
     """INSPECT: the actual artifact content, rendered in native form.
 
     P0-1: the repo must resolve to an allowed ~/CODE safe root (server-side, not
@@ -439,9 +458,18 @@ def load_artifact(terminal_repo_path: str, kind: str, ref: str,
             return {"type": "blocked", "text": "", "why": "path escapes repo"}
         if _is_private(cand) or not os.path.isfile(cand):
             return {"type": "blocked", "text": "", "why": "not found or private"}
-        with open(cand, errors="ignore") as fh:
-            return {"type": "markdown", "label": os.path.basename(cand),
-                    "text": fh.read()[:max_chars]}
+        with open(cand, "rb") as fh:
+            raw = fh.read()
+        actual_hash = hashlib.sha256(raw).hexdigest()[:16]
+        if expected_hash and actual_hash != expected_hash:
+            return {
+                "type": "blocked", "text": "",
+                "why": (f"artifact changed since capture "
+                        f"(expected {expected_hash}, found {actual_hash})"),
+            }
+        return {"type": "markdown", "label": os.path.basename(cand),
+                "text": raw.decode(errors="ignore")[:max_chars],
+                "content_hash": actual_hash}
     if kind == "diff":
         if not _DIFF_REF_RX.match(ref or ""):
             return {"type": "blocked", "text": "", "why": "invalid diff ref (want <base>...HEAD)"}

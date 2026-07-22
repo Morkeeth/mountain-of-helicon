@@ -724,7 +724,16 @@ def cmd_run(args):
         print(f"  objective:  {args.objective}")
         print(f"  acceptance: {args.acceptance}")
         print(f"  base:       {os.path.basename(repo)}@{commit[:8]}")
-        print(f"  close with: helicon run close --accept | --rework | --reject")
+        # The compounding edge: a prompt you ACCEPTED on a similar objective,
+        # offered before the work rather than filed after it. Silent when there
+        # is no real match — a confident-looking wrong suggestion is worse than
+        # none, so the objective it was accepted for is always shown with it.
+        for s in capture.suggest_prompt(conn, args.objective):
+            print(f"\n  ── you accepted this prompt for a similar objective "
+                  f"({int(s['similarity'] * 100)}% overlap) ──")
+            print(f"  was:  {s['objective']}")
+            print(f"  {s['prompt'][:400]}")
+        print(f"\n  close with: helicon run close --accept | --rework | --reject")
         return
 
     if args.action == "status":
@@ -776,10 +785,22 @@ def cmd_hook(args):
     NEVER auto-installs into your live ~/.claude/settings.json."""
     import json as _json
     if getattr(args, "print_config", False):
-        cfg = {"hooks": {"UserPromptSubmit": [{"hooks": [{"type": "command",
-               "command": "HELICON_CONFIG=/path/to/config.json helicon hook userprompt"}]}]}}
-        print("# Paste into ~/.claude/settings.json (Helicon does not auto-install):")
+        def _h(event, arg):
+            return {event: [{"hooks": [{"type": "command", "command":
+                    f"HELICON_CONFIG=/path/to/config.json helicon hook {arg}"}]}]}
+        cfg = {"hooks": {**_h("UserPromptSubmit", "userprompt"),
+                         **_h("SessionStart", "sessionstart"),
+                         **_h("InstructionsLoaded", "instructions"),
+                         **_h("Stop", "stop")}}
+        print("# Paste into ~/.claude/settings.json (Helicon does not auto-install).")
+        print("# SessionStart/Stop make every terminal a reviewable run without")
+        print("# you typing anything; UserPromptSubmit delivers your rulings back.")
         print(_json.dumps(cfg, indent=2))
+        print("\n# Two documented limits, so this is not trusted further than it goes:")
+        print("#  - hooks FAIL OPEN: a shell hook exiting non-zero lets the work proceed,")
+        print("#    so absence of a run means the hook broke, not that nothing ran.")
+        print("#  - InstructionsLoaded covers CLAUDE.md/rules ONLY — not retrieved")
+        print("#    memory, MCP payloads, file reads or fetched web content.")
         return
     from helicon.config import load_config
     from helicon.db import init_db
@@ -793,10 +814,82 @@ def cmd_hook(args):
     session = str(payload.get("session_id", ""))[:16]
     config = load_config()
     conn = init_db(config["db_path"])
+
+    event = (getattr(args, "event", "") or "userprompt").lower()
+    if event in ("sessionstart", "instructions", "stop"):
+        from helicon import autogov
+        if event == "sessionstart":
+            autogov.session_start(conn, cwd, session,
+                                  source=payload.get("source", ""))
+        elif event == "instructions":
+            # The harness names this field differently across surfaces; accept
+            # the documented shapes rather than assuming one and silently
+            # recording zero context files.
+            paths = (payload.get("instruction_files") or payload.get("paths")
+                     or payload.get("files") or [])
+            if isinstance(paths, str):
+                paths = [paths]
+            autogov.instructions_loaded(conn, session, list(paths))
+        else:
+            autogov.session_stop(conn, session,
+                                 payload.get("transcript_path", ""))
+        # A hook that prints nothing is a hook that changes nothing about the
+        # session. Observation must never alter the run it observes.
+        return
+
     ctx = hook_deliver(conn, cwd, session)
     if ctx:
         print(_json.dumps({"hookSpecificOutput": {
             "hookEventName": "UserPromptSubmit", "additionalContext": ctx}}))
+
+
+def cmd_queue(args):
+    """The valuation gate. Turns the pattern log back into a queue: a finding
+    reaches you only if it has consequence, needs a human, and still re-verifies.
+    Dry by default — you see the cut before it happens, and can undo it."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import valuation
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    if getattr(args, "undo", False):
+        n = valuation.undo(conn)
+        print(f"  restored {n} finding(s) to the queue")
+        return
+    print(valuation.format_result(valuation.triage_open(conn, apply=args.apply)))
+
+
+def cmd_fleet(args):
+    """The Fleet — one screen for five terminals. What is running, what it cost,
+    what needs your eyes, and whether your accepted runs are cheaper than your
+    rejected ones. The live cousin of `unreviewed`."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import fleet, autogov
+    config = load_config()
+    conn = init_db(config["db_path"])
+    print(fleet.format_fleet(
+        fleet.running(conn),
+        fleet.spend_by_project(conn, days=args.days),
+        autogov.unreviewed(conn, limit=50),
+        fleet.efficiency(conn)))
+
+
+def cmd_unreviewed(args):
+    """What ran while you were not watching, and still has no verdict.
+
+    The operator's own account of the failure this answers: "whenever I use an
+    agent full out, I feel like I lost things because I didn't review it." That
+    is a missing surface, not a mood. Auto-governance without this command would
+    make it WORSE — more work captured, still nothing asking for his eyes.
+    """
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import autogov
+    config = load_config()
+    conn = init_db(config["db_path"])
+    print(autogov.format_unreviewed(autogov.unreviewed(conn, limit=args.limit)))
 
 
 def cmd_guard(args):
@@ -1132,7 +1225,8 @@ def cmd_rot(args):
         identity_scan(conn, judge_client=judge_client, judge_model=judge_model)
         relation_scan(conn)
         n = conn.execute(
-            "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
+            "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+            "AND machine_decision IS NULL").fetchone()[0]
         print(f"filed findings — {n} open to rule.  Next:  helicon resolve --list\n")
 
     res = run_rot_exam(conn, judge_client=judge_client, judge_model=judge_model)
@@ -1150,7 +1244,8 @@ def cmd_rot(args):
     # recompiled" never sees the moat — which is the whole thesis.
     if not getattr(args, "file", False) and res.get("rot_found"):
         open_n = conn.execute(
-            "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL"
+            "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+            "AND machine_decision IS NULL"
         ).fetchone()[0]
         if open_n:
             print(f"  {open_n} finding(s) waiting on your ruling:  helicon resolve --list")
@@ -1578,7 +1673,8 @@ def cmd_evolve(args):
     conn = init_db(config["db_path"])
 
     before_open = conn.execute(
-        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+            "AND machine_decision IS NULL").fetchone()[0]
     before_cubes = conn.execute("SELECT COUNT(*) FROM helicon_cubes").fetchone()[0]
 
     added = 0
@@ -1611,7 +1707,8 @@ def cmd_evolve(args):
     gold = write_gold(conn, config)
 
     after_open = conn.execute(
-        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL").fetchone()[0]
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+            "AND machine_decision IS NULL").fetchone()[0]
 
     print("\nSTACK EVOLUTION — while you were away")
     after_cubes = conn.execute("SELECT COUNT(*) FROM helicon_cubes").fetchone()[0]
@@ -1661,13 +1758,15 @@ def cmd_resolve(args):
         contradictions = conn.execute(
             "SELECT id, finding, severity FROM audit_log "
             "WHERE audit_type = 'factual' AND details LIKE '%pair_key%' "
-            "AND human_decision IS NULL ORDER BY id").fetchall()
+            "AND human_decision IS NULL AND machine_decision IS NULL ORDER BY id").fetchall()
         forks = conn.execute(
             "SELECT id, finding, severity FROM audit_log "
-            "WHERE audit_type = 'identity' AND human_decision IS NULL ORDER BY id").fetchall()
+            "WHERE audit_type = 'identity' AND human_decision IS NULL "
+            "AND machine_decision IS NULL ORDER BY id").fetchall()
         phantoms = conn.execute(
             "SELECT id, finding, severity FROM audit_log "
-            "WHERE audit_type = 'provenance' AND human_decision IS NULL ORDER BY id").fetchall()
+            "WHERE audit_type = 'provenance' AND human_decision IS NULL "
+            "AND machine_decision IS NULL ORDER BY id").fetchall()
         if not (contradictions or forks or phantoms):
             print("Nothing open to rule. (Findings are filed by `helicon evolve`; "
                   "`helicon audit` detects read-only.)")
@@ -1964,6 +2063,18 @@ def cmd_doctor(_args):
         checks.append(("OK", f"helicon on PATH ({path_hit})"))
     else:
         checks.append(("FAIL", "helicon not on PATH — run: pip install -e ."))
+    source_root = os.path.realpath(os.path.dirname(os.path.dirname(__file__)))
+    cwd = os.path.realpath(os.getcwd())
+    if (os.path.isfile(os.path.join(cwd, "pyproject.toml"))
+            and os.path.isdir(os.path.join(cwd, "helicon"))
+            and source_root != cwd):
+        checks.append((
+            "FAIL",
+            f"CLI imports {source_root}, not this checkout {cwd} — "
+            "run here: pip install -e .",
+        ))
+    else:
+        checks.append(("OK", f"CLI source {source_root}"))
 
     config = load_config()
     if not config:
@@ -2547,7 +2658,9 @@ def main():
     run_p.add_argument("--note", default="", help="close: the verdict note")
 
     hook_p = sub.add_parser("hook", help="Claude Code UserPromptSubmit hook: deliver your rulings into a live session (--print-config for the settings snippet)")
-    hook_p.add_argument("event", nargs="?", default="userprompt", help="hook event (userprompt)")
+    hook_p.add_argument("event", nargs="?", default="userprompt",
+                        choices=["userprompt", "sessionstart", "instructions", "stop"],
+                        help="hook event: userprompt (deliver rulings) / sessionstart / instructions / stop (auto-govern)")
     hook_p.add_argument("--print-config", action="store_true", help="print the settings.json snippet (never auto-installs)")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
@@ -2622,6 +2735,16 @@ def main():
     resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
     resolve_p.add_argument("--retire", metavar="MEMORY_ID", help="with an output-review ruling: retire the memory that caused the bad output (from `helicon attribute`)")
+
+    fleet_p = sub.add_parser("fleet", help="One screen for the whole fleet: running · spend · needs-you · efficiency")
+    fleet_p.add_argument("--days", type=int, default=7, help="spend window (default 7)")
+
+    unrev_p = sub.add_parser("unreviewed", help="What ran while you weren't watching and still has no verdict")
+    unrev_p.add_argument("--limit", type=int, default=50, help="max runs to list (default 50)")
+
+    queue_p = sub.add_parser("queue", help="The valuation gate: escalate only findings with consequence that need a human and still re-verify (dry by default)")
+    queue_p.add_argument("--apply", action="store_true", help="record the machine decisions (removes them from the queue; never writes human_decision)")
+    queue_p.add_argument("--undo", action="store_true", help="put every auto-retired finding back in the queue")
 
     guard_p = sub.add_parser("guard", help="Check a proposed output against the law (rulings) before it's written")
     guard_p.add_argument("text", help="the output/claim you're about to assert")
@@ -2699,6 +2822,9 @@ def main():
         "runs": cmd_runs,
         "judge-bench": cmd_judge_bench,
         "attribute": cmd_attribute,
+        "queue": cmd_queue,
+        "fleet": cmd_fleet,
+        "unreviewed": cmd_unreviewed,
         "guard": cmd_guard,
         "ask": cmd_ask,
         "brief": cmd_brief,
