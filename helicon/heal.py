@@ -40,7 +40,7 @@ DEMO_CONFIG = {
     }
 }
 
-_ACTIVE = "merged_into IS NULL AND review_status != 'killed'"
+_ACTIVE = "merged_into IS NULL AND review_status NOT IN ('killed', 'superseded')"
 
 DEMO_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                        "data", "helicon-demo.db")

@@ -60,6 +60,20 @@ async def resolve_identity_finding(req: ResolveIdentityRequest):
 async def confirm_finding(req: ConfirmRequest):
     conn = get_conn()
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    finding_row = conn.execute(
+        "SELECT audit_type, target_id FROM audit_log WHERE id=?",
+        (req.finding_id,),
+    ).fetchone()
+
+    def reward_agent_flag() -> None:
+        if finding_row and finding_row["audit_type"] == "agent-flag":
+            from helicon.utility import update_reward
+            # The agent only proposed the signal. The human's keep/retire
+            # decision is the first point allowed to train retrieval utility.
+            update_reward(
+                conn, finding_row["target_id"],
+                0.0 if req.decision == "acted" else 1.0,
+            )
 
     # A dismissal only becomes law if it carries a REASON: gold.py emits a
     # precedent for `hd == "dismissed" and d.get("dismiss_reason")` and nothing
@@ -77,6 +91,8 @@ async def confirm_finding(req: ConfirmRequest):
         res = dismiss_finding(conn, req.finding_id, req.notes.strip())
         if not res.get("ok"):
             raise HTTPException(status_code=400, detail=res.get("error"))
+        reward_agent_flag()
+        conn.commit()
         return {"finding_id": req.finding_id, "decision": req.decision,
                 "killed_memories": [], "killed_cubes": [],  # cube key deprecated
                 "precedent": True}
@@ -107,6 +123,7 @@ async def confirm_finding(req: ConfirmRequest):
                     (cube_id, f"Killed via audit: {audit_type}", now),
                 )
 
+    reward_agent_flag()
     conn.commit()
     # precedent False: a dismissal with no reason still clears the queue and
     # still dedups, but it compiles to no law. Say so rather than imply it.

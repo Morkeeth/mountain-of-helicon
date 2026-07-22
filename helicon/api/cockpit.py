@@ -38,12 +38,13 @@ async def cockpit(run: bool = False):
 
 
 @router.get("/cockpit/artifact")
-async def cockpit_artifact(repo_path: str, kind: str, ref: str):
+async def cockpit_artifact(repo_path: str, kind: str, ref: str,
+                           expected_hash: str = ""):
     """INSPECT: render one artifact natively (markdown / diff). All allowlist +
     containment + privacy enforcement is server-side in load_artifact (P0-1) —
     the caller-supplied path is validated, never trusted."""
     from helicon.cockpit import load_artifact
-    return load_artifact(repo_path, kind, ref)
+    return load_artifact(repo_path, kind, ref, expected_hash=expected_hash)
 
 
 @router.post("/cockpit/rule")

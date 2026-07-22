@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from itertools import combinations
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from helicon.api.app import get_conn
 from helicon.api.integrity import _SKILL_ROOTS, _terms
@@ -33,6 +34,10 @@ PREVIEW_CHARS = 300
 BATTERY_K = 5
 
 _SEVERITY_RANK = {"critical": 4, "high": 3, "warning": 2, "medium": 2, "info": 1}
+
+
+class QueueUndoRequest(BaseModel):
+    batch_id: str = ""
 
 # Rare, actionable classes outrank bulk housekeeping regardless of severity:
 # one cross-source contradiction matters more than the 166th stale note.
@@ -110,7 +115,7 @@ def _audit_findings(conn) -> list[dict]:
            FROM audit_log a
            LEFT JOIN helicon_cubes c
              ON a.target_type = 'cube' AND c.id = a.target_id
-           WHERE a.human_decision IS NULL
+           WHERE a.human_decision IS NULL AND a.machine_decision IS NULL
            ORDER BY a.audited_at DESC"""
     ).fetchall()
 
@@ -393,3 +398,34 @@ async def list_findings(kind: str | None = None, lane: str | None = None,
     }
 
     return {"findings": findings[: max(limit, 0)], "summary": summary}
+
+
+@router.get("/queue")
+async def queue_preview():
+    """Preview the valuation cut. Read-only by default."""
+    from helicon import valuation
+    conn = get_conn()
+    result = valuation.triage_open(conn, apply=False)
+    latest = conn.execute(
+        "SELECT machine_batch_id AS batch_id, COUNT(*) AS handled, "
+        "MAX(machine_decided_at) AS decided_at FROM audit_log "
+        "WHERE machine_decision='auto-retired' "
+        "GROUP BY machine_batch_id ORDER BY decided_at DESC LIMIT 1"
+    ).fetchone()
+    result["last_batch"] = dict(latest) if latest else None
+    return result
+
+
+@router.post("/queue/apply")
+async def queue_apply():
+    """Record one reversible machine-review batch."""
+    from helicon import valuation
+    return valuation.triage_open(get_conn(), apply=True)
+
+
+@router.post("/queue/undo")
+async def queue_undo(req: QueueUndoRequest):
+    """Restore exactly one valuation batch, never unrelated machine state."""
+    from helicon import valuation
+    restored = valuation.undo(get_conn(), req.batch_id or None)
+    return {"ok": True, "restored": restored, "batch_id": req.batch_id or None}

@@ -79,7 +79,8 @@ def find_suspects(conn: sqlite3.Connection, cube_limit: int = 4000) -> list[dict
     """Stage 1, deterministic and free: cubes carrying a fast-fact signal."""
     rows = conn.execute(
         "SELECT id, source, source_ref, title, content, summary FROM helicon_cubes "
-        "WHERE merged_into IS NULL AND review_status != 'killed' "
+        "WHERE merged_into IS NULL "
+        "AND review_status NOT IN ('killed', 'superseded') "
         "ORDER BY created_at DESC LIMIT ?",
         (cube_limit,),
     ).fetchall()

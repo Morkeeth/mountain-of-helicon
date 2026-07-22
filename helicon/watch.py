@@ -57,7 +57,8 @@ def collect_drift(conn: sqlite3.Connection, state: dict,
     last_id = state.get("last_audit_id", 0)
     rows = conn.execute(
         "SELECT id, audit_type, finding, severity FROM audit_log "
-        "WHERE id > ? AND human_decision IS NULL ORDER BY id", (last_id,),
+        "WHERE id > ? AND human_decision IS NULL AND machine_decision IS NULL "
+        "ORDER BY id", (last_id,),
     ).fetchall()
     max_row = conn.execute("SELECT MAX(id) m FROM audit_log").fetchone()
     max_id = max(max_row["m"] or 0, last_id)

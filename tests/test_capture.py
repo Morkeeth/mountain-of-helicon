@@ -61,25 +61,55 @@ def test_capture_real_facts_not_fabricated(conn, tmp_path, monkeypatch):
     assert conn.execute("SELECT COUNT(*) FROM task_runs").fetchone()[0] == 0
 
 
-def test_govern_accept_promote_only_on_accepted(conn, tmp_path, monkeypatch):
+def test_govern_preserves_retrospective_provenance_and_final_verdict(conn, tmp_path, monkeypatch):
     repo, jl = _make_session(tmp_path)
     monkeypatch.setattr(capture, "_safe_repo_root", lambda p, ar=None: str(repo))
     cap = capture.capture_session(conn, jl)
     g = capture.govern_from_capture(conn, cap["capture_id"], "obj", "acceptance frozen")
     assert g["ok"]
     rid = g["task_run_id"]
+    row = conn.execute(
+        "SELECT provenance FROM run_captures WHERE id=?", (cap["capture_id"],)
+    ).fetchone()
+    assert row["provenance"] == "imported"
+
     # rework first -> no promotion
     taskrun.accept_run(conn, rid, "rework", note="not good enough")
     assert capture.promote_prompt(conn, rid)["ok"] is False
     assert conn.execute("SELECT COUNT(*) FROM prompt_library").fetchone()[0] == 0
-    # accept -> promotes exactly one
-    taskrun.accept_run(conn, rid, "accepted", note="good")
-    assert capture.promote_prompt(conn, rid)["ok"] is True
-    assert conn.execute("SELECT COUNT(*) FROM prompt_library").fetchone()[0] == 1
-    # append-only history preserved (rework AND accepted both recorded)
+
+    # The same artifact cannot be laundered from rework into accepted.
+    with pytest.raises(taskrun.TaskRunError):
+        taskrun.accept_run(conn, rid, "accepted", note="good")
     kinds = [e["kind"] for e in conn.execute(
         "SELECT kind FROM run_events WHERE task_run_id=? ORDER BY id", (rid,)).fetchall()]
-    assert "rework" in kinds and "accepted" in kinds
+    assert "rework" in kinds and "accepted" not in kinds
+
+
+def test_accepted_prompt_promotion_is_idempotent(conn, tmp_path, monkeypatch):
+    repo, jl = _make_session(tmp_path)
+    monkeypatch.setattr(capture, "_safe_repo_root", lambda p, ar=None: str(repo))
+    cap = capture.capture_session(conn, jl)
+    g = capture.govern_from_capture(conn, cap["capture_id"], "obj", "acceptance frozen")
+    rid = g["task_run_id"]
+
+    taskrun.accept_run(conn, rid, "accepted", note="good")
+    first = capture.promote_prompt(conn, rid)
+    second = capture.promote_prompt(conn, rid)
+
+    assert first["ok"] is True
+    assert second["ok"] is True and second["existing"] is True
+    assert first["prompt_id"] == second["prompt_id"]
+    assert conn.execute(
+        "SELECT COUNT(*) FROM prompt_library WHERE task_run_id=?", (rid,)
+    ).fetchone()[0] == 1
+    accepted_events = conn.execute(
+        "SELECT COUNT(*) FROM run_events WHERE task_run_id=? AND kind='accepted'", (rid,)
+    ).fetchone()[0]
+    taskrun.accept_run(conn, rid, "accepted")
+    assert conn.execute(
+        "SELECT COUNT(*) FROM run_events WHERE task_run_id=? AND kind='accepted'", (rid,)
+    ).fetchone()[0] == accepted_events
 
 
 def test_open_run_requires_acceptance(conn):

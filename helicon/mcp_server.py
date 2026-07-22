@@ -380,7 +380,8 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
 
     contradictions = conn.execute(
         "SELECT finding FROM audit_log WHERE audit_type = 'factual' "
-        "AND human_decision IS NULL ORDER BY audited_at DESC LIMIT 3"
+        "AND human_decision IS NULL AND machine_decision IS NULL "
+        "ORDER BY audited_at DESC LIMIT 3"
     ).fetchall()
 
     clean_results = []
@@ -418,10 +419,8 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
 
 def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
     """Point-of-use correction. stale/wrong become PENDING audit findings the
-    human confirms in FINDINGS; the agent proposes, it never kills. useful
-    updates the Q-value + marks the retrieval acted-on. Nothing here counts
-    as human evidence for rule learning (session guard lives in triage.py)."""
-    from helicon.utility import update_reward
+    human confirms in FINDINGS; the agent proposes, it never kills or directly
+    trains utility ranking. Only a later human ruling may update Q-values."""
 
     cube = conn.execute(
         "SELECT id, title, review_status FROM helicon_cubes WHERE id = ?", (memory_id,)
@@ -431,23 +430,30 @@ def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
 
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     if verdict == "useful":
-        update_reward(conn, memory_id, 1.0)
         conn.execute(
             "UPDATE retrieval_log SET was_acted_on = 1 WHERE cube_id = ? AND was_acted_on = 0",
             (memory_id,),
         )
+        conn.execute(
+            """INSERT INTO audit_log (audit_type, target_type, target_id, finding,
+               severity, proposed_action, human_decision, details, audited_at)
+               VALUES ('agent-flag', 'cube', ?, ?, 'low', 'keep', NULL,
+                       '{"agent_verdict":"useful"}', ?)""",
+            (memory_id, "Agent flagged as useful", now),
+        )
         conn.commit()
         return {"ok": True, "memory_id": memory_id, "verdict": "useful",
-                "effect": "reward recorded; retrieval marked acted-on"}
+                "effect": ("retrieval marked acted-on; pending finding created; "
+                           "human confirmation required before utility reward")}
 
     # stale / wrong -> pending finding, human decides
-    update_reward(conn, memory_id, 0.0)
     finding = f"Agent flagged as {verdict}" + (f": {reason}" if reason else "")
     conn.execute(
         """INSERT INTO audit_log (audit_type, target_type, target_id, finding,
            severity, proposed_action, human_decision, details, audited_at)
-           VALUES ('agent-flag', 'cube', ?, ?, ?, 'kill', NULL, '{}', ?)""",
-        (memory_id, finding, "high" if verdict == "wrong" else "medium", now),
+           VALUES ('agent-flag', 'cube', ?, ?, ?, 'kill', NULL, ?, ?)""",
+        (memory_id, finding, "high" if verdict == "wrong" else "medium",
+         json.dumps({"agent_verdict": verdict}), now),
     )
     conn.commit()
     return {"ok": True, "memory_id": memory_id, "verdict": verdict,
@@ -503,6 +509,7 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         rows = conn.execute(
             "SELECT finding, severity, details FROM audit_log "
             "WHERE audit_type = 'factual' AND human_decision IS NULL "
+            "AND machine_decision IS NULL "
             "ORDER BY audited_at DESC LIMIT 10"
         ).fetchall()
         results = []

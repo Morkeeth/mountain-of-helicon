@@ -18,6 +18,7 @@ import glob
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import uuid
 from datetime import datetime, timezone
@@ -163,6 +164,10 @@ def _artifacts(repo: str, limit: int = 40) -> list[dict]:
                         "observed_at": _now(), "state": "uncommitted"})
             seen.add(p)
         if len(out) >= limit:
+            # Say so. A silently capped list reads downstream as "these are all
+            # the files", which made the fleet drift signal fire on a run that
+            # had not drifted.
+            out.append({"path": "", "state": "truncated", "observed_at": _now()})
             return out
     for p in _git(repo, "show", "--name-only", "--pretty=format:", "HEAD").splitlines():
         p = p.strip()
@@ -173,6 +178,7 @@ def _artifacts(repo: str, limit: int = 40) -> list[dict]:
                     "observed_at": _now(), "state": "last-commit"})
         seen.add(p)
         if len(out) >= limit:
+            out.append({"path": "", "state": "truncated", "observed_at": _now()})
             break
     return out
 
@@ -248,7 +254,10 @@ def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
                              detail=f"{len(manifest)} artifact(s) from capture {capture_id}")
     except taskrun.TaskRunError as e:
         return {"ok": False, "error": str(e)}
-    conn.execute("UPDATE run_captures SET task_run_id=?, provenance='governed' WHERE id=?",
+    # Linking a historical capture to a TaskRun does not move its acceptance
+    # contract back in time. Preserve `imported` so the UI cannot present a
+    # retrospective wrapper as work governed before execution.
+    conn.execute("UPDATE run_captures SET task_run_id=? WHERE id=?",
                  (rid, capture_id))
     conn.commit()
     return {"ok": True, "task_run_id": rid, "capture_id": capture_id}
@@ -261,22 +270,127 @@ def hook_deliver(conn, cwd, session="") -> str | None:
     and records a 'delivered' event — so delivery is PROVEN (the harness received
     it), not asserted from a DB write. Privacy-gated: a non-safe repo gets
     nothing. Still not 'obeyed' — only the run's output shows that."""
-    if _safe_repo_root(cwd) is None:
+    repo = _safe_repo_root(cwd)
+    if repo is None:
         return None
     rows = conn.execute(
-        "SELECT content FROM helicon_cubes WHERE source='output-review' "
+        "SELECT id, content FROM helicon_cubes WHERE source='output-review' "
         "AND review_status='approved' ORDER BY created_at DESC LIMIT 20").fetchall()
-    if not rows:
+
+    # A deliberate forward-governed run has exactly one open packet for this
+    # repo. Ambiguity fails closed: two open runs means Helicon cannot know which
+    # packet belongs to this session, so it delivers neither rather than guessing.
+    forward = conn.execute(
+        "SELECT id FROM task_runs WHERE status='executing' "
+        "AND task_class!='auto-observed' AND human_acceptance='pending' "
+        "AND repo_ref LIKE ? ORDER BY opened_at DESC",
+        (f"{repo}@%",),
+    ).fetchall()
+    packet = None
+    if len(forward) == 1:
+        from helicon import taskrun
+        try:
+            candidate = taskrun.render_packet(conn, forward[0]["id"])
+            if candidate["items"]:
+                packet = candidate
+        except taskrun.TaskRunError:
+            packet = None
+
+    parts = []
+    if packet:
+        parts.append(packet["text"])
+    if rows:
+        parts.append(
+            "## Helicon — rulings to obey before you write (delivered live)\n"
+            + "\n".join(f"- {r['content']}" for r in rows)
+        )
+    if not parts:
         return None
-    ctx = ("## Helicon — rulings to obey before you write (delivered live)\n"
-           + "\n".join(f"- {r['content']}" for r in rows))
-    conn.execute(
-        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) VALUES (?,?,?,?,?)",
-        (f"hook:{session}"[:40], _now(), "delivered", "helicon",
-         json.dumps({"repo": os.path.basename(cwd), "rulings": len(rows),
-                     "session": session, "bytes": len(ctx)})))
+    ctx = "\n\n".join(parts)
+
+    task_run_id = f"hook:{session}"[:40]
+    if packet:
+        task_run_id = forward[0]["id"]
+    elif session:
+        try:
+            from helicon.autogov import _find_open
+            observed = _find_open(conn, session)
+            if observed:
+                task_run_id = observed["id"]
+        except (ImportError, sqlite3.Error):
+            pass
+    now = _now()
+    conn.executemany(
+        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) "
+        "VALUES (?,?,?,?,?)",
+        [(task_run_id, now, "delivered", "helicon",
+          json.dumps({"repo": os.path.basename(cwd), "cube_id": r["id"],
+                      "session": session, "bytes": len(r["content"])}))
+         for r in rows],
+    )
+    if packet:
+        conn.execute(
+            "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) "
+            "VALUES (?,?,?,?,?)",
+            (task_run_id, now, "context_delivered", "helicon",
+             json.dumps({"repo": os.path.basename(repo),
+                         "packet_id": packet["packet_id"],
+                         "packet_hash": packet["packet_hash"],
+                         "items": packet["items"], "session": session,
+                         "bytes": len(packet["text"])})),
+        )
     conn.commit()
     return ctx
+
+
+_STOP = {"the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "with",
+         "that", "this", "is", "it", "be", "so", "as", "at", "by", "from"}
+
+
+def _terms(text: str) -> set:
+    return {w for w in "".join(c if c.isalnum() else " " for c in (text or "").lower()).split()
+            if len(w) > 2 and w not in _STOP}
+
+
+def suggest_prompt(conn, objective: str, limit: int = 1) -> list[dict]:
+    """THE READER (V2.4). Closes the loop the whole product rests on.
+
+    `promote_prompt` has been writing accepted prompts into `prompt_library`
+    since V2.2 — and until now NOTHING read that table. Not a CLI command, not
+    an API route, not the UI, not an MCP tool. The Accept button truthfully said
+    "prompt promoted to the reusable library" and the promotion was inert: a
+    write with no reader. Two tests asserted the row count went up, which is
+    precisely why a green suite did not catch it.
+
+    "Only accepted learning improves the next run" is only true if the next run
+    can SEE it. This is that edge: given a new objective, return the prompts from
+    runs the operator actually accepted, ranked by term overlap.
+
+    Deliberately dumb matching — term overlap, no embeddings. A wrong suggestion
+    that looks confidently relevant is worse than no suggestion, and the operator
+    reads the objective it came from before reusing it. Returns [] rather than a
+    weak match, and every result carries the objective it was accepted for so the
+    human judges the transfer, not the ranker.
+    """
+    want = _terms(objective)
+    if not want:
+        return []
+    rows = conn.execute(
+        "SELECT p.id, p.prompt, p.objective, p.task_class, p.model, p.harness, "
+        "p.promoted_at, p.task_run_id FROM prompt_library p "
+        "WHERE p.outcome = 'accepted' ORDER BY p.promoted_at DESC").fetchall()
+    scored = []
+    for r in rows:
+        have = _terms(r["objective"])
+        if not have:
+            continue
+        overlap = len(want & have)
+        if overlap < 2:          # one shared word is a coincidence, not a match
+            continue
+        scored.append((overlap / len(want | have), overlap, dict(r)))
+    scored.sort(key=lambda s: (-s[0], -s[1]))
+    return [{**d, "similarity": round(sim, 3), "shared_terms": n}
+            for sim, n, d in scored[:limit]]
 
 
 def promote_prompt(conn, task_run_id, by="accepted-outcome") -> dict:
@@ -287,6 +401,14 @@ def promote_prompt(conn, task_run_id, by="accepted-outcome") -> dict:
         return {"ok": False, "error": "no such run"}
     if run["human_acceptance"] != "accepted":
         return {"ok": False, "error": "only an accepted outcome promotes a prompt"}
+    existing = conn.execute(
+        "SELECT id, prompt FROM prompt_library WHERE task_run_id=? "
+        "AND outcome='accepted' ORDER BY promoted_at LIMIT 1",
+        (task_run_id,),
+    ).fetchone()
+    if existing:
+        return {"ok": True, "prompt_id": existing["id"],
+                "prompt": existing["prompt"][:120], "existing": True}
     cap = conn.execute("SELECT prompt_chain FROM run_captures WHERE task_run_id=?",
                        (task_run_id,)).fetchone()
     prompts = json.loads(cap["prompt_chain"] or "[]") if cap else []

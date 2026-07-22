@@ -24,9 +24,24 @@ def _open(conn, mode="compact"):
 
 def test_packet_provenance_is_reconstructible(conn):
     rid = _open(conn)
-    built = tr.build_packet(conn, rid, query="diet")
+    built = tr.build_packet(conn, rid, query="stripe")
     # recomputing the hash from the STORED items reproduces the frozen packet hash
     assert tr.reconstruct_packet_hash(conn, rid) == built["packet_hash"]
+    rendered = tr.render_packet(conn, rid)
+    assert rendered["packet_hash"] == built["packet_hash"]
+    assert rendered["items"] == built["included"] > 0
+    frozen_text = rendered["text"]
+    cube_id = conn.execute(
+        "SELECT cpi.cube_id FROM context_packet_items cpi "
+        "JOIN context_packets cp ON cp.id=cpi.packet_id "
+        "WHERE cp.task_run_id=? ORDER BY cpi.ordered_position LIMIT 1", (rid,)
+    ).fetchone()[0]
+    conn.execute(
+        "UPDATE helicon_cubes SET content='changed after packet freeze' WHERE id=?",
+        (cube_id,),
+    )
+    conn.commit()
+    assert tr.render_packet(conn, rid)["text"] == frozen_text
     # and the packet predates any artifact (opened -> executing, no artifact yet)
     row = conn.execute("SELECT status, artifact_attached_at FROM task_runs WHERE id=?", (rid,)).fetchone()
     assert row["status"] == "executing" and row["artifact_attached_at"] is None

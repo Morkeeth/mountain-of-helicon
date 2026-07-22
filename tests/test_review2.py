@@ -51,15 +51,22 @@ def test_flag_stale_creates_pending_finding_not_a_kill(conn):
     assert status == "pending"  # the flag did NOT kill anything
 
 
-def test_flag_useful_rewards_and_marks_acted_on(conn):
+def test_flag_useful_marks_acted_on_but_requires_human_reward(conn):
     from helicon.mcp_server import handle_tool_call
     conn.execute("INSERT INTO retrieval_log (cube_id, context, was_surfaced, was_acted_on, retrieved_at) "
                  "VALUES ('gc_live1', 't', 1, 0, ?)", (datetime.utcnow().isoformat(),))
     res = json.loads(handle_tool_call("helicon_flag", {"memory_id": "gc_live1", "verdict": "useful"}, conn))
     assert res["ok"]
     assert conn.execute("SELECT was_acted_on FROM retrieval_log WHERE cube_id='gc_live1'").fetchone()[0] == 1
-    q = conn.execute("SELECT q_value FROM memory_utility WHERE cube_id='gc_live1'").fetchone()
-    assert q is not None and q[0] > 0.5
+    utility_table = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='memory_utility'"
+    ).fetchone()
+    assert utility_table is None
+    finding = conn.execute(
+        "SELECT * FROM audit_log WHERE audit_type='agent-flag' AND target_id='gc_live1'"
+    ).fetchone()
+    assert finding["human_decision"] is None
+    assert finding["proposed_action"] == "keep"
 
 
 def test_flag_unknown_id_errors_cleanly(conn):

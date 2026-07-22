@@ -1,6 +1,7 @@
 """V2 Cockpit engine tests — run the ORIENT/INSPECT/COMPARE pipeline on a
 synthetic git fixture (deterministic, no dependence on live ~/CODE) and prove
 the privacy allowlist drops wallet/trading repos."""
+import hashlib
 import os
 import subprocess
 
@@ -75,6 +76,22 @@ def test_inspect_renders_native_artifacts(conn, tmp_path):
     diff = load_artifact(str(repo), "diff", "main...HEAD", allowed_roots=roots)
     assert diff["type"] == "diff"
     assert "NIGHTRUN.md" in diff["text"]
+
+
+def test_inspect_refuses_artifact_that_changed_after_capture(conn, tmp_path):
+    repo = _fixture_terminal(tmp_path)
+    roots = {os.path.realpath(str(repo))}
+    artifact = repo / "NIGHTRUN.md"
+    captured_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()[:16]
+    artifact.write_text("# Different output after acceptance\n")
+
+    blocked = load_artifact(
+        str(repo), "markdown", "NIGHTRUN.md",
+        allowed_roots=roots, expected_hash=captured_hash,
+    )
+
+    assert blocked["type"] == "blocked"
+    assert "changed since capture" in blocked["why"]
 
 
 def test_privacy_allowlist_drops_wallet_repo(conn, tmp_path):

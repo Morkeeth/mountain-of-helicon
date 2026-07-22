@@ -84,7 +84,8 @@ def _get_feedback_from_cubes(conn: sqlite3.Connection, keys: list[str]) -> list[
         rows = conn.execute(
             "SELECT id, title, content, confidence FROM helicon_cubes "
             "WHERE type = 'memory' AND (title LIKE ? OR content LIKE ?) "
-            "AND review_status != 'killed' AND merged_into IS NULL "
+            "AND review_status NOT IN ('killed', 'superseded') "
+            "AND merged_into IS NULL "
             "LIMIT 2",
             (f"%{search_term}%", f"%{search_term}%"),
         ).fetchall()

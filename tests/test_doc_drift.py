@@ -152,7 +152,7 @@ def test_count_right_but_list_short_is_caught(repo):
 
 def test_cli_list_short_is_caught(repo):
     """README said 43 commands and listed 39."""
-    _mutate(repo, "README.md", "`volatility` `guard` ", "")
+    _mutate(repo, "README.md", "`volatility` `unreviewed` `fleet` `queue` `guard` ", "")
     assert _fails(check_lists(str(repo)), "CLI commands list", "README.md")
 
 
@@ -218,7 +218,7 @@ def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
 
 def test_deleting_a_claim_is_not_a_way_to_pass(repo):
     """The cheapest fake fix is removing the number. It must fail, not pass."""
-    _mutate(repo, "CLAUDE.md", "- 27 routers (~106 endpoints), 16 MCP tools", "- routers, MCP tools")
+    _mutate(repo, "CLAUDE.md", "- 27 routers (~109 endpoints), 16 MCP tools", "- routers, MCP tools")
     drift = _fails(check_counts(str(repo)), "API routers", "CLAUDE.md")
     assert drift and "not found" in drift[0]["why"]
 

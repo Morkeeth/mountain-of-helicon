@@ -131,11 +131,13 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
     claims = claim_scan(conn)
     open_pairs = conn.execute(
         "SELECT COUNT(*) FROM audit_log WHERE audit_type = 'factual' "
-        "AND details LIKE '%pair_key%' AND human_decision IS NULL"
+        "AND details LIKE '%pair_key%' AND human_decision IS NULL "
+        "AND machine_decision IS NULL"
     ).fetchone()[0]
     sample_row = conn.execute(
         "SELECT finding FROM audit_log WHERE audit_type = 'factual' "
         "AND details LIKE '%pair_key%' AND human_decision IS NULL "
+        "AND machine_decision IS NULL "
         "ORDER BY audited_at DESC LIMIT 1"
     ).fetchone()
     cross_source = {

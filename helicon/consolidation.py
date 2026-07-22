@@ -109,7 +109,8 @@ def find_clusters(conn: sqlite3.Connection, min_overlap: int = 2) -> list[dict]:
 
     rows = conn.execute(
         "SELECT id, title, tags, type, source, confidence, created_at "
-        "FROM helicon_cubes WHERE merged_into IS NULL AND review_status != 'killed' "
+        "FROM helicon_cubes WHERE merged_into IS NULL "
+        "AND review_status NOT IN ('killed', 'superseded') "
         "ORDER BY created_at DESC LIMIT 500"
     ).fetchall()
 
