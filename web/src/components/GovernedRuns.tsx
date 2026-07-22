@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArtifactView } from './ArtifactView';
 
 /* GOVERNED RUNS (V2.2) — the atomic unit of the control plane.
-   A real session becomes a Run you can understand without reconstructing it from
-   Apple Notes, git, or agent claims: its verbatim prompts, model/harness, real
-   tokens, artifact, and your accept/rework/reject verdict + receipt. */
+   Forward runs freeze their contract before work. Imported sessions preserve
+   their retrospective provenance and show repository artifacts as observations,
+   not as proven session output. */
 
 const INK = 'var(--helicon-ink)';
 const MUTED = 'var(--helicon-muted)';
@@ -127,7 +127,9 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
       <h2 style={{ fontFamily: SERIF, color: INK, fontWeight: 300 }} className="text-[20px] md:text-[24px] leading-snug">{run.governed?.objective || `${repoName(run.repo)} session`}</h2>
       {run.governed?.acceptance_test && (
         <div className="mt-2 p-2.5 rounded-lg" style={{ background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
-          <span className="text-[9.5px] uppercase tracking-[0.14em]" style={{ color: MUTED }}>Acceptance contract (frozen) </span>
+          <span className="text-[9.5px] uppercase tracking-[0.14em]" style={{ color: MUTED }}>
+            {run.provenance === 'imported' ? 'Acceptance recorded retrospectively ' : 'Acceptance contract (frozen before work) '}
+          </span>
           <span className="text-[12.5px]" style={{ color: INK }}>{run.governed.acceptance_test}</span>
         </div>
       )}
@@ -167,8 +169,13 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
             ))}
           </div>
         </div>
+        {run.provenance === 'imported' && (
+          <p className="mb-2 text-[11px]" style={{ color: FAINT }}>
+            Repository state observed when this session was imported; attribution to the session is unverified.
+          </p>
+        )}
         <div className="p-3 rounded-xl" style={{ background: 'var(--helicon-panel)', border: '1px solid var(--helicon-line)', maxHeight: 320, overflowY: 'auto' }}>
-          {art ? <ArtifactView repoPath={run.repo} art={{ type: 'markdown', label: art.path, ref: art.path }} /> : <p className="text-[12px]" style={{ color: FAINT }}>No artifact captured.</p>}
+          {art ? <ArtifactView repoPath={run.repo} art={{ type: 'markdown', label: art.path, ref: art.path, content_hash: art.content_hash }} /> : <p className="text-[12px]" style={{ color: FAINT }}>No artifact captured.</p>}
         </div>
         {art?.content_hash && <p className="mt-1 text-[10px]" style={{ color: FAINT, fontFamily: MONO }}>sha256:{art.content_hash} · {art.state}</p>}
       </section>

@@ -11,7 +11,7 @@ const ACCENT = 'var(--helicon-accent)';
 const SERIF = 'var(--helicon-serif)';
 const MONO = 'var(--helicon-mono)';
 
-export type ArtifactRef = { type: string; label: string; ref: string; note?: string };
+export type ArtifactRef = { type: string; label: string; ref: string; note?: string; content_hash?: string };
 type Loaded = { type: string; label?: string; text: string; why?: string };
 
 export function ArtifactView({ repoPath, art }: { repoPath: string; art: ArtifactRef }) {
@@ -22,12 +22,13 @@ export function ArtifactView({ repoPath, art }: { repoPath: string; art: Artifac
     let live = true;
     setData(null); setErr(null);
     const q = new URLSearchParams({ repo_path: repoPath, kind: art.type, ref: art.ref });
+    if (art.content_hash) q.set('expected_hash', art.content_hash);
     fetch(`/api/cockpit/artifact?${q}`)
       .then(r => r.json())
       .then(d => { if (live) setData(d); })
       .catch(e => { if (live) setErr(String(e)); });
     return () => { live = false; };
-  }, [repoPath, art.type, art.ref]);
+  }, [repoPath, art.type, art.ref, art.content_hash]);
 
   if (err) return <Note>Could not load the artifact: {err}</Note>;
   if (!data) return <Note>Opening {art.label}…</Note>;
