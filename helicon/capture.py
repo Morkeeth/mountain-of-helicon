@@ -395,10 +395,15 @@ def suggest_prompt(conn, objective: str, limit: int = 1) -> list[dict]:
 
 def promote_prompt(conn, task_run_id, by="accepted-outcome") -> dict:
     """Outcome gate: only an ACCEPTED run promotes its prompt into the reusable
-    library. Rejected/rework prompts stay history and never rank as good."""
+    library. Rejected/rework prompts stay history and never rank as good.
+    Auto-observed runs have no frozen contract — accepting them must never
+    teach the next run (see helicon.autogov honesty line)."""
     run = conn.execute("SELECT * FROM task_runs WHERE id=?", (task_run_id,)).fetchone()
     if run is None:
         return {"ok": False, "error": "no such run"}
+    if run["task_class"] == "auto-observed":
+        return {"ok": False,
+                "error": "observed run has no frozen contract — prompt not promoted"}
     if run["human_acceptance"] != "accepted":
         return {"ok": False, "error": "only an accepted outcome promotes a prompt"}
     existing = conn.execute(

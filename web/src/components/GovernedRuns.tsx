@@ -128,7 +128,11 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
       {run.governed?.acceptance_test && (
         <div className="mt-2 p-2.5 rounded-lg" style={{ background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
           <span className="text-[9.5px] uppercase tracking-[0.14em]" style={{ color: MUTED }}>
-            {run.provenance === 'imported' ? 'Acceptance recorded retrospectively ' : 'Acceptance contract (frozen before work) '}
+            {run.provenance === 'imported'
+              ? 'Acceptance recorded retrospectively '
+              : run.provenance === 'observed'
+                ? 'No acceptance was frozen (auto-observed) '
+                : 'Acceptance contract (frozen before work) '}
           </span>
           <span className="text-[12.5px]" style={{ color: INK }}>{run.governed.acceptance_test}</span>
         </div>

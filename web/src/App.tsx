@@ -219,7 +219,18 @@ function App() {
       const findings = prev.findings.filter(x => x.id !== f.id);
       const by_kind = { ...prev.summary.by_kind, [f.kind]: Math.max(0, (prev.summary.by_kind[f.kind] || 1) - 1) };
       const by_severity = { ...prev.summary.by_severity, [f.severity]: Math.max(0, (prev.summary.by_severity[f.severity] || 1) - 1) };
-      return { findings, summary: { ...prev.summary, total: Math.max(0, prev.summary.total - 1), by_kind, by_severity } };
+      const wasDecision = f.lane === 'decision';
+      return {
+        findings,
+        summary: {
+          ...prev.summary,
+          total: Math.max(0, prev.summary.total - 1),
+          needs_you: Math.max(0, prev.summary.needs_you - (wasDecision ? 1 : 0)),
+          ambient: Math.max(0, (prev.summary.ambient || 0) - (wasDecision ? 0 : 1)),
+          by_kind,
+          by_severity,
+        },
+      };
     });
     refresh(); // review decisions move the Helicon Score
   }, [refresh]);

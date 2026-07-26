@@ -47,7 +47,12 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
   if (receipt) {
     return <ReceiptView receipt={receipt} undone={undone}
       onUndo={() => api.undoBatch(receipt.undo_token).then(() => setUndone(true))}
-      onDone={() => { receipt.receipt.filter(r => r.applied).forEach(r => onActed({ id: `audit-${r.finding_id}` } as Finding)); advance(); }} />;
+      onDone={() => {
+        // onActed removes ruled findings from the parent list; the next item
+        // slides into index i. Advancing here would skip it.
+        receipt.receipt.filter(r => r.applied).forEach(r => onActed({ id: `audit-${r.finding_id}` } as Finding));
+        setReceipt(null); setUndone(false); setReasoning(false); setReasonText(''); setError(null);
+      }} />
   }
 
   const done = queue.length === 0 || i >= queue.length;
