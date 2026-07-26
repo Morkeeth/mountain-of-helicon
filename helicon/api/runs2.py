@@ -85,20 +85,25 @@ def _run_view(conn, cap) -> dict:
 
 
 def _taskrun_view(tr) -> dict:
-    """Represent a forward CLI-opened TaskRun in the same Cockpit shape.
+    """Represent a captureless TaskRun in the same Cockpit shape.
 
-    Forward runs have no retrospective transcript capture by design. Unknown
-    fields stay empty rather than making the real pre-execution run invisible.
+    Forward (`helicon run open`) and auto-observed (Fleet/autogov) runs both
+    lack a retrospective transcript capture. Unknown fields stay empty rather
+    than making the real run invisible. Provenance must mirror task_class —
+    labeling an auto-observed run as "forward" fabricates a frozen contract.
     """
     task = dict(tr)
     repo_ref = task.get("repo_ref") or ""
     repo, sep, commit = repo_ref.rpartition("@")
     if not sep:
         repo, commit = repo_ref, ""
+    provenance = (
+        "observed" if task.get("task_class") == "auto-observed" else "forward"
+    )
     return {
         "id": task["id"],
         "task_run_id": task["id"],
-        "provenance": "forward",
+        "provenance": provenance,
         "session_ids": [],
         "repo": repo,
         "branch": None,

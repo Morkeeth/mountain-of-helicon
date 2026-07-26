@@ -501,13 +501,17 @@ def dismiss_finding(conn: sqlite3.Connection, audit_id: int, reason: str) -> dic
     """The other verdict: this finding is not real rot. Reason is recorded
     (a dismissal without a why is future confusion); the pair_key stays in
     the dedup set so the same finding never refiles."""
-    row = conn.execute("SELECT id, human_decision FROM audit_log WHERE id = ?",
-                       (audit_id,)).fetchone()
+    row = conn.execute(
+        "SELECT id, human_decision, machine_decision FROM audit_log WHERE id = ?",
+        (audit_id,)).fetchone()
     if row is None:
         return {"ok": False, "error": f"no audit finding #{audit_id}"}
     if row["human_decision"]:
         return {"ok": False, "error": f"finding #{audit_id} already decided: "
                                       f"{row['human_decision']}"}
+    if row["machine_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already machine-"
+                                      f"closed: {row['machine_decision']}"}
     conn.execute(
         "UPDATE audit_log SET human_decision = 'dismissed', resolved_at = ?, "
         "details = json_set(details, '$.dismiss_reason', ?) WHERE id = ?",
@@ -535,6 +539,9 @@ def resolve_pair(conn: sqlite3.Connection, audit_id: int, truth: str,
     if row["human_decision"]:
         return {"ok": False, "error": f"finding #{audit_id} already decided: "
                                       f"{row['human_decision']}"}
+    if row["machine_decision"]:
+        return {"ok": False, "error": f"finding #{audit_id} already machine-"
+                                      f"closed: {row['machine_decision']}"}
     if truth not in d.get("all_dates", d.get("dates", [])):
         return {"ok": False,
                 "error": f"truth {truth!r} is not one of the asserted dates "
@@ -599,10 +606,14 @@ def _existing_pair_keys(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
     Exact keys stop the same finding refiling forever (incl. dismissed FPs);
     the open set stops a sibling finding for the same fact when the best
     pair's dates shift while the first finding is still undecided — one open
-    finding per fact, not one per date combination."""
+    finding per fact, not one per date combination.
+
+    'Open' means neither a human nor the valuation gate has closed it.
+    Machine-retired findings must not suppress a live re-alarm forever.
+    """
     exact, open_facts = set(), set()
     for row in conn.execute(
-        "SELECT details, human_decision FROM audit_log "
+        "SELECT details, human_decision, machine_decision FROM audit_log "
         "WHERE audit_type = 'factual' AND details LIKE '%pair_key%'"
     ):
         try:
@@ -610,8 +621,14 @@ def _existing_pair_keys(conn: sqlite3.Connection) -> tuple[set[str], set[str]]:
         except (json.JSONDecodeError, TypeError):
             continue
         if d.get("pair_key"):
-            exact.add(d["pair_key"])
-        if row["human_decision"] is None and d.get("person") and d.get("topic"):
+            # Human rulings (incl. dismiss) permanently dedup this exact key.
+            # Machine-only retirement must not — the conflict can return.
+            if (row["machine_decision"] is None
+                    or row["human_decision"] is not None):
+                exact.add(d["pair_key"])
+        if (row["human_decision"] is None
+                and row["machine_decision"] is None
+                and d.get("person") and d.get("topic")):
             open_facts.add(f"{d['person']}|{d['topic']}")
     return exact, open_facts
 

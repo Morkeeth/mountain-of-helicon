@@ -268,3 +268,40 @@ def test_retired_memory_is_excluded_from_active_derived_surfaces(conn):
     assert _get_feedback_from_cubes(conn, ["retired_signal"]) == []
     assert find_suspects(conn) == []
     assert find_clusters(conn) == []
+
+
+def test_still_true_beats_rename_when_path_exists_again(conn, tmp_path):
+    """A rename alias must not auto-retire a dead-path finding whose path
+    exists again — re-verify first, then explain by rename."""
+    alive = tmp_path / "glaze" / "x.py"
+    alive.parent.mkdir(parents=True)
+    alive.write_text("ok")
+    conn.execute(
+        "INSERT INTO entity_aliases (old_name, new_name, renamed_at, note, "
+        "created_at) VALUES ('glaze','helicon','2026-07-04','rename','2026-07-04')")
+    conn.commit()
+    _cube(conn, "c1")
+    fid = _finding(conn, finding=f"dead path: {alive} is gone", target="c1")
+    out = valuation.evaluate(conn, conn.execute(
+        "SELECT * FROM audit_log WHERE id=?", (fid,)).fetchone())
+    assert out["escalate"] is False
+    assert out["gate"] == "still_true"
+    assert "exists again" in out["reason"]
+
+
+def test_machine_retired_finding_does_not_block_human_confirm(conn):
+    """Resolvers must refuse to human-rule a machine-closed row."""
+    from helicon.api import govern
+
+    _cube(conn, "c1")
+    fid = _finding(conn, target="c1")
+    conn.execute(
+        "UPDATE audit_log SET machine_decision='auto-retired', "
+        "machine_reason='test' WHERE id=?", (fid,))
+    conn.commit()
+    res = govern._confirm(conn, fid, "acted")
+    assert res["ok"] is False
+    assert "machine-closed" in res["error"]
+    assert conn.execute(
+        "SELECT human_decision FROM audit_log WHERE id=?", (fid,)
+    ).fetchone()[0] is None

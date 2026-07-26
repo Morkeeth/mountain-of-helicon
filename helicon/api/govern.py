@@ -50,12 +50,16 @@ def _rule_truth(conn, fid: int, truth: str) -> dict:
     value(s) become ruled-wrong, which the guard then enforces on the next write.
     Writes an approved correction cube so retrieval serves the answer, and returns
     the wrong value(s) so the receipt can prove the guard now blocks them."""
-    row = conn.execute("SELECT audit_type, human_decision, details FROM audit_log WHERE id=?",
+    row = conn.execute("SELECT audit_type, human_decision, machine_decision, details "
+                       "FROM audit_log WHERE id=?",
                        (fid,)).fetchone()
     if row is None:
         return {"ok": False, "error": f"no finding #{fid}"}
     if row["human_decision"]:
         return {"ok": False, "error": f"finding #{fid} already decided: {row['human_decision']}"}
+    if row["machine_decision"]:
+        return {"ok": False, "error": f"finding #{fid} already machine-closed: "
+                                      f"{row['machine_decision']}"}
     if row["audit_type"] != "factual":
         return {"ok": False, "error": f"finding #{fid} is not a factual contradiction"}
     truth = (truth or "").strip()
@@ -88,12 +92,17 @@ def _rule_truth(conn, fid: int, truth: str) -> dict:
 
 
 def _confirm(conn, fid: int, decision: str) -> dict:
-    row = conn.execute("SELECT human_decision, target_id, audit_type FROM audit_log WHERE id=?",
-                       (fid,)).fetchone()
+    row = conn.execute(
+        "SELECT human_decision, machine_decision, target_id, audit_type "
+        "FROM audit_log WHERE id=?",
+        (fid,)).fetchone()
     if row is None:
         return {"ok": False, "error": f"no finding #{fid}"}
     if row["human_decision"]:
         return {"ok": False, "error": f"finding #{fid} already decided: {row['human_decision']}"}
+    if row["machine_decision"]:
+        return {"ok": False, "error": f"finding #{fid} already machine-closed: "
+                                      f"{row['machine_decision']}"}
     conn.execute("UPDATE audit_log SET human_decision=?, resolved_at=? WHERE id=?",
                  (decision, _now(), fid))
     if decision == "acted" and row["audit_type"] in ("temporal", "decay"):

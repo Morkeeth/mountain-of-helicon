@@ -84,18 +84,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_log(target_id);
 CREATE INDEX IF NOT EXISTS idx_audit_pending ON audit_log(human_decision);
--- concurrency backstop: two processes (watch cron at 00:00 + evolve) racing
--- the same selectors must not double-file. Selectors read-then-insert; these
--- make the insert itself the arbiter.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_pair_key
-    ON audit_log(json_extract(details, '$.pair_key'))
-    WHERE json_extract(details, '$.pair_key') IS NOT NULL AND human_decision IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_stack_key
-    ON audit_log(json_extract(details, '$.key'))
-    WHERE json_extract(details, '$.key') IS NOT NULL AND human_decision IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_alias_key
-    ON audit_log(json_extract(details, '$.alias_key'))
-    WHERE json_extract(details, '$.alias_key') IS NOT NULL AND human_decision IS NULL;
+-- Pending unique indexes (pair/stack/alias) are created in init_db AFTER the
+-- machine_decision columns exist — see the DROP/CREATE block below SCHEMA.
 
 CREATE TABLE IF NOT EXISTS retrieval_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -418,6 +408,26 @@ def init_db(db_path: str) -> sqlite3.Connection:
                 "machine_batch_id"):
         if col not in audit_cols:
             conn.execute(f"ALTER TABLE audit_log ADD COLUMN {col} TEXT")
+    # Recreate pending unique indexes so machine-retired rows no longer block
+    # a live re-alarm. Kept out of SCHEMA because machine_decision is ALTERed
+    # onto pre-V2.3 stores after CREATE TABLE.
+    conn.executescript("""
+        DROP INDEX IF EXISTS uq_audit_pair_key;
+        DROP INDEX IF EXISTS uq_audit_stack_key;
+        DROP INDEX IF EXISTS uq_audit_alias_key;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_pair_key
+            ON audit_log(json_extract(details, '$.pair_key'))
+            WHERE json_extract(details, '$.pair_key') IS NOT NULL
+              AND human_decision IS NULL AND machine_decision IS NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_stack_key
+            ON audit_log(json_extract(details, '$.key'))
+            WHERE json_extract(details, '$.key') IS NOT NULL
+              AND human_decision IS NULL AND machine_decision IS NULL;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_audit_alias_key
+            ON audit_log(json_extract(details, '$.alias_key'))
+            WHERE json_extract(details, '$.alias_key') IS NOT NULL
+              AND human_decision IS NULL AND machine_decision IS NULL;
+    """)
     packet_cols = {
         r["name"] for r in conn.execute("PRAGMA table_info(context_packet_items)")
     }

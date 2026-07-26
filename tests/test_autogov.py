@@ -86,7 +86,31 @@ def test_an_observed_run_never_promotes_its_prompt(conn, repo):
     _session(conn, repo)
     rid = autogov.unreviewed(conn)[0]["id"]
     taskrun.accept_run(conn, rid, "accepted", note="")
+    # Exercise the real promotion gate (API/CLI Accept both call this).
+    res = capture.promote_prompt(conn, rid)
+    assert res["ok"] is False
+    assert "frozen contract" in res["error"]
     assert capture.suggest_prompt(conn, "unnamed session") == []
+    assert conn.execute(
+        "SELECT COUNT(*) FROM prompt_library WHERE task_run_id=?", (rid,)
+    ).fetchone()[0] == 0
+
+
+def test_observed_run_is_not_labeled_forward_in_cockpit(conn, repo, monkeypatch):
+    """Auto-observed must never render as provenance=forward — that header
+    claims a frozen contract the run never had."""
+    import asyncio
+    from helicon.api import runs2
+
+    _session(conn, repo)
+    rid = autogov.unreviewed(conn)[0]["id"]
+    monkeypatch.setattr(runs2, "get_conn", lambda: conn)
+    listed = asyncio.run(runs2.run_list())
+    run = next(r for r in listed["runs"] if r["task_run_id"] == rid)
+    assert run["provenance"] == "observed"
+    assert run["governed"]["task_class"] == "auto-observed"
+    detailed = asyncio.run(runs2.run_detail(task_run_id=rid))
+    assert detailed["run"]["provenance"] == "observed"
 
 
 def test_the_empty_packet_says_helicon_supplied_no_context(conn, repo):

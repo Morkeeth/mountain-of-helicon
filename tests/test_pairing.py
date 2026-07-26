@@ -356,6 +356,42 @@ def test_meta_cube_quoting_both_dates_is_not_support(conn):
     assert find_conflicts(conn) == []
 
 
+def test_machine_retired_pair_does_not_suppress_live_realarm(conn):
+    """A valuation auto-retire must not permanently suppress the same fact.
+    Human dismissals still dedup forever; machine-only closure does not."""
+    from helicon.pairing import _existing_pair_keys
+    import json
+
+    _cube(conn, "| Avery birthday May 13 | from her list |", "mindmap.md")
+    _cube(conn, "| May 18 | Avery birthday (Paris) | plan dinner |", "trips.md")
+    details = json.dumps({
+        "pair_key": "avery|birthday|05-13|05-18",
+        "person": "avery", "topic": "birthday",
+        "dates": ["05-13", "05-18"],
+    })
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, "
+        "severity, details, audited_at, machine_decision) "
+        "VALUES ('factual','cube','x','conflict','critical',?, '2026-07-01', "
+        "'auto-retired')",
+        (details,))
+    conn.commit()
+    exact, open_facts = _existing_pair_keys(conn)
+    assert "avery|birthday|05-13|05-18" not in exact
+    assert "avery|birthday" not in open_facts
+    # And the unique index must allow a new pending row with the same pair_key
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, "
+        "severity, details, audited_at) "
+        "VALUES ('factual','cube','y','conflict again','critical',?, '2026-07-02')",
+        (details,))
+    conn.commit()
+    assert conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+        "AND machine_decision IS NULL AND details LIKE '%pair_key%'"
+    ).fetchone()[0] == 1
+
+
 # --- rot exam -----------------------------------------------------------
 
 def test_rot_r1_is_tested_and_finds_the_pair(conn):

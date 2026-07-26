@@ -165,8 +165,10 @@ def _still_true(conn, row) -> tuple[bool, str]:
 
 GATES = (
     ("consequence", _consequence),
-    ("needs_human", _needs_human),
+    # still_true before needs_human: a rename alias must not auto-retire a
+    # "dead path" finding whose path exists again — re-verify first.
     ("still_true", _still_true),
+    ("needs_human", _needs_human),
 )
 
 

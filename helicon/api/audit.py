@@ -61,9 +61,20 @@ async def confirm_finding(req: ConfirmRequest):
     conn = get_conn()
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     finding_row = conn.execute(
-        "SELECT audit_type, target_id FROM audit_log WHERE id=?",
+        "SELECT audit_type, target_id, human_decision, machine_decision "
+        "FROM audit_log WHERE id=?",
         (req.finding_id,),
     ).fetchone()
+    if finding_row is None:
+        raise HTTPException(status_code=404, detail="finding not found")
+    if finding_row["human_decision"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"finding already decided: {finding_row['human_decision']}")
+    if finding_row["machine_decision"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"finding already machine-closed: {finding_row['machine_decision']}")
 
     def reward_agent_flag() -> None:
         if finding_row and finding_row["audit_type"] == "agent-flag":
@@ -85,7 +96,6 @@ async def confirm_finding(req: ConfirmRequest):
     # next time"; over HTTP it was "a human rules once and nothing happens".
     # Route through the same function the CLI uses so there is one path, with
     # its already-decided guard, rather than two that disagree.
-    precedent = False
     if req.decision == "dismissed" and req.notes.strip():
         from helicon.pairing import dismiss_finding
         res = dismiss_finding(conn, req.finding_id, req.notes.strip())
@@ -97,10 +107,13 @@ async def confirm_finding(req: ConfirmRequest):
                 "killed_memories": [], "killed_cubes": [],  # cube key deprecated
                 "precedent": True}
 
-    conn.execute(
-        "UPDATE audit_log SET human_decision = ?, resolved_at = ? WHERE id = ?",
+    cur = conn.execute(
+        "UPDATE audit_log SET human_decision = ?, resolved_at = ? "
+        "WHERE id = ? AND human_decision IS NULL AND machine_decision IS NULL",
         (req.decision, now, req.finding_id),
     )
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=400, detail="finding no longer pending")
 
     killed_cubes = []
     if req.decision == "acted":
