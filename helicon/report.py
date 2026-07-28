@@ -19,11 +19,87 @@ THRESHOLDS = {
     "recall_pass_rate_ok": 0.8,     # thinness+redundancy pass rate across tasks
     "tokens_per_query_warn": 4000,  # top-K context budget per query
     "regression_free": 0,           # snapshots regressed
+    "contradiction_pass_rate_ok": 0.8,  # was an inline 0.8, invisible to readers
+    "grounding_pass_rate_ok": 0.8,      # was computed, printed, and never gated
 }
 
 
 def _verdict(ok: bool, degraded: bool = False) -> str:
     return "HEALTHY" if ok else ("DEGRADED" if degraded else "BROKEN")
+
+
+def _gate(name: str, value, threshold, op: str) -> dict:
+    """One named accuracy gate, carrying its own arithmetic.
+
+    A verdict that is a bare word forces the reader to trust it. Each gate
+    reports value, threshold, whether it was measured at all, and whether it
+    passed, so the headline can be recomputed by hand from the same report.
+    """
+    measured = value is not None
+    if not measured:
+        passed = False
+    elif op == "<=":
+        passed = value <= threshold
+    else:
+        passed = value >= threshold
+    return {"name": name, "value": value, "threshold": threshold, "op": op,
+            "measured": measured, "pass": passed}
+
+
+def cross_session_verdict(regressed: int | None, snaps_total: int,
+                          contra_rate: float | None,
+                          grounding_rate: float | None) -> dict:
+    """The cross-session-accuracy verdict, and nothing but accuracy.
+
+    CORRECTION 2026-07-28. The condition this replaces read:
+
+        regressed <= 0 and (contra_rate is None or contra_rate >= 0.8)
+        and open_pairs == 0
+
+    Three defects, compounding:
+
+    (a) `open_pairs` counts findings AWAITING HUMAN TRIAGE. For a product whose
+        entire design is a human review queue, that term makes HEALTHY
+        unreachable by construction — the headline read DEGRADED because the
+        human had a queue, which is the system working as intended. Backlog is
+        workload, not inaccuracy; it is now a counter on its own line and no
+        verdict reads it.
+    (b) `grounding_pass_rate` — 0.385, the worst number in the whole report and
+        already flagged as drifting 0.462/0.538/0.385 — was computed, printed,
+        and absent from the verdict expression entirely. Decorative. It is a
+        gate now, against a stated threshold.
+    (c) `contra_rate is None` counted as a PASS, so unmeasured read as clean.
+        Same failure class as R4's unconfigured code arm. Unmeasured is now
+        DEGRADED, and the reason names what was not measured.
+
+    For a memory-integrity product a miscalibrated scoreboard is the most
+    damaging defect available: every other number is served through it.
+    """
+    gates = [
+        _gate("snapshot_regressions", regressed if snaps_total else None,
+              THRESHOLDS["regression_free"], "<="),
+        _gate("contradiction_pass_rate", contra_rate,
+              THRESHOLDS["contradiction_pass_rate_ok"], ">="),
+        _gate("grounding_pass_rate", grounding_rate,
+              THRESHOLDS["grounding_pass_rate_ok"], ">="),
+    ]
+    failed = [g for g in gates if g["measured"] and not g["pass"]]
+    unmeasured = [g["name"] for g in gates if not g["measured"]]
+
+    if failed:
+        reason = "failed: " + ", ".join(
+            f"{g['name']} {g['value']} not {g['op']} {g['threshold']}"
+            for g in failed)
+    elif unmeasured:
+        reason = ("unmeasured, not clean: " + ", ".join(unmeasured)
+                  + (" — no baselines captured" if not snaps_total
+                     else " — re-run with --llm for the judged tests"))
+    else:
+        reason = "all accuracy gates passed: " + ", ".join(
+            f"{g['name']} {g['value']}" for g in gates)
+
+    return {"verdict": _verdict(not failed and not unmeasured, degraded=True),
+            "reason": reason, "gates": gates}
 
 
 def memoryagent_report(conn: sqlite3.Connection, client=None,
@@ -154,6 +230,13 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "split_decisions": len(pairing.get("split_decisions", [])),
     }
 
+    acc = cross_session_verdict(regressed, len(snaps), contra_rate, grounding_rate)
+
+    # Backlog is a workload counter, deliberately outside the verdict.
+    open_findings_total = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+        "AND machine_decision IS NULL").fetchone()[0]
+
     cross_session = {
         "snapshots_total": len(snaps),
         "snapshots_regressed": regressed,
@@ -161,15 +244,21 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "grounding_pass_rate": grounding_rate,
         "llm_judged": contra_rate is not None,
         "cross_source_contradictions": cross_source,
+        "accuracy_gates": acc["gates"],
+        "review_backlog": {
+            "open_pair_findings": open_pairs,
+            "open_findings_total": open_findings_total,
+            "counts_toward_verdict": False,
+            "note": "findings awaiting human triage — workload, not inaccuracy. "
+                    "A review queue is this product's design, so gating the "
+                    "verdict on it made HEALTHY unreachable by construction.",
+        },
         "mechanisms": "snapshot regression (CI for memory) + cross-source pair selector "
                       "+ Qwen-judged Contradiction/Grounding",
         # No baselines captured = unmeasured, not broken. DEGRADED with a
         # pointer beats a fake BROKEN.
-        "verdict": ("DEGRADED" if not snaps else _verdict(
-            regressed <= THRESHOLDS["regression_free"]
-            and (contra_rate is None or contra_rate >= 0.8)
-            and open_pairs == 0,
-            degraded=True)),
+        "verdict": acc["verdict"],
+        "verdict_reason": acc["reason"],
         "note": None if snaps else "no baselines captured — run: helicon snapshot add \"<task>\"",
     }
 
@@ -240,6 +329,9 @@ def format_report(rep: dict) -> str:
         f"~{g['recall_under_limited_context']['mean_tokens_per_query_top5']} tokens/query (top-5)",
         "",
         "4. Cross-session accuracy                 " + g["cross_session_accuracy"]["verdict"],
+        # The verdict prints the arithmetic that produced it. A bare word asks
+        # to be trusted; this can be recomputed from the line under it.
+        f"   why: {g['cross_session_accuracy'].get('verdict_reason', 'n/a')}",
         f"   snapshots: {g['cross_session_accuracy']['snapshots_regressed']} regressed "
         f"of {g['cross_session_accuracy']['snapshots_total']}; "
         f"contradiction pass {fmt(g['cross_session_accuracy']['contradiction_pass_rate'])}, "
@@ -256,6 +348,18 @@ def format_report(rep: dict) -> str:
         + (f"\n     -> {g['cross_session_accuracy']['cross_source_contradictions']['sample']}"
            if g['cross_session_accuracy']['cross_source_contradictions']['sample'] else ""),
         "",
+        # Backlog gets its own line precisely because it used to be smuggled
+        # into the verdict above. It is how much is queued for the human, and
+        # it says so — no verdict reads it.
+        f"Review backlog (not a verdict input): "
+        f"{_backlog(g)['open_pair_findings']} open pair finding(s), "
+        f"{_backlog(g)['open_findings_total']} open finding(s) store-wide",
+        "",
         f"Thresholds: {rep['thresholds']}",
     ]
     return "\n".join(lines)
+
+
+def _backlog(g: dict) -> dict:
+    return g["cross_session_accuracy"].get(
+        "review_backlog", {"open_pair_findings": "n/a", "open_findings_total": "n/a"})
