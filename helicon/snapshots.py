@@ -53,29 +53,52 @@ def _drop_superseded(conn: sqlite3.Connection, hits: list[dict], k: int) -> list
 
 def _retrieve(conn: sqlite3.Connection, task: str, k: int) -> list[dict]:
     """Rank memories for a task the way the agent would (hybrid, FTS fallback).
-    Over-fetch, then drop superseded, so retiring a stale cube frees its slot."""
+    Over-fetch, drop superseded, then spend the context budget by policy.
+
+    The three stages are ordered on purpose. Over-fetching keeps recall wide;
+    dropping superseded frees the slots retirement should free; and the budget
+    policy (exact-name pin + one-per-artifact diversity) is applied LAST, at the
+    real k rather than at the over-fetch width. Applying it at the wide width
+    silently re-admitted duplicates: with fewer distinct subjects than 3k, the
+    cap's overflow refill legitimately fills the tail with second copies, and
+    those copies then survive the trim to k. The budget being protected is the
+    agent's top-k, so k is where the policy belongs.
+
+    Both branches run it. The FTS fallback is the path a store takes before its
+    first `helicon embed`, which is precisely when a new user's ranking is most
+    exposed to near-duplicate flooding.
+    """
     over = k * 3
+    hits = None
     try:
-        from helicon.embeddings import hybrid_search, get_embedding_stats
+        from helicon.embeddings import get_embedding_stats, hybrid_search
         if get_embedding_stats(conn)["embedded"] > 0:
-            rows = hybrid_search(conn, task, limit=over)
+            # raw ranking here; the policy is applied once, below, at k
+            rows = hybrid_search(conn, task, limit=over, per_subject_cap=0,
+                                 pin_title_matches=False)
             if rows:
-                hits = [{"id": r["id"], "title": r.get("title", "")} for r in rows]
-                return _drop_superseded(conn, hits, k)
+                hits = [{"id": r["id"], "title": r.get("title", ""),
+                         "metadata": r.get("metadata")} for r in rows]
     except Exception:
-        pass
-    # FTS fallback: OR the terms so multi-word queries still match partially
-    # (otherwise "consolidation engine" needs BOTH words and can return nothing).
-    import re
-    from helicon.db import search_cubes
-    terms = [t for t in re.findall(r"[A-Za-z0-9]+", task) if len(t) > 2]
-    query = " OR ".join(terms) if terms else task
-    try:
-        rows = search_cubes(conn, query, over)
-    except Exception:
-        rows = search_cubes(conn, task, over)
-    hits = [{"id": r["id"], "title": r["title"]} for r in rows]
-    return _drop_superseded(conn, hits, k)
+        hits = None
+    if hits is None:
+        # FTS fallback: OR the terms so multi-word queries still match partially
+        # (otherwise "consolidation engine" needs BOTH words and can return
+        # nothing).
+        import re
+        from helicon.db import search_cubes
+        terms = [t for t in re.findall(r"[A-Za-z0-9]+", task) if len(t) > 2]
+        query = " OR ".join(terms) if terms else task
+        try:
+            rows = search_cubes(conn, query, over)
+        except Exception:
+            rows = search_cubes(conn, task, over)
+        hits = [{"id": r["id"], "title": r["title"],
+                 "metadata": r.get("metadata")} for r in rows]
+
+    from helicon.embeddings import apply_context_policy
+    hits = _drop_superseded(conn, hits, over)
+    return apply_context_policy(conn, task, hits, k)
 
 
 def capture_snapshot(conn: sqlite3.Connection, task: str, k: int = 5, note: str = "") -> dict:
