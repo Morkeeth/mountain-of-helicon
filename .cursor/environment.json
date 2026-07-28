@@ -1,0 +1,9 @@
+{
+  "install": "pip install -e . && pip install pytest && (cd web && npm ci)",
+  "terminals": [
+    {
+      "name": "web",
+      "command": "cd web && npm run dev"
+    }
+  ]
+}
