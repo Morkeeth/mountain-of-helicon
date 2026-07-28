@@ -34,11 +34,16 @@ def conn(tmp_path):
     return c
 
 
-def _snap(conn, task, ids, titles, k=3):
+def _snap(conn, task, ids, titles, k=3, created_at=None):
+    # A baseline has a shelf life now (SNAPSHOT_MAX_AGE_DAYS), so a regression
+    # test needs a FRESH baseline — this was pinned to a literal 2026-07-09,
+    # which is exactly the "captured once, scored forever" habit the lifecycle
+    # exists to end. Expiry itself is tested in test_snapshot_lifecycle.py.
+    from helicon.timeutil import utc_now_iso
     conn.execute(
         "INSERT INTO context_snapshots (task, cube_ids, titles, top_k, created_at, note) "
         "VALUES (?, ?, ?, ?, ?, '')",
-        (task, json.dumps(ids), json.dumps(titles), k, "2026-07-09T00:00:00"))
+        (task, json.dumps(ids), json.dumps(titles), k, created_at or utc_now_iso()))
     conn.commit()
     return conn.execute("SELECT * FROM context_snapshots ORDER BY id DESC LIMIT 1").fetchone()
 

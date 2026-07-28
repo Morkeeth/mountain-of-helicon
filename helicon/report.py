@@ -194,6 +194,16 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
     # --- 4. cross-session accuracy ---
     snaps = check_all(conn)
     regressed = sum(1 for s in snaps if s["regressed"])
+    # A baseline past its shelf life, pinned to fully-retired memory, or asking
+    # for a renamed entity is not evidence — it needs re-capturing. Counting
+    # those as "0 regressions" would be the same lie as the old contra_rate is
+    # None => pass: unmeasured reading as clean. So they are counted separately
+    # and, if NOTHING is still evidence, the gate goes unmeasured.
+    usable_snaps = sum(1 for s in snaps if s.get("status") in ("ok", "regressed"))
+    needs_recapture = [
+        {"id": s["snapshot_id"], "task": s["task"], "status": s.get("status"),
+         "age_days": s.get("age_days"), "stale_task": s.get("stale_task")}
+        for s in snaps if s.get("needs_recapture")]
     contra_rate = _rate("Contradiction")  # only present when Qwen judged live
     grounding_rate = _rate("Grounding")
 
@@ -230,7 +240,7 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "split_decisions": len(pairing.get("split_decisions", [])),
     }
 
-    acc = cross_session_verdict(regressed, len(snaps), contra_rate, grounding_rate)
+    acc = cross_session_verdict(regressed, usable_snaps, contra_rate, grounding_rate)
 
     # Backlog is a workload counter, deliberately outside the verdict.
     open_findings_total = conn.execute(
@@ -240,6 +250,8 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
     cross_session = {
         "snapshots_total": len(snaps),
         "snapshots_regressed": regressed,
+        "snapshots_usable": usable_snaps,
+        "snapshots_needing_recapture": needs_recapture,
         "contradiction_pass_rate": contra_rate,
         "grounding_pass_rate": grounding_rate,
         "llm_judged": contra_rate is not None,
@@ -259,7 +271,12 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         # pointer beats a fake BROKEN.
         "verdict": acc["verdict"],
         "verdict_reason": acc["reason"],
-        "note": None if snaps else "no baselines captured — run: helicon snapshot add \"<task>\"",
+        "note": ("no baselines captured — run: helicon snapshot add \"<task>\""
+                 if not snaps else
+                 (f"{len(needs_recapture)} of {len(snaps)} baselines are no longer "
+                  f"evidence (expired / fossil / renamed entity) — re-capture with "
+                  f"a reason: helicon snapshot recapture <id> \"<why>\""
+                  if needs_recapture else None)),
     }
 
     from helicon.db import record_battery_point
@@ -333,7 +350,9 @@ def format_report(rep: dict) -> str:
         # to be trusted; this can be recomputed from the line under it.
         f"   why: {g['cross_session_accuracy'].get('verdict_reason', 'n/a')}",
         f"   snapshots: {g['cross_session_accuracy']['snapshots_regressed']} regressed "
-        f"of {g['cross_session_accuracy']['snapshots_total']}; "
+        f"of {g['cross_session_accuracy'].get('snapshots_usable', g['cross_session_accuracy']['snapshots_total'])} still evidence "
+        f"({g['cross_session_accuracy']['snapshots_total']} captured, "
+        f"{len(g['cross_session_accuracy'].get('snapshots_needing_recapture', []))} need re-capture); "
         f"contradiction pass {fmt(g['cross_session_accuracy']['contradiction_pass_rate'])}, "
         f"grounding pass {fmt(g['cross_session_accuracy']['grounding_pass_rate'])}"
         # Was hardcoded "no key", which is a guess this function cannot make: it
