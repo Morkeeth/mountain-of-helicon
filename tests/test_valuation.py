@@ -289,6 +289,47 @@ def test_still_true_beats_rename_when_path_exists_again(conn, tmp_path):
     assert "exists again" in out["reason"]
 
 
+def test_gate3_reverifies_missing_path_phrasing_not_just_dead_path(conn, tmp_path):
+    """Gate 3 was decorative because it fired on the literal 'dead path' only.
+    The audits also phrase the SAME claim as 'missing path' / 'no longer exists'.
+    A finding in that phrasing whose path EXISTS AGAIN must be re-verified and
+    retired, exactly like a 'dead path' one — not sail through unchecked."""
+    alive = tmp_path / "back.py"
+    alive.write_text("ok")
+    _cube(conn, "c1")
+    fid = _finding(
+        conn, target="c1", audit_type="output",
+        finding=f"Memory points at a missing path: {alive} — it no longer exists")
+    out = valuation.evaluate(
+        conn, conn.execute("SELECT * FROM audit_log WHERE id=?", (fid,)).fetchone())
+    assert out["escalate"] is False
+    assert out["gate"] == "still_true"
+    assert "exists again" in out["reason"]
+
+
+def test_gate3_keeps_path_finding_when_the_path_is_still_gone(conn, tmp_path):
+    """The conservative half: a genuinely gone path is NOT retired by gate 3 —
+    the claim still holds, so it stays a question for the human."""
+    gone = tmp_path / "still_gone.py"  # never created
+    _cube(conn, "c1")
+    fid = _finding(
+        conn, target="c1", audit_type="output",
+        finding=f"Memory points at a missing path: {gone} no longer exists")
+    assert fid in _open_ids(conn)
+    valuation.triage_open(conn, apply=True)
+    assert fid in _open_ids(conn), "a still-missing path is still a real finding"
+
+
+def test_gate3_does_not_retire_a_non_path_no_longer_exists_claim(conn):
+    """'no longer exists' about a thing that is not a filesystem path cannot be
+    re-verified, so gate 3 must pass it through rather than retire it on a guess."""
+    _cube(conn, "c1")
+    fid = _finding(conn, target="c1", audit_type="factual",
+                   finding="The 'beta' program no longer exists")
+    valuation.triage_open(conn, apply=True)
+    assert fid in _open_ids(conn)
+
+
 def test_machine_retired_finding_does_not_block_human_confirm(conn):
     """Resolvers must refuse to human-rule a machine-closed row."""
     from helicon.api import govern
