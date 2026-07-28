@@ -2140,6 +2140,16 @@ def cmd_doctor(_args):
         checks.append(("OK" if rr["ok"] else ("WARN" if rr["ok"] is None else "FAIL"),
                        f"rerank — {rr['reason']}"))
 
+        # Same seam, one layer down, and worse: the SEMANTIC branch can be
+        # entirely absent with no error at all. _load_all_embeddings filters on
+        # the current provider's dimension, so a store embedded at 1024 (Qwen)
+        # read by a config-less checkout (local, 384) matches zero rows —
+        # semantic_search returns [], hybrid_search silently becomes FTS-only,
+        # and "60% semantic / 40% FTS5" stops describing what runs.
+        from helicon.embeddings import semantic_health
+        sh = semantic_health(conn)
+        checks.append(("OK" if sh["ok"] else "FAIL", f"semantic — {sh['reason']}"))
+
         # `serve` prefers static/ over web/dist (app.py). static/ is gitignored
         # and populated by a manual copy, so a rebuild that nobody copies leaves
         # the dashboard serving a stale bundle with no signal at all: Oscar's
