@@ -33,6 +33,10 @@ class AcceptReq(BaseModel):
     task_run_id: str
     verdict: str  # accepted | rework | rollback
     note: str = ""
+    # F-C03: acceptance is bound to the artifact that was reviewed. Accepting a
+    # run whose files changed since capture requires saying so, and the override
+    # is recorded on the run rather than assumed.
+    accept_changed_artifact: bool = False
 
 
 @router.get("/run/sessions")
@@ -58,7 +62,9 @@ async def run_accept(req: AcceptReq):
     from helicon import taskrun
     from helicon.capture import promote_prompt
     try:
-        res = taskrun.accept_run(get_conn(), req.task_run_id, req.verdict, note=req.note)
+        res = taskrun.accept_run(get_conn(), req.task_run_id, req.verdict,
+                                 note=req.note,
+                                 accept_changed_artifact=req.accept_changed_artifact)
     except taskrun.TaskRunError as e:
         return {"ok": False, "error": str(e)}
     # outcome gate: only an accepted run promotes its prompt
