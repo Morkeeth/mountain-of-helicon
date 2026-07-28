@@ -18,8 +18,10 @@ _config: dict = {}
 
 def _resolve_web_dir(repo_root: str) -> str | None:
     """The dashboard's built assets: prefer static/ (populated by the Cloud
-    Shell / deploy copy), fall back to the committed web/dist so a fresh clone
-    renders without a build step. None if neither has an index.html."""
+    Shell / deploy copy), fall back to a locally built web/dist. dist is no
+    longer committed (build artifacts rotted in git — 52 stale files), so a
+    fresh clone needs one `(cd web && npx vite build)` before the UI renders;
+    the API works without it. None if neither dir has an index.html."""
     for cand in ("static", os.path.join("web", "dist")):
         d = os.path.join(repo_root, cand)
         if os.path.isfile(os.path.join(d, "index.html")) and \
@@ -137,9 +139,9 @@ def create_app() -> FastAPI:
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     # `static/` is gitignored (Cloud Shell / deploy copy web/dist there). On a
-    # fresh clone it's absent, so `helicon serve` — the command the README
-    # promises renders the dashboard — fall back to the committed web/dist so a
-    # judge who just runs `pip install -e . && helicon serve` sees the UI.
+    # fresh clone both static/ and web/dist are absent — dist is a build
+    # artifact, untracked since Jul 29 — so `helicon serve` runs API-only
+    # until `(cd web && npx vite build)` produces the dashboard.
     static_dir = _resolve_web_dir(repo_root)
     if static_dir:
         app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
