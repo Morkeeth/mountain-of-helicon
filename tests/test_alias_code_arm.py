@@ -23,6 +23,7 @@ so this reports LEADS, not verdicts:
     agent:relay cases became the deliberate legacy contract
 """
 import json
+import os
 import subprocess
 
 import pytest
@@ -115,8 +116,62 @@ def test_a_namespaced_dead_name_is_caught(tmp_path):
 
 
 def test_no_repos_is_not_an_error(tmp_path):
-    assert code_refs("relay", "favour", repos_dir=str(tmp_path / "nope")) == {
-        "leads": [], "legacy_tests": 0, "repos": 0}
+    missing = str(tmp_path / "nope")
+    assert code_refs("relay", "favour", repos_dir=missing) == {
+        "leads": [], "legacy_tests": 0, "repos": 0, "scanned": False,
+        "repos_dir": missing}
+
+
+def test_unconfigured_code_arm_scans_nothing_and_admits_it(monkeypatch):
+    """The exam must not read a directory nobody declared.
+
+    This used to default to ~/CODE, so the R4 verdict — in production AND in
+    every test that reached it — depended on what happened to be sitting in the
+    developer's home directory. `scanned: False` is the honest answer: not
+    measured is not the same as clean.
+    """
+    def explode(*a, **kw):  # any filesystem walk here is the bug
+        raise AssertionError("unconfigured code arm touched the filesystem")
+    monkeypatch.setattr(os, "listdir", explode)
+    out = code_refs("relay", "favour")
+    assert out == {"leads": [], "legacy_tests": 0, "repos": 0,
+                   "scanned": False, "repos_dir": None}
+
+
+def test_the_tools_own_checkout_is_excluded_from_its_own_scan(tmp_path,
+                                                              monkeypatch):
+    """helicon/cockpit.py:26 is a SAFE_TERMINALS allowlist holding the literal
+    "glaze" — a quoted dead-name token in executable code. The check scored it
+    as a lead, so watch-state sat at R4: ROT FOUND permanently: the rename
+    detector flagging its own source, unable to reach CLEAN by construction.
+    A rename table is ALLOWED to contain the dead name."""
+    import helicon.aliases as A
+    me = _repo(tmp_path, "mountain-of-helicon",
+               {"helicon/cockpit.py": 'SAFE = ["x-engine", "relay"]\n'})
+    other = _repo(tmp_path, "app", {"src/real.ts": 'const a = "relay";\n'})
+    assert me and other
+    monkeypatch.setattr(A, "_self_repo_root",
+                        lambda: str(tmp_path / "mountain-of-helicon"))
+    out = code_refs("relay", "favour", repos_dir=str(tmp_path))
+    assert [l["repo"] for l in out["leads"]] == ["app"]
+    assert out["skipped_self"] == ["mountain-of-helicon"]
+    # and the opt-out still sees it, for anyone auditing the tool itself
+    both = code_refs("relay", "favour", repos_dir=str(tmp_path),
+                     exclude_self=False)
+    assert sorted(l["repo"] for l in both["leads"]) == ["app",
+                                                        "mountain-of-helicon"]
+
+
+def test_a_worktree_of_the_scanned_repo_still_counts_as_self(tmp_path,
+                                                             monkeypatch):
+    """Running from <repo>/.worktrees/x must still exclude <repo>."""
+    import helicon.aliases as A
+    _repo(tmp_path, "mountain-of-helicon",
+          {"helicon/cockpit.py": 'SAFE = ["relay"]\n'})
+    monkeypatch.setattr(
+        A, "_self_repo_root",
+        lambda: str(tmp_path / "mountain-of-helicon" / ".worktrees" / "wt"))
+    assert code_refs("relay", "favour", repos_dir=str(tmp_path))["leads"] == []
 
 
 @pytest.mark.parametrize("line,hit", [

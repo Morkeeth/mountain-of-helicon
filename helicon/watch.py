@@ -49,7 +49,8 @@ def save_state(config: dict, state: dict):
 
 
 def collect_drift(conn: sqlite3.Connection, state: dict,
-                  repo_root: str | None = None) -> dict:
+                  repo_root: str | None = None,
+                  config: dict | None = None) -> dict:
     """Everything new since the cursor: fresh audit findings + rot class
     flips. Pure read; the caller decides whether to speak."""
     from helicon.rot import run_rot_exam
@@ -63,7 +64,7 @@ def collect_drift(conn: sqlite3.Connection, state: dict,
     max_row = conn.execute("SELECT MAX(id) m FROM audit_log").fetchone()
     max_id = max(max_row["m"] or 0, last_id)
 
-    exam = run_rot_exam(conn, repo_root)
+    exam = run_rot_exam(conn, repo_root, config=config)
     old = state.get("rot_verdicts", {})
     flips = []
     for c in exam["checks"]:
@@ -146,11 +147,11 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
         pass
     pair_scan(conn, client=client)
     claim_scan(conn, config)
-    alias_scan(conn)
+    alias_scan(conn, config=config)
     from helicon.stackwatch import stack_scan
     stack_scan(conn, config)
 
-    drift = collect_drift(conn, state, repo_root)
+    drift = collect_drift(conn, state, repo_root, config=config)
     # First run ever = baseline: set the cursor silently. A store with months
     # of open findings should not greet its new watcher with all of them.
     baseline = state.get("last_run") is None
