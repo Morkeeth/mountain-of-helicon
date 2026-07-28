@@ -22,6 +22,22 @@ An earlier version of this file claimed `464 passed, 1 failed` and called `tests
 
 A green suite is **not** evidence a feature works. Probe the running thing: a 200 is not a render, and pushed is not deployed.
 
+## Building the dashboard
+
+The Python API needs no build. The web dashboard does:
+
+```bash
+cd web && npm install && npm run build   # -> web/dist
+```
+
+`web/dist` is build output and is **not** committed. It used to be — 52 files,
+7.6 MB — because `.gitignore` said `/dist/`, which is root-anchored and never
+matched `web/dist/`. The justification was "so a fresh clone renders without a
+build step", but the tracked bundle's last commit was 2026-07-23 while `web/src`
+had moved to 2026-07-26: a fresh clone served a three-day-old dashboard while
+the code claimed it was current. `helicon serve` now returns a 503 naming the
+build command when nothing is built, and the API stays up either way.
+
 ## What needs real credentials (and therefore cannot be verified in this VM)
 
 - `config.json` is gitignored and absent here. Anything reading it — live connectors, Qwen model calls, embeddings — cannot run.
