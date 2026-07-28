@@ -17,6 +17,7 @@ and NOTHING else:
 """
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -257,12 +258,89 @@ def record_event(conn, task_run_id, kind, *, actor="human", detail="") -> None:
     conn.commit()
 
 
+def _artifact_manifest(run) -> list:
+    try:
+        m = json.loads(run["artifact_manifest"] or "[]")
+    except (json.JSONDecodeError, TypeError):
+        m = []
+    return m if isinstance(m, list) else []
+
+
+def _run_repo_root(conn, run) -> str | None:
+    """Repo the artifacts were captured against. Prefer the capture row (imported
+    sessions); fall back to task_runs.repo_ref (`/path@commit`)."""
+    cap = conn.execute(
+        "SELECT repo FROM run_captures WHERE task_run_id=?", (run["id"],)
+    ).fetchone()
+    if cap and cap["repo"]:
+        return os.path.realpath(cap["repo"])
+    ref = run["repo_ref"] or ""
+    if not ref:
+        return None
+    repo, sep, _commit = ref.rpartition("@")
+    if not sep:
+        repo = ref
+    return os.path.realpath(repo) if repo else None
+
+
+def verify_artifact_hashes(conn, task_run_id) -> list[str]:
+    """Re-hash every pinned artifact against the repo on disk.
+
+    Returns a list of mismatch descriptions (empty = all pinned artifacts still
+    match). Entries without a content_hash are skipped — nothing was pinned, so
+    there is nothing to refuse on (autogov / loop-closure fixtures). Path
+    containment is enforced so a crafted path cannot escape the recorded repo.
+    """
+    run = _get_run(conn, task_run_id)
+    if run is None:
+        raise TaskRunError(f"no such task run: {task_run_id}")
+    manifest = _artifact_manifest(run)
+    pinned = []
+    for a in manifest:
+        if not isinstance(a, dict):
+            continue
+        if a.get("state") == "truncated":
+            continue
+        path = (a.get("path") or a.get("path_or_ref") or "").strip()
+        expected = (a.get("content_hash") or "").strip()
+        if path and expected:
+            pinned.append((path, expected))
+    if not pinned:
+        return []
+    repo = _run_repo_root(conn, run)
+    if not repo:
+        return ["cannot verify artifact hashes: no repo recorded for this run"]
+    mismatches = []
+    for path, expected in pinned:
+        full = os.path.realpath(os.path.join(repo, path))
+        if not (full == repo or full.startswith(repo + os.sep)):
+            mismatches.append(f"{path}: path escapes repo")
+            continue
+        if not os.path.isfile(full):
+            mismatches.append(
+                f"{path}: missing on disk (expected {expected})")
+            continue
+        with open(full, "rb") as fh:
+            actual = hashlib.sha256(fh.read()).hexdigest()[:16]
+        if actual != expected:
+            mismatches.append(
+                f"{path}: changed since capture "
+                f"(expected {expected}, found {actual})")
+    return mismatches
+
+
 def accept_run(conn, task_run_id, verdict, *, note="") -> dict:
     """Human acceptance closes the state machine (the piece the recorder was
     missing). verdict ∈ accepted | rework | rollback. Append-only: the verdict
     and note are recorded as a run_event AND set on the run. A reviewed Run is
     immutable: reworked output opens a new Run instead of laundering the same
-    artifact from rework into accepted. Only 'accepted' may promote a prompt."""
+    artifact from rework into accepted. Only 'accepted' may promote a prompt.
+
+    F-C03: Accept refuses when a content-hashed artifact no longer matches on
+    disk. INSPECT already reports the mismatch; Accept must not launder a
+    post-capture rewrite into an accepted outcome. Rework/rollback stay open so
+    a human can reject the tampered run.
+    """
     if verdict not in ("accepted", "rework", "rollback"):
         raise TaskRunError("verdict must be accepted | rework | rollback")
     run = _get_run(conn, task_run_id)
@@ -280,6 +358,12 @@ def accept_run(conn, task_run_id, verdict, *, note="") -> dict:
         )
     if run["status"] not in ("artifact_attached", "verified"):
         raise TaskRunError(f"cannot accept before an artifact exists (status: {run['status']})")
+    if verdict == "accepted":
+        mismatches = verify_artifact_hashes(conn, task_run_id)
+        if mismatches:
+            raise TaskRunError(
+                "Accept refused — artifact hash mismatch: "
+                + "; ".join(mismatches))
     conn.execute(
         "UPDATE task_runs SET human_acceptance=?, status='reviewed' WHERE id=?",
         (verdict, task_run_id))
