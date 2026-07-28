@@ -48,7 +48,8 @@ def _gate(name: str, value, threshold, op: str) -> dict:
 
 def cross_session_verdict(regressed: int | None, snaps_total: int,
                           contra_rate: float | None,
-                          grounding_rate: float | None) -> dict:
+                          grounding_rate: float | None,
+                          captured: int | None = None) -> dict:
     """The cross-session-accuracy verdict, and nothing but accuracy.
 
     CORRECTION 2026-07-28. The condition this replaces read:
@@ -91,9 +92,18 @@ def cross_session_verdict(regressed: int | None, snaps_total: int,
             f"{g['name']} {g['value']} not {g['op']} {g['threshold']}"
             for g in failed)
     elif unmeasured:
-        reason = ("unmeasured, not clean: " + ", ".join(unmeasured)
-                  + (" — no baselines captured" if not snaps_total
-                     else " — re-run with --llm for the judged tests"))
+        # "none are evidence" and "none exist" are different facts and get
+        # different sentences; saying "no baselines captured" about 13 expired
+        # baselines would be the same species of wrong this function fixes.
+        if snaps_total:
+            why = " — re-run with --llm for the judged tests"
+        elif captured:
+            why = (f" — {captured} baseline(s) captured but none are still "
+                   f"evidence; re-capture with a reason "
+                   f"(helicon snapshot recapture <id> --reason \"<why>\")")
+        else:
+            why = " — no baselines captured"
+        reason = "unmeasured, not clean: " + ", ".join(unmeasured) + why
     else:
         reason = "all accuracy gates passed: " + ", ".join(
             f"{g['name']} {g['value']}" for g in gates)
@@ -240,7 +250,8 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "split_decisions": len(pairing.get("split_decisions", [])),
     }
 
-    acc = cross_session_verdict(regressed, usable_snaps, contra_rate, grounding_rate)
+    acc = cross_session_verdict(regressed, usable_snaps, contra_rate,
+                                grounding_rate, captured=len(snaps))
 
     # Backlog is a workload counter, deliberately outside the verdict.
     open_findings_total = conn.execute(
