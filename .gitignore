@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+# worktrees created inside the repo (git worktree add .worktrees/...)
+.worktrees/
 *.pyo
 .env
 data/
