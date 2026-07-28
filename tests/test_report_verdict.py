@@ -145,3 +145,18 @@ def test_the_printed_surface_shows_the_reason_and_separates_backlog():
     assert "why: failed: grounding_pass_rate 0.385 not >= 0.8" in out
     assert "Review backlog (not a verdict input)" in out
     assert "344 open finding(s) store-wide" in out
+
+
+def test_expired_baselines_are_not_reported_as_none_captured():
+    """13 baselines exist on the live store and none are still evidence. Saying
+    "no baselines captured" about them would be the same species of wrong this
+    module was fixed for: a true-sounding sentence about the wrong fact."""
+    out = cross_session_verdict(regressed=0, snaps_total=0, contra_rate=1.0,
+                                grounding_rate=1.0, captured=13)
+    assert "13 baseline(s) captured but none are still evidence" in out["reason"]
+    assert "no baselines captured" not in out["reason"]
+
+
+def test_a_genuinely_empty_store_still_says_none_captured():
+    out = cross_session_verdict(0, 0, 1.0, 1.0, captured=0)
+    assert "no baselines captured" in out["reason"]
