@@ -34,6 +34,12 @@ def env(tmp_path, monkeypatch):
     # never pop real desktop notifications from tests
     calls = []
     monkeypatch.setattr(W, "notify_macos", lambda t, m: calls.append((t, m)) or True)
+    # hermetic: code_refs scans the host's real ~/CODE by default, so any repo
+    # on the machine containing the test's dead name ("glaze" appears in
+    # mountain-of-helicon's own cockpit.py) put R4 at ROT FOUND from the
+    # baseline tick and test_alias_drift_flips_r4 could never observe a flip.
+    monkeypatch.setattr("helicon.aliases.code_refs",
+                        lambda *a, **k: {"leads": [], "legacy_tests": 0, "repos": 0})
     return conn, config, calls
 
 
