@@ -1031,7 +1031,9 @@ def cmd_snapshot(args):
     """Regression-test retrieved context: capture baselines, check for drift."""
     from helicon.config import load_config
     from helicon.db import init_db
-    from helicon.snapshots import init_snapshot_table, capture_snapshot, check_all
+    from helicon.snapshots import (SNAPSHOT_MAX_AGE_DAYS, capture_snapshot,
+                                   check_all, init_snapshot_table,
+                                   recapture_snapshot)
 
     config = load_config()
     conn = init_db(config["db_path"])
@@ -1053,16 +1055,53 @@ def cmd_snapshot(args):
         if not rows:
             print('No snapshots yet. Add one:  helicon snapshot add "<task>"')
             return
+        live = {res["snapshot_id"]: res for res in
+                check_all(conn, include_superseded=True)}
         for r in rows:
-            print(f"  #{r['id']:<3} k={r['top_k']}  \"{r['task']}\"")
+            res = live.get(r["id"], {})
+            age = res.get("age_days")
+            print(f"  #{r['id']:<3} k={r['top_k']:<2} {res.get('status','?'):<11} "
+                  f"{'' if age is None else f'{age:>5}d'}  \"{r['task']}\"")
+
+    elif args.action == "recapture":
+        if not args.task:
+            print('usage: helicon snapshot recapture <id> --reason "<why the '
+                  'baseline moved>"')
+            return
+        if not (args.reason or "").strip():
+            # The reason is the whole feature. Without it, "the memory changed"
+            # and "retrieval got worse" are the same edit, and the exam quietly
+            # becomes an opinion that always agrees with today.
+            print("--reason is required: say WHY this baseline moved.")
+            return
+        try:
+            r = recapture_snapshot(conn, int(args.task), args.reason, k=args.k)
+        except ValueError as e:
+            print(f"{e}")
+            return
+        print(f"\nSnapshot #{args.task} superseded by #{r['id']}  "
+              f"(as_of {r['as_of'][:19]}, stale_when {r['stale_when']})")
+        print(f"  reason: {args.reason}")
+        for i, h in enumerate(r["hits"], 1):
+            print(f"  {i}. {h['title'][:66]}")
 
     elif args.action == "check":
         results = check_all(conn)
         if not results:
             print("No snapshots to check.")
             return
+        stale = [r for r in results if r["needs_recapture"]]
         regr = 0
         for res in results:
+            if res["needs_recapture"]:
+                # Not a regression and not a pass: the instrument expired.
+                why = {"expired": f"expired ({res['age_days']}d old)",
+                       "fossil": "fossil — every baseline memory is retired",
+                       "stale-task": f"renamed entity in the task "
+                                     f"({res['stale_task']})"}[res["status"]]
+                print(f"\n[~] #{res['snapshot_id']} \"{res['task']}\"  {why}"
+                      f"  -> NEEDS RE-CAPTURE (not scored)")
+                continue
             mark = "REGRESSED" if res["regressed"] else "stable"
             sym = "x" if res["regressed"] else "."
             print(f"\n[{sym}] #{res['snapshot_id']} \"{res['task']}\"  "
@@ -1076,7 +1115,14 @@ def cmd_snapshot(args):
             for t, why in res["stale"]:
                 print(f"    ! stale ({why}): {t[:52]}")
             regr += 1 if res["regressed"] else 0
-        print(f"\n{regr}/{len(results)} snapshots regressed.")
+        scored = len(results) - len(stale)
+        print(f"\n{regr}/{scored} scored snapshots regressed "
+              f"({len(results)} captured, {len(stale)} no longer evidence).")
+        if stale:
+            print(f"  A baseline is evidence for {SNAPSHOT_MAX_AGE_DAYS} days. "
+                  f"Past that, a diff measures elapsed time, not quality.")
+            print(f'  Re-capture:  helicon snapshot recapture '
+                  f'{stale[0]["snapshot_id"]} --reason "<why it moved>"')
 
 
 def cmd_battery(args):
@@ -2675,8 +2721,11 @@ def main():
     hook_p.add_argument("--print-config", action="store_true", help="print the settings.json snippet (never auto-installs)")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
-    snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
-    snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
+    snap_p.add_argument("action", choices=["add", "check", "list", "recapture"],
+                        help="capture / check drift / list / re-baseline")
+    snap_p.add_argument("task", nargs="?",
+                        help='task text (for "add") or snapshot id (for "recapture")')
+    snap_p.add_argument("--reason", help='why the baseline moved (required for "recapture")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
     taste_p = sub.add_parser("taste", help="Taste-verdict memory: remember Taste Machine rulings + the never-twice guard")
