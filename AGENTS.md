@@ -33,3 +33,13 @@ If a task depends on either, **stop and say so** rather than mocking it and repo
 - Check `git branch --show-current` before branching, and branch from an explicit base.
 - No secrets in code, ever. This repo is gitleaks-clean across all 326 commits; keep it that way.
 - Python ≥3.10. Web is Vite + React in `web/`.
+
+## The web build is a build artifact — never commit it
+
+`web/dist/` is gitignored. It is generated, not source. PRs are **source-only**: edit `web/src/**`, never `web/dist/**`. Rebuild locally when you need the backend to serve the compiled dashboard:
+
+```bash
+cd web && npm ci && npm run build   # writes web/dist/ (untracked)
+```
+
+The FastAPI backend serves `web/dist/` when present and otherwise falls back to the SPA route, so a missing `web/dist/` only means the prebuilt UI is not served — run `npm run dev` (Vite on :5173, proxies `/api`) for live frontend work. Deployment/CI is responsible for building `web/dist/`; a committed copy only drifts from source.
