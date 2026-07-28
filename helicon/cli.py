@@ -958,6 +958,24 @@ def cmd_brief(args):
         print(format_brief(b))
 
 
+def cmd_reflect(args):
+    """Reflection — one real day of agent work, rolled up: runs opened, their
+    outcomes (accepted/rework/rejected/needs-verdict), what changed, what it cost,
+    scored cards, and rulings applied. Read-only. Defaults to the latest day with
+    activity; `--day YYYY-MM-DD` picks one."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.reflection import day_reflection, format_day_reflection
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    d = day_reflection(conn, day=getattr(args, "day", None))
+    if getattr(args, "json", False):
+        print(json.dumps(d, indent=2))
+    else:
+        print(format_day_reflection(d))
+
+
 def cmd_ask(args):
     """Guarded retrieve: ask what is safe to believe about a topic. The read-side
     mirror of `helicon guard` — it retrieves context, then screens it through the
@@ -2877,6 +2895,10 @@ def main():
     brief_p = sub.add_parser("brief", help="The morning brief: all five pillars in one screen (Truth/Continuity/Direction/Reflection/Calm)")
     brief_p.add_argument("--json", action="store_true", help="emit the structured brief for another surface")
 
+    reflect_p = sub.add_parser("reflect", help="Reflection: one real day of runs, outcomes, cost and rulings")
+    reflect_p.add_argument("--day", help="the day to reflect on (YYYY-MM-DD); default: latest day with activity")
+    reflect_p.add_argument("--json", action="store_true", help="emit the structured day reflection for another surface")
+
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
@@ -2953,6 +2975,7 @@ def main():
         "guard": cmd_guard,
         "ask": cmd_ask,
         "brief": cmd_brief,
+        "reflect": cmd_reflect,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
