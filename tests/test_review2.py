@@ -6,12 +6,13 @@ from datetime import datetime, timedelta
 import pytest
 
 from helicon.db import init_db, insert_cube, rebuild_fts
+from helicon.timeutil import utc_now
 from helicon.models import HeliconCube, Review
 from helicon.db import insert_review
 
 
 def _cube(cid: str, title: str, content: str, status: str = "pending") -> HeliconCube:
-    now = datetime.utcnow().isoformat()
+    now = utc_now().isoformat()
     return HeliconCube(
         id=cid, source="test", source_ref=f"test/{cid}", type="memory",
         title=title, content=content, content_hash=cid, created_at=now,
@@ -33,7 +34,7 @@ def conn(tmp_path):
     insert_review(c, Review(id=None, cube_id="gc_dead1", decision="killed", notes="",
                             time_to_review_seconds=1, cube_age_days=1, cube_type="memory",
                             cube_source="test",
-                            reviewed_at=(datetime.utcnow() - timedelta(days=10)).isoformat(),
+                            reviewed_at=(utc_now() - timedelta(days=10)).isoformat(),
                             session_id="cli-review"))
     c.commit()
     return c
@@ -55,7 +56,7 @@ def test_flag_stale_creates_pending_finding_not_a_kill(conn):
 def test_flag_useful_marks_acted_on_but_requires_human_reward(conn):
     from helicon.mcp_server import handle_tool_call
     conn.execute("INSERT INTO retrieval_log (cube_id, context, was_surfaced, was_acted_on, retrieved_at) "
-                 "VALUES ('gc_live1', 't', 1, 0, ?)", (datetime.utcnow().isoformat(),))
+                 "VALUES ('gc_live1', 't', 1, 0, ?)", (utc_now().isoformat(),))
     res = json.loads(handle_tool_call("helicon_flag", {"memory_id": "gc_live1", "verdict": "useful"}, conn))
     assert res["ok"]
     assert conn.execute("SELECT was_acted_on FROM retrieval_log WHERE cube_id='gc_live1'").fetchone()[0] == 1
@@ -110,7 +111,7 @@ def test_agent_and_rule_sessions_are_not_human_evidence(conn):
             insert_review(conn, Review(id=None, cube_id="gc_live1", decision="killed", notes="",
                                        time_to_review_seconds=1, cube_age_days=1,
                                        cube_type="synthetic", cube_source="test",
-                                       reviewed_at=datetime.utcnow().isoformat(), session_id=sid))
+                                       reviewed_at=utc_now().isoformat(), session_id=sid))
     conn.commit()
     rates = _get_type_kill_rates(conn)
     # 90 non-human kills of type 'synthetic' must contribute zero evidence
@@ -163,7 +164,7 @@ def test_battery_expiry_flags_cube_in_stale_tail(conn):
     old = _cube("gc_old1", "Sprint execution plan priorities",
                 "Execution plan: priorities for the sprint, deploy target list")
     old.created_at = old.valid_from = old.last_reinforced = \
-        (datetime.utcnow() - timedelta(days=20)).isoformat()
+        (utc_now() - timedelta(days=20)).isoformat()
     old.type = "draft"  # η=10d, κ=1.8 -> conf at 20d ~0.03, well below the 0.15 floor
     assert insert_cube(conn, old)
     conn.commit()
@@ -187,7 +188,7 @@ def test_battery_expiry_does_not_flag_healthy_past_half_life(conn):
     fresh = _cube("gc_fresh1", "Quarterly launch runbook checklist",
                   "Runbook: launch checklist steps for the quarterly release cycle")
     fresh.created_at = fresh.valid_from = fresh.last_reinforced = \
-        (datetime.utcnow() - timedelta(days=12)).isoformat()
+        (utc_now() - timedelta(days=12)).isoformat()
     fresh.type = "draft"  # 12d is 1.2x half-life; conf still ~0.6, not stale
     assert insert_cube(conn, fresh)
     conn.commit()
