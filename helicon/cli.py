@@ -1221,7 +1221,7 @@ def cmd_rot(args):
         from helicon.relations import relation_scan
         pair_scan(conn, client=client)
         claim_scan(conn, config)
-        alias_scan(conn)
+        alias_scan(conn, config=config)
         identity_scan(conn, judge_client=judge_client, judge_model=judge_model)
         relation_scan(conn)
         n = conn.execute(
@@ -1229,7 +1229,8 @@ def cmd_rot(args):
             "AND machine_decision IS NULL").fetchone()[0]
         print(f"filed findings — {n} open to rule.  Next:  helicon resolve --list\n")
 
-    res = run_rot_exam(conn, judge_client=judge_client, judge_model=judge_model)
+    res = run_rot_exam(conn, judge_client=judge_client, judge_model=judge_model,
+                       config=config)
     if getattr(args, "json", False):
         import json as _json
         print(_json.dumps(res, indent=2, default=str))
@@ -1583,7 +1584,7 @@ def cmd_ci(args):
     conn = init_db(db)
     print(f"Mount Helicon CI — scanning agent-memory files in {repo}\n")
     run_scan(config)
-    res = run_rot_exam(conn, repo_root=repo)
+    res = run_rot_exam(conn, repo_root=repo, config=config)
 
     rot = [c for c in res["checks"] if c["verdict"] == "ROT FOUND"]
     level = "error" if fail_on == "rot" else "warning"
@@ -1692,7 +1693,7 @@ def cmd_evolve(args):
         pass
     pair_scan(conn, client=client)
     claim_scan(conn, config)
-    alias_scan(conn)
+    alias_scan(conn, config=config)
     from helicon.identity import identity_scan
     identity_scan(conn)          # R11: file confirmed identity forks (semantic-gated)
     from helicon.relations import relation_scan, store_asserts_edges
@@ -1700,7 +1701,7 @@ def cmd_evolve(args):
     store_asserts_edges(conn)    # R12: persist relation provenance as 'asserts' edges
     from helicon.stackwatch import stack_scan
     stack = stack_scan(conn, config)
-    exam = run_rot_exam(conn)
+    exam = run_rot_exam(conn, config=config)
 
     hist = gold_history(config, limit=2)
     prev_rules = hist[-1]["total"] if hist else 0
@@ -1944,7 +1945,7 @@ def cmd_alias(args):
         return
 
     if args.scan:
-        res = alias_scan(conn)
+        res = alias_scan(conn, config=config)
         for f in res["filed"]:
             print(f"filed: {f['finding']}")
         for k in res["already_filed"]:
@@ -1953,7 +1954,7 @@ def cmd_alias(args):
             print(f"clean: {k}")
         return
 
-    for t in alias_rot(conn):
+    for t in alias_rot(conn, config=config):
         print(f"\n{t['old_name']} -> {t['new_name']}   (renamed {t['renamed_at']})")
         print(f"  {t['live_refs']} live memories still say '{t['old_name']}':")
         print(f"    history        {t['history']:>5}  (pre-rename; true when written, kept)")

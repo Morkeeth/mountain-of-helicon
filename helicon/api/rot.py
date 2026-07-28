@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
-from helicon.api.app import get_conn
+from helicon.api.app import get_conn, get_config
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ async def rot_exam(fresh: int = 0):
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     t0 = time.monotonic()
-    res = run_rot_exam(get_conn(), repo_root=repo_root)
+    res = run_rot_exam(get_conn(), repo_root=repo_root, config=get_config())
     took = round(time.monotonic() - t0, 1)
     _cache.update({"res": res, "mono": time.monotonic(), "took_s": took,
                    "ran_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})

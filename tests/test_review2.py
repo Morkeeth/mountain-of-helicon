@@ -1,5 +1,6 @@
 """Review 2.0 phase A: helicon_flag, regret ledger, human-evidence guard."""
 import json
+import os
 from datetime import datetime, timedelta
 
 import pytest
@@ -202,7 +203,13 @@ def test_battery_expiry_does_not_flag_healthy_past_half_life(conn):
 # ------------------------------------------------------------- the rot exam
 def test_rot_exam_runs_all_twelve_classes(conn):
     from helicon.rot import run_rot_exam
-    res = run_rot_exam(conn, repo_root="/Users/morkeeth/CODE/helicon")
+    # repo_root is THIS checkout, resolved from the test file. It was hardcoded
+    # to /Users/morkeeth/CODE/helicon — the frozen hackathon submission, a dead
+    # name for this repo and a path no other machine has. Same failure class as
+    # the ~/CODE default in the R4 code arm: an exam that reads the author's
+    # home directory.
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    res = run_rot_exam(conn, repo_root=repo_root)
     assert res["classes"] == 12
     assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 13)}
     assert all(c["verdict"] in ("CLEAN", "ROT FOUND", "UNMEASURED") for c in res["checks"])
