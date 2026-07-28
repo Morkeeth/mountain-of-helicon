@@ -16,7 +16,10 @@ brief embeds it. Every number traces to task_runs / run_cards / run_events /
 govern_batches — nothing is invented, and an empty day says so.
 """
 import json
+import re
 import sqlite3
+
+_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _rows(conn, sql, params=()):
@@ -46,7 +49,10 @@ def latest_activity_day(conn) -> str | None:
         _scalar(conn, "SELECT MAX(start) FROM run_cards"),
         _scalar(conn, "SELECT MAX(applied_at) FROM govern_batches WHERE undone_at IS NULL"),
     ]
-    days = sorted({_day(c) for c in candidates if c}, reverse=True)
+    # Only well-formed YYYY-MM-DD prefixes count. A malformed timestamp (some
+    # seeded/legacy rows carry a non-date start) must never become "the day".
+    days = sorted({d for c in candidates if c and _DATE.match(d := _day(c))},
+                  reverse=True)
     return days[0] if days else None
 
 

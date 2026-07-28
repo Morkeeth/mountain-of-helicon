@@ -89,6 +89,14 @@ def test_default_day_is_the_latest_with_activity(conn):
     assert [r["id"] for r in d["runs"]] == ["new"]
 
 
+def test_malformed_start_never_becomes_the_day(conn):
+    """A non-date start (some seeded/legacy run_cards carry 'run-2026-...') must
+    not be picked as the latest day — only well-formed YYYY-MM-DD counts."""
+    _run(conn, "real", "2026-07-18T09:00:00", acceptance="pending")
+    _card(conn, "run-2026-07-19", "run-2026-07-19T20:00:00")  # malformed start
+    assert reflection.latest_activity_day(conn) == "2026-07-18"
+
+
 def test_scored_cards_and_rulings_join_the_same_day(conn):
     day = "2026-07-18"
     _card(conn, "c1", f"{day}T20:00:00", score=0.8, cost=3.0, output_tokens=5000)
