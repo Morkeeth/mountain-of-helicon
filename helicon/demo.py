@@ -159,7 +159,9 @@ def seed(db_path: str = DEMO_DB) -> dict:
     # Seed a usage log: every memory has been surfaced recently EXCEPT the dead
     # note-app comparison — so the retrieval gate flags exactly one kill
     # candidate, and retiring it moves the gate.
-    recent = (_dt.datetime.utcnow() - _dt.timedelta(days=3)).isoformat()
+    # naive-UTC like every other stamp in the store (utcnow is deprecated)
+    recent = (_dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+              - _dt.timedelta(days=3)).isoformat()
     conn.execute("DELETE FROM retrieval_log")
     for cid, *_ in CUBES:
         if cid == "demo-deadname":   # a dead service name nothing has retrieved in months

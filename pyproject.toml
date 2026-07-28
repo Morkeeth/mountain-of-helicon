@@ -29,3 +29,15 @@ helicon = "helicon.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["helicon*"]
+
+[tool.pytest.ini_options]
+# Deprecations are errors: the suite must not rot toward a Python upgrade.
+# (utcnow was deprecated code in demo.py and 3 test files until Jul 29; with
+# plain warnings the count had quietly grown to 162.) Third-party deprecations
+# we cannot fix are ignored BY NAME, never wholesale.
+filterwarnings = [
+    "error::DeprecationWarning",
+    # starlette's own deprecation class subclasses UserWarning, not
+    # DeprecationWarning — ignored by message so nothing else hides behind it.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
