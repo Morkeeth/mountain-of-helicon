@@ -7,7 +7,7 @@ skills scan is pointed at an empty root so nothing depends on the host's
 ~/.claude/skills."""
 import hashlib
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,7 +17,7 @@ from helicon.db import init_db, insert_audit, insert_cube, insert_review
 from helicon.models import HeliconCube, Review
 from helicon.triage import init_triage_table
 
-NOW = datetime.utcnow()
+NOW = datetime.now(timezone.utc).replace(tzinfo=None)
 STALE_CONTENT = (
     "Ship the demo today, the deadline is this week. "
     + "Detailed plan for the demo video recording and upload steps. " * 10

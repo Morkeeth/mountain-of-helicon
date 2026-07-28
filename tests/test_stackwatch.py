@@ -19,7 +19,8 @@ def _claim_cube(conn, path, when="now"):
         source="claude-code", source_ref="session_x", type="file_created",
         title=f"Created: {path.split('/')[-1]}",
         content=f"File: {path}\nsome body",
-        created_at=__import__("datetime").datetime.utcnow().isoformat())
+        created_at=__import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc).replace(tzinfo=None).isoformat())
     cube = result_to_cube(r)
     assert insert_cube(conn, cube)
     conn.commit()
