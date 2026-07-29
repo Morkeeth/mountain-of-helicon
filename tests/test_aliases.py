@@ -129,3 +129,42 @@ def test_rot_r4_unmeasured_without_aliases(tmp_path):
     assert r4["coverage"] == "TESTED"
     assert r4["verdict"] == "UNMEASURED"
     assert "no renames declared" in r4["receipt"]
+
+
+def test_r4_code_arm_is_config_declared_not_home_scanned(conn, tmp_path,
+                                                         monkeypatch):
+    """The exam may only look where config says.
+
+    Before 2026-07-28 `triage_alias` called `code_refs` with no override, so the
+    default "~/CODE" walked the developer's home — 37 repos — in production AND
+    in every unit test that reached R4. `HOME=<empty> pytest ...::
+    test_alias_drift_flips_r4` passed while the same test on the real HOME
+    failed: the home scan had already pinned R4 at ROT FOUND before the test's
+    dead-name cube existed, so the FLIP the test asserts could never fire.
+    """
+    import os
+    import subprocess
+    monkeypatch.setattr(os, "listdir",
+                        lambda *a, **kw: (_ for _ in ()).throw(
+                            AssertionError("R4 scanned an undeclared directory")))
+    assert alias_rot(conn)[0]["code_scanned"] is False
+    monkeypatch.undo()
+
+    repo = tmp_path / "repos" / "app"
+    repo.mkdir(parents=True)
+    (repo / "seed.ts").write_text('post({ poster: "glaze" });\n')
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                    "commit", "-qm", "x"], cwd=repo, check=True)
+    cfg = {"aliases": {"repos_dir": str(tmp_path / "repos")}}
+    t = alias_rot(conn, config=cfg)[0]
+    assert t["code_scanned"] is True
+    assert [l["file"] for l in t["code_leads"]] == ["seed.ts"]
+
+
+def test_r4_receipt_says_unmeasured_rather_than_implying_a_clean_code_arm(conn):
+    _cube(conn, "polish the glaze demo video", "stale.md", "2026-07-05T09:00:00")
+    r4 = next(c for c in run_rot_exam(conn)["checks"] if c["id"] == "R4")
+    assert "code arm not configured" in r4["receipt"]
+    assert "unmeasured, not clean" in r4["receipt"]

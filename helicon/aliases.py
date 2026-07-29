@@ -91,10 +91,61 @@ def _code_rx(name: str):
         re.I)
 
 
-def code_refs(old_name: str, new_name: str = "", repos_dir: str = "~/CODE",
-              cap: int = 60) -> dict:
-    """Where the dead name is EXECUTABLE, not merely written."""
+def _is_self(repo: str, skip_roots: list[str]) -> bool:
+    """True if `repo` IS this checkout, or contains it (a worktree under it)."""
+    r = os.path.realpath(repo)
+    return any(s == r or s.startswith(r + os.sep) for s in skip_roots)
+
+
+def _self_repo_root() -> str:
+    """The checkout this code is running from — realpath'd."""
+    return os.path.realpath(os.path.dirname(os.path.dirname(__file__)))
+
+
+def repos_dir_from_config(config: dict | None) -> str | None:
+    """Where the code arm is allowed to look, declared in config or nowhere.
+
+    CORRECTION 2026-07-28: this used to default to the literal string "~/CODE",
+    so BOTH the production R4 check and every unit test that touched it walked
+    the developer's home directory — 37 repos, a `git ls-files` each. Proven two
+    ways: `HOME=<empty tmp> pytest tests/test_watch.py::test_alias_drift_flips_r4`
+    passed in 0.53s while the same test on the real HOME failed in 6.25s, because
+    the ~/CODE scan had already put R4 in ROT FOUND before the test's dead-name
+    cube was inserted, so no FLIP was ever emitted. An exam whose verdict depends
+    on the examiner's home directory is not an exam.
+
+    There is no implicit default now. Unconfigured means the arm does not run and
+    says so (`scanned: False`) — an unmeasured arm must never read as clean.
+    """
+    if not config:
+        return None
+    explicit = (config.get("aliases") or {}).get("repos_dir")
+    if not explicit:
+        explicit = ((config.get("connectors") or {}).get("git") or {}).get("repos_dir")
+    return os.path.expanduser(explicit) if explicit else None
+
+
+def code_refs(old_name: str, new_name: str = "", repos_dir: str | None = None,
+              cap: int = 60, exclude_self: bool = True) -> dict:
+    """Where the dead name is EXECUTABLE, not merely written.
+
+    `repos_dir=None` means "not configured": no scan, `scanned: False`. Callers
+    resolve it from config via repos_dir_from_config(); nothing walks a home
+    directory by default.
+    """
+    if not repos_dir:
+        return {"leads": [], "legacy_tests": 0, "repos": 0, "scanned": False,
+                "repos_dir": None}
     root = os.path.expanduser(repos_dir)
+    # The tool's own source is excluded from its own scan. helicon/cockpit.py
+    # line 26 is a SAFE_TERMINALS allowlist reading ["x-engine", "glaze",
+    # "favour"] — a quoted dead-name token in executable code, so the check
+    # scored it as a lead and `data/watch-state.json` sat at "R4: ROT FOUND"
+    # permanently: the rename detector flagging itself, unable to reach CLEAN
+    # by construction. A rename table is allowed to contain the dead name; that
+    # is what a rename table IS. Scanning yourself is not evidence about the
+    # world.
+    skip_roots = [_self_repo_root()] if exclude_self else []
     rx = _code_rx(old_name)
     # Same rule the prose triage already uses: a line naming BOTH the old and
     # the new name is rename-AWARE (a migration, an alias declaration). It is
@@ -109,12 +160,16 @@ def code_refs(old_name: str, new_name: str = "", repos_dir: str = "~/CODE",
     # codebase whose entire domain vocabulary is the new name, a bare-word rule
     # makes every dead reference near product copy invisible.
     new_rx = _code_rx(new_name) if new_name else None
-    leads, legacy, repos = [], 0, 0
+    leads, legacy, repos, skipped_self = [], 0, 0, []
     if not os.path.isdir(root):
-        return {"leads": [], "legacy_tests": 0, "repos": 0}
+        return {"leads": [], "legacy_tests": 0, "repos": 0, "scanned": False,
+                "repos_dir": root}
     for entry in sorted(os.listdir(root)):
         repo = os.path.join(root, entry)
         if not os.path.isdir(os.path.join(repo, ".git")):
+            continue
+        if _is_self(repo, skip_roots):
+            skipped_self.append(entry)
             continue
         try:
             tracked = subprocess.run(["git", "ls-files"], cwd=repo, timeout=20,
@@ -149,7 +204,8 @@ def code_refs(old_name: str, new_name: str = "", repos_dir: str = "~/CODE",
                 elif len(leads) < cap:
                     leads.append({"repo": entry, "file": rel, "line": i,
                                   "text": line.strip()[:120]})
-    return {"leads": leads, "legacy_tests": legacy, "repos": repos}
+    return {"leads": leads, "legacy_tests": legacy, "repos": repos,
+            "scanned": True, "repos_dir": root, "skipped_self": skipped_self}
 
 
 def add_alias(conn: sqlite3.Connection, old_name: str, new_name: str,
@@ -183,7 +239,8 @@ def _word(name: str) -> re.Pattern:
     return re.compile(pre + re.escape(name) + suf, re.IGNORECASE)
 
 
-def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5) -> dict:
+def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5,
+                 config: dict | None = None) -> dict:
     """Classify every live dead-name reference for one alias, and measure
     serving-side leakage. Read-only on cubes; deterministic."""
     old_rx, new_rx = _word(alias["old_name"]), _word(alias["new_name"])
@@ -228,13 +285,14 @@ def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5) -> dict:
     except Exception:
         hits = []
 
-    code = code_refs(alias["old_name"], alias["new_name"])
+    code = code_refs(alias["old_name"], alias["new_name"],
+                     repos_dir=repos_dir_from_config(config))
 
     return {
         "old_name": alias["old_name"], "new_name": alias["new_name"],
         "renamed_at": alias["renamed_at"],
         "code_leads": code["leads"], "code_legacy_tests": code["legacy_tests"],
-        "code_repos": code["repos"],
+        "code_repos": code["repos"], "code_scanned": code["scanned"],
         "live_refs": len(history) + len(rename_aware) + len(current_claims),
         "history": len(history),
         "rename_aware": len(rename_aware),
@@ -249,9 +307,10 @@ def triage_alias(conn: sqlite3.Connection, alias: dict, k: int = 5) -> dict:
     }
 
 
-def alias_rot(conn: sqlite3.Connection, k: int = 5) -> list[dict]:
+def alias_rot(conn: sqlite3.Connection, k: int = 5,
+              config: dict | None = None) -> list[dict]:
     """Triage every declared alias. The rot exam's R4 raw material."""
-    return [triage_alias(conn, a, k=k) for a in list_aliases(conn)]
+    return [triage_alias(conn, a, k=k, config=config) for a in list_aliases(conn)]
 
 
 def _existing_alias_keys(conn: sqlite3.Connection) -> set[str]:
@@ -268,14 +327,15 @@ def _existing_alias_keys(conn: sqlite3.Connection) -> set[str]:
     return keys
 
 
-def alias_scan(conn: sqlite3.Connection, k: int = 5) -> dict:
+def alias_scan(conn: sqlite3.Connection, k: int = 5,
+               config: dict | None = None) -> dict:
     """File one audit finding per alias that shows rot (current-claims or
     serving leakage). Idempotent by alias_key."""
     existing = _existing_alias_keys(conn)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, clean, skipped = [], [], []
 
-    for t in alias_rot(conn, k=k):
+    for t in alias_rot(conn, k=k, config=config):
         key = f"{t['old_name'].lower()}->{t['new_name'].lower()}"
         if t["current_claims"] == 0 and not t["leaked"]:
             clean.append(key)

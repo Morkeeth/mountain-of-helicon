@@ -36,6 +36,7 @@ import uuid
 from datetime import datetime, timezone
 
 from helicon import taskrun
+from helicon.capture import _hash_file
 from helicon.cockpit import _is_private, _safe_repo_root
 
 # Said in full wherever an observed run is rendered. Not a label — a sentence,
@@ -161,15 +162,46 @@ def session_stop(conn, session_id: str, transcript_path: str = "") -> dict:
     run = conn.execute("SELECT repo_ref FROM task_runs WHERE id=?", (rid,)).fetchone()
     repo, _, base = (run["repo_ref"] or "").partition("@")
 
-    manifest = []
+    # F-C02. `attach_artifact` has always DOCUMENTED that "each entry should
+    # carry a content hash + observed_at, so a path+mtime alone can never
+    # masquerade as proof" — and the imported path (capture._artifacts) does.
+    # This forward path, the one that governs live runs, recorded only
+    # {path, state, observed_at}. With no hash, the Run viewer reads the file
+    # from disk at view time and presents today's bytes as capture-time truth:
+    # a human reviews, and endorses, content the run may never have produced.
+    #
+    # F-C04. The manifest is `git diff base..HEAD` plus `git status --porcelain`
+    # — REPO-WIDE. Two terminals in one repo is the fleet case this module was
+    # built for (_find_open keys on session id precisely so they do not collide),
+    # so a concurrent session's edits land in this run's manifest. That cannot be
+    # fixed by better diffing: git does not know which session wrote a line. It
+    # can be SAID, per entry and in the run's history, which is what a governance
+    # ledger owes the person signing off.
+    manifest, seen = [], set()
+
+    def _entry(path: str, state: str) -> dict | None:
+        if not path or path in seen or _is_private(os.path.join(repo, path)):
+            return None
+        seen.add(path)
+        full = os.path.join(repo, path)
+        e = {"path": path, "state": state, "observed_at": _now(),
+             "content_hash": _hash_file(full) if os.path.isfile(full) else None,
+             # never "this session wrote it" — git cannot support that claim
+             "attribution": "repo-diff (not session-scoped)"}
+        if e["content_hash"] is None:
+            e["hash_note"] = "no content at capture time (deleted, moved, or a directory)"
+        return e
+
     for line in _git(repo, "diff", "--name-only", f"{base}..HEAD").splitlines():
-        p = line.strip()
-        if p and not _is_private(os.path.join(repo, p)):
-            manifest.append({"path": p, "state": "committed", "observed_at": _now()})
+        e = _entry(line.strip(), "committed")
+        if e:
+            manifest.append(e)
     for line in _git(repo, "status", "--porcelain").splitlines():
-        p = line[3:].strip()
-        if p and not _is_private(os.path.join(repo, p)):
-            manifest.append({"path": p, "state": "uncommitted", "observed_at": _now()})
+        e = _entry(line[3:].strip(), "uncommitted")
+        if e:
+            manifest.append(e)
+
+    concurrent = _concurrent_runs(conn, repo, rid)
 
     # Real cost, from the transcript the harness wrote. Step 3 of the loop was
     # ABSENT because the forward path hardcoded {"status": "unknown"} while a
@@ -188,8 +220,43 @@ def session_stop(conn, session_id: str, transcript_path: str = "") -> dict:
     taskrun.attach_artifact(conn, rid, manifest, cost_observation=cost)
     taskrun.record_event(conn, rid, "artifact", actor="helicon",
                          detail=json.dumps({"files": len(manifest),
-                                            "cost_status": cost["status"]}))
-    return {"ok": True, "task_run_id": rid, "files": len(manifest), "cost": cost}
+                                            "cost_status": cost["status"],
+                                            "hashed": sum(1 for m in manifest
+                                                          if m.get("content_hash"))}))
+    # The scope caveat is a run EVENT, not a footnote in a docstring: it has to
+    # reach the person who signs off, and the run history is what they read.
+    taskrun.record_event(
+        conn, rid, "scope", actor="helicon",
+        detail=json.dumps({
+            "manifest_scope": "repo-wide",
+            "repo": repo,
+            "concurrent_runs": concurrent,
+            "note": ("this manifest is every change in the repo between "
+                     + (base or "the opening commit") + " and now, not only what "
+                     "this session wrote"
+                     + (f"; {len(concurrent)} other observed run(s) were open on "
+                        "this repo during the window, so some of these files are "
+                        "probably theirs" if concurrent else "")),
+        }))
+    return {"ok": True, "task_run_id": rid, "files": len(manifest), "cost": cost,
+            "manifest_scope": "repo-wide", "concurrent_runs": concurrent}
+
+
+def _concurrent_runs(conn, repo: str, rid: str) -> list[str]:
+    """Other observed runs on this repo that overlapped this one.
+
+    Not a guess about who wrote what — a named reason to doubt the attribution,
+    which is the honest thing a ledger can offer here.
+    """
+    me = conn.execute("SELECT opened_at FROM task_runs WHERE id=?", (rid,)).fetchone()
+    if me is None:
+        return []
+    rows = conn.execute(
+        "SELECT id FROM task_runs WHERE id != ? AND task_class = ? "
+        "AND repo_ref LIKE ? AND COALESCE(artifact_attached_at, ?) >= ? "
+        "ORDER BY opened_at",
+        (rid, OBSERVED_CLASS, f"{repo}@%", _now(), me["opened_at"])).fetchall()
+    return [r["id"] for r in rows]
 
 
 def unreviewed(conn, limit: int = 50) -> list:

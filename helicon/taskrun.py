@@ -17,6 +17,7 @@ and NOTHING else:
 """
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -257,12 +258,70 @@ def record_event(conn, task_run_id, kind, *, actor="human", detail="") -> None:
     conn.commit()
 
 
-def accept_run(conn, task_run_id, verdict, *, note="") -> dict:
+def verify_artifact(conn, task_run_id) -> dict:
+    """Re-hash the attached manifest against what is on disk NOW.
+
+    The manifest records a content hash per file at capture time. Acceptance is
+    a statement about specific bytes, so before a human's 'accepted' is written
+    down, those bytes are checked.
+
+    `unhashable` is reported rather than treated as a pass: a manifest entry
+    with no recorded hash cannot be bound to anything, and the count says how
+    much of the artifact the verdict actually covers.
+    """
+    run = _get_run(conn, task_run_id)
+    if run is None:
+        raise TaskRunError(f"no such task run: {task_run_id}")
+    repo = (run["repo_ref"] or "").partition("@")[0]
+    manifest = _loads(run["artifact_manifest"]) or []
+    mismatched, missing, unhashable, checked = [], [], 0, 0
+    for m in manifest:
+        if not isinstance(m, dict) or not m.get("path"):
+            continue
+        recorded = m.get("content_hash")
+        if not recorded:
+            unhashable += 1
+            continue
+        full = os.path.join(repo, m["path"]) if repo else m["path"]
+        if not os.path.isfile(full):
+            missing.append(m["path"])
+            continue
+        checked += 1
+        try:
+            with open(full, "rb") as fh:
+                actual = hashlib.sha256(fh.read()).hexdigest()[:len(recorded)]
+        except OSError:
+            missing.append(m["path"])
+            continue
+        if actual != recorded:
+            mismatched.append({"path": m["path"], "recorded": recorded,
+                               "actual": actual})
+    return {"ok": not mismatched and not missing, "checked": checked,
+            "unhashable": unhashable, "entries": len(manifest),
+            "mismatched": mismatched, "missing": missing}
+
+
+def accept_run(conn, task_run_id, verdict, *, note="",
+               accept_changed_artifact: bool = False) -> dict:
     """Human acceptance closes the state machine (the piece the recorder was
     missing). verdict ∈ accepted | rework | rollback. Append-only: the verdict
     and note are recorded as a run_event AND set on the run. A reviewed Run is
     immutable: reworked output opens a new Run instead of laundering the same
-    artifact from rework into accepted. Only 'accepted' may promote a prompt."""
+    artifact from rework into accepted. Only 'accepted' may promote a prompt.
+
+    F-C03. Acceptance is now BOUND TO THE ARTIFACT. This validated the verdict
+    string and the run's status and nothing else, so a human could accept a run
+    while the viewer was showing a hash-mismatch block — an integrity product
+    whose acceptance was not tied to the thing being reviewed. 'accepted' now
+    re-hashes the manifest first and refuses on drift.
+
+    The refusal is overridable, deliberately: files legitimately move on after a
+    run, and a permanent block would just teach people to route around the gate.
+    But the override is explicit (`accept_changed_artifact=True`) and is written
+    into the run's history as its own event, so "accepted something that had
+    changed" is a fact on the record rather than a silent default. 'rework' and
+    'rollback' are not endorsements and are not gated.
+    """
     if verdict not in ("accepted", "rework", "rollback"):
         raise TaskRunError("verdict must be accepted | rework | rollback")
     run = _get_run(conn, task_run_id)
@@ -280,13 +339,40 @@ def accept_run(conn, task_run_id, verdict, *, note="") -> dict:
         )
     if run["status"] not in ("artifact_attached", "verified"):
         raise TaskRunError(f"cannot accept before an artifact exists (status: {run['status']})")
+
+    integrity = verify_artifact(conn, task_run_id)
+    if verdict == "accepted" and not integrity["ok"] and not accept_changed_artifact:
+        drift = "; ".join(
+            f"{m['path']} (recorded {m['recorded']}, now {m['actual']})"
+            for m in integrity["mismatched"][:3])
+        raise TaskRunError(
+            "artifact has changed since it was captured, so this acceptance "
+            "would endorse bytes nobody reviewed: "
+            + (f"{len(integrity['mismatched'])} modified [{drift}]"
+               if integrity["mismatched"] else "")
+            + (f" {len(integrity['missing'])} missing "
+               f"[{', '.join(integrity['missing'][:3])}]"
+               if integrity["missing"] else "")
+            + ". Re-review and pass accept_changed_artifact=True to accept it "
+              "anyway (the override is recorded on the run).")
+
     conn.execute(
         "UPDATE task_runs SET human_acceptance=?, status='reviewed' WHERE id=?",
         (verdict, task_run_id))
+    # The integrity result is filed on EVERY verdict, passing or not: what was
+    # true about the artifact at the moment of the ruling is part of the ruling.
+    record_event(conn, task_run_id, "integrity", actor="helicon",
+                 detail=json.dumps(integrity))
+    if verdict == "accepted" and not integrity["ok"]:
+        record_event(conn, task_run_id, "integrity_override", actor="human",
+                     detail=json.dumps({"mismatched": integrity["mismatched"],
+                                        "missing": integrity["missing"],
+                                        "note": note}))
     record_event(conn, task_run_id, verdict, actor="human", detail=note)
     conn.commit()
     return {"ok": True, "task_run_id": task_run_id, "human_acceptance": verdict,
-            "note": note, "promotable": verdict == "accepted"}
+            "note": note, "promotable": verdict == "accepted",
+            "artifact_integrity": integrity}
 
 
 def render_receipt(conn, task_run_id) -> str:

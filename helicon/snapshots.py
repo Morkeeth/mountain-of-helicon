@@ -18,6 +18,21 @@ import sqlite3
 from datetime import datetime, timezone
 
 
+# How long a baseline is evidence. Declared, not implied.
+#
+# All 13 baselines on the live store were captured 2026-07-09 and 2026-07-11 and
+# were still being scored as current 18-20 days later. With no expiry, every real
+# change in memory looks like a regression FOREVER, so "regression" and
+# "legitimate drift" become indistinguishable and the signal decays to noise —
+# which is exactly what happened: 10 of 13 regressed, and no one could say how
+# many of those were the product working.
+#
+# A baseline is a photograph of what retrieval SHOULD return. Memory is supposed
+# to change. So a baseline has a shelf life, and past it the honest verdict is
+# "this needs re-capturing", never "retrieval got worse".
+SNAPSHOT_MAX_AGE_DAYS = 14
+
+
 def init_snapshot_table(conn: sqlite3.Connection):
     conn.execute("""CREATE TABLE IF NOT EXISTS context_snapshots (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,6 +43,18 @@ def init_snapshot_table(conn: sqlite3.Connection):
         created_at TEXT NOT NULL,
         note TEXT DEFAULT ''
     )""")
+    # Lifecycle columns, added in place so existing baselines keep their history.
+    # as_of/stale_when are the vault's own truth-layer discipline (a fact carries
+    # when it was true and what invalidates it) applied to the exam's own inputs.
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(context_snapshots)")}
+    for name, ddl in (
+        ("as_of", "TEXT"),               # when this baseline was true
+        ("stale_when", "TEXT"),          # the rule that retires it
+        ("superseded_by", "INTEGER"),    # the re-capture that replaced it
+        ("rebaseline_reason", "TEXT"),   # WHY the baseline moved
+    ):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE context_snapshots ADD COLUMN {name} {ddl}")
     conn.commit()
 
 
@@ -53,45 +80,107 @@ def _drop_superseded(conn: sqlite3.Connection, hits: list[dict], k: int) -> list
 
 def _retrieve(conn: sqlite3.Connection, task: str, k: int) -> list[dict]:
     """Rank memories for a task the way the agent would (hybrid, FTS fallback).
-    Over-fetch, then drop superseded, so retiring a stale cube frees its slot."""
+    Over-fetch, drop superseded, then spend the context budget by policy.
+
+    The three stages are ordered on purpose. Over-fetching keeps recall wide;
+    dropping superseded frees the slots retirement should free; and the budget
+    policy (exact-name pin + one-per-artifact diversity) is applied LAST, at the
+    real k rather than at the over-fetch width. Applying it at the wide width
+    silently re-admitted duplicates: with fewer distinct subjects than 3k, the
+    cap's overflow refill legitimately fills the tail with second copies, and
+    those copies then survive the trim to k. The budget being protected is the
+    agent's top-k, so k is where the policy belongs.
+
+    Both branches run it. The FTS fallback is the path a store takes before its
+    first `helicon embed`, which is precisely when a new user's ranking is most
+    exposed to near-duplicate flooding.
+    """
     over = k * 3
+    hits = None
     try:
-        from helicon.embeddings import hybrid_search, get_embedding_stats
+        from helicon.embeddings import get_embedding_stats, hybrid_search
         if get_embedding_stats(conn)["embedded"] > 0:
-            rows = hybrid_search(conn, task, limit=over)
+            # raw ranking here; the policy is applied once, below, at k
+            rows = hybrid_search(conn, task, limit=over, per_subject_cap=0,
+                                 pin_title_matches=False)
             if rows:
-                hits = [{"id": r["id"], "title": r.get("title", "")} for r in rows]
-                return _drop_superseded(conn, hits, k)
+                hits = [{"id": r["id"], "title": r.get("title", ""),
+                         "metadata": r.get("metadata")} for r in rows]
     except Exception:
-        pass
-    # FTS fallback: OR the terms so multi-word queries still match partially
-    # (otherwise "consolidation engine" needs BOTH words and can return nothing).
-    import re
-    from helicon.db import search_cubes
-    terms = [t for t in re.findall(r"[A-Za-z0-9]+", task) if len(t) > 2]
-    query = " OR ".join(terms) if terms else task
-    try:
-        rows = search_cubes(conn, query, over)
-    except Exception:
-        rows = search_cubes(conn, task, over)
-    hits = [{"id": r["id"], "title": r["title"]} for r in rows]
-    return _drop_superseded(conn, hits, k)
+        hits = None
+    if hits is None:
+        # FTS fallback: OR the terms so multi-word queries still match partially
+        # (otherwise "consolidation engine" needs BOTH words and can return
+        # nothing).
+        import re
+        from helicon.db import search_cubes
+        terms = [t for t in re.findall(r"[A-Za-z0-9]+", task) if len(t) > 2]
+        query = " OR ".join(terms) if terms else task
+        try:
+            rows = search_cubes(conn, query, over)
+        except Exception:
+            rows = search_cubes(conn, task, over)
+        hits = [{"id": r["id"], "title": r["title"],
+                 "metadata": r.get("metadata")} for r in rows]
+
+    from helicon.embeddings import apply_context_policy
+    hits = _drop_superseded(conn, hits, over)
+    return apply_context_policy(conn, task, hits, k)
 
 
-def capture_snapshot(conn: sqlite3.Connection, task: str, k: int = 5, note: str = "") -> dict:
+def capture_snapshot(conn: sqlite3.Connection, task: str, k: int = 5, note: str = "",
+                     max_age_days: int = SNAPSHOT_MAX_AGE_DAYS,
+                     rebaseline_reason: str = "", supersedes: int | None = None) -> dict:
     init_snapshot_table(conn)
     hits = _retrieve(conn, task, k)
+    now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     cur = conn.execute(
-        "INSERT INTO context_snapshots (task, cube_ids, titles, top_k, created_at, note) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO context_snapshots (task, cube_ids, titles, top_k, created_at, "
+        "note, as_of, stale_when, rebaseline_reason) VALUES (?,?,?,?,?,?,?,?,?)",
         (task, json.dumps([h["id"] for h in hits]), json.dumps([h["title"] for h in hits]),
-         k, datetime.now(timezone.utc).replace(tzinfo=None).isoformat(), note),
+         k, now, note, now, f"age > {max_age_days}d", rebaseline_reason),
     )
+    new_id = cur.lastrowid
+    if supersedes is not None:
+        conn.execute("UPDATE context_snapshots SET superseded_by=? WHERE id=?",
+                     (new_id, supersedes))
     conn.commit()
-    return {"id": cur.lastrowid, "task": task, "top_k": k, "hits": hits}
+    return {"id": new_id, "task": task, "top_k": k, "hits": hits,
+            "as_of": now, "stale_when": f"age > {max_age_days}d"}
 
 
-def check_snapshot(conn: sqlite3.Connection, snap: sqlite3.Row) -> dict:
+def recapture_snapshot(conn: sqlite3.Connection, snapshot_id: int, reason: str,
+                       k: int | None = None) -> dict:
+    """Re-baseline one snapshot, ON THE RECORD.
+
+    A baseline that can be silently overwritten is not evidence, it is an
+    opinion that always agrees with today. So re-capture is its own operation:
+    it requires a REASON, it links the new baseline to the one it replaces
+    (superseded_by), and it leaves the old row in place. "The memory changed"
+    and "retrieval got worse" are only distinguishable if somebody wrote down
+    which one they believed at the moment they moved the goalposts.
+    """
+    init_snapshot_table(conn)
+    if not (reason or "").strip():
+        raise ValueError(
+            "a re-baseline needs a reason — without one, 'the memory changed' "
+            "and 'retrieval got worse' are the same edit")
+    old = conn.execute("SELECT * FROM context_snapshots WHERE id=?",
+                       (snapshot_id,)).fetchone()
+    if old is None:
+        raise ValueError(f"no snapshot {snapshot_id}")
+    if old["superseded_by"]:
+        raise ValueError(
+            f"snapshot {snapshot_id} was already superseded by "
+            f"{old['superseded_by']}; re-baseline that one instead")
+    return capture_snapshot(
+        conn, old["task"], k or old["top_k"],
+        note=f"re-baselined from #{snapshot_id}",
+        rebaseline_reason=reason, supersedes=snapshot_id)
+
+
+def check_snapshot(conn: sqlite3.Connection, snap: sqlite3.Row,
+                   max_age_days: int = SNAPSHOT_MAX_AGE_DAYS) -> dict:
     old_ids = json.loads(snap["cube_ids"])
     old_titles = json.loads(snap["titles"])
     title_of = dict(zip(old_ids, old_titles))
@@ -153,8 +242,57 @@ def check_snapshot(conn: sqlite3.Connection, snap: sqlite3.Row) -> dict:
     live_overlap = (len([i for i in live_old if i in new_set]) / len(live_old)
                     if live_old else 1.0)
     overlap = len(old_set & new_set) / max(1, len(old_set))
+    fossil = bool(old_ids) and not live_old
+
+    # --- is this baseline still evidence? ---
+    #
+    # Three ways a baseline stops being a test, none of which is "retrieval got
+    # worse", and all of which were being scored as if they were:
+    #
+    #   expired    older than the shelf life. Memory is SUPPOSED to change; past
+    #              the window a diff measures elapsed time, not quality.
+    #   fossil     every baseline memory has been retired. #28 'Search' read
+    #              fossil:True with overlap 0.0 and still scored OK, because
+    #              live_overlap of an empty set is 1.0 — a vacuous pass.
+    #   stale-task the QUERY names something that no longer exists. #16 is
+    #              "RELAY project status and progress"; RELAY was renamed to
+    #              FAVOUR on 2026-07-02, before the baseline was even captured.
+    #              A baseline asking for a dead name tests nothing current.
+    #
+    # Each reports as needing re-capture. None counts as a regression, and none
+    # is silently a pass either — an expired exam is unmeasured, not clean.
+    age_days = _age_days(snap["created_at"])
+    keys = snap.keys()
+    expired = age_days is not None and age_days > max_age_days
+    dead_name = _dead_name_in(conn, task)
+    superseded_by = snap["superseded_by"] if "superseded_by" in keys else None
+
+    if superseded_by:
+        status = "superseded"
+    elif dead_name:
+        status = "stale-task"
+    elif fossil:
+        status = "fossil"
+    elif expired:
+        status = "expired"
+    elif regressed:
+        status = "regressed"
+    else:
+        status = "ok"
+    # A baseline that is no longer evidence cannot report a regression.
+    regressed = status == "regressed"
+
     return {
         "snapshot_id": snap["id"], "task": task,
+        "status": status,
+        "age_days": age_days,
+        "expired": expired,
+        "stale_task": dead_name,
+        "as_of": snap["as_of"] if "as_of" in keys else snap["created_at"],
+        "stale_when": (snap["stale_when"] if "stale_when" in keys else None)
+                      or f"age > {max_age_days}d",
+        "superseded_by": superseded_by,
+        "needs_recapture": status in ("expired", "fossil", "stale-task"),
         "regressed": regressed, "overlap": round(overlap, 2),
         # overlap counts retired memories against the baseline, so it decays as
         # the product works. live_overlap is the one to read.
@@ -162,12 +300,58 @@ def check_snapshot(conn: sqlite3.Connection, snap: sqlite3.Row) -> dict:
         "dropped": dropped, "dropped_live": dropped_live,
         "added": added, "reordered": reordered, "stale": stale,
         # a baseline whose memories are all retired is a fossil, not a test
-        "fossil": bool(old_ids) and not live_old,
+        "fossil": fossil,
         "new_titles": [h["title"] for h in new_hits],
     }
 
 
-def check_all(conn: sqlite3.Connection) -> list[dict]:
+def check_all(conn: sqlite3.Connection,
+              max_age_days: int = SNAPSHOT_MAX_AGE_DAYS,
+              include_superseded: bool = False) -> list[dict]:
+    """Every baseline that is still standing.
+
+    Superseded baselines are excluded by default: once a re-capture replaces
+    one, scoring both double-counts the same task and the older row can only
+    ever look worse. They stay in the table as history — the lineage is the
+    record of WHY a baseline moved — but they are not exam questions.
+    """
     init_snapshot_table(conn)
     rows = conn.execute("SELECT * FROM context_snapshots ORDER BY id").fetchall()
-    return [check_snapshot(conn, r) for r in rows]
+    out = [check_snapshot(conn, r, max_age_days=max_age_days) for r in rows]
+    if not include_superseded:
+        out = [r for r in out if r["status"] != "superseded"]
+    return out
+
+
+def _age_days(created_at: str | None) -> float | None:
+    from helicon.timeutil import ts_norm, utc_now
+    norm = ts_norm(created_at)
+    if not norm:
+        return None
+    try:
+        return round((utc_now() - datetime.fromisoformat(norm)).total_seconds() / 86400, 1)
+    except ValueError:
+        return None
+
+
+def _dead_name_in(conn: sqlite3.Connection, task: str) -> str | None:
+    """Does this baseline's QUERY name something that has been renamed?
+
+    #16 asks for "RELAY project status and progress". RELAY became FAVOUR on
+    2026-07-02 — before the baseline was captured. Scoring it forever means
+    scoring retrieval on a question about a thing that no longer exists, and
+    reading the inevitable drift as a regression.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT old_name, new_name FROM entity_aliases").fetchall()
+    except sqlite3.Error:
+        return None
+    import re
+    for r in rows:
+        old = (r["old_name"] or "").strip()
+        if not old:
+            continue
+        if re.search(rf"(?<!\w){re.escape(old)}(?!\w)", task or "", re.I):
+            return f"{old} -> {r['new_name']}"
+    return None

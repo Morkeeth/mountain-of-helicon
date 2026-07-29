@@ -46,7 +46,7 @@ async def stores_audit():
     stats = run_scan(scfg)
     if m.get("rename") and len(m["rename"]) == 2:
         add_alias(conn, m["rename"][0], m["rename"][1], "2026-01-01T00:00:00", note="rename the store recorded")
-    res = run_rot_exam(conn)
+    res = run_rot_exam(conn, config=scfg)
     rotten = [c for c in res["checks"] if c["verdict"] == "ROT FOUND"]
     return {
         "configured": True, "store": "Mem0",

@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+# worktrees created inside the repo (git worktree add .worktrees/...)
+.worktrees/
 *.pyo
 .env
 data/
@@ -7,7 +9,11 @@ data/compiled/
 node_modules/
 .vite/
 *.egg-info/
+# `/dist/` is root-anchored and never matched the only dist that exists here,
+# web/dist — 52 files / 7.6 MB of build output tracked for months. Both forms
+# are listed rather than one loose `dist/`, so it is obvious which is which.
 /dist/
+web/dist/
 build/
 config.json
 .DS_Store
