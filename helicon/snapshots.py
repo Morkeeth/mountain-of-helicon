@@ -58,24 +58,58 @@ def init_snapshot_table(conn: sqlite3.Connection):
     conn.commit()
 
 
-def _drop_superseded(conn: sqlite3.Connection, hits: list[dict], k: int) -> list[dict]:
-    """Belt-and-suspenders: drop any retired ('superseded') cube that slipped
-    through. Retrieval now filters killed+superseded at the source on both the
-    semantic (embeddings) and FTS (search_cubes) branches, so retired memory no
-    longer reaches an agent. The battery Freshness test still guards the residual
-    real case: a cube that has decayed to near-zero confidence while still live
-    (pending/approved), i.e. stale context nobody has killed yet."""
+# A live cube decayed below this confidence is hard-stale: the battery's
+# Freshness test critical-fails any retrieval that serves one, and the snapshot
+# checker classifies its disappearance as 'decayed' (retired), not a regression.
+# Retrieval must therefore stop AT the same line the exam grades against —
+# before this floor existed, an approved cube at confidence 0.02 ('Edited:
+# MEMORY.md', 61 days stale) was served for 'Bagel agent deployment' and the
+# battery called its own serving layer BROKEN.
+STALE_CONF_FLOOR = 0.10
+
+
+def _context_hygiene(conn: sqlite3.Connection, hits: list[dict], k: int) -> list[dict]:
+    """Post-retrieval hygiene on the over-fetched candidates, one seam for every
+    surface that feeds an agent (snapshots, battery, alias leak check):
+
+      - drop retired cubes (superseded/killed) that slipped past the source
+        filters — belt-and-suspenders;
+      - drop live cubes decayed below STALE_CONF_FLOOR — stale context nobody
+        has killed yet, the exact case the battery Freshness test fails;
+      - dedupe identical titles, keeping the best-ranked — three distinct
+        'Created: closeout-2026-07-23-orchestrator.md' cubes once filled 3 of
+        the top-5 slots for 'Orchestrator Closeout', failing Redundancy and
+        regressing the snapshot by crowding out live baseline memories.
+
+    Over-fetch (3x k) means every dropped candidate frees a slot for the next
+    live, distinct memory."""
     if not hits:
         return hits
     ids = [h["id"] for h in hits]
     q = ",".join("?" * len(ids))
-    gone = {
-        r[0] for r in conn.execute(
-            f"SELECT id FROM helicon_cubes WHERE id IN ({q}) AND review_status = 'superseded'",
-            ids,
-        ).fetchall()
-    }
-    return [h for h in hits if h["id"] not in gone][:k]
+    rows = conn.execute(
+        f"SELECT id, review_status, confidence FROM helicon_cubes WHERE id IN ({q})",
+        ids,
+    ).fetchall()
+    info = {r["id"]: r for r in rows}
+    out, seen_titles = [], set()
+    for h in hits:
+        r = info.get(h["id"])
+        if r is None:
+            continue  # removed from the store — nothing to serve
+        if r["review_status"] in ("superseded", "killed"):
+            continue
+        conf = r["confidence"] if r["confidence"] is not None else 1.0
+        if conf < STALE_CONF_FLOOR:
+            continue
+        title_key = (h.get("title") or "").strip().lower()
+        if title_key and title_key in seen_titles:
+            continue
+        seen_titles.add(title_key)
+        out.append(h)
+        if len(out) == k:
+            break
+    return out
 
 
 def _retrieve(conn: sqlite3.Connection, task: str, k: int) -> list[dict]:
@@ -124,7 +158,11 @@ def _retrieve(conn: sqlite3.Connection, task: str, k: int) -> list[dict]:
                  "metadata": r.get("metadata")} for r in rows]
 
     from helicon.embeddings import apply_context_policy
-    hits = _drop_superseded(conn, hits, over)
+    # Hygiene on the wide pool (retired / decayed / duplicate titles out), THEN
+    # the budget policy (exact-name pin + one-per-artifact diversity) at the
+    # real k — every candidate hygiene drops frees a slot for a live, distinct
+    # memory before the policy spends the top-k budget.
+    hits = _context_hygiene(conn, hits, over)
     return apply_context_policy(conn, task, hits, k)
 
 
@@ -211,7 +249,7 @@ def check_snapshot(conn: sqlite3.Connection, snap: sqlite3.Row,
             retired_why[i] = "killed"
         elif row["review_status"] == "superseded":
             retired_why[i] = "superseded"
-        elif (row["confidence"] or 0) < 0.10:
+        elif (row["confidence"] or 0) < STALE_CONF_FLOOR:
             retired_why[i] = "decayed"
     stale = [(title_of[i], why) for i, why in retired_why.items()]
 

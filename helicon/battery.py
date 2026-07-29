@@ -17,7 +17,7 @@ Verdict: HEALTHY / DEGRADED / BROKEN (mirrors SHIP / REVISE / KILL).
 import re
 import sqlite3
 
-from helicon.snapshots import _retrieve
+from helicon.snapshots import STALE_CONF_FLOOR, _retrieve
 
 # Test catalogue — name / question / fail_signal, like TASTE_TESTS.
 # `mode` is "auto" (deterministic here) or "llm" (needs a model).
@@ -78,6 +78,30 @@ def _fetch(conn: sqlite3.Connection, ids: list[str]) -> dict:
     return {r["id"]: dict(r) for r in rows}
 
 
+# How much of each memory's content the judge sees. Enough to show whether the
+# claims are concrete; bounded so 5 memories stay well inside one prompt.
+JUDGE_CONTENT_CHARS = 400
+
+
+def _judge_lines(hits: list[dict]) -> list[str]:
+    """Render retrieved memories for the LLM judge: title AND content excerpt.
+
+    The judge used to see ONLY titles. Grounding asks "are the retrieved claims
+    specific and verifiable?" — a title is a label, not a claim, so the judge
+    (correctly, given its evidence) failed 8/13 tasks with reasons like "vague
+    titles without content" and "truncated text" (the title's own 80-char cut).
+    grounding_pass_rate 0.385 was the exam grading evidence the exam withheld.
+    The memories' CONTENT is what an agent actually receives, so that is what
+    the judge must grade."""
+    lines = []
+    for i, h in enumerate(hits, 1):
+        lines.append(f"  {i}. {h.get('title','')}")
+        body = " ".join((h.get("content") or "").split())
+        if body:
+            lines.append(f"     content: {body[:JUDGE_CONTENT_CHARS]}")
+    return lines
+
+
 def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plus") -> list[dict]:
     """The subjective (llm-mode) tests, judged by Qwen. Returns [] if no client
     or the call fails — the battery then falls back to deterministic-only, never
@@ -87,8 +111,7 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plu
     from helicon.qwen import complete_json
     llm = [t for t in CONTEXT_TESTS if t["mode"] == "llm"]
     lines = [f"Task the agent retrieves context for:\n  {task}\n", "Retrieved memories:"]
-    for i, h in enumerate(hits, 1):
-        lines.append(f"  {i}. {h.get('title','')}")
+    lines.extend(_judge_lines(hits))
     lines.append("\nRun each test on the retrieved set. Be honest; default to FAIL if unsure.")
     for t in llm:
         lines.append(f"- {t['name']}: {t['question']} (fail signal: {t['fail_signal']})")
@@ -147,7 +170,8 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
 
     # Freshness (critical): no retrieved memory is killed or decayed near zero.
     bad = [c for c in cubes.values()
-           if c.get("review_status") in ("killed", "superseded") or (c.get("confidence") or 1.0) < 0.10]
+           if c.get("review_status") in ("killed", "superseded")
+           or (c.get("confidence") or 1.0) < STALE_CONF_FLOOR]
     add("Freshness", not bad,
         "all retrieved memories are live" if not bad
         else f"{len(bad)} retrieved memories killed/decayed: {[c['title'][:40] for c in bad]}",
@@ -214,8 +238,13 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
         len(f"{c.get('title','')} {c.get('content','')}") for c in cubes.values()
     ) // 4
 
-    # Qwen-judged tests (Contradiction/Grounding), folded in if a client is given.
-    llm_results = run_llm_tests(client, task, hits, model=model)
+    # Qwen-judged tests (Contradiction/Grounding), folded in if a client is
+    # given. The judge gets title + content excerpt — grading claims requires
+    # seeing them (see _judge_lines).
+    judged_hits = [{"id": h["id"], "title": h.get("title", ""),
+                    "content": (cubes.get(h["id"], {}).get("content") or "")}
+                   for h in hits]
+    llm_results = run_llm_tests(client, task, judged_hits, model=model)
     results.extend(llm_results)
 
     fails = [r for r in results if r["status"] == "FAIL"]
@@ -247,8 +276,7 @@ def format_battery_prompt(task: str, hits: list[dict]) -> str:
     """Prompt for the subjective (llm-mode) tests, à la Taste Machine's filter."""
     lines = [f"Task the agent is retrieving context for:\n  {task}\n",
              "Retrieved memories:"]
-    for i, h in enumerate(hits, 1):
-        lines.append(f"  {i}. {h.get('title','')}")
+    lines.extend(_judge_lines(hits))
     lines.append("\nRun each test on the retrieved set. Be honest.\n")
     for i, t in enumerate([t for t in CONTEXT_TESTS if t["mode"] == "llm"], 1):
         lines.append(f"{i}. {t['name'].upper()}: {t['question']}")

@@ -1179,8 +1179,13 @@ def cmd_battery(args):
     if not res.get("llm_ran") and res["llm_tests"]:
         print(f"\n  llm-judged (needs a Qwen key): {', '.join(res['llm_tests'])}")
     if getattr(args, "prompt", False):
+        from helicon.battery import _fetch
+        hits = _retrieve(conn, args.task, args.k)
+        cubes = _fetch(conn, [h["id"] for h in hits])
+        enriched = [{**h, "content": cubes.get(h["id"], {}).get("content") or ""}
+                    for h in hits]
         print("\n--- LLM battery prompt ---")
-        print(format_battery_prompt(args.task, _retrieve(conn, args.task, args.k)))
+        print(format_battery_prompt(args.task, enriched))
 
 
 def cmd_taste(args):
