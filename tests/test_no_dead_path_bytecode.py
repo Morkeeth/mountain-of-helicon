@@ -16,21 +16,49 @@ exists. It cannot fire on a fresh checkout (bytecode is regenerated with correct
 paths); it fires exactly when a directory has been renamed or moved out from
 under stale artifacts, which is the case it exists for.
 """
+import marshal
 import pathlib
 import re
+import types
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 _SRC_PATH = re.compile(rb"(/[\w./ +-]{8,120}?\.py)\x00?")
 
 
+def _code_filenames(code: types.CodeType) -> set[str]:
+    out = {code.co_filename}
+    for const in code.co_consts:
+        if isinstance(const, types.CodeType):
+            out |= _code_filenames(const)
+    return out
+
+
 def _referenced_dirs(pyc: pathlib.Path) -> set[pathlib.Path]:
+    """co_filename paths referenced by a .pyc.
+
+    A valid pyc is unmarshalled and only real co_filename fields are read —
+    string *literals* in the source (test fixtures quoting old paths) must not
+    count as claims about where code lives. Blobs that do not unmarshal (other
+    interpreter versions, or the raw fixtures below) fall back to a byte scan.
+    """
     data = pyc.read_bytes()
+    names: set[str] | None = None
+    try:
+        code = marshal.loads(data[16:])
+        if isinstance(code, types.CodeType):
+            names = _code_filenames(code)
+    except Exception:
+        names = None
+    if names is None:
+        names = set()
+        for m in _SRC_PATH.finditer(data):
+            try:
+                names.add(m.group(1).decode("utf-8"))
+            except UnicodeDecodeError:
+                continue
     out = set()
-    for m in _SRC_PATH.finditer(data):
-        try:
-            p = pathlib.Path(m.group(1).decode("utf-8"))
-        except UnicodeDecodeError:
-            continue
+    for s in names:
+        p = pathlib.Path(s)
         if p.is_absolute() and "site-packages" not in str(p):
             out.add(p.parent)
     return out
