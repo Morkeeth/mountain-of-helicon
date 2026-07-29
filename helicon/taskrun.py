@@ -58,23 +58,31 @@ def _get_run(conn, task_run_id):
 
 def open_run(conn, objective, acceptance_test, *, task_class="", model="", harness="",
              skill_versions=None, context_mode="compact", comparison_group_id=None,
-             repo_ref=None) -> str:
+             repo_ref=None, outcome_contract=None) -> str:
     """Declare the task BEFORE work: objective + acceptance_test are frozen now, so
-    'verified' later cannot be hindsight."""
+    'verified' later cannot be hindsight.
+
+    `outcome_contract` (optional) is the run's promise about WHY it is worth doing
+    and how its effect will be observed — beneficiary / observable change /
+    evidence source / decision owner / time horizon. It is normalized and stored
+    as JSON (never coerced to fake-present values) and is deliberately NOT folded
+    into task_spec_hash — a run's A/B identity is its task, not who it is for."""
     if not objective.strip():
         raise TaskRunError("objective is required")
     if not (acceptance_test or "").strip():
         raise TaskRunError("acceptance_test is required — declare what 'accepted' "
                            "means BEFORE work, so 'verified' can never be hindsight")
+    from helicon import outcome_contract as _oc
+    contract_json = _oc.dumps(outcome_contract) if outcome_contract else None
     rid = "tr_" + uuid.uuid4().hex[:12]
     conn.execute(
         "INSERT INTO task_runs (id, objective, task_class, task_spec_hash, acceptance_test, "
         "model, harness, skill_versions, context_mode, comparison_group_id, repo_ref, "
-        "human_acceptance, opened_at, egress_receipt, status) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "outcome_contract, human_acceptance, opened_at, egress_receipt, status) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (rid, objective, task_class, _spec_hash(objective, task_class, acceptance_test, model, harness, skill_versions),
          acceptance_test, model, harness, json.dumps(skill_versions or []), context_mode,
-         comparison_group_id, repo_ref, "pending", _now(),
+         comparison_group_id, repo_ref, contract_json, "pending", _now(),
          json.dumps({"policy_result": "local-only", "observed_calls": []}), "opened"))
     conn.commit()
     return rid

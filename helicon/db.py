@@ -435,6 +435,13 @@ def init_db(db_path: str) -> sqlite3.Connection:
         conn.execute(
             "ALTER TABLE context_packet_items ADD COLUMN rendered_fragment TEXT"
         )
+    # Outcome Contract (Intervention Engine): the beneficiary / observable change /
+    # evidence source / decision owner / time horizon a run promises BEFORE it
+    # earns the right to start. Additive ALTER — task_runs predates it. Stored as
+    # JSON, deliberately NOT part of task_spec_hash (see helicon/outcome_contract).
+    run_cols = {r["name"] for r in conn.execute("PRAGMA table_info(task_runs)")}
+    if "outcome_contract" not in run_cols:
+        conn.execute("ALTER TABLE task_runs ADD COLUMN outcome_contract TEXT")
     conn.commit()
     return conn
 
