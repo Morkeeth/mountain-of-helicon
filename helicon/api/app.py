@@ -18,8 +18,17 @@ _config: dict = {}
 
 def _resolve_web_dir(repo_root: str) -> str | None:
     """The dashboard's built assets: prefer static/ (populated by the Cloud
-    Shell / deploy copy), fall back to the committed web/dist so a fresh clone
-    renders without a build step. None if neither has an index.html."""
+    Shell / deploy copy), then web/dist (the local `npm run build` output).
+    None if neither has an index.html — in which case serve says what to run.
+
+    web/dist used to be COMMITTED, "so a fresh clone renders without a build
+    step". It did not render a fresh clone's UI; it rendered a fossil. The
+    tracked bundle's last commit was 2026-07-23 01:38 while web/src had moved
+    on to 2026-07-26 23:38, so a fresh clone — the cloud-VM case the repo's own
+    AGENTS.md sets up — served a three-day-old dashboard while the code claimed
+    it was current. A stale UI that renders is worse than an absent one that
+    explains itself, because nothing about it looks wrong.
+    """
     for cand in ("static", os.path.join("web", "dist")):
         d = os.path.join(repo_root, cand)
         if os.path.isfile(os.path.join(d, "index.html")) and \
@@ -136,10 +145,11 @@ def create_app() -> FastAPI:
         return {"status": "ok", "memories": total, "cubes": total}
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    # `static/` is gitignored (Cloud Shell / deploy copy web/dist there). On a
-    # fresh clone it's absent, so `helicon serve` — the command the README
-    # promises renders the dashboard — fall back to the committed web/dist so a
-    # judge who just runs `pip install -e . && helicon serve` sees the UI.
+    # `static/` is gitignored (Cloud Shell / deploy copy web/dist there);
+    # web/dist is now build output rather than a committed fossil. When neither
+    # exists the API still serves — only the dashboard needs building — and the
+    # unbuilt case says so instead of 404ing on every path, which is the one
+    # thing the committed bundle was hiding.
     static_dir = _resolve_web_dir(repo_root)
     if static_dir:
         app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
@@ -150,6 +160,18 @@ def create_app() -> FastAPI:
             if os.path.isfile(file_path):
                 return FileResponse(file_path)
             return FileResponse(os.path.join(static_dir, "index.html"))
+    else:
+        @app.get("/{path:path}")
+        async def dashboard_not_built(path: str):
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(
+                "<h1>Dashboard not built</h1>"
+                "<p>The API is running; the web bundle is build output and is "
+                "not committed.</p>"
+                "<pre>cd web &amp;&amp; npm install &amp;&amp; npm run build</pre>"
+                "<p>Then restart <code>helicon serve</code>. "
+                "The API itself is live at <a href='/api/health'>/api/health</a>.</p>",
+                status_code=503)
 
     return app
 

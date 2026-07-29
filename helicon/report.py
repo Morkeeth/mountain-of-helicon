@@ -19,11 +19,97 @@ THRESHOLDS = {
     "recall_pass_rate_ok": 0.8,     # thinness+redundancy pass rate across tasks
     "tokens_per_query_warn": 4000,  # top-K context budget per query
     "regression_free": 0,           # snapshots regressed
+    "contradiction_pass_rate_ok": 0.8,  # was an inline 0.8, invisible to readers
+    "grounding_pass_rate_ok": 0.8,      # was computed, printed, and never gated
 }
 
 
 def _verdict(ok: bool, degraded: bool = False) -> str:
     return "HEALTHY" if ok else ("DEGRADED" if degraded else "BROKEN")
+
+
+def _gate(name: str, value, threshold, op: str) -> dict:
+    """One named accuracy gate, carrying its own arithmetic.
+
+    A verdict that is a bare word forces the reader to trust it. Each gate
+    reports value, threshold, whether it was measured at all, and whether it
+    passed, so the headline can be recomputed by hand from the same report.
+    """
+    measured = value is not None
+    if not measured:
+        passed = False
+    elif op == "<=":
+        passed = value <= threshold
+    else:
+        passed = value >= threshold
+    return {"name": name, "value": value, "threshold": threshold, "op": op,
+            "measured": measured, "pass": passed}
+
+
+def cross_session_verdict(regressed: int | None, snaps_total: int,
+                          contra_rate: float | None,
+                          grounding_rate: float | None,
+                          captured: int | None = None) -> dict:
+    """The cross-session-accuracy verdict, and nothing but accuracy.
+
+    CORRECTION 2026-07-28. The condition this replaces read:
+
+        regressed <= 0 and (contra_rate is None or contra_rate >= 0.8)
+        and open_pairs == 0
+
+    Three defects, compounding:
+
+    (a) `open_pairs` counts findings AWAITING HUMAN TRIAGE. For a product whose
+        entire design is a human review queue, that term makes HEALTHY
+        unreachable by construction — the headline read DEGRADED because the
+        human had a queue, which is the system working as intended. Backlog is
+        workload, not inaccuracy; it is now a counter on its own line and no
+        verdict reads it.
+    (b) `grounding_pass_rate` — 0.385, the worst number in the whole report and
+        already flagged as drifting 0.462/0.538/0.385 — was computed, printed,
+        and absent from the verdict expression entirely. Decorative. It is a
+        gate now, against a stated threshold.
+    (c) `contra_rate is None` counted as a PASS, so unmeasured read as clean.
+        Same failure class as R4's unconfigured code arm. Unmeasured is now
+        DEGRADED, and the reason names what was not measured.
+
+    For a memory-integrity product a miscalibrated scoreboard is the most
+    damaging defect available: every other number is served through it.
+    """
+    gates = [
+        _gate("snapshot_regressions", regressed if snaps_total else None,
+              THRESHOLDS["regression_free"], "<="),
+        _gate("contradiction_pass_rate", contra_rate,
+              THRESHOLDS["contradiction_pass_rate_ok"], ">="),
+        _gate("grounding_pass_rate", grounding_rate,
+              THRESHOLDS["grounding_pass_rate_ok"], ">="),
+    ]
+    failed = [g for g in gates if g["measured"] and not g["pass"]]
+    unmeasured = [g["name"] for g in gates if not g["measured"]]
+
+    if failed:
+        reason = "failed: " + ", ".join(
+            f"{g['name']} {g['value']} not {g['op']} {g['threshold']}"
+            for g in failed)
+    elif unmeasured:
+        # "none are evidence" and "none exist" are different facts and get
+        # different sentences; saying "no baselines captured" about 13 expired
+        # baselines would be the same species of wrong this function fixes.
+        if snaps_total:
+            why = " — re-run with --llm for the judged tests"
+        elif captured:
+            why = (f" — {captured} baseline(s) captured but none are still "
+                   f"evidence; re-capture with a reason "
+                   f"(helicon snapshot recapture <id> --reason \"<why>\")")
+        else:
+            why = " — no baselines captured"
+        reason = "unmeasured, not clean: " + ", ".join(unmeasured) + why
+    else:
+        reason = "all accuracy gates passed: " + ", ".join(
+            f"{g['name']} {g['value']}" for g in gates)
+
+    return {"verdict": _verdict(not failed and not unmeasured, degraded=True),
+            "reason": reason, "gates": gates}
 
 
 def memoryagent_report(conn: sqlite3.Connection, client=None,
@@ -118,6 +204,16 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
     # --- 4. cross-session accuracy ---
     snaps = check_all(conn)
     regressed = sum(1 for s in snaps if s["regressed"])
+    # A baseline past its shelf life, pinned to fully-retired memory, or asking
+    # for a renamed entity is not evidence — it needs re-capturing. Counting
+    # those as "0 regressions" would be the same lie as the old contra_rate is
+    # None => pass: unmeasured reading as clean. So they are counted separately
+    # and, if NOTHING is still evidence, the gate goes unmeasured.
+    usable_snaps = sum(1 for s in snaps if s.get("status") in ("ok", "regressed"))
+    needs_recapture = [
+        {"id": s["snapshot_id"], "task": s["task"], "status": s.get("status"),
+         "age_days": s.get("age_days"), "stale_task": s.get("stale_task")}
+        for s in snaps if s.get("needs_recapture")]
     contra_rate = _rate("Contradiction")  # only present when Qwen judged live
     grounding_rate = _rate("Grounding")
 
@@ -154,23 +250,44 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         "split_decisions": len(pairing.get("split_decisions", [])),
     }
 
+    acc = cross_session_verdict(regressed, usable_snaps, contra_rate,
+                                grounding_rate, captured=len(snaps))
+
+    # Backlog is a workload counter, deliberately outside the verdict.
+    open_findings_total = conn.execute(
+        "SELECT COUNT(*) FROM audit_log WHERE human_decision IS NULL "
+        "AND machine_decision IS NULL").fetchone()[0]
+
     cross_session = {
         "snapshots_total": len(snaps),
         "snapshots_regressed": regressed,
+        "snapshots_usable": usable_snaps,
+        "snapshots_needing_recapture": needs_recapture,
         "contradiction_pass_rate": contra_rate,
         "grounding_pass_rate": grounding_rate,
         "llm_judged": contra_rate is not None,
         "cross_source_contradictions": cross_source,
+        "accuracy_gates": acc["gates"],
+        "review_backlog": {
+            "open_pair_findings": open_pairs,
+            "open_findings_total": open_findings_total,
+            "counts_toward_verdict": False,
+            "note": "findings awaiting human triage — workload, not inaccuracy. "
+                    "A review queue is this product's design, so gating the "
+                    "verdict on it made HEALTHY unreachable by construction.",
+        },
         "mechanisms": "snapshot regression (CI for memory) + cross-source pair selector "
                       "+ Qwen-judged Contradiction/Grounding",
         # No baselines captured = unmeasured, not broken. DEGRADED with a
         # pointer beats a fake BROKEN.
-        "verdict": ("DEGRADED" if not snaps else _verdict(
-            regressed <= THRESHOLDS["regression_free"]
-            and (contra_rate is None or contra_rate >= 0.8)
-            and open_pairs == 0,
-            degraded=True)),
-        "note": None if snaps else "no baselines captured — run: helicon snapshot add \"<task>\"",
+        "verdict": acc["verdict"],
+        "verdict_reason": acc["reason"],
+        "note": ("no baselines captured — run: helicon snapshot add \"<task>\""
+                 if not snaps else
+                 (f"{len(needs_recapture)} of {len(snaps)} baselines are no longer "
+                  f"evidence (expired / fossil / renamed entity) — re-capture with "
+                  f"a reason: helicon snapshot recapture <id> \"<why>\""
+                  if needs_recapture else None)),
     }
 
     from helicon.db import record_battery_point
@@ -240,8 +357,13 @@ def format_report(rep: dict) -> str:
         f"~{g['recall_under_limited_context']['mean_tokens_per_query_top5']} tokens/query (top-5)",
         "",
         "4. Cross-session accuracy                 " + g["cross_session_accuracy"]["verdict"],
+        # The verdict prints the arithmetic that produced it. A bare word asks
+        # to be trusted; this can be recomputed from the line under it.
+        f"   why: {g['cross_session_accuracy'].get('verdict_reason', 'n/a')}",
         f"   snapshots: {g['cross_session_accuracy']['snapshots_regressed']} regressed "
-        f"of {g['cross_session_accuracy']['snapshots_total']}; "
+        f"of {g['cross_session_accuracy'].get('snapshots_usable', g['cross_session_accuracy']['snapshots_total'])} still evidence "
+        f"({g['cross_session_accuracy']['snapshots_total']} captured, "
+        f"{len(g['cross_session_accuracy'].get('snapshots_needing_recapture', []))} need re-capture); "
         f"contradiction pass {fmt(g['cross_session_accuracy']['contradiction_pass_rate'])}, "
         f"grounding pass {fmt(g['cross_session_accuracy']['grounding_pass_rate'])}"
         # Was hardcoded "no key", which is a guess this function cannot make: it
@@ -256,6 +378,18 @@ def format_report(rep: dict) -> str:
         + (f"\n     -> {g['cross_session_accuracy']['cross_source_contradictions']['sample']}"
            if g['cross_session_accuracy']['cross_source_contradictions']['sample'] else ""),
         "",
+        # Backlog gets its own line precisely because it used to be smuggled
+        # into the verdict above. It is how much is queued for the human, and
+        # it says so — no verdict reads it.
+        f"Review backlog (not a verdict input): "
+        f"{_backlog(g)['open_pair_findings']} open pair finding(s), "
+        f"{_backlog(g)['open_findings_total']} open finding(s) store-wide",
+        "",
         f"Thresholds: {rep['thresholds']}",
     ]
     return "\n".join(lines)
+
+
+def _backlog(g: dict) -> dict:
+    return g["cross_session_accuracy"].get(
+        "review_backlog", {"open_pair_findings": "n/a", "open_findings_total": "n/a"})

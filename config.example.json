@@ -41,6 +41,10 @@
       "max_repos": 50
     }
   },
+  "aliases": {
+    "_comment": "R4's code arm: where a declared dead name may be searched for as EXECUTABLE code. Unset means the arm does not run and the exam reports it unmeasured — it never falls back to scanning your home directory. Falls back to connectors.git.repos_dir when omitted. The checkout Helicon itself runs from is always excluded.",
+    "repos_dir": "~/projects"
+  },
   "forgetting": {
     "stability": {
       "code": 7.0,

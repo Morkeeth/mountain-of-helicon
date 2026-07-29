@@ -26,11 +26,16 @@ def _check(rid, name, coverage, found, receipt):
 
 
 def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
-                 judge_client=None, judge_model: str = "qwen3.6-flash") -> dict:
+                 judge_client=None, judge_model: str = "qwen3.6-flash",
+                 config: dict | None = None) -> dict:
     """judge_client (Qwen) upgrades R11 from the cosine gate to the judge that
     actually separates a fork from a rephrasing. Optional: without it R11 reports
     cosine survivors and says so, rather than pretending the weaker gate is the
-    same exam."""
+    same exam.
+
+    config carries the declared repos_dir for R4's code arm. Without it the code
+    arm does not run and R4 says so — it used to walk ~/CODE implicitly, which
+    made the exam's verdict depend on whose laptop it ran on."""
     checks = []
 
     # R1 cross-source contradiction — the pair selector (helicon.pairing)
@@ -103,7 +108,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
     ).fetchone()[0]
     try:
         from helicon.aliases import alias_rot
-        triages = alias_rot(conn)
+        triages = alias_rot(conn, config=config)
         if not triages:
             checks.append(_check(
                 "R4", "Supersession / rename", "TESTED", None,
@@ -127,6 +132,9 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
                    + (", …" if len(t["code_leads"]) > 3 else "")
                    + f") — a dead name in a code path executes; "
                    if t.get("code_leads") else "")
+                + ("" if t.get("code_scanned")
+                   else "code arm not configured (aliases.repos_dir unset) — "
+                        "unmeasured, not clean; ")
                 + f"{t['live_refs']} live dead-name "
                 f"ref(s) in prose = {t['history']} history + {t['rename_aware']} "
                 f"rename-aware + {t['current_claims']} current-claim(s)"

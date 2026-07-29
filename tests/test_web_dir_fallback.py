@@ -33,3 +33,19 @@ def test_ignores_a_dir_without_index_html(tmp_path):
     os.makedirs(os.path.join(root, "static", "assets"))   # assets but no index
     _mk(root, os.path.join("web", "dist"))
     assert _resolve_web_dir(root) == os.path.join(root, "web", "dist")
+
+
+def test_an_unbuilt_dashboard_says_what_to_run(tmp_path, monkeypatch):
+    """web/dist is build output now, not a committed fossil, so "nothing built"
+    is a real state a fresh clone reaches. It must explain itself rather than
+    404 on every path — and the API must stay up, since only the dashboard
+    needs building."""
+    import helicon.api.app as A
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(A, "_resolve_web_dir", lambda root: None)
+    with TestClient(A.create_app()) as client:   # `with` runs the lifespan
+        r = client.get("/")
+        assert r.status_code == 503
+        assert "npm run build" in r.text
+        # the API must stay up: only the dashboard needs building
+        assert client.get("/api/health").status_code == 200

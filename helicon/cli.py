@@ -1031,7 +1031,9 @@ def cmd_snapshot(args):
     """Regression-test retrieved context: capture baselines, check for drift."""
     from helicon.config import load_config
     from helicon.db import init_db
-    from helicon.snapshots import init_snapshot_table, capture_snapshot, check_all
+    from helicon.snapshots import (SNAPSHOT_MAX_AGE_DAYS, capture_snapshot,
+                                   check_all, init_snapshot_table,
+                                   recapture_snapshot)
 
     config = load_config()
     conn = init_db(config["db_path"])
@@ -1053,16 +1055,53 @@ def cmd_snapshot(args):
         if not rows:
             print('No snapshots yet. Add one:  helicon snapshot add "<task>"')
             return
+        live = {res["snapshot_id"]: res for res in
+                check_all(conn, include_superseded=True)}
         for r in rows:
-            print(f"  #{r['id']:<3} k={r['top_k']}  \"{r['task']}\"")
+            res = live.get(r["id"], {})
+            age = res.get("age_days")
+            print(f"  #{r['id']:<3} k={r['top_k']:<2} {res.get('status','?'):<11} "
+                  f"{'' if age is None else f'{age:>5}d'}  \"{r['task']}\"")
+
+    elif args.action == "recapture":
+        if not args.task:
+            print('usage: helicon snapshot recapture <id> --reason "<why the '
+                  'baseline moved>"')
+            return
+        if not (args.reason or "").strip():
+            # The reason is the whole feature. Without it, "the memory changed"
+            # and "retrieval got worse" are the same edit, and the exam quietly
+            # becomes an opinion that always agrees with today.
+            print("--reason is required: say WHY this baseline moved.")
+            return
+        try:
+            r = recapture_snapshot(conn, int(args.task), args.reason, k=args.k)
+        except ValueError as e:
+            print(f"{e}")
+            return
+        print(f"\nSnapshot #{args.task} superseded by #{r['id']}  "
+              f"(as_of {r['as_of'][:19]}, stale_when {r['stale_when']})")
+        print(f"  reason: {args.reason}")
+        for i, h in enumerate(r["hits"], 1):
+            print(f"  {i}. {h['title'][:66]}")
 
     elif args.action == "check":
         results = check_all(conn)
         if not results:
             print("No snapshots to check.")
             return
+        stale = [r for r in results if r["needs_recapture"]]
         regr = 0
         for res in results:
+            if res["needs_recapture"]:
+                # Not a regression and not a pass: the instrument expired.
+                why = {"expired": f"expired ({res['age_days']}d old)",
+                       "fossil": "fossil — every baseline memory is retired",
+                       "stale-task": f"renamed entity in the task "
+                                     f"({res['stale_task']})"}[res["status"]]
+                print(f"\n[~] #{res['snapshot_id']} \"{res['task']}\"  {why}"
+                      f"  -> NEEDS RE-CAPTURE (not scored)")
+                continue
             mark = "REGRESSED" if res["regressed"] else "stable"
             sym = "x" if res["regressed"] else "."
             print(f"\n[{sym}] #{res['snapshot_id']} \"{res['task']}\"  "
@@ -1076,7 +1115,14 @@ def cmd_snapshot(args):
             for t, why in res["stale"]:
                 print(f"    ! stale ({why}): {t[:52]}")
             regr += 1 if res["regressed"] else 0
-        print(f"\n{regr}/{len(results)} snapshots regressed.")
+        scored = len(results) - len(stale)
+        print(f"\n{regr}/{scored} scored snapshots regressed "
+              f"({len(results)} captured, {len(stale)} no longer evidence).")
+        if stale:
+            print(f"  A baseline is evidence for {SNAPSHOT_MAX_AGE_DAYS} days. "
+                  f"Past that, a diff measures elapsed time, not quality.")
+            print(f'  Re-capture:  helicon snapshot recapture '
+                  f'{stale[0]["snapshot_id"]} --reason "<why it moved>"')
 
 
 def cmd_battery(args):
@@ -1221,7 +1267,7 @@ def cmd_rot(args):
         from helicon.relations import relation_scan
         pair_scan(conn, client=client)
         claim_scan(conn, config)
-        alias_scan(conn)
+        alias_scan(conn, config=config)
         identity_scan(conn, judge_client=judge_client, judge_model=judge_model)
         relation_scan(conn)
         n = conn.execute(
@@ -1229,7 +1275,8 @@ def cmd_rot(args):
             "AND machine_decision IS NULL").fetchone()[0]
         print(f"filed findings — {n} open to rule.  Next:  helicon resolve --list\n")
 
-    res = run_rot_exam(conn, judge_client=judge_client, judge_model=judge_model)
+    res = run_rot_exam(conn, judge_client=judge_client, judge_model=judge_model,
+                       config=config)
     if getattr(args, "json", False):
         import json as _json
         print(_json.dumps(res, indent=2, default=str))
@@ -1583,7 +1630,7 @@ def cmd_ci(args):
     conn = init_db(db)
     print(f"Mount Helicon CI — scanning agent-memory files in {repo}\n")
     run_scan(config)
-    res = run_rot_exam(conn, repo_root=repo)
+    res = run_rot_exam(conn, repo_root=repo, config=config)
 
     rot = [c for c in res["checks"] if c["verdict"] == "ROT FOUND"]
     level = "error" if fail_on == "rot" else "warning"
@@ -1692,7 +1739,7 @@ def cmd_evolve(args):
         pass
     pair_scan(conn, client=client)
     claim_scan(conn, config)
-    alias_scan(conn)
+    alias_scan(conn, config=config)
     from helicon.identity import identity_scan
     identity_scan(conn)          # R11: file confirmed identity forks (semantic-gated)
     from helicon.relations import relation_scan, store_asserts_edges
@@ -1700,7 +1747,7 @@ def cmd_evolve(args):
     store_asserts_edges(conn)    # R12: persist relation provenance as 'asserts' edges
     from helicon.stackwatch import stack_scan
     stack = stack_scan(conn, config)
-    exam = run_rot_exam(conn)
+    exam = run_rot_exam(conn, config=config)
 
     hist = gold_history(config, limit=2)
     prev_rules = hist[-1]["total"] if hist else 0
@@ -1944,7 +1991,7 @@ def cmd_alias(args):
         return
 
     if args.scan:
-        res = alias_scan(conn)
+        res = alias_scan(conn, config=config)
         for f in res["filed"]:
             print(f"filed: {f['finding']}")
         for k in res["already_filed"]:
@@ -1953,7 +2000,7 @@ def cmd_alias(args):
             print(f"clean: {k}")
         return
 
-    for t in alias_rot(conn):
+    for t in alias_rot(conn, config=config):
         print(f"\n{t['old_name']} -> {t['new_name']}   (renamed {t['renamed_at']})")
         print(f"  {t['live_refs']} live memories still say '{t['old_name']}':")
         print(f"    history        {t['history']:>5}  (pre-rename; true when written, kept)")
@@ -2138,6 +2185,16 @@ def cmd_doctor(_args):
         rr = rerank_health()
         checks.append(("OK" if rr["ok"] else ("WARN" if rr["ok"] is None else "FAIL"),
                        f"rerank — {rr['reason']}"))
+
+        # Same seam, one layer down, and worse: the SEMANTIC branch can be
+        # entirely absent with no error at all. _load_all_embeddings filters on
+        # the current provider's dimension, so a store embedded at 1024 (Qwen)
+        # read by a config-less checkout (local, 384) matches zero rows —
+        # semantic_search returns [], hybrid_search silently becomes FTS-only,
+        # and "60% semantic / 40% FTS5" stops describing what runs.
+        from helicon.embeddings import semantic_health
+        sh = semantic_health(conn)
+        checks.append(("OK" if sh["ok"] else "FAIL", f"semantic — {sh['reason']}"))
 
         # `serve` prefers static/ over web/dist (app.py). static/ is gitignored
         # and populated by a manual copy, so a rebuild that nobody copies leaves
@@ -2664,8 +2721,11 @@ def main():
     hook_p.add_argument("--print-config", action="store_true", help="print the settings.json snippet (never auto-installs)")
 
     snap_p = sub.add_parser("snapshot", help="Regression-test retrieved context (CI for memory)")
-    snap_p.add_argument("action", choices=["add", "check", "list"], help="capture / check drift / list")
-    snap_p.add_argument("task", nargs="?", help='task or query text (for "add")')
+    snap_p.add_argument("action", choices=["add", "check", "list", "recapture"],
+                        help="capture / check drift / list / re-baseline")
+    snap_p.add_argument("task", nargs="?",
+                        help='task text (for "add") or snapshot id (for "recapture")')
+    snap_p.add_argument("--reason", help='why the baseline moved (required for "recapture")')
     snap_p.add_argument("-k", type=int, default=5, help="top-K context to snapshot (default 5)")
 
     taste_p = sub.add_parser("taste", help="Taste-verdict memory: remember Taste Machine rulings + the never-twice guard")
