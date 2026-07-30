@@ -162,3 +162,65 @@ def test_observing_the_same_session_twice_does_not_double_open(conn, repo):
     autogov.session_start(conn, repo, "term-a")
     assert autogov.session_start(conn, repo, "term-a")["ok"] is False
     assert len(autogov.unreviewed(conn)) == 1
+
+
+def test_observed_manifest_is_labelled_repo_state_not_session_output(conn, tmp_path, monkeypatch):
+    """F-C04: the observed manifest is a REPO-WIDE diff, not session-scoped.
+
+    Two sessions run in the same repo. A uniquely-named file is changed only by
+    session B, yet session A's stop picks it up because `git diff`/`git status`
+    see the whole working tree and the harness gives no per-file authorship. The
+    honest fix is not to guess authorship but to LABEL every entry a repo-state
+    observation and advertise the unverified attribution, so no surface presents
+    a concurrent session's file as this run's proven output.
+    """
+    import subprocess
+
+    import helicon.cockpit as ck
+
+    root = tmp_path / "CODE"
+    repo = root / "helicon-fc04"
+    repo.mkdir(parents=True)
+    monkeypatch.setattr(ck, "CODE_ROOT", str(root.resolve()))
+
+    def git(*a):
+        subprocess.run(["git", "-C", str(repo), *a], check=True,
+                       capture_output=True, text=True)
+
+    git("init", "-b", "main")
+    git("config", "user.email", "t@t.t")
+    git("config", "user.name", "t")
+    (repo / "base.py").write_text("x = 1\n")
+    git("add", "-A")
+    git("commit", "-m", "base")
+
+    # Session A opens against the current commit.
+    started = autogov.session_start(conn, str(repo), "sess-A")
+    assert started["ok"], started
+
+    # A DIFFERENT concurrent session (B) commits a uniquely-named file. autogov
+    # cannot tell it apart from A's own work — there is no per-file authorship.
+    (repo / "only_session_b.py").write_text("print('B only')\n")
+    git("add", "-A")
+    git("commit", "-m", "session B work")
+
+    # Stop A. Its manifest is built from a repo-wide diff.
+    stop = autogov.session_stop(conn, "sess-A")
+    assert stop["ok"], stop
+    rid = stop["task_run_id"]
+    manifest = json.loads(conn.execute(
+        "SELECT artifact_manifest FROM task_runs WHERE id=?", (rid,)).fetchone()[0])
+    paths = {m["path"] for m in manifest}
+
+    # The bug this documents: B's file shows up in A's run.
+    assert "only_session_b.py" in paths
+
+    # The fix: every entry is a repo-state observation, never proven session
+    # output — surfaced on the entry, the stop result, and the artifact event.
+    assert manifest
+    assert all(m.get("attribution") == "repo-state" for m in manifest)
+    assert stop["attribution"] == "repo-state"
+    ev = conn.execute(
+        "SELECT detail FROM run_events WHERE task_run_id=? AND kind='artifact'",
+        (rid,)).fetchone()
+    assert json.loads(ev["detail"])["attribution"] == "repo-state"

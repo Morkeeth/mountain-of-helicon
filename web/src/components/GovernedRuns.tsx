@@ -16,7 +16,7 @@ const MONO = 'var(--helicon-mono)';
 
 type Tokens = { input?: number; output?: number; cache_read?: number; cache_creation?: number; total?: number };
 type Prompt = { ts?: string; text: string; source?: string };
-type Artifact = { path: string; content_hash?: string; observed_at?: string; state?: string };
+type Artifact = { path: string; content_hash?: string; observed_at?: string; state?: string; attribution?: string };
 type Governed = { objective?: string; acceptance_test?: string; verification_outcome?: string };
 type Run = {
   id: string; task_run_id?: string; provenance: string; repo: string; branch?: string;
@@ -182,6 +182,11 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
         {run.provenance === 'imported' && (
           <p className="mb-2 text-[11px]" style={{ color: FAINT }}>
             Repository state observed when this session was imported; attribution to the session is unverified.
+          </p>
+        )}
+        {run.provenance === 'observed' && (run.artifact_manifest?.length ?? 0) > 0 && (
+          <p className="mb-2 text-[11px] p-2 rounded-lg" style={{ color: 'var(--helicon-critical)', background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
+            Unverified attribution — these are repository changes present when the session stopped, taken from a repo-wide diff. A file changed by a concurrent session in the same repo can appear here. Not proven to be this session's output; session-level file attribution does not yet exist.
           </p>
         )}
         <div className="p-3 rounded-xl" style={{ background: 'var(--helicon-panel)', border: `1px solid ${artStatus === 'mismatch' ? 'var(--helicon-critical)' : 'var(--helicon-line)'}`, maxHeight: 320, overflowY: 'auto' }}>
