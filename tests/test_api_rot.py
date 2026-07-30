@@ -34,10 +34,10 @@ def conn(tmp_path):
 def test_rot_exam_shape_is_renderable(conn):
     """Every field the EXAM tab renders is present on an empty store."""
     res = run_rot_exam(conn)
-    assert res["classes"] == 12
-    assert res["rot_found"] + res["unmeasured"] <= 12
+    assert res["classes"] == 13
+    assert res["rot_found"] + res["unmeasured"] <= 13
     ids = [c["id"] for c in res["checks"]]
-    assert ids == [f"R{i}" for i in range(1, 13)]
+    assert ids == [f"R{i}" for i in range(1, 14)]
     for c in res["checks"]:
         assert c["verdict"] in ("CLEAN", "ROT FOUND", "UNMEASURED")
         assert c["coverage"] in ("TESTED", "PARTIAL")
@@ -113,7 +113,7 @@ def test_api_rot_runs_live(tmp_path, monkeypatch):
         res = c.get("/api/rot")
         assert res.status_code == 200
         body = res.json()
-        assert body["classes"] == 12
+        assert body["classes"] == 13
         # a held result must always be able to say when it ran
         assert body["cached"] is False and body["ran_at"] and body["took_s"] is not None
 

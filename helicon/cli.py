@@ -1263,7 +1263,7 @@ def cmd_lens(args):
 
 
 def cmd_rot(args):
-    """The rot exam: ROT.md's 12 documented failure classes checked live
+    """The rot exam: ROT.md's 13 documented failure classes checked live
     against the real store. Deterministic, zero LLM calls, free to run daily.
 
     --judge opts R11 into the Qwen identity judge. Off by default on purpose:
@@ -1670,6 +1670,16 @@ def cmd_ci(args):
     conn = init_db(db)
     print(f"Mount Helicon CI — scanning agent-memory files in {repo}\n")
     run_scan(config)
+
+    # R13's full working: which sentences the running system contradicts, with
+    # each probe's actual stdout. The exam prints one line per class; a human
+    # fixing a doc needs the sentence, the command, and what it returned.
+    from helicon.probes import probe_scan, format_probes
+    probe_res = probe_scan(conn, repo, config=config,
+                           allow_network=bool(getattr(args, "net", False)))
+    print(format_probes(probe_res["results"], repo))
+    print()
+
     res = run_rot_exam(conn, repo_root=repo, config=config)
 
     rot = [c for c in res["checks"] if c["verdict"] == "ROT FOUND"]
@@ -2798,7 +2808,7 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
-    rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 12 documented staleness/contradiction failure classes, checked live")
+    rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 13 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
     rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
     rot_p.add_argument("--judge", action="store_true", help="R11: confirm identity forks with the Qwen judge (the cosine gate cannot separate a fork from a rephrasing); costs one call per candidate")
@@ -2825,6 +2835,10 @@ def main():
     ci_p.add_argument("--path", help="repo to check (default: current directory)")
     ci_p.add_argument("--fail-on", dest="fail_on", choices=["rot", "none"], default="rot",
                       help="'rot' (default) exits 1 if any class fires; 'none' is report-only")
+    ci_p.add_argument("--net", action="store_true",
+                      help="let R13's probes make read-only network calls (RPC "
+                           "eth_call). Off by default: a probe that cannot reach "
+                           "the network reports UNVERIFIABLE, never a pass")
 
     gold_p = sub.add_parser("policy", aliases=["gold"], help="Compile the policy the agent obeys, built from your rulings, with provenance")
     gold_p.add_argument("--inject", action="store_true", help="write to ~/.claude/GOLDEN_RULES.md (.bak kept)")
