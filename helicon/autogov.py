@@ -161,15 +161,26 @@ def session_stop(conn, session_id: str, transcript_path: str = "") -> dict:
     run = conn.execute("SELECT repo_ref FROM task_runs WHERE id=?", (rid,)).fetchone()
     repo, _, base = (run["repo_ref"] or "").partition("@")
 
+    # F-C04: this diff is REPO-WIDE, not session-scoped. `git diff base..HEAD`
+    # and `git status` see every change in the working tree, including commits
+    # or edits made by a DIFFERENT concurrent session in the same repo. The
+    # harness gives us no per-file authorship, so we cannot prove any of these
+    # files were written by THIS session. Each entry is therefore labelled a
+    # repo-state observation (`attribution: "repo-state"`), and the observed
+    # run carries an `attribution_scope` the UI turns into an explicit
+    # unverified-attribution warning. When session-level file attribution
+    # exists, tighten this and drop the warning.
     manifest = []
     for line in _git(repo, "diff", "--name-only", f"{base}..HEAD").splitlines():
         p = line.strip()
         if p and not _is_private(os.path.join(repo, p)):
-            manifest.append({"path": p, "state": "committed", "observed_at": _now()})
+            manifest.append({"path": p, "state": "committed", "observed_at": _now(),
+                             "attribution": "repo-state"})
     for line in _git(repo, "status", "--porcelain").splitlines():
         p = line[3:].strip()
         if p and not _is_private(os.path.join(repo, p)):
-            manifest.append({"path": p, "state": "uncommitted", "observed_at": _now()})
+            manifest.append({"path": p, "state": "uncommitted", "observed_at": _now(),
+                             "attribution": "repo-state"})
 
     # Real cost, from the transcript the harness wrote. Step 3 of the loop was
     # ABSENT because the forward path hardcoded {"status": "unknown"} while a
@@ -188,8 +199,13 @@ def session_stop(conn, session_id: str, transcript_path: str = "") -> dict:
     taskrun.attach_artifact(conn, rid, manifest, cost_observation=cost)
     taskrun.record_event(conn, rid, "artifact", actor="helicon",
                          detail=json.dumps({"files": len(manifest),
-                                            "cost_status": cost["status"]}))
-    return {"ok": True, "task_run_id": rid, "files": len(manifest), "cost": cost}
+                                            "cost_status": cost["status"],
+                                            "attribution": "repo-state",
+                                            "attribution_note": (
+                                                "repo-wide diff; not attributed "
+                                                "to this session")}))
+    return {"ok": True, "task_run_id": rid, "files": len(manifest), "cost": cost,
+            "attribution": "repo-state"}
 
 
 def unreviewed(conn, limit: int = 50) -> list:
