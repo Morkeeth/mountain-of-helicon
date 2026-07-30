@@ -8,6 +8,7 @@ node_modules/
 .vite/
 *.egg-info/
 /dist/
+web/dist/
 build/
 config.json
 .DS_Store

@@ -13,26 +13,58 @@ const MONO = 'var(--helicon-mono)';
 
 export type ArtifactRef = { type: string; label: string; ref: string; note?: string; content_hash?: string };
 type Loaded = { type: string; label?: string; text: string; why?: string };
+export type ArtifactStatus = 'loading' | 'ok' | 'mismatch' | 'blocked' | 'error';
 
-export function ArtifactView({ repoPath, art }: { repoPath: string; art: ArtifactRef }) {
+export function ArtifactView({ repoPath, art, onStatus }: {
+  repoPath: string; art: ArtifactRef; onStatus?: (s: ArtifactStatus, why?: string) => void;
+}) {
   const [data, setData] = useState<Loaded | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     setData(null); setErr(null);
+    onStatus?.('loading');
     const q = new URLSearchParams({ repo_path: repoPath, kind: art.type, ref: art.ref });
     if (art.content_hash) q.set('expected_hash', art.content_hash);
     fetch(`/api/cockpit/artifact?${q}`)
       .then(r => r.json())
-      .then(d => { if (live) setData(d); })
-      .catch(e => { if (live) setErr(String(e)); });
+      .then(d => {
+        if (!live) return;
+        setData(d);
+        if (d.type === 'blocked') {
+          const why = d.why || '';
+          onStatus?.(why.includes('changed since capture') ? 'mismatch' : 'blocked', why);
+        } else {
+          onStatus?.('ok');
+        }
+      })
+      .catch(e => {
+        if (!live) return;
+        setErr(String(e));
+        onStatus?.('error', String(e));
+      });
     return () => { live = false; };
   }, [repoPath, art.type, art.ref, art.content_hash]);
 
   if (err) return <Note>Could not load the artifact: {err}</Note>;
   if (!data) return <Note>Opening {art.label}…</Note>;
-  if (data.type === 'blocked') return <Note>This artifact is not served ({data.why}).</Note>;
+  if (data.type === 'blocked') {
+    const mismatch = (data.why || '').includes('changed since capture');
+    return (
+      <div className="py-3">
+        <p className="text-[13px] font-medium" style={{ color: mismatch ? 'var(--helicon-critical)' : FAINT }}>
+          {mismatch ? 'INSPECT: artifact hash mismatch' : 'This artifact is not served'}
+        </p>
+        <p className="text-[12px] mt-1" style={{ color: MUTED, fontFamily: MONO }}>{data.why}</p>
+        {mismatch && (
+          <p className="text-[11.5px] mt-2" style={{ color: FAINT }}>
+            Accept will refuse — a post-capture rewrite cannot be laundered into an accepted outcome.
+          </p>
+        )}
+      </div>
+    );
+  }
   if (!data.text?.trim()) return <Note>The artifact is empty.</Note>;
 
   if (data.type === 'markdown') return <MarkdownView text={data.text} />;
