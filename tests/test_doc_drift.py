@@ -218,7 +218,7 @@ def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
 
 def test_deleting_a_claim_is_not_a_way_to_pass(repo):
     """The cheapest fake fix is removing the number. It must fail, not pass."""
-    _mutate(repo, "CLAUDE.md", "- 27 routers (~110 endpoints), 16 MCP tools", "- routers, MCP tools")
+    _mutate(repo, "CLAUDE.md", "- 27 routers (~111 endpoints), 16 MCP tools", "- routers, MCP tools")
     drift = _fails(check_counts(str(repo)), "API routers", "CLAUDE.md")
     assert drift and "not found" in drift[0]["why"]
 
