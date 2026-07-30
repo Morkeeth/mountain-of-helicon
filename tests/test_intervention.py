@@ -103,6 +103,29 @@ def test_gate_is_read_only(conn):
     assert snap() == before
 
 
+def test_gate_api_endpoint_returns_the_gate(conn, monkeypatch):
+    """POST /api/run/gate exposes the same read-only gate to any surface."""
+    import asyncio
+
+    from helicon.api import runs2
+
+    monkeypatch.setattr(runs2, "get_conn", lambda: conn)
+
+    blocked = asyncio.run(runs2.run_gate(runs2.GateReq(objective="do it")))
+    assert blocked["verdict"] == "blocked"
+    assert "beneficiary" in blocked["blockers"]
+
+    cleared = asyncio.run(runs2.run_gate(runs2.GateReq(
+        objective="prune the stale tail",
+        acceptance="the stale count drops measurably",
+        beneficiary="Oscar", observable_change="fewer stale memories",
+        evidence_source="helicon audit", skills=["runbook@1.0"])))
+    assert cleared["verdict"] in ("go", "warn")
+    assert cleared["blockers"] == []
+    # opening nothing: the endpoint is read-only
+    assert conn.execute("SELECT COUNT(*) FROM task_runs").fetchone()[0] == 0
+
+
 def test_stale_retrieved_memory_warns(conn):
     """A killed memory that still retrieves for the objective is a warning."""
     conn.execute(
