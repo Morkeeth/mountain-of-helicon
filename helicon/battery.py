@@ -48,6 +48,11 @@ CONTEXT_TESTS = [
         "fail_signal": "A memory older than its stability window is served as current context.",
     },
     {
+        "name": "Context budget", "mode": "auto",
+        "question": "Does the retrieved set fit the model's finite attention budget?",
+        "fail_signal": "The context is past the ~32k-token context-rot onset — recall degrades before the hard limit.",
+    },
+    {
         "name": "Contradiction", "mode": "llm",
         "question": "Do any retrieved memories contradict each other?",
         "fail_signal": "Two memories assert incompatible facts for the same subject.",
@@ -238,6 +243,14 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
         len(f"{c.get('title','')} {c.get('content','')}") for c in cubes.values()
     ) // 4
 
+    # Context budget (context-rot guard): a token price is only half a signal
+    # until it is judged against the model's finite attention budget. Non-critical
+    # — an over-budget context degrades quality, it does not "break" retrieval, so
+    # it lands as DEGRADED (like Expiry), never BROKEN.
+    from helicon.context_budget import assess as _assess_budget
+    context_budget = _assess_budget(context_tokens)
+    add("Context budget", context_budget["status"] != "over", context_budget["note"])
+
     # Qwen-judged tests (Contradiction/Grounding), folded in if a client is
     # given. The judge gets title + content excerpt — grading claims requires
     # seeing them (see _judge_lines).
@@ -268,6 +281,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
         "llm_tests": [t["name"] for t in CONTEXT_TESTS if t["mode"] == "llm"],
         "retrieved": [h["title"] for h in hits],
         "context_tokens": context_tokens,
+        "context_budget": context_budget,
         "last_scan": last_scan,
     }
 
