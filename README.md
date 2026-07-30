@@ -68,7 +68,7 @@ Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=con
 | **Remembers preferences** | Auto-triage learns keep/kill rules from *your* past rulings; Golden Rules encode your standing decisions with provenance |
 | **Improves decisions across sessions** | Rulings compile into Golden Rules the agent obeys next session; the never-twice guard stops a corrected fact silently resurfacing |
 | **Efficient store / retrieve** | Hybrid FTS5 + semantic retrieval; the battery tests what a task *actually* retrieves, not the whole store |
-| **Timely forgetting** | 12-class rot exam + per-type Weibull decay + `reconcile` retires memories reality no longer contains |
+| **Timely forgetting** | 13-class rot exam + per-type Weibull decay + `reconcile` retires memories reality no longer contains |
 | **Recall within limited context** | Selectors + retrieval-quality battery + Next Moves surface only what matters, each citing its source |
 | **Qwen Cloud, load-bearing** | Contradiction + grounding judging, cross-source adjudication, rule compilation, and Next Moves synthesis — cached, cost-tracked, honest keyless degrade |
 
@@ -83,7 +83,7 @@ helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
 helicon scan        # extract memory from your sources
 helicon doctor      # health check: PATH, config, key, DB, last scan
 helicon check "what am I working on"   # context-quality verdict
-helicon audit         # the rot exam: 12 documented failure classes, checked live
+helicon audit         # the rot exam: 13 documented failure classes, checked live
 helicon serve       # dashboard at http://localhost:8420
 ```
 
@@ -112,7 +112,7 @@ Packaged as a proper CLI (a `helicon` entry point via `pyproject.toml`), so once
 
 ## CI for agent memory (GitHub Action)
 
-The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs the 12-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot.
+The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
 
 ```yaml
 # .github/workflows/memory-ci.yml
@@ -211,7 +211,7 @@ Four of them answer to a second name, kept working so older muscle memory doesn'
 
 `helicon repair` runs **the self-healing audit loop** — the thing no retriever can do. It scores the four truth gates (freshness / volatility / consistency / retrieval) on a store, surfaces each drift with its cross-source evidence, proposes a repair (retire the stale memory, move a fast fact to the live layer) as a diff you accept, applies the accepted ones, and re-scores so the gates visibly move. `helicon repair --demo` runs it on a seeded, universally-legible store (the classic "I told my agent I'm vegetarian, then started eating chicken again — it never updated" contradiction, plus a stale goal and a fast fact); `--apply` closes the loop.
 
-`helicon audit` runs **the rot exam**: the 12 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 12 classes and says so — and as of Jul 5 all 12 classes are fully tested, 0 partial.
+`helicon audit` runs **the rot exam**: the 13 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 13 classes and says so — and as of Jul 5 all classes are fully tested, 0 partial.
 
 `helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots — no news, no noise. First run baselines silently.
 
@@ -289,7 +289,7 @@ Mount Helicon's capabilities stand on well-understood memory-systems patterns an
 | Capability | Established pattern | How Mount Helicon extends it |
 |-----------|--------|---------------------------|
 | Versioned memory units | Structured memory units, not raw text | HeliconCube: source, hash, valid_from, confidence, decay per type |
-| Multi-axis audit | Temporal/factual/logical consistency checks | 12-class rot exam, each with a receipt and a never-twice guard |
+| Multi-axis audit | Temporal/factual/logical consistency checks | 13-class rot exam, each with a receipt and a never-twice guard |
 | Weibull decay | Non-uniform forgetting curves | Per-type kappa, and decay rank-predicts human kills (AUC 0.78) |
 | Novelty gate | ADD/NOOP/MERGE at ingestion | Gate + provenance, so a merge never loses the source it came from |
 | Anti-confabulation | Challenge claims against evidence | Grounding check + R12 phantom-association catch |

@@ -1,6 +1,6 @@
 """The rot exam — ROT.md as an executable test suite.
 
-Twelve named failure classes (R1-R12), each grounded in the public record (see
+Thirteen named failure classes (R1-R13), each grounded in the public record (see
 ROT.md), each checked live against the real store. One command answers
 "which documented ways of going wrong is MY memory going wrong in right now?"
 
@@ -286,6 +286,40 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
             if phantoms else "no ungrounded single-source relations between entities"))
     except Exception as e:
         checks.append(_check("R12", "Phantom association", "TESTED", None, f"unmeasured: {e}"))
+
+    # R13 document vs live system — the only class whose counterparty is not
+    # another claim. A sentence asserting a live-system fact gets an executable
+    # probe; it goes stale when the probe disagrees, not when a second document
+    # does. Unverifiable is reported as its own state and never as clean: a
+    # probe that could not run has proved nothing.
+    if repo_root:
+        try:
+            from helicon.probes import probe_docs, CONTRADICTED, UNVERIFIABLE
+            probes = probe_docs(conn, repo_root, config=config)
+            bad = [p for p in probes if p["verdict"] == CONTRADICTED]
+            unver = [p for p in probes if p["verdict"] == UNVERIFIABLE]
+            if not probes:
+                checks.append(_check(
+                    "R13", "Document vs live system", "TESTED", None,
+                    "no probe-able assertion found in this repo's instruction "
+                    "docs — unmeasured, not clean"))
+            else:
+                receipt = (f"{len(bad)} sentence(s) contradicted by the running "
+                           f"system, {len(unver)} unverifiable, "
+                           f"{len(probes) - len(bad) - len(unver)} upheld")
+                if bad:
+                    receipt += ": " + "; ".join(
+                        f"{p['file']}:{p['line']} ({p['kind']})" for p in bad[:3])
+                checks.append(_check("R13", "Document vs live system", "TESTED",
+                                     bool(bad), receipt))
+        except Exception as e:
+            checks.append(_check("R13", "Document vs live system", "TESTED", None,
+                                 f"unmeasured: {e}"))
+    else:
+        checks.append(_check(
+            "R13", "Document vs live system", "TESTED", None,
+            "no repo given — pass repo_root (helicon ci --path <repo>) to probe "
+            "instruction docs against the running system"))
 
     found = sum(1 for c in checks if c["verdict"] == "ROT FOUND")
     unmeasured = sum(1 for c in checks if c["verdict"] == "UNMEASURED")

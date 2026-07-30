@@ -129,8 +129,8 @@ def test_count_drift_in_readme_still_caught(repo):
 
 
 def test_word_number_drift_is_caught(repo):
-    """README said 'the ten-class deterministic exam' while the exam runs 12."""
-    _mutate(repo, "README.md", "12-class deterministic exam",
+    """README said 'the ten-class deterministic exam' while the exam runs 13."""
+    _mutate(repo, "README.md", "13-class deterministic exam",
             "ten-class deterministic exam")
     assert _fails(check_counts(str(repo)), "rot classes", "README.md")
 
@@ -230,7 +230,7 @@ def test_deleting_a_claim_is_not_a_way_to_pass(repo):
 def test_counters_agree_with_the_running_system():
     from helicon.mcp_server import TOOLS
     assert count_mcp_tools() == len(TOOLS)
-    assert count_rot_classes() == 12, "rot.py should define R1..R12"
+    assert count_rot_classes() == 13, "rot.py should define R1..R13"
     assert count_tables() > 20
     assert count_cli_commands() > 40
 

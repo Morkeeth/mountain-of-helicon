@@ -202,7 +202,7 @@ def test_battery_expiry_does_not_flag_healthy_past_half_life(conn):
 
 
 # ------------------------------------------------------------- the rot exam
-def test_rot_exam_runs_all_twelve_classes(conn):
+def test_rot_exam_runs_all_thirteen_classes(conn):
     from helicon.rot import run_rot_exam
     # repo_root is THIS checkout, resolved from the test file. It was hardcoded
     # to /Users/morkeeth/CODE/helicon — the frozen hackathon submission, a dead
@@ -211,8 +211,8 @@ def test_rot_exam_runs_all_twelve_classes(conn):
     # home directory.
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     res = run_rot_exam(conn, repo_root=repo_root)
-    assert res["classes"] == 12
-    assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 13)}
+    assert res["classes"] == 13
+    assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 14)}
     assert all(c["verdict"] in ("CLEAN", "ROT FOUND", "UNMEASURED") for c in res["checks"])
     # fixture has a killed cube with a regret event? no — but R5 dupes must be CLEAN
     r5 = next(c for c in res["checks"] if c["id"] == "R5")

@@ -29,7 +29,7 @@ flowchart TD
 
   CUBES --> EXAM
 
-  subgraph AUDIT["③ Rot exam — 12 documented failure classes, on a timer"]
+  subgraph AUDIT["③ Rot exam — 13 documented failure classes, on a timer"]
     EXAM["contradiction · supersession (dead names)<br/>temporal · decay (Weibull per-type) · logical<br/>battery: does retrieval still serve good context?"]
   end
 
@@ -61,7 +61,7 @@ one Apply propagates with a receipt, and the guard protects the next agent write
 
 ```mermaid
 flowchart LR
-  EXAM["Exam / detectors<br/>(12 rot classes)"] --> LANES{"Escalate?<br/>consequence · resolvability · confidence"}
+  EXAM["Exam / detectors<br/>(13 rot classes)"] --> LANES{"Escalate?<br/>consequence · resolvability · confidence"}
   LANES -->|"most: no"| AUTO["Machine review<br/>auto-managed lane<br/>(retire / classify / mechanics)"]
   LANES -->|"only exceptions"| HUMAN["Human review<br/>Needs Ruling queue<br/>(live contradiction · identity fork)"]
   HUMAN --> STAGE["Stage verdicts<br/>(nothing written yet)"]
@@ -102,7 +102,7 @@ agent output (any platform)
   → SAGE novelty gate: ADD / NOOP / MERGE
   → HeliconCube stored (content hash, confidence, type, embedding)
   → Weibull decay applied per type (κ shapes the forgetting curve)
-  → rot exam runs on a timer: 12 failure classes, most LLM-free
+  → rot exam runs on a timer: 13 failure classes, most LLM-free
   → auto-triage clears the high-confidence rot from learned patterns
   → only uncertain findings surface, grouped Drift / Stale / Smartness
   → human rules once (Confirm / Retire / Later), voice-driven
