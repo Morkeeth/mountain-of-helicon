@@ -122,3 +122,83 @@ def test_ab_pair_shares_task_identity_but_distinct_context(conn):
     assert pa["packet_id"] != pb["packet_id"]
     modes = {conn.execute("SELECT context_mode FROM task_runs WHERE id=?", (r,)).fetchone()["context_mode"] for r in (a, b)}
     assert modes == {"current-global", "compact"}
+
+
+def test_accept_refuses_when_hashed_artifact_changed(conn, tmp_path):
+    """F-C03: INSPECT reports a hash mismatch after a post-capture rewrite;
+    Accept must refuse so the rewrite cannot be laundered into an accepted
+    outcome. Rework stays open so a human can still reject the tampered run."""
+    import hashlib
+    import os
+    import subprocess
+
+    repo = tmp_path / "helicon-fc03"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(repo)], check=True,
+                   capture_output=True, text=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "t@t.t"],
+                   check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "t"],
+                   check=True, capture_output=True)
+    art = repo / "OUT.md"
+    art.write_text("# captured output\nshipped.\n")
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True,
+                   capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "base"], check=True,
+                   capture_output=True)
+    captured = hashlib.sha256(art.read_bytes()).hexdigest()[:16]
+    base = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                          check=True, capture_output=True, text=True).stdout.strip()
+
+    rid = tr.open_run(conn, "ship the closeout", "closeout matches capture",
+                      harness="claude-code", repo_ref=f"{repo}@{base}")
+    tr.build_packet(conn, rid, query="ship")
+    tr.attach_artifact(conn, rid, [{
+        "path": "OUT.md", "content_hash": captured,
+        "observed_at": "2026-07-28T00:00:00", "state": "last-commit",
+    }])
+
+    # Still matches → Accept is allowed.
+    assert tr.verify_artifact_hashes(conn, rid) == []
+    # Tamper after capture.
+    art.write_text("# rewritten after capture\nnot what was governed.\n")
+    mismatches = tr.verify_artifact_hashes(conn, rid)
+    assert mismatches and "changed since capture" in mismatches[0]
+    assert captured in mismatches[0]
+
+    # INSPECT agrees.
+    from helicon.cockpit import load_artifact
+    blocked = load_artifact(
+        str(repo), "markdown", "OUT.md",
+        allowed_roots={os.path.realpath(str(repo))},
+        expected_hash=captured,
+    )
+    assert blocked["type"] == "blocked"
+    assert "changed since capture" in blocked["why"]
+
+    with pytest.raises(tr.TaskRunError, match="Accept refused — artifact hash mismatch"):
+        tr.accept_run(conn, rid, "accepted", note="launder the rewrite")
+    row = conn.execute(
+        "SELECT status, human_acceptance FROM task_runs WHERE id=?", (rid,)
+    ).fetchone()
+    assert row["status"] == "artifact_attached"
+    assert row["human_acceptance"] == "pending"
+
+    # Rework is still available — reject the tampered run.
+    tr.accept_run(conn, rid, "rework", note="artifact rewritten after capture")
+    assert conn.execute(
+        "SELECT human_acceptance FROM task_runs WHERE id=?", (rid,)
+    ).fetchone()["human_acceptance"] == "rework"
+
+
+def test_accept_skips_unhashed_artifacts(conn):
+    """Entries without a content_hash are not pinned — Accept must not invent a
+    refusal (autogov / loop-closure attach path-only manifests)."""
+    rid = _open(conn)
+    tr.build_packet(conn, rid, query="diet")
+    tr.attach_artifact(conn, rid, [{"path": "f.py", "observed_at": "t"}])
+    assert tr.verify_artifact_hashes(conn, rid) == []
+    tr.accept_run(conn, rid, "accepted", note="")
+    assert conn.execute(
+        "SELECT human_acceptance FROM task_runs WHERE id=?", (rid,)
+    ).fetchone()["human_acceptance"] == "accepted"
