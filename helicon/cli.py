@@ -704,17 +704,51 @@ def cmd_run(args):
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon import taskrun, capture
+    from helicon import intervention, outcome_contract as _oc
     config = load_config()
     conn = init_db(config["db_path"])
+
+    def _contract_from_args():
+        return _oc.from_kwargs(
+            beneficiary=getattr(args, "beneficiary", None),
+            observable_change=getattr(args, "observable", None),
+            evidence_source=getattr(args, "evidence", None),
+            decision_owner=getattr(args, "owner", None),
+            time_horizon=getattr(args, "horizon", None))
+
+    if args.action == "gate":
+        if not args.objective:
+            sys.exit('  usage: helicon run gate "<objective>" [--acceptance ...] '
+                     '[--beneficiary ... --observable ... --evidence ...]')
+        g = intervention.gate(
+            conn, objective=args.objective, acceptance_test=args.acceptance or "",
+            outcome_contract=_contract_from_args(),
+            skill_versions=getattr(args, "skills", None), query=args.objective,
+            config=config)
+        print(intervention.format_gate(g))
+        sys.exit(1 if g["verdict"] == "blocked" else 0)
 
     if args.action == "open":
         if not args.objective or not args.acceptance:
             sys.exit('  usage: helicon run open "<objective>" --acceptance "<what accepted means>"')
+        # Pre-run intervention gate: a run must earn the right to start. A blocker
+        # refuses the open unless --force; warnings are shown and allowed.
+        contract = _contract_from_args()
+        g = intervention.gate(
+            conn, objective=args.objective, acceptance_test=args.acceptance,
+            outcome_contract=contract, skill_versions=getattr(args, "skills", None),
+            query=args.objective, config=config)
+        print(intervention.format_gate(g))
+        if g["verdict"] == "blocked" and not getattr(args, "force", False):
+            sys.exit("  refused: this run has not earned the right to start. "
+                     "Fix the blockers above, or re-run with --force.")
         repo = os.path.abspath(args.repo or os.getcwd())
         commit = capture._git(repo, "rev-parse", "HEAD")
         try:
             rid = taskrun.open_run(conn, args.objective, args.acceptance,
-                                   harness="claude-code", repo_ref=f"{repo}@{commit}")
+                                   harness="claude-code", repo_ref=f"{repo}@{commit}",
+                                   skill_versions=getattr(args, "skills", None),
+                                   outcome_contract=contract)
         except taskrun.TaskRunError as e:
             sys.exit(f"  {e}")
         taskrun.record_event(conn, rid, "opened", detail=args.objective)
@@ -2708,12 +2742,22 @@ def main():
     runs_p.add_argument("--run", action="store_true", help="with --close: run test suites to verify test claims (slower, more evidence)")
     runs_p.add_argument("--damage", type=float, default=0.0, help="with --close: incident penalty for this run")
 
-    run_p = sub.add_parser("run", help="Govern a task run FORWARD: open (freeze objective+acceptance+base) -> close --accept/--rework/--reject")
-    run_p.add_argument("action", choices=["open", "status", "close"], help="open / status / close")
-    run_p.add_argument("objective", nargs="?", help="for open: the task objective")
-    run_p.add_argument("--acceptance", help="for open: what 'accepted' means (frozen before work)")
+    run_p = sub.add_parser("run", help="Govern a task run FORWARD: gate -> open (freeze objective+acceptance+outcome contract) -> close --accept/--rework/--reject")
+    run_p.add_argument("action", choices=["open", "status", "close", "gate"],
+                       help="gate (pre-run check, opens nothing) / open / status / close")
+    run_p.add_argument("objective", nargs="?", help="for open/gate: the task objective")
+    run_p.add_argument("--acceptance", help="for open/gate: what 'accepted' means (frozen before work)")
     run_p.add_argument("--repo", help="repo path (default: cwd)")
     run_p.add_argument("--id", help="for close: the run id (default: latest open)")
+    run_p.add_argument("--beneficiary", help="open/gate: who this run is for")
+    run_p.add_argument("--observable", help="open/gate: the real-world change it should cause")
+    run_p.add_argument("--evidence", help="open/gate: where you'll confirm the change (the outcome, not the artifact)")
+    run_p.add_argument("--owner", help="open/gate: who rules on the result")
+    run_p.add_argument("--horizon", help="open/gate: by when you expect to observe it")
+    run_p.add_argument("--skill", action="append", dest="skills", metavar="NAME@VERSION",
+                       help="open/gate: pin a skill version (repeatable)")
+    run_p.add_argument("--force", action="store_true",
+                       help="open: proceed even if the intervention gate reports blockers")
     run_p.add_argument("--accept", action="store_true", help="close: accepted (promotes the prompt)")
     run_p.add_argument("--rework", action="store_true", help="close: needs rework (no promotion)")
     run_p.add_argument("--reject", action="store_true", help="close: rejected/rollback (no promotion)")

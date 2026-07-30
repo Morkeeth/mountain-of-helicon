@@ -39,6 +39,18 @@ class AcceptReq(BaseModel):
     accept_changed_artifact: bool = False
 
 
+class GateReq(BaseModel):
+    """A PROPOSED run to check before it starts (nothing is opened)."""
+    objective: str = ""
+    acceptance: str = ""
+    beneficiary: str = ""
+    observable_change: str = ""
+    evidence_source: str = ""
+    decision_owner: str = ""
+    time_horizon: str = ""
+    skills: list[str] = []
+
+
 @router.get("/run/sessions")
 async def run_sessions(limit: int = 20):
     from helicon.capture import discover_sessions
@@ -55,6 +67,22 @@ async def run_capture(req: CaptureReq):
 async def run_govern(req: GovernReq):
     from helicon.capture import govern_from_capture
     return govern_from_capture(get_conn(), req.capture_id, req.objective, req.acceptance)
+
+
+@router.post("/run/gate")
+async def run_gate(req: GateReq):
+    """Pre-run Intervention Gate: is this proposed run worth initiating, or should
+    you intervene first? Read-only — opens nothing. Returns the compact factual
+    gate (blockers / warnings / verdict) any surface can render before a run."""
+    from helicon import intervention, outcome_contract
+    contract = outcome_contract.from_kwargs(
+        beneficiary=req.beneficiary, observable_change=req.observable_change,
+        evidence_source=req.evidence_source, decision_owner=req.decision_owner,
+        time_horizon=req.time_horizon)
+    return intervention.gate(
+        get_conn(), objective=req.objective, acceptance_test=req.acceptance,
+        outcome_contract=contract, skill_versions=req.skills or None,
+        query=req.objective)
 
 
 @router.post("/run/accept")
