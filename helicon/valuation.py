@@ -144,6 +144,18 @@ def _needs_human(conn, row) -> tuple[bool, str]:
     return True, ""
 
 
+# A finding whose claim is literally "a path is gone" — the one class gate 3 can
+# cheaply and safely re-verify against the filesystem right now. Broadened from
+# the single literal "dead path" so the audits' other phrasings for the SAME
+# claim ("missing path", "stale path", "no longer exists", "is gone") are
+# re-checked too, instead of sailing through gate 3 unchecked (which is what made
+# gate 3 nearly decorative — it fired on one string only). Every other finding
+# class still passes: re-checking a claim we cannot verify would retire real
+# findings on a guess, which is worse than a queue that is too long.
+_PATH_GONE_CLAIM = re.compile(
+    r"\b(?:dead path|missing path|stale path|no longer exists?|is gone)\b", re.I)
+
+
 def _still_true(conn, row) -> tuple[bool, str]:
     """Does the asserted condition re-verify right now?
 
@@ -151,15 +163,24 @@ def _still_true(conn, row) -> tuple[bool, str]:
     else passes rather than being silently dropped on a guess. A gate that
     guesses would retire real findings, which is worse than a queue that is
     too long.
+
+    For a "path is gone" claim we verify it literally: if a concrete path the
+    finding names now EXISTS, the claim is false and the finding is retired. If
+    no named path exists (the common case) the claim still holds and the finding
+    is kept. A phrasing match with no concrete path token is not something we can
+    verify, so it passes.
     """
     finding = row["finding"] or ""
-    if "dead path" in finding.lower():
-        # The claim is "this path does not exist". Verify it literally.
-        for token in finding.replace("(", " ").replace(")", " ").replace(",", " ").split():
-            if token.startswith("/") and len(token) > 8:
+    if _PATH_GONE_CLAIM.search(finding):
+        checked = False
+        for raw in re.split(r"[()\[\],\s]+", finding):
+            token = raw.strip().strip(".,;:'\"")
+            if token.startswith(("/", "~/")) and len(token) > 8:
+                checked = True
                 if os.path.exists(os.path.expanduser(token)):
                     return False, "the path exists again"
-                return True, ""
+        if checked:
+            return True, ""
     return True, ""
 
 
