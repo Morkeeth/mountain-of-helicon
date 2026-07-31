@@ -865,6 +865,12 @@ def cmd_hook(args):
         payload = {}
     cwd = payload.get("cwd") or os.getcwd()
     session = str(payload.get("session_id", ""))[:16]
+    # The harness has named this field differently across surfaces; accept the
+    # documented shapes rather than silently reading "" and treating every
+    # override as an ordinary prompt.
+    prompt = str(payload.get("prompt") or payload.get("user_input")
+                 or payload.get("text") or "")
+    transcript = str(payload.get("transcript_path") or "")
     config = load_config()
     conn = init_db(config["db_path"])
 
@@ -890,10 +896,59 @@ def cmd_hook(args):
         # session. Observation must never alter the run it observes.
         return
 
-    ctx = hook_deliver(conn, cwd, session)
+    # THE GATE, before the courier. A run against a repo whose loaded docs the
+    # running code disproves is refused here — in the operator's own terminal,
+    # with the prompt erased — rather than noted in a CLI nobody typed.
+    #
+    # Every failure path allows the prompt. A gate that bricks a terminal when
+    # it breaks gets uninstalled, and then it governs nothing; the logged
+    # gate_blocked / gate_override events are what make a real block provable,
+    # not the absence of one.
+    from helicon.capture import hook_gate
+    banner = None
+    try:
+        g = hook_gate(conn, cwd, session, prompt)
+    except Exception:
+        g = None
+    if g and g["action"] == "block":
+        print(_json.dumps({
+            "decision": "block",
+            "reason": g["message"],
+            "systemMessage": g["message"],
+        }))
+        return
+    if g and g["action"] == "override":
+        banner = g["message"]
+
+    ctx = hook_deliver(conn, cwd, session, transcript)
+    out = {}
     if ctx:
-        print(_json.dumps({"hookSpecificOutput": {
-            "hookEventName": "UserPromptSubmit", "additionalContext": ctx}}))
+        out["hookSpecificOutput"] = {"hookEventName": "UserPromptSubmit",
+                                     "additionalContext": ctx}
+    if banner:
+        out["systemMessage"] = banner
+    if out:
+        print(_json.dumps(out))
+
+
+def cmd_receipt(args):
+    """Did the harness actually RECEIVE what Helicon injected? Every other step
+    of the delivery loop can be satisfied by a row Helicon itself wrote. This
+    one opens the transcript the HARNESS wrote and looks for the receipt token.
+    UNVERIFIABLE is a verdict here, never rounded up to RECEIVED."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import capture
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    r = capture.receipt(conn, getattr(args, "session", "") or "")
+    if getattr(args, "json", False):
+        print(json.dumps(r, indent=2))
+    else:
+        print(capture.format_receipt(r))
+    # exit non-zero on anything short of proof, so the receipt is usable in CI
+    sys.exit(0 if r["verdict"] == "RECEIVED" else 1)
 
 
 def cmd_queue(args):
@@ -2861,6 +2916,11 @@ def main():
     run_p.add_argument("--reject", action="store_true", help="close: rejected/rollback (no promotion)")
     run_p.add_argument("--note", default="", help="close: the verdict note")
 
+    receipt_p = sub.add_parser("receipt", help="Prove an injection was RECEIVED: read the harness's own transcript for the receipt token (RECEIVED / NOT_FOUND / UNVERIFIABLE)")
+    receipt_p.add_argument("session", nargs="?", default="",
+                           help="session id (default: the most recent injection)")
+    receipt_p.add_argument("--json", action="store_true", help="emit the structured verdict")
+
     hook_p = sub.add_parser("hook", help="Claude Code UserPromptSubmit hook: deliver your rulings into a live session (--print-config for the settings snippet)")
     hook_p.add_argument("event", nargs="?", default="userprompt",
                         choices=["userprompt", "sessionstart", "instructions", "stop"],
@@ -3090,6 +3150,7 @@ def main():
         "eval-consolidation": cmd_consolidation_eval,
         "run": cmd_run,
         "hook": cmd_hook,
+        "receipt": cmd_receipt,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads

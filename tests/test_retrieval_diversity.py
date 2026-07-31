@@ -216,13 +216,23 @@ def test_the_fts_fallback_obeys_the_same_policy(store):
 
 
 # ------------------------------------- the branch that failed silently
-def test_a_dimension_mismatch_is_reported_not_silently_dropped(store):
+def test_a_dimension_mismatch_is_reported_not_silently_dropped(store, monkeypatch):
     """`_load_all_embeddings` filters `ce.dim = <provider dim>`; on a mismatch
     it returns nothing, semantic_search returns [], and hybrid_search quietly
     becomes FTS-only with no error anywhere. On a copy of the real store all
     4,214 vectors are dim=1024 (Qwen) while a config-less checkout resolves to
     local/384 — so 60% of the documented ranking signal was silently absent and
-    the answer had exactly the same shape."""
+    the answer had exactly the same shape.
+
+    The provider is pinned rather than inherited. This test used to depend on
+    the DEVELOPER having no config.json: with one present it resolves to Qwen at
+    dim 1024, the "mismatch" matches, and the test fails on a working machine
+    while the code is correct. The property under test is the mismatch, not the
+    absence of a config file.
+    """
+    from helicon import embeddings as _emb
+    monkeypatch.setattr(_emb, "_embed_provider",
+                        lambda: ("local", None, "all-MiniLM-L6-v2", 384))
     assert semantic_health(store)["ok"] is False  # nothing embedded yet
     store.execute(
         "INSERT INTO cube_embeddings (cube_id, embedding, embedded_at, model, dim) "

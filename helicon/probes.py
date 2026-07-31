@@ -71,6 +71,21 @@ _SKIP_DIRS = {"node_modules", ".git", ".next", "dist", "build", "coverage",
 _TEST_PATH = re.compile(r"(?:^|/)(?:__tests__|tests?|spec)/|\.(?:test|spec)\.[a-z]+$"
                         r"|(?:^|/)test_[^/]+\.py$|(?:^|/)conftest\.py$")
 
+# A committed CORPUS is not the running code either. HELICON-BENCH ships whole
+# miniature repos under bench/repos/ so memory can be scored against commands
+# that execute; one of them declares `CUSTODY_RETIRED = true` because that is
+# the fixture's entire point. Nothing excluded it, so the switch was treated as
+# a live retirement in THIS repo, and it then contradicted seven unrelated
+# sentences of AGENTS.md prose about a flaky test. A fixture proving a probe
+# works must never become evidence about its host.
+_FIXTURE_PATH = re.compile(
+    r"(?:^|/)(?:bench/repos|fixtures?|testdata|golden|__fixtures__|"
+    r"examples?|samples?|\.worktrees|demo-repos)(?:/|$)")
+
+
+def _is_fixture(rel: str) -> bool:
+    return bool(_FIXTURE_PATH.search(rel or ""))
+
 # A retirement that is ENFORCED, not announced. A comment saying "deprecated"
 # changes no behaviour; a constant the code branches on does.
 _SWITCH_DECL = re.compile(
@@ -187,7 +202,7 @@ def _source_files(repo: str, limit: int = 4000) -> list[str]:
             if not f.endswith(_CODE_EXT):
                 continue
             rel = os.path.relpath(os.path.join(root, f), repo)
-            if _TEST_PATH.search(rel):
+            if _TEST_PATH.search(rel) or _is_fixture(rel):
                 continue
             out.append(rel)
             if len(out) >= limit:
@@ -315,6 +330,7 @@ def _grep(repo: str, needle: str, git: bool, paths: list[str] | None = None,
             if ln.strip()
             and not any(f"/{d}/" in ln or ln.startswith(f"{d}/") for d in _SKIP_DIRS)
             and not _TEST_PATH.search(ln.split(":", 1)[0])
+            and not _is_fixture(ln.split(":", 1)[0])
             and ln.split(":", 1)[0].endswith(_CODE_EXT)]
     if not keep and rc not in (0, 1):
         keep = [f"(exit {rc}) {out.strip()[:200]}"]
@@ -404,8 +420,25 @@ def _probe_path(repo: str, path: str, git: bool) -> dict:
             return {"verdict": UPHELD, "probe": f"git ls-files -- *{os.path.basename(path)}",
                     "output": out2.strip().splitlines()[0][:200],
                     "why": "tracked (matched on basename)"}
+        # Untracked is not disproved. `config-demo.json` is WRITTEN by
+        # scripts/demo_seed.py and gitignored, so "git tracks no such file" was
+        # exactly what the doc predicted — and this probe called the doc a liar
+        # three times over. Git is the wrong witness for a generated file; ask
+        # the filesystem, and ask whether the repo deliberately ignores it.
+        on_disk = os.path.exists(os.path.join(repo, path))
+        rc3, _ = _run(["git", "check-ignore", "-q", "--", path], repo)
+        ignored = rc3 == 0
+        if on_disk or ignored:
+            why = ("present on disk but deliberately untracked"
+                   if on_disk and ignored else
+                   "present on disk, untracked" if on_disk else
+                   "gitignored by this repo, so its absence from git proves nothing")
+            return {"verdict": UNVERIFIABLE, "probe": shown,
+                    "output": "(not tracked)",
+                    "why": f"{path}: {why} — git cannot settle this claim"}
         return {"verdict": CONTRADICTED, "probe": shown, "output": "(no output)",
-                "why": f"the doc names {path}; git tracks no such file"}
+                "why": f"the doc names {path}; git tracks no such file "
+                       f"and it is not on disk"}
     exists = os.path.exists(os.path.join(repo, path))
     return {"verdict": UPHELD if exists else CONTRADICTED,
             "probe": f"test -f {path}", "output": "exists" if exists else "missing",

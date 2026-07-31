@@ -247,6 +247,31 @@ def _same_sentence(a: str, b: str) -> bool:
     return bool(na) and na == nb
 
 
+def _by_line(results: list) -> dict:
+    """(file, line) -> the verdict that line deserves.
+
+    One doc line can carry several probeable claims, so several probe results
+    can land on it. A plain `{(f, l): r for r in results}` keeps whichever ran
+    LAST, and that silently erased real contradictions: world-relay's
+    CLAUDE.md:35 probes CONTRADICTED then UPHELD, and the board reported it
+    upheld. The failure is in the one direction that matters — a claim the code
+    disproves rendered as fine — so precedence is explicit and disproof wins.
+    An executed disproof is not cancelled by a different claim on the same line
+    happening to pass.
+    """
+    from helicon import probes
+    rank = {probes.CONTRADICTED: 2, probes.UNVERIFIABLE: 1, probes.UPHELD: 0}
+    out = {}
+    for r in results:
+        if not r.get("line"):
+            continue
+        key = (r["file"], r["line"])
+        cur = out.get(key)
+        if cur is None or rank.get(r["verdict"], 0) > rank.get(cur["verdict"], 0):
+            out[key] = r
+    return out
+
+
 def repo_detail(conn, repo_path: str, config: dict | None = None,
                 allow_network: bool = False) -> dict:
     """Every loaded line of a repo's context, each carrying a probe verdict:
@@ -261,7 +286,7 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
         results = probes.probe_docs(conn, repo, config, allow_network)
     except Exception:
         results = []
-    by_line = {(r["file"], r["line"]): r for r in results if r.get("line")}
+    by_line = _by_line(results)
     cold = cold_refs(conn, name)
 
     doc_out, loaded_total = [], 0
@@ -327,6 +352,170 @@ def format_detail(detail: dict) -> str:
                     lines.append(f"        stdout  {str(ln['output']).splitlines()[0][:80]}")
         lines.append("")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# the doorway as a GATE — the board decides, this stops a live session
+# --------------------------------------------------------------------------
+#
+# Everything above answers "what does this repo load, and is it true?". That is
+# analysis: it lands in a CLI a human has to remember to type. This half turns
+# the same verdicts into an act — a real Claude Code UserPromptSubmit hook that
+# refuses to let a run start against a repo whose loaded docs the running code
+# DISPROVES.
+#
+# Three rules it obeys, all from the product law:
+#
+# 1. Machine-applied. A CONTRADICTED verdict came from a probe that executed and
+#    disagreed. Nothing about that needs a human, so no human is asked.
+# 2. Cold lines never block. Demoting a line is the sanctioned fix: it is kept
+#    forever and loads nothing, so it cannot poison a run and must not stop one.
+#    That makes `helicon board --repo X --demote` a real exit from the block,
+#    not a suggestion.
+# 3. Fail open, loudly. Any error in here lets the prompt through. A gate that
+#    bricks the terminal when it crashes would be removed within a day, and then
+#    it governs nothing. The `allowed` / `blocked` events are what distinguish a
+#    clean repo from a broken hook — absence of a block proves neither.
+
+# What a human types to proceed anyway. Chosen because it needs no flag, no
+# second terminal, and no context switch: you are already at a prompt, so you
+# retype the prompt with the reason on the front, and the reason is logged
+# verbatim. An override with no stated reason is not an override.
+OVERRIDE_PREFIX = "helicon-override:"
+
+_GATE_CACHE_TTL_UNUSED = None  # (no TTL: the fingerprint is the only staleness test)
+
+
+def ensure_gate_table(conn) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS doorway_gate_cache (
+        repo_path   TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,   -- git HEAD + every loaded doc's size/mtime + cold set
+        payload     TEXT NOT NULL,   -- json: the CONTRADICTED lines at that fingerprint
+        checked_at  TEXT NOT NULL
+    )""")
+    conn.commit()
+
+
+def _git_head(repo: str) -> str:
+    from helicon import probes
+    code, out = probes._run(["git", "rev-parse", "HEAD"], repo, timeout=5)
+    return out.strip() if code == 0 else ""
+
+
+def fingerprint(conn, repo: str) -> str:
+    """What must change before a cached verdict is worth re-earning: the commit,
+    every loaded doc's size+mtime, and the cold set. Any of the three moving
+    means the probe result may no longer hold, so it is re-run. A cache that
+    could serve a verdict the repo has already outgrown would be exactly the
+    stale-memory failure this whole product exists to catch."""
+    repo = os.path.abspath(os.path.expanduser(repo))
+    parts = [_git_head(repo)]
+    for d in _seed_docs(repo) or []:
+        p = os.path.join(repo, d)
+        try:
+            st = os.stat(p)
+            parts.append(f"{d}:{st.st_size}:{st.st_mtime_ns}")
+        except OSError:
+            parts.append(f"{d}:missing")
+    name = os.path.basename(os.path.normpath(repo))
+    parts.append("cold=" + ",".join(sorted(cold_refs(conn, name))))
+    import hashlib
+    return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32]
+
+
+def contradicted_lines(conn, repo: str, config: dict | None = None,
+                       allow_network: bool = False) -> list[dict]:
+    """The loaded, NOT-cold lines the running code disproves. Cold lines are
+    excluded on purpose (rule 2 above): they load nothing, so they cannot be the
+    reason a run is refused."""
+    detail = repo_detail(conn, repo, config, allow_network)
+    from helicon import probes
+    out = []
+    for doc in detail["docs"]:
+        if doc["cold"]:
+            continue
+        for ln in doc["lines"]:
+            if ln["verdict"] == probes.CONTRADICTED and not ln["cold"]:
+                out.append({"file": doc["file"], "line": ln["line"],
+                            "ref": ln["ref"], "text": ln["text"],
+                            "probe": ln.get("probe"), "output": ln.get("output"),
+                            "why": ln.get("why")})
+    return out
+
+
+def verdict(conn, repo: str, config: dict | None = None,
+            allow_network: bool = False, fresh: bool = False) -> dict:
+    """A repo's gate verdict, cached on the fingerprint. Cold ≈1s (the probes
+    execute); warm ≈0ms. `fresh=True` forces the probes to run again."""
+    import json as _json
+    repo = os.path.abspath(os.path.expanduser(repo))
+    fp = fingerprint(conn, repo)
+    ensure_gate_table(conn)
+    if not fresh:
+        row = conn.execute(
+            "SELECT payload, checked_at FROM doorway_gate_cache "
+            "WHERE repo_path = ? AND fingerprint = ?", (repo, fp)).fetchone()
+        if row:
+            return {"repo": os.path.basename(os.path.normpath(repo)),
+                    "path": repo, "fingerprint": fp, "cached": True,
+                    "checked_at": row["checked_at"],
+                    "contradicted": _json.loads(row["payload"])}
+    lines = contradicted_lines(conn, repo, config, allow_network)
+    now = _now()
+    conn.execute(
+        "INSERT OR REPLACE INTO doorway_gate_cache "
+        "(repo_path, fingerprint, payload, checked_at) VALUES (?,?,?,?)",
+        (repo, fp, _json.dumps(lines), now))
+    conn.commit()
+    return {"repo": os.path.basename(os.path.normpath(repo)), "path": repo,
+            "fingerprint": fp, "cached": False, "checked_at": now,
+            "contradicted": lines}
+
+
+def parse_override(prompt: str) -> str | None:
+    """The reason, if this prompt is an override. Returns None when it is an
+    ordinary prompt, and None when the prefix is present but carries no reason —
+    'helicon-override:' alone is not an override, it is an empty gesture."""
+    p = (prompt or "").lstrip()
+    if p[:len(OVERRIDE_PREFIX)].lower() != OVERRIDE_PREFIX:
+        return None
+    reason = p[len(OVERRIDE_PREFIX):].strip()
+    return reason or None
+
+
+def decide(v: dict, prompt: str = "") -> dict:
+    """block / allow / override, from a verdict and the prompt that arrived."""
+    bad = v.get("contradicted") or []
+    if not bad:
+        return {"action": "allow", "reason": "", "contradicted": []}
+    reason = parse_override(prompt)
+    if reason:
+        return {"action": "override", "reason": reason, "contradicted": bad}
+    return {"action": "block", "reason": "", "contradicted": bad}
+
+
+def format_block(v: dict, decision: dict) -> str:
+    """The banner a human reads in their own terminal at the moment they are
+    stopped. It names the exact lines, both ways out, and nothing else."""
+    bad = decision["contradicted"]
+    head = v["fingerprint"][:7]
+    out = ["⛔ HELICON — this run has not earned the right to start.", "",
+           f"  repo: {v['repo']} @ {head}",
+           f"  {len(bad)} loaded claim(s) the running code DISPROVES:", ""]
+    for b in bad:
+        where = f"{b['file']}:{b['line']}" if b.get("line") else b["file"]
+        out.append(f"  {where}")
+        out.append(f"    claim  {b['text'][:100]}")
+        if b.get("probe"):
+            out.append(f"    probe $ {b['probe']}")
+        if b.get("output"):
+            out.append(f"    stdout  {str(b['output']).splitlines()[0][:88]}")
+        out.append("")
+    out += [f"  fix:      helicon board --repo {v['repo']} --demote <file#line>",
+            "            (or correct the line — the gate re-probes on the next prompt)",
+            f"  override: retype your prompt starting with",
+            f"            {OVERRIDE_PREFIX} <why this may run anyway>", ""]
+    return "\n".join(out)
 
 
 def format_board(board: dict) -> str:
