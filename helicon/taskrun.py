@@ -99,17 +99,46 @@ def _hash_packet(items, policy_version) -> str:
     return hashlib.sha256(blob.encode()).hexdigest()
 
 
-def build_packet(conn, task_run_id, query="", *, policy_version=SELECTION_POLICY_VERSION) -> dict:
-    """Freeze the exact context this run WOULD be given. Read-only over cubes;
-    default-deny privacy gate; content-addressed hash. Must run before the artifact."""
-    run = _get_run(conn, task_run_id)
-    if run is None:
-        raise TaskRunError(f"no such task run: {task_run_id}")
-    if run["status"] != "opened":
-        raise TaskRunError(f"packet already built or run not open (status: {run['status']})")
+_PACKET_K = 12          # how much ranked memory a run's frozen packet may carry
+
+
+def _candidates(conn, query: str):
+    """The memory a governed run's packet may freeze, ranked the way the agent
+    would actually retrieve it.
+
+    This used to be `lower(content) LIKE '%<query>%'` — a whole-phrase substring
+    match against the objective's first 40 characters. Real objectives are
+    sentences ("wire the doorway gate into a live Claude Code session"), and no
+    memory contains one verbatim, so the match returned nothing and EVERY
+    governed run froze an empty packet. The failure was invisible: the packet
+    still hashed, still verified, still rendered — it just had zero items, and
+    the delivery hook then had nothing to inject.
+
+    The ranked retriever the rest of the product uses (hybrid semantic + FTS,
+    superseded dropped, diversity-capped) found 5 relevant memories for that
+    exact objective in the same store. Use it, and keep the substring query as
+    the fallback for the callers that pass a literal token rather than a
+    sentence. Retired means retired on both paths.
+    """
+    ranked = []
+    if query:
+        try:
+            from helicon.snapshots import _retrieve
+            ranked = [h["id"] for h in (_retrieve(conn, query, _PACKET_K) or [])
+                      if h.get("id")]
+        except Exception:
+            ranked = []
+    if ranked:
+        placeholders = ",".join("?" * len(ranked))
+        rows = conn.execute(
+            "SELECT id, source, source_ref, title, content, created_at, metadata "
+            f"FROM helicon_cubes WHERE id IN ({placeholders}) "
+            "AND review_status NOT IN ('killed', 'superseded')", ranked).fetchall()
+        order = {cid: i for i, cid in enumerate(ranked)}
+        return sorted(rows, key=lambda r: order.get(r["id"], len(order)))
 
     like = f"%{query.lower()}%" if query else "%"
-    rows = conn.execute(
+    return conn.execute(
         # Retired means retired on EVERY path. This used to exclude only
         # 'killed', so a superseded memory — one explicitly replaced by a newer
         # version — could still be packed into a governed run's context while
@@ -119,6 +148,18 @@ def build_packet(conn, task_run_id, query="", *, policy_version=SELECTION_POLICY
         "FROM helicon_cubes WHERE review_status NOT IN ('killed', 'superseded') "
         "AND (lower(content) LIKE ? OR lower(title) LIKE ?) ORDER BY created_at DESC",
         (like, like)).fetchall()
+
+
+def build_packet(conn, task_run_id, query="", *, policy_version=SELECTION_POLICY_VERSION) -> dict:
+    """Freeze the exact context this run WOULD be given. Read-only over cubes;
+    default-deny privacy gate; content-addressed hash. Must run before the artifact."""
+    run = _get_run(conn, task_run_id)
+    if run is None:
+        raise TaskRunError(f"no such task run: {task_run_id}")
+    if run["status"] != "opened":
+        raise TaskRunError(f"packet already built or run not open (status: {run['status']})")
+
+    rows = _candidates(conn, query)
 
     included, excluded, pos = [], [], 0
     for r in rows:
