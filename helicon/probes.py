@@ -126,6 +126,33 @@ _AUTHORITY = re.compile(r"\b(?:owner\(\)|upgrade authority|admin(?:istrator)?|"
 _PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./\[\]-]+\.(?:ts|tsx|js|jsx|mjs|py|go|rs|"
                          r"sol|rb|java|md|json|toml|ya?ml))`")
 
+# A backticked filename is an EXISTENCE CLAIM only when the sentence asserts the
+# file is THERE — "lives in", "the entry point is `x`", "defined in `x`", "see
+# `x`". A sentence that merely names a file (the schema for `items.json`, an
+# example `foo.ln.json`, "generates `graph.json`", "create a new file
+# `2026-01-01.md`", or a negation like "there is no `.eleventy.js`") names no
+# present file; probing git for it manufactures a contradiction. This was the
+# dominant false-positive class in the first public sweep (2026-08). Precision
+# over recall: fire only on an explicit presence cue, never on a negation /
+# example / generation, and never on a relative-escape or glob token.
+_PATH_PRESENT = re.compile(
+    r"\b(?:lives?\s+in|located\s+(?:in|at)|found\s+(?:in|at)|(?:is|are)\s+(?:in|at|located|defined|stored)"
+    r"|defined\s+in|entry\s*point|config(?:uration)?\s+(?:file\s+)?is|stored\s+in|configured\s+in"
+    r"|(?:config|entry|main|source)\s+(?:file\s+)?is|see\s+`|read\s+`|imported\s+from)\b", re.I)
+_PATH_NOT_ASSERTION = re.compile(
+    r"\b(?:there\s+is\s+no|isn'?t|is\s+not|no\s+longer|instead\s+of|rather\s+than|e\.?g\.?"
+    r"|for\s+example|such\s+as|creates?|created|generates?|generated|will\s+(?:write|create|generate)"
+    r"|written|outputs?\s+to|template|placeholder|example|new\s+(?:file|changelog|entry)|renamed?"
+    r"|moved?|schema\s+for|following\s+schema)\b|(?:^|\W)no\s+`|not\s+`", re.I)
+
+
+def _asserts_path_present(sentence: str, token: str) -> bool:
+    if ".." in token or "*" in token or token.endswith("/"):
+        return False
+    if _PATH_NOT_ASSERTION.search(sentence):
+        return False
+    return bool(_PATH_PRESENT.search(sentence))
+
 # Tokens too generic to bind a subject. Same discipline as claims.py: a single
 # shared generic word is coincidence, not the same fact.
 _GENERIC = {
@@ -710,9 +737,13 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                 "switch": sw["name"]})
             break  # one switch per sentence; the first is the closest binding
 
-    # path — a file the doc names as present
+    # path — a file the doc asserts is PRESENT (not merely names: a schema
+    # subject, an example, a generated/created file, or a "there is no `x`"
+    # negation are mentions, not existence claims).
     for m in _PATH_TOKEN.finditer(assertion):
-        out.append({"kind": "path", **_probe_path(repo, m.group(1), git)})
+        token = m.group(1)
+        if _asserts_path_present(assertion, token):
+            out.append({"kind": "path", **_probe_path(repo, token, git)})
 
     return out
 
