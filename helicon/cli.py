@@ -1049,6 +1049,105 @@ def cmd_brief(args):
         print(format_brief(b))
 
 
+def _confirm(yes: bool, question: str) -> bool:
+    """A yes/no the user must actively give. --yes skips it; a non-tty refuses
+    (writing to ~/.claude/settings.json unattended is exactly what we won't do)."""
+    if yes:
+        return True
+    if not sys.stdin.isatty():
+        print(f"  {question} — refusing to write non-interactively; pass --yes to confirm.")
+        return False
+    try:
+        return input(f"  {question} [y/N] ").strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
+
+
+def _doorway_gate():
+    """BE the Claude Code UserPromptSubmit hook: read the hook JSON on stdin,
+    refuse a run whose repo the running code disproves, else stay silent. Keyless
+    and config-free — the gate keeps its own log under ~/.helicon. Fail-open and
+    total: any error lets the prompt through (a logged gate_blocked row is what
+    proves a block, never the absence of one)."""
+    import json as _json
+    from helicon import doorway
+    raw = sys.stdin.read()
+    try:
+        payload = _json.loads(raw) if raw.strip() else {}
+    except Exception:
+        payload = {}
+    cwd = payload.get("cwd") or os.getcwd()
+    session = str(payload.get("session_id", ""))[:16]
+    prompt = str(payload.get("prompt") or payload.get("user_input")
+                 or payload.get("text") or "")
+    try:
+        from helicon.db import init_db
+        from helicon.capture import hook_gate
+        conn = init_db(doorway.user_db_path())
+        g = hook_gate(conn, cwd, session, prompt)
+    except Exception:
+        return  # fail open, always
+    if g and g["action"] == "block":
+        print(_json.dumps({"decision": "block", "reason": g["message"],
+                           "systemMessage": g["message"]}))
+    elif g and g["action"] == "override":
+        print(_json.dumps({"systemMessage": g["message"]}))
+
+
+def cmd_doorway(args):
+    """The stranger's doorway: install the gate as a Claude Code UserPromptSubmit
+    hook (safely — backup, diff, confirm, idempotent, exact uninstall), print it
+    dry, or BE the hook (`gate`)."""
+    import json as _json
+    from helicon import doorway
+    if getattr(args, "action", "install") == "gate":
+        return _doorway_gate()
+
+    path = getattr(args, "settings", None) or doorway.claude_settings_path()
+    cmd = doorway.gate_command()
+
+    if getattr(args, "print_config", False):
+        block = {"hooks": {"UserPromptSubmit": [doorway._hook_group(cmd)]}}
+        print(f"# The doorway gate as a Claude Code hook. Target: {path}")
+        print("# Install it safely (backup + diff + confirm): helicon doorway install")
+        print(_json.dumps(block, indent=2))
+        print("\n# Fail-open: if the hook errors, the prompt proceeds — a logged")
+        print("# gate_blocked row is what proves a block, never the absence of one.")
+        return
+
+    try:
+        current = doorway.load_settings(path)
+    except ValueError as e:
+        sys.exit(f"  refusing to touch {path}: it is not valid JSON ({e}).\n"
+                 f"  fix or move it first — Helicon will not overwrite a file it cannot read.")
+
+    uninstall = getattr(args, "uninstall", False)
+    new = doorway.remove_doorway_hook(current) if uninstall \
+        else doorway.add_doorway_hook(current, cmd)
+
+    if new == current:
+        state = "not installed" if uninstall else "already installed"
+        print(f"  doorway gate {state} in {path} — nothing to do.")
+        return
+
+    verb = "REMOVE the doorway gate from" if uninstall else "INSTALL the doorway gate into"
+    print(f"  This will {verb}:\n    {path}\n")
+    print(doorway.settings_diff(current, new, path))
+    if not _confirm(getattr(args, "yes", False),
+                    f"Apply this change to {os.path.basename(path)}?"):
+        print("  aborted — nothing written.")
+        return
+    bak = doorway.backup_settings(path)
+    doorway.write_settings(path, new)
+    if bak:
+        print(f"  backed up → {bak}")
+    if uninstall:
+        print("  removed. new terminals are no longer gated by Helicon.")
+    else:
+        print(f"  installed. the gate runs:  {cmd}")
+        print("  new terminals in any repo are now gated; a contradicted repo is refused.")
+
+
 def cmd_board(args):
     """The doorway board: every repo under a root (default ~/CODE) and the live
     token cost each one loads into an agent — CLAUDE.md, its @imports, and the
@@ -2416,6 +2515,27 @@ def cmd_doctor(_args):
                                  f"({len(scan['connectors'])} connectors, +{scan['cubes_added']} memories)"))
         conn.close()
 
+    # ---- the doorway (the gate a stranger installs) ----
+    # Outside the config/DB block on purpose: a stranger with no config.json
+    # still gets an honest read on whether the gate is wired and firing.
+    from helicon import doorway as _dw
+    _sp = _dw.claude_settings_path()
+    try:
+        _installed = _dw.has_doorway_hook(_dw.load_settings(_sp))
+        checks.append(("OK", f"doorway hook installed ({_sp})") if _installed
+                      else ("WARN", f"doorway gate not installed — run: helicon doorway install ({_sp})"))
+    except ValueError:
+        checks.append(("FAIL", f"doorway: {_sp} is not valid JSON — "
+                               "helicon doorway install will refuse to touch it"))
+    checks.append(("OK", f"doorway gate entrypoint: {sys.executable} -m helicon doorway gate"))
+    _udb = _dw.user_db_path()
+    if not os.path.exists(_udb):
+        checks.append(("WARN", f"doorway store not created yet ({_udb}) — it fires on the first prompt"))
+    else:
+        _f = _dw.last_fired(_udb)
+        checks.append(("OK", f"doorway store {_udb} — last {_f['kind']} at {_f['ts']}") if _f
+                      else ("OK", f"doorway store {_udb} — no block/override logged yet"))
+
     print("Mount Helicon doctor\n")
     for level, msg in checks:
         print(f"  [{level:<4}] {msg}")
@@ -3027,6 +3147,14 @@ def main():
     brief_p = sub.add_parser("brief", help="The morning brief: all five pillars in one screen (Truth/Continuity/Direction/Reflection/Calm)")
     brief_p.add_argument("--json", action="store_true", help="emit the structured brief for another surface")
 
+    doorway_p = sub.add_parser("doorway", help="Install the doorway gate as a Claude Code hook (safely), remove it, print it, or run it (gate)")
+    doorway_p.add_argument("action", nargs="?", default="install", choices=["install", "gate"],
+                           help="install the hook (default), or run AS the hook (gate, reads stdin)")
+    doorway_p.add_argument("--uninstall", action="store_true", help="remove exactly the hook Helicon added")
+    doorway_p.add_argument("--print", dest="print_config", action="store_true", help="print the hook block; write nothing")
+    doorway_p.add_argument("--yes", "-y", action="store_true", help="skip the confirmation prompt (for scripts)")
+    doorway_p.add_argument("--settings", help="settings.json path (default ~/.claude/settings.json or $CLAUDE_SETTINGS)")
+
     board_p = sub.add_parser("board", help="The doorway: every repo under ~/CODE and the token cost each loads into an agent")
     board_p.add_argument("--root", help="repo root to scan (default: ~/CODE, or $HELICON_CODE_ROOT)")
     board_p.add_argument("--repo", help="show one repo's loaded lines and their probe verdicts")
@@ -3112,6 +3240,7 @@ def main():
         "ask": cmd_ask,
         "brief": cmd_brief,
         "board": cmd_board,
+        "doorway": cmd_doorway,
         "bench": cmd_bench,
         "reflect": cmd_reflect,
         "move": cmd_move,
@@ -3167,7 +3296,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "doorway")
 
     from helicon.config import CONFIG_FILE, load_config as _load
     if args.command not in SELF_CONFIGURING:
