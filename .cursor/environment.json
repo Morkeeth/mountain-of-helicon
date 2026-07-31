@@ -1,5 +1,9 @@
 {
-  "install": "pip install -e . && pip install pytest && (cd web && npm ci)",
+  "install": "mkdir -p $HOME/pytmp && pip install -e . && pip install pytest && (cd web && npm ci)",
+  "env": {
+    "TMPDIR": "$HOME/pytmp",
+    "PATH": "$HOME/.local/bin:$PATH"
+  },
   "terminals": [
     {
       "name": "web",
