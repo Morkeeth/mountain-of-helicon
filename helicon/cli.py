@@ -958,6 +958,24 @@ def cmd_brief(args):
         print(format_brief(b))
 
 
+def cmd_board(args):
+    """The doorway board: every repo under a root (default ~/CODE) and the live
+    token cost each one loads into an agent — CLAUDE.md, its @imports, and the
+    other committed agent-rules files. Filesystem-only, keyless."""
+    from helicon.doorway import list_repos, format_board
+    config = {}
+    try:
+        from helicon.config import load_config
+        config = load_config()
+    except Exception:
+        config = {}
+    board = list_repos(root=getattr(args, "root", None), config=config)
+    if getattr(args, "json", False):
+        print(json.dumps(board, indent=2))
+    else:
+        print(format_board(board))
+
+
 def cmd_ask(args):
     """Guarded retrieve: ask what is safe to believe about a topic. The read-side
     mirror of `helicon guard` — it retrieves context, then screens it through the
@@ -2877,6 +2895,10 @@ def main():
     brief_p = sub.add_parser("brief", help="The morning brief: all five pillars in one screen (Truth/Continuity/Direction/Reflection/Calm)")
     brief_p.add_argument("--json", action="store_true", help="emit the structured brief for another surface")
 
+    board_p = sub.add_parser("board", help="The doorway: every repo under ~/CODE and the token cost each loads into an agent")
+    board_p.add_argument("--root", help="repo root to scan (default: ~/CODE, or $HELICON_CODE_ROOT)")
+    board_p.add_argument("--json", action="store_true", help="emit the structured board for another surface")
+
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
@@ -2953,6 +2975,7 @@ def main():
         "guard": cmd_guard,
         "ask": cmd_ask,
         "brief": cmd_brief,
+        "board": cmd_board,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
@@ -3005,7 +3028,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board")
 
     from helicon.config import CONFIG_FILE, load_config as _load
     if args.command not in SELF_CONFIGURING:

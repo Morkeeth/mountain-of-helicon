@@ -16,6 +16,7 @@ import FindingsView from './components/FindingsView';
    bundle for a tab nobody opens on a phone, and Graph3D's three.js (1MB) was
    already split this way for the same reason. The rule is simple — if it is not
    the queue, it is lazy. */
+const Board = lazy(() => import('./components/Board'));
 const Cockpit = lazy(() => import('./components/Cockpit'));
 const CausalLens = lazy(() => import('./components/CausalLens'));
 const Graph3D = lazy(() => import('./components/Graph3D').then(m => ({ default: m.Graph3D })));
@@ -44,7 +45,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // SUBTRACTION (Jul 22): 19 tabs -> 5, and the More sheet is gone. The nav is
 // now exactly the loop from the vision: agent output arrives (Cockpit), the
@@ -64,12 +65,37 @@ type Tab = 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'healt
 //
 // Every component still exists and every `tab === '<key>'` branch still renders.
 // This is a navigation cut, not a delete: restoring any surface is one line here.
+// THE DOORWAY (moonshot): the nav shrinks to the door + the Lab. The board is
+// the one screen an agent-operator opens first — every repo and what it loads.
+// Everything else (the whole loop + the detail views) survives behind one Lab
+// entry: routed, never deleted. Nav shrinks, code survives.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'cockpit', label: 'The Cockpit' },
-  { key: 'findings', label: 'Needs Ruling' },
-  { key: 'gold', label: 'Golden Rules' },
-  { key: 'brief', label: 'Morning Brief' },
-  { key: 'health', label: 'Memory' },
+  { key: 'board', label: 'The Doorway' },
+  { key: 'lab', label: 'Lab' },
+];
+
+// Everything the Lab routes to. These are the surfaces that used to sit in the
+// rail — none removed, all one click away through the Lab index.
+const LAB_ENTRIES: { key: Tab; label: string; group: string }[] = [
+  { key: 'cockpit', label: 'The Cockpit', group: 'The loop' },
+  { key: 'findings', label: 'Needs Ruling', group: 'The loop' },
+  { key: 'gold', label: 'Golden Rules', group: 'The loop' },
+  { key: 'brief', label: 'Morning Brief', group: 'The loop' },
+  { key: 'health', label: 'Memory', group: 'The loop' },
+  { key: 'runs', label: 'Runs', group: 'Detail' },
+  { key: 'route', label: 'Route', group: 'Detail' },
+  { key: 'lens', label: 'Causal Lens', group: 'Detail' },
+  { key: 'evals', label: 'Evals', group: 'Detail' },
+  { key: 'judge', label: 'Qwen as Judge', group: 'Detail' },
+  { key: 'exam', label: 'The Exam', group: 'Detail' },
+  { key: 'graph', label: 'Graph', group: 'Detail' },
+  { key: 'projects', label: 'Projects', group: 'Detail' },
+  { key: 'routines', label: 'Routines', group: 'Detail' },
+  { key: 'log', label: 'Log', group: 'Detail' },
+  { key: 'focus', label: 'Focus', group: 'Detail' },
+  { key: 'reading', label: 'The Reading', group: 'Detail' },
+  { key: 'start', label: 'Start Here', group: 'Detail' },
+  { key: 'tour', label: 'Tour', group: 'Detail' },
 ];
 
 // Deliberately empty. The More sheet and the rail divider both collapse when
@@ -80,6 +106,7 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 // Navigation is intentionally five items, but old receipts and bookmarks remain
 // valid. Hidden routes are explicit compatibility entry points, not a second menu.
 const ROUTABLE_TABS: Tab[] = [
+  'board', 'lab',
   'cockpit', 'start', 'brief', 'reading', 'tour', 'focus', 'health', 'findings',
   'exam', 'judge', 'gold', 'log', 'graph', 'projects', 'routines', 'evals',
   'lens', 'runs', 'route',
@@ -103,11 +130,8 @@ const ROUTABLE_TABS: Tab[] = [
    look like a product. Five slots cost the same 78px as four-plus-More did, so
    the bar now IS the whole nav — nothing on the phone is behind a second tap. */
 const BAR_TABS: { key: Tab; short: string }[] = [
-  { key: 'cockpit', short: 'Cockpit' },
-  { key: 'findings', short: 'Ruling' },
-  { key: 'gold', short: 'Rules' },
-  { key: 'brief', short: 'Brief' },
-  { key: 'health', short: 'Memory' },
+  { key: 'board', short: 'Doorway' },
+  { key: 'lab', short: 'Lab' },
 ];
 
 // Left-rail nav item (brand book: numbered, calm, active = ink + accent bar)
@@ -134,6 +158,37 @@ function RailItem({ n, label, active, badge = 0, onClick }: {
         <span className="absolute top-2 right-2 text-[9px] tabular-nums" style={{ color: 'var(--helicon-accent)' }}>{badge}</span>
       )}
     </button>
+  );
+}
+
+/* The Lab index — one nav entry that routes every surface the rail used to
+   carry. Nothing is deleted; everything is one click from here. */
+function LabIndex({ onPick }: { onPick: (t: Tab) => void }) {
+  const groups = Array.from(new Set(LAB_ENTRIES.map(e => e.group)));
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px' }}>
+      <div style={{ fontFamily: '"Fraunces", serif', fontSize: 24, color: 'var(--helicon-ink)' }}>Lab</div>
+      <p style={{ marginTop: 8, fontSize: 13.5, color: 'var(--helicon-muted)', lineHeight: 1.6 }}>
+        Every surface Helicon carries. The nav is the Doorway; everything else lives here — routed, never removed.
+      </p>
+      {groups.map(g => (
+        <div key={g} style={{ marginTop: 28 }}>
+          <div className="text-[10px] uppercase" style={{ letterSpacing: '0.14em', color: 'var(--helicon-muted)', marginBottom: 10 }}>{g}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 8 }}>
+            {LAB_ENTRIES.filter(e => e.group === g).map(e => (
+              <button
+                key={e.key}
+                onClick={() => onPick(e.key)}
+                className="text-left rounded-lg px-3 py-2.5 transition-colors"
+                style={{ border: '1px solid var(--helicon-line)', background: 'var(--helicon-panel)', color: 'var(--helicon-ink)', fontSize: 13.5 }}
+              >
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -171,7 +226,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ROUTABLE_TABS.includes(h) ? h : 'cockpit';
+    return ROUTABLE_TABS.includes(h) ? h : 'board';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -463,6 +518,8 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'board' && <Board />}
+        {tab === 'lab' && <LabIndex onPick={setTab} />}
         {tab === 'cockpit' && <Cockpit />}
         {tab === 'start' && <StartHere onExplore={() => setTab('brief')} />}
         {tab === 'brief' && <BriefView />}
