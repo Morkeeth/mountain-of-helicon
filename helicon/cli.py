@@ -962,14 +962,24 @@ def cmd_board(args):
     """The doorway board: every repo under a root (default ~/CODE) and the live
     token cost each one loads into an agent — CLAUDE.md, its @imports, and the
     other committed agent-rules files. Filesystem-only, keyless."""
-    from helicon.doorway import list_repos, format_board
-    config = {}
+    from helicon.doorway import list_repos, format_board, resolve_root, repo_detail, format_detail
+    config, conn = {}, None
     try:
         from helicon.config import load_config
+        from helicon.db import init_db
         config = load_config()
+        conn = init_db(config["db_path"])
     except Exception:
-        config = {}
-    board = list_repos(root=getattr(args, "root", None), config=config)
+        config, conn = {}, None
+    if getattr(args, "repo", None):
+        import os as _os
+        root = resolve_root(getattr(args, "root", None), config)
+        repo = args.repo if _os.path.isabs(args.repo) else _os.path.join(root, args.repo)
+        detail = repo_detail(conn, repo, config)
+        print(json.dumps(detail, indent=2) if getattr(args, "json", False)
+              else format_detail(detail))
+        return
+    board = list_repos(root=getattr(args, "root", None), config=config, conn=conn)
     if getattr(args, "json", False):
         print(json.dumps(board, indent=2))
     else:
@@ -2897,6 +2907,7 @@ def main():
 
     board_p = sub.add_parser("board", help="The doorway: every repo under ~/CODE and the token cost each loads into an agent")
     board_p.add_argument("--root", help="repo root to scan (default: ~/CODE, or $HELICON_CODE_ROOT)")
+    board_p.add_argument("--repo", help="show one repo's loaded lines and their probe verdicts")
     board_p.add_argument("--json", action="store_true", help="emit the structured board for another surface")
 
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
