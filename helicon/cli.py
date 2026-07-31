@@ -958,6 +958,24 @@ def cmd_guard(args):
     print(format_guard(guard_output(conn, args.text)))
 
 
+def cmd_bench(args):
+    """HELICON-BENCH: score memory claims against commands that execute, over the
+    shipped corpus (bench/repos). Reproducible, keyless, filesystem + git only."""
+    import json as _json
+    from helicon.bench import run_bench, format_bench
+    config = {}
+    try:
+        from helicon.config import load_config
+        config = load_config()
+    except Exception:
+        config = {}
+    sc = run_bench(corpus_dir=getattr(args, "corpus", None), config=config)
+    if getattr(args, "json", False):
+        print(_json.dumps(sc, indent=2))
+    else:
+        print(format_bench(sc))
+
+
 def cmd_brief(args):
     """The morning brief — the product vision in one screen. Assembles all five
     pillars (Truth, Continuity, Direction, Reflection, Calm) into one honest,
@@ -2924,6 +2942,10 @@ def main():
     guard_p = sub.add_parser("guard", help="Check a proposed output against the law (rulings) before it's written")
     guard_p.add_argument("text", help="the output/claim you're about to assert")
 
+    bench_p = sub.add_parser("bench", help="HELICON-BENCH: score memory claims against commands that execute (public, reproducible)")
+    bench_p.add_argument("--corpus", help="corpus dir of repos to score (default: bench/repos)")
+    bench_p.add_argument("--json", action="store_true", help="emit the structured scorecard")
+
     brief_p = sub.add_parser("brief", help="The morning brief: all five pillars in one screen (Truth/Continuity/Direction/Reflection/Calm)")
     brief_p.add_argument("--json", action="store_true", help="emit the structured brief for another surface")
 
@@ -3009,6 +3031,7 @@ def main():
         "ask": cmd_ask,
         "brief": cmd_brief,
         "board": cmd_board,
+        "bench": cmd_bench,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
         "snapshot": cmd_snapshot,
@@ -3061,7 +3084,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench")
 
     from helicon.config import CONFIG_FILE, load_config as _load
     if args.command not in SELF_CONFIGURING:
