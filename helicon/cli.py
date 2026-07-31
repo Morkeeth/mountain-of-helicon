@@ -716,6 +716,8 @@ def cmd_run(args):
             decision_owner=getattr(args, "owner", None),
             time_horizon=getattr(args, "horizon", None))
 
+    repo_path = os.path.abspath(getattr(args, "repo", None) or os.getcwd())
+
     if args.action == "gate":
         if not args.objective:
             sys.exit('  usage: helicon run gate "<objective>" [--acceptance ...] '
@@ -724,7 +726,7 @@ def cmd_run(args):
             conn, objective=args.objective, acceptance_test=args.acceptance or "",
             outcome_contract=_contract_from_args(),
             skill_versions=getattr(args, "skills", None), query=args.objective,
-            config=config)
+            config=config, repo=repo_path)
         print(intervention.format_gate(g))
         # exit non-zero when blocked, so the gate is usable as a CI/pre-run check
         sys.exit(1 if g["verdict"] == "blocked" else 0)
@@ -734,16 +736,23 @@ def cmd_run(args):
             sys.exit('  usage: helicon run open "<objective>" --acceptance "<what accepted means>"')
         # The pre-run intervention gate: a run must earn the right to start. A
         # blocker refuses the open unless --force; warnings are shown and allowed.
+        # A CONTRADICTED repo context is a machine-applied blocker (a probe proved
+        # it), so the only human moment is an override — which must carry a reason.
         contract = _contract_from_args()
         g = intervention.gate(
             conn, objective=args.objective, acceptance_test=args.acceptance,
             outcome_contract=contract, skill_versions=getattr(args, "skills", None),
-            query=args.objective, config=config)
+            query=args.objective, config=config, repo=repo_path)
         print(intervention.format_gate(g))
-        if g["verdict"] == "blocked" and not getattr(args, "force", False):
+        blocked = g["verdict"] == "blocked"
+        if blocked and not getattr(args, "force", False):
             sys.exit("  refused: this run has not earned the right to start. "
-                     "Fix the blockers above, or re-run with --force.")
-        repo = os.path.abspath(args.repo or os.getcwd())
+                     "Fix the blockers above, or override with "
+                     "--force --override-reason \"…\".")
+        if blocked and not (getattr(args, "override_reason", None) or "").strip():
+            sys.exit("  refused: overriding a blocked gate needs a reason. "
+                     "Re-run with --override-reason \"why this run may proceed anyway\".")
+        repo = repo_path
         commit = capture._git(repo, "rev-parse", "HEAD")
         try:
             rid = taskrun.open_run(conn, args.objective, args.acceptance,
@@ -753,6 +762,15 @@ def cmd_run(args):
         except taskrun.TaskRunError as e:
             sys.exit(f"  {e}")
         taskrun.record_event(conn, rid, "opened", detail=args.objective)
+        if blocked:
+            who = (getattr(args, "operator", None)
+                   or os.environ.get("HELICON_OPERATOR") or os.environ.get("USER")
+                   or "operator")
+            ov = intervention.record_override(conn, rid, who=who,
+                                              reason=args.override_reason,
+                                              blockers=g["blockers"])
+            print(f"  ⚠ gate OVERRIDDEN by {ov['who']}: {ov['reason']} "
+                  f"(waved through: {', '.join(g['blockers'])}) — logged on the run")
         taskrun.build_packet(conn, rid, query=args.objective[:40])
         taskrun.record_event(conn, rid, "packet", actor="helicon")
         print(f"  opened {rid}")
@@ -2798,6 +2816,10 @@ def main():
                        help="open/gate: pin a skill version (repeatable)")
     run_p.add_argument("--force", action="store_true",
                        help="open: proceed even if the intervention gate reports blockers")
+    run_p.add_argument("--override-reason",
+                       help="open: the reason for overriding a blocked gate (required to --force past a blocker; logged with who overrode it)")
+    run_p.add_argument("--as", dest="operator",
+                       help="open: who is overriding the gate (default: $HELICON_OPERATOR / $USER)")
     run_p.add_argument("--accept", action="store_true", help="close: accepted (promotes the prompt)")
     run_p.add_argument("--rework", action="store_true", help="close: needs rework (no promotion)")
     run_p.add_argument("--reject", action="store_true", help="close: rejected/rollback (no promotion)")
