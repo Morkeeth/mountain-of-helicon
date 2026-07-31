@@ -263,13 +263,223 @@ def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
     return {"ok": True, "task_run_id": rid, "capture_id": capture_id}
 
 
-def hook_deliver(conn, cwd, session="") -> str | None:
+def hook_gate(conn, cwd, session="", prompt="") -> dict | None:
+    """The doorway, live. Called by the UserPromptSubmit hook BEFORE anything is
+    delivered: if this repo's loaded context contains claims the running code
+    disproves, the prompt is refused in the operator's own terminal.
+
+    This is the line between analysis and control. `helicon board` and the
+    Intervention Gate already produce this verdict; until now it only ever
+    landed in a CLI someone had to remember to type.
+
+    Returns None to allow (nothing is printed, nothing changes about the run),
+    or a dict the CLI turns into Claude Code's block payload.
+
+    Privacy: the gate never probes a path PRIVATE_RX matches (journal, finance,
+    wallet, …). It is a wider net than `hook_deliver`'s safe-repo allowlist —
+    blocking leaks nothing, so it governs every ordinary repo — but a private
+    tree is neither probed nor quoted, in the terminal or in the event log.
+
+    Fail-open is deliberate and total: every failure path here returns None.
+    """
+    from helicon import doorway
+    repo = _repo_root(cwd)
+    if repo is None or _is_private(repo):
+        return None
+
+    v = doorway.verdict(conn, repo, config=None)
+    d = doorway.decide(v, prompt)
+    if d["action"] == "allow":
+        return None
+
+    task_run_id = _hook_run_id(conn, session)
+    refs = [f"{b['file']}:{b['line']}" if b.get("line") else b["file"]
+            for b in d["contradicted"]]
+    detail = {"repo": v["repo"], "fingerprint": v["fingerprint"],
+              "contradicted": refs, "session": session,
+              "cached": v["cached"]}
+
+    if d["action"] == "override":
+        # The one human moment the product law allows — and it is logged, with
+        # the operator's own words, against the blockers it waved through.
+        detail["reason"] = d["reason"]
+        detail["who"] = (os.environ.get("HELICON_OPERATOR")
+                         or os.environ.get("USER") or "operator")
+        _record_gate_event(conn, task_run_id, "gate_override", detail)
+        return {"action": "override", "verdict": v, "decision": d,
+                "message": (f"⚠ HELICON — gate OVERRIDDEN by {detail['who']}: "
+                            f"{d['reason']}\n  waved through: {', '.join(refs)}\n"
+                            f"  logged on the run.")}
+
+    _record_gate_event(conn, task_run_id, "gate_blocked", detail)
+    return {"action": "block", "verdict": v, "decision": d,
+            "message": doorway.format_block(v, d)}
+
+
+def _repo_root(cwd: str) -> str | None:
+    """The git repo `cwd` sits in, or None. Unlike `_safe_repo_root` this is not
+    an allowlist — the gate governs any repo, because refusing a run publishes
+    nothing. Delivery keeps the stricter check."""
+    if not cwd or not os.path.isdir(cwd):
+        return None
+    top = _git(cwd, "rev-parse", "--show-toplevel")
+    return os.path.realpath(top) if top else None
+
+
+def _hook_run_id(conn, session: str) -> str:
+    """Attach a gate event to the session's open auto-observed run when there is
+    one, so the block sits on the run it stopped rather than floating free."""
+    if session:
+        try:
+            from helicon.autogov import _find_open
+            observed = _find_open(conn, session)
+            if observed:
+                return observed["id"]
+        except (ImportError, sqlite3.Error):
+            pass
+    return f"hook:{session}"[:40]
+
+
+def _record_gate_event(conn, task_run_id: str, kind: str, detail: dict) -> None:
+    conn.execute(
+        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) "
+        "VALUES (?,?,?,?,?)",
+        (task_run_id, _now(), kind, "helicon", json.dumps(detail)))
+    conn.commit()
+
+
+# The trailer stamped on every injection. It is a markdown comment so it is
+# inert to the agent reading it, and a fixed string so `receipt` can find it in
+# a transcript without parsing the harness's private JSON shape.
+RECEIPT_MARK = "<!-- helicon-receipt:"
+
+
+def receipt_token(ctx: str) -> str:
+    """A short, content-derived id for one injection. Content-derived on purpose:
+    a random id would prove only that *something* was injected, while this proves
+    that THESE bytes were."""
+    return hashlib.sha256((ctx or "").encode()).hexdigest()[:16]
+
+
+def _budget_of(text: str) -> dict:
+    from helicon.context_budget import assess
+    return assess(len(text or "") // 4)
+
+
+def _fit_rulings(rows: list, packet_text: str = "") -> tuple[list, list]:
+    """Keep as many rulings as the context-rot budget allows, newest first.
+
+    Helicon's own guard says a session degrades past ~32k tokens. Injecting past
+    that to deliver more rulings would make this tool a cause of context rot
+    while it advertises itself as the cure. Rows are already newest-first, so
+    the ones that give way are the oldest — and they are returned, not dropped
+    in silence.
+    """
+    from helicon.context_budget import ONSET_TOKENS
+    kept, trimmed = [], []
+    used = len(packet_text or "") // 4
+    for r in rows:
+        cost = (len(r["content"] or "") + 3) // 4
+        if used + cost > ONSET_TOKENS:
+            trimmed.append(r)
+            continue
+        kept.append(r)
+        used += cost
+    return kept, trimmed
+
+
+def receipt(conn, session: str) -> dict:
+    """Did the harness actually receive what Helicon injected?
+
+    Every other part of this loop can be satisfied by a row this process wrote.
+    This one cannot: it opens the transcript the HARNESS wrote and looks for the
+    receipt token. Three verdicts, and the third is a verdict:
+
+      RECEIVED     — the token is in the harness's transcript, at a known line
+      NOT_FOUND    — the transcript exists and does not contain it (a real miss)
+      UNVERIFIABLE — no injection logged, or no transcript to read
+
+    UNVERIFIABLE is never rounded up to RECEIVED. A delivery we cannot check is
+    a delivery we have not proven.
+    """
+    row = conn.execute(
+        "SELECT ts, detail FROM run_events WHERE kind='injected' "
+        "ORDER BY ts DESC").fetchall()
+    hit = None
+    for r in row:
+        d = json.loads(r["detail"])
+        if not session or d.get("session") == session:
+            hit = (r["ts"], d)
+            break
+    if hit is None:
+        return {"verdict": "UNVERIFIABLE", "session": session,
+                "why": "no injection logged for this session — nothing to verify"}
+    ts, d = hit
+    token, path = d.get("receipt_token", ""), d.get("transcript_path", "")
+    base = {"verdict": "UNVERIFIABLE", "session": d.get("session", session),
+            "token": token, "transcript": path, "injected_at": ts,
+            "bytes": d.get("bytes"), "budget_status": d.get("budget_status"),
+            "rulings_kept": d.get("rulings_kept"),
+            "rulings_trimmed": len(d.get("rulings_trimmed") or [])}
+    if not path:
+        base["why"] = ("the harness gave no transcript_path on this hook call — "
+                       "the injection cannot be checked against its own record")
+        return base
+    if not os.path.exists(path):
+        base["why"] = f"transcript not found at {path} (session may have been cleared)"
+        return base
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh, 1):
+                if token and token in line:
+                    base.update({"verdict": "RECEIVED", "line": n,
+                                 "why": "the harness's own transcript contains "
+                                        "the exact injected bytes"})
+                    return base
+    except OSError as e:
+        base["why"] = f"transcript unreadable: {e}"
+        return base
+    base.update({"verdict": "NOT_FOUND",
+                 "why": "the transcript exists and does not contain the token — "
+                        "the injection did not reach this session"})
+    return base
+
+
+def format_receipt(r: dict) -> str:
+    mark = {"RECEIVED": "✓", "NOT_FOUND": "✗", "UNVERIFIABLE": "?"}
+    out = ["", f"  {mark.get(r['verdict'], ' ')} {r['verdict']} — "
+               f"session {r.get('session') or '(any)'}"]
+    if r.get("token"):
+        at = f" at transcript line {r['line']}" if r.get("line") else ""
+        out.append(f"    packet {r['token']}{at}")
+    out.append(f"    {r['why']}")
+    if r.get("budget_status"):
+        out.append(f"    budget: {r['budget_status']} · {r.get('rulings_kept')} ruling(s) "
+                   f"injected, {r.get('rulings_trimmed')} trimmed to stay under the rot onset")
+    if r.get("transcript"):
+        out.append(f"    transcript: {r['transcript']}")
+    out.append("")
+    return "\n".join(out)
+
+
+def hook_deliver(conn, cwd, session="", transcript_path="") -> str | None:
     """The delivery edge, made real (closes the Codex P0-3 gap honestly). A
     Claude Code UserPromptSubmit hook calls this: it returns the approved
     output-review rulings as text that the harness injects into a LIVE session,
-    and records a 'delivered' event — so delivery is PROVEN (the harness received
-    it), not asserted from a DB write. Privacy-gated: a non-safe repo gets
-    nothing. Still not 'obeyed' — only the run's output shows that."""
+    and records a 'delivered' event. Privacy-gated: a non-safe repo gets
+    nothing. Still not 'obeyed' — only the run's output shows that.
+
+    Two things this now does that a DB write alone could not:
+
+    - It stamps the injected text with a RECEIPT TOKEN and records the session's
+      transcript path. `helicon receipt <session>` then reads the harness's own
+      transcript and rules RECEIVED / NOT_FOUND / UNVERIFIABLE. Until that read
+      happens, "delivered" was a row this process wrote vouching for itself.
+    - It checks the injection against the context-rot budget before sending it.
+      A memory tool that quietly pushes a session past the ~32k onset is causing
+      the degradation it exists to detect. Over budget, the rulings are trimmed
+      oldest-first and the trim is RECORDED — never silently dropped.
+    """
     repo = _safe_repo_root(cwd)
     if repo is None:
         return None
@@ -296,17 +506,26 @@ def hook_deliver(conn, cwd, session="") -> str | None:
         except taskrun.TaskRunError:
             packet = None
 
+    # The frozen packet is governed and is never trimmed; the rulings are the
+    # elastic part, so they are what gives way when the budget is tight.
+    kept, trimmed = _fit_rulings(list(rows), packet["text"] if packet else "")
+
     parts = []
     if packet:
         parts.append(packet["text"])
-    if rows:
+    if kept:
         parts.append(
             "## Helicon — rulings to obey before you write (delivered live)\n"
-            + "\n".join(f"- {r['content']}" for r in rows)
+            + "\n".join(f"- {r['content']}" for r in kept)
         )
     if not parts:
         return None
     ctx = "\n\n".join(parts)
+
+    # The receipt token. Derived from the exact bytes injected, so finding it in
+    # the harness's transcript proves THIS text arrived — not that something did.
+    token = receipt_token(ctx)
+    ctx = f"{ctx}\n\n{RECEIPT_MARK} {token}"
 
     task_run_id = f"hook:{session}"[:40]
     if packet:
@@ -326,8 +545,22 @@ def hook_deliver(conn, cwd, session="") -> str | None:
         [(task_run_id, now, "delivered", "helicon",
           json.dumps({"repo": os.path.basename(cwd), "cube_id": r["id"],
                       "session": session, "bytes": len(r["content"])}))
-         for r in rows],
+         for r in kept],
     )
+    # One row per injection, carrying everything `helicon receipt` needs to go
+    # and check the harness's own transcript rather than trust this write.
+    budget = _budget_of(ctx)
+    conn.execute(
+        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) "
+        "VALUES (?,?,?,?,?)",
+        (task_run_id, now, "injected", "helicon",
+         json.dumps({"repo": os.path.basename(repo), "session": session,
+                     "receipt_token": token, "bytes": len(ctx),
+                     "transcript_path": transcript_path or "",
+                     "budget_status": budget["status"],
+                     "budget_tokens": budget["tokens"],
+                     "rulings_kept": len(kept),
+                     "rulings_trimmed": [r["id"] for r in trimmed]})))
     if packet:
         conn.execute(
             "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) "

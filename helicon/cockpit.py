@@ -21,9 +21,14 @@ from helicon.review_terminals import (
 
 # Explicit allowlist. Only these terminals ever reach the cockpit. Trading,
 # wallet, treasury, oracle, receipt, journal, finance repos are NEVER listed.
+# "helicon" is the FROZEN submission checkout; "mountain-of-helicon" is where
+# this code now lives and every session actually runs. The allowlist named the
+# dead one and omitted the live one, so the tool could not deliver context into
+# its own repo — precisely the stale-config failure it exists to catch. Both are
+# listed: the frozen tree is still readable, the live tree now works.
 SAFE_TERMINALS = {
-    "helicon", "world-relay", "taste-machine", "worldcup-agent",
-    "x-engine", "glaze", "favour",
+    "helicon", "mountain-of-helicon", "world-relay", "taste-machine",
+    "worldcup-agent", "x-engine", "glaze", "favour",
 }
 
 # Defense-in-depth: even if a name slips the allowlist, a repo/closeout path

@@ -158,8 +158,9 @@ def test_cli_list_short_is_caught(repo):
 
 def test_claude_md_table_list_drift_is_caught(repo):
     """CLAUDE.md declared 18 tables and listed 18, while source had 24."""
-    _mutate(repo, "CLAUDE.md", ", run_captures, run_events, prompt_library, doorway_cold)", ")")
-    _mutate(repo, "CLAUDE.md", "(33 tables:", "(23 tables:")
+    _mutate(repo, "CLAUDE.md",
+            ", run_captures, run_events, prompt_library, doorway_cold, doorway_gate_cache)", ")")
+    _mutate(repo, "CLAUDE.md", "(34 tables:", "(23 tables:")
     assert _fails(check_lists(str(repo)), "tables list", "CLAUDE.md")
 
 
