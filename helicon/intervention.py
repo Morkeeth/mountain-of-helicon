@@ -83,10 +83,27 @@ def _last_scan_hours(conn):
         return None
 
 
+def _contradicted_context(conn, repo, config, allow_network=False):
+    """Loaded doc claims the running code DISPROVES — the probe verdicts, read
+    only. This is machine-decidable: a probe ran and disagreed, so the gate
+    applies the rule itself (no human needed to call it contradicted)."""
+    try:
+        from helicon import probes
+        results = probes.probe_docs(conn, repo, config, allow_network)
+        return [f"{r['file']}:{r['line']}" for r in results
+                if r.get("verdict") == probes.CONTRADICTED]
+    except Exception:
+        return []
+
+
 def gate(conn, *, objective="", acceptance_test="", outcome_contract=None,
          skill_versions=None, query=None, config=None, k: int = 5,
-         stale_after_hours: float = 24.0) -> dict:
-    """Run the pre-run checks. Pure read. Returns a compact, honest gate object."""
+         stale_after_hours: float = 24.0, repo=None, allow_network: bool = False) -> dict:
+    """Run the pre-run checks. Pure read. Returns a compact, honest gate object.
+
+    `repo` (optional): the repo this run will act against. If its loaded context
+    has claims the running code CONTRADICTS (probe verdicts), the run is BLOCKED —
+    a machine-applied rule (the probe proved it), overridable only with a reason."""
     checks = []
     v = _oc.validate(outcome_contract or {})
 
@@ -165,6 +182,22 @@ def gate(conn, *, objective="", acceptance_test="", outcome_contract=None,
             f"pinned {', '.join(skills)}" if not malformed
             else f"unversioned skill ref(s): {', '.join(malformed)} (want name@version)"))
 
+    # 10. Repo context integrity — the running code must not disprove the loaded
+    #     docs. Machine-decidable and therefore machine-applied: a probe ran and
+    #     disagreed, so the gate blocks without asking a human. The only human
+    #     moment is an override, which must carry a reason (see record_override).
+    if repo:
+        contradicted = _contradicted_context(conn, repo, config, allow_network)
+        if contradicted:
+            shown = ", ".join(contradicted[:3]) + ("…" if len(contradicted) > 3 else "")
+            checks.append(_check(
+                "repo context", "blocker",
+                f"{len(contradicted)} loaded claim(s) CONTRADICTED by the running "
+                f"code ({shown}) — the agent would plan around a fact that is false"))
+        else:
+            checks.append(_check("repo context", "ok",
+                                 "no loaded claim is contradicted by the running code"))
+
     blockers = [c for c in checks if c["status"] == "blocker"]
     warns = [c for c in checks if c["status"] == "warn"]
     verdict = "blocked" if blockers else ("warn" if warns else "go")
@@ -175,6 +208,23 @@ def gate(conn, *, objective="", acceptance_test="", outcome_contract=None,
         "warnings": [c["name"] for c in warns],
         "headline": _headline(verdict, blockers, warns),
     }
+
+
+def record_override(conn, task_run_id, *, who, reason, blockers) -> dict:
+    """Log that a human overrode a blocked gate — who, why, and what they waved
+    through. Append-only on the run's own event log (no new state): the override
+    is auditable forever. A blank reason is refused; an override with no stated
+    reason is the thing this exists to prevent."""
+    import json
+    from helicon import taskrun
+    if not (reason or "").strip():
+        return {"ok": False, "error": "an override must state a reason"}
+    detail = json.dumps({"who": who or "operator", "reason": reason.strip(),
+                         "overrode": list(blockers or [])})
+    taskrun.record_event(conn, task_run_id, "gate-override", actor=who or "operator",
+                         detail=detail)
+    return {"ok": True, "who": who or "operator", "reason": reason.strip(),
+            "overrode": list(blockers or [])}
 
 
 def _headline(verdict, blockers, warns) -> str:

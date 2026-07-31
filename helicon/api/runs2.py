@@ -49,6 +49,7 @@ class GateReq(BaseModel):
     decision_owner: str = ""
     time_horizon: str = ""
     skills: list[str] = []
+    repo: str = ""
 
 
 @router.get("/run/sessions")
@@ -82,7 +83,7 @@ async def run_gate(req: GateReq):
     return intervention.gate(
         get_conn(), objective=req.objective, acceptance_test=req.acceptance,
         outcome_contract=contract, skill_versions=req.skills or None,
-        query=req.objective)
+        query=req.objective, repo=req.repo or None)
 
 
 @router.post("/run/accept")
