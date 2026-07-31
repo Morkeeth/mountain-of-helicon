@@ -152,7 +152,11 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
         "ORDER BY scored_at DESC LIMIT ?",
         (limit,),
     )
+    # The day-level roll-up under the summary: a real day of runs + outcomes.
+    from helicon.reflection import day_reflection
+    today = day_reflection(conn)
     reflection = {
+        "today": today,
         "rulings_applied": [
             {"id": r["id"], "at": (r["applied_at"] or "")[:16]} for r in recent_batches
         ],
@@ -166,11 +170,14 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
             }
             for r in recent_runs
         ],
+        # Prefer the honest day summary when there is a day of activity; fall back
+        # to the "since you last looked" line only when there is no dated activity.
         "headline": (
-            f"{len(recent_runs)} run{'' if len(recent_runs) == 1 else 's'} scored since you last looked"
-            if recent_runs
-            else (f"{len(recent_batches)} decision{'' if len(recent_batches) == 1 else 's'} recorded recently"
-                  if recent_batches else "Nothing's changed since you last looked.")
+            today["headline"] if today.get("has_activity")
+            else (f"{len(recent_runs)} run{'' if len(recent_runs) == 1 else 's'} scored since you last looked"
+                  if recent_runs
+                  else (f"{len(recent_batches)} decision{'' if len(recent_batches) == 1 else 's'} recorded recently"
+                        if recent_batches else "Nothing's changed since you last looked."))
         ),
     }
 
