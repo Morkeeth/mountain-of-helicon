@@ -135,7 +135,8 @@ def test_unrunnable_probe_is_unverifiable_never_upheld(repo):
     assert len(chain) == 1
     assert chain[0]["verdict"] == UNVERIFIABLE
     assert chain[0]["verdict"] != UPHELD
-    assert "elides" in chain[0]["why"] or "RPC" in chain[0]["why"]
+    assert any(k in chain[0]["why"] for k in
+               ("elides", "RPC", "names no contract", "ambiguous"))
 
 
 def test_network_probe_stays_off_by_default(repo):
@@ -237,3 +238,187 @@ def test_rot_exam_reports_r13_and_says_when_it_cannot(tmp_path, repo):
     r13 = [c for c in res["checks"] if c["id"] == "R13"][0]
     assert r13["verdict"] == "ROT FOUND"
     assert "contradicted by the running system" in r13["receipt"]
+
+
+# --------------------------------------------------------------------------
+# the chain probe, once an RPC actually answers
+#
+# Every chain probe before Aug 1 returned UNVERIFIABLE, so the code past that
+# early return had never run. It was wrong: it returned UPHELD for ANY answer
+# the node gave, deferring the comparison to a human in a `why` string. A class
+# whose whole purpose is contradicting the doc could not produce CONTRADICTED.
+# These tests pin the comparison, and the two ways it must refuse to guess.
+# --------------------------------------------------------------------------
+
+CFG = {"claims": {"probes": {"rpc_url": "http://node.invalid"}}}
+PROXY = "0x274C38eA9944f57D24A59fbEf558bba2264f9351"
+OWNER = "0x1101158041fd96f21cbcbb0e752a9a2303e6d70e"
+IMPL = "0x3E359dA2a355E14C8410480ffC7f0Fd569BbD221"
+
+
+def _chain_repo(tmp_path, body):
+    (tmp_path / "CLAUDE.md").write_text(body)
+    return str(tmp_path)
+
+
+def _fake_node(monkeypatch, answer):
+    """Pin the wire so the comparison is what is under test, not the network."""
+    import helicon.probes as p
+    calls = []
+
+    def fake(rpc_url, to, data):
+        calls.append(to)
+        return (answer, "") if answer else (None, "node unreachable")
+    monkeypatch.setattr(p, "_eth_call", fake)
+    return calls
+
+
+def test_chain_contradicts_when_owner_disagrees(tmp_path, monkeypatch):
+    """The verdict the class exists for, and could never reach before."""
+    _fake_node(monkeypatch, OWNER)
+    repo = _chain_repo(tmp_path, f"""# Neg
+
+## Escrow
+
+The escrow proxy is `{PROXY}` on World Chain.
+
+**The upgrade authority is `owner()` = `0xdEaD…bEeF` — a cold multisig.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert len(chain) == 1
+    assert chain[0]["verdict"] == CONTRADICTED
+    assert chain[0]["output"] == OWNER
+
+
+def test_chain_upholds_an_elided_owner_that_matches(tmp_path, monkeypatch):
+    """An elided VALUE is still checkable: 4+4 hex pins 32 bits. Only the call
+    TARGET has to be exact, because that one gets dialled."""
+    _fake_node(monkeypatch, OWNER)
+    repo = _chain_repo(tmp_path, f"""# Pos
+
+## Escrow
+
+The escrow proxy is `{PROXY}` on World Chain.
+
+**The upgrade authority is `owner()` = `0x1101…D70e` — the relayer hot wallet.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert chain[0]["verdict"] == UPHELD
+
+
+def test_elided_target_resolves_from_the_repos_own_docs(tmp_path, monkeypatch):
+    """`0x274C38…9351` is dialled only because this repo spells it out
+    somewhere. The probe derives, it never reaches for an explorer."""
+    calls = _fake_node(monkeypatch, OWNER)
+    (tmp_path / "AGENTS.md").write_text(f"RelayEscrow — {PROXY}\n")
+    repo = _chain_repo(tmp_path, """# Pos
+
+## Escrow
+
+The escrow proxy is `0x274C38…9351`, a UUPS proxy.
+
+**The upgrade authority is `owner()` = `0x1101…D70e`.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert chain[0]["verdict"] == UPHELD
+    assert calls == [PROXY]
+
+
+def test_ambiguous_elided_target_is_refused_not_picked(tmp_path, monkeypatch):
+    """Two candidates match the elision, so there is no honest call to make."""
+    _fake_node(monkeypatch, OWNER)
+    (tmp_path / "AGENTS.md").write_text(
+        "0x274C38eA9944f57D24A59fbEf558bba2264f9351\n"
+        "0x274C38FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF9351\n")
+    repo = _chain_repo(tmp_path, """# Amb
+
+## Escrow
+
+The escrow proxy is `0x274C38…9351`, a UUPS proxy.
+
+**The upgrade authority is `owner()` = `0x1101…D70e`.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert chain[0]["verdict"] == UNVERIFIABLE
+    assert "ambiguous" in chain[0]["why"]
+
+
+def test_implementation_is_not_dialled_for_a_proxys_owner(tmp_path, monkeypatch):
+    """Regression, caught live on Aug 1. Nearest-preceding-address picked the
+    implementation out of 'real logic lives at 0x3E35…', dialled it, got 0x0,
+    and published CONTRADICTED against a doc that was telling the truth. The
+    section's subject is the first address under its heading, not the last."""
+    calls = _fake_node(monkeypatch, OWNER)
+    repo = _chain_repo(tmp_path, f"""# Proxy
+
+## The escrow is a PROXY
+
+`{PROXY}` is a UUPS proxy (328 bytes).
+
+Real logic lives at implementation `{IMPL}`.
+
+**The upgrade authority is `owner()` = `0x1101…D70e` — the relayer hot wallet.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert calls == [PROXY], f"dialled the wrong contract: {calls}"
+    assert chain[0]["verdict"] == UPHELD
+
+
+def test_zero_owner_is_unverifiable_not_contradicted(tmp_path, monkeypatch):
+    """A contract that was never Ownable answers 0x0. That is a wrong question,
+    not a false doc — and the probe chose the address itself, so it must not
+    convict on it."""
+    _fake_node(monkeypatch, "0x" + "0" * 40)
+    repo = _chain_repo(tmp_path, f"""# Zero
+
+## Escrow
+
+The escrow proxy is `{PROXY}` on World Chain.
+
+**The upgrade authority is `owner()` = `0x1101…D70e`.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert chain[0]["verdict"] == UNVERIFIABLE
+    assert "zero address" in chain[0]["why"]
+
+
+def test_chain_answer_with_no_stated_owner_is_not_a_pass(tmp_path, monkeypatch):
+    """Reading the chain is not the same as agreeing with the doc. If the
+    sentence asserts no value, there is nothing to uphold."""
+    _fake_node(monkeypatch, OWNER)
+    repo = _chain_repo(tmp_path, f"""# Bare
+
+## Escrow
+
+The proxy admin of `{PROXY}` was rotated last week.
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert chain and chain[0]["verdict"] == UNVERIFIABLE
+    assert chain[0]["output"] == OWNER
+
+
+def test_dead_node_is_unverifiable_never_false(tmp_path, monkeypatch):
+    """The constraint that matters most: a probe that cannot reach the chain
+    reports UNVERIFIABLE, never CONTRADICTED."""
+    _fake_node(monkeypatch, None)
+    repo = _chain_repo(tmp_path, f"""# Dead
+
+## Escrow
+
+The escrow proxy is `{PROXY}` on World Chain.
+
+**The upgrade authority is `owner()` = `0xdEaD…bEeF`.**
+""")
+    chain = [r for r in probe_docs(None, repo, CFG, allow_network=True) if r["kind"] == "chain"]
+    assert chain[0]["verdict"] == UNVERIFIABLE
+
+
+@pytest.mark.skipif(not os.environ.get("HELICON_RPC_URL"),
+                    reason="set HELICON_RPC_URL to a World Chain node to run live")
+def test_live_rpc_upholds_the_world_relay_owner():
+    """The one test that touches the real wire. Read-only eth_call, no keys."""
+    from helicon.probes import _probe_chain
+    res = _probe_chain(PROXY, "0x1101…D70e", os.environ["HELICON_RPC_URL"],
+                       allow_network=True, corpus={PROXY})
+    assert res["verdict"] == UPHELD
+    assert res["output"].lower() == OWNER
