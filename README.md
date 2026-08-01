@@ -148,8 +148,10 @@ helicon receipt <session>     # did the harness actually RECEIVE the injection?
 The gate a stranger installs is **keyless and config-free**: `helicon doorway install`
 writes one `UserPromptSubmit` hook (shown as a diff, backed up first, idempotent,
 and exactly reversible), and the hook — `python3 -m helicon doorway gate` — needs no
-`config.json` and keeps its own log under `~/.helicon`. On the next prompt in any
-repo whose loaded docs its own code disproves, the run is refused in your terminal.
+`config.json` to run. On the next prompt in any repo whose loaded docs its own code
+disproves, the run is refused in your terminal. Its blocks log into your configured
+store when you have one (so they show up in `helicon runs` / the dashboard), and fall
+back to a standalone `~/.helicon` store for a stranger who has no config.
 
 Three rules it obeys, all from the same law:
 

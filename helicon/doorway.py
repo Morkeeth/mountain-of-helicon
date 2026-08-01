@@ -566,6 +566,24 @@ def user_db_path() -> str:
     return os.path.join(user_home(), "doorway.db")
 
 
+def gate_db_path() -> str:
+    """Where the gate logs. A configured user's blocks belong in the SAME store
+    their dashboard and `helicon runs` read — otherwise a block on their desktop
+    lands in a side-store nothing surfaces (the "I gated a run and can't see it"
+    trap). A stranger with no config keeps the config-free ~/.helicon store, and
+    an explicit HELICON_HOME always forces the standalone store."""
+    if os.environ.get("HELICON_HOME"):
+        return user_db_path()
+    try:
+        from helicon.config import load_config
+        cfg = load_config()
+        if cfg and cfg.get("db_path"):
+            return cfg["db_path"]
+    except Exception:
+        pass
+    return user_db_path()
+
+
 def claude_settings_path() -> str:
     return os.environ.get("CLAUDE_SETTINGS") or \
         os.path.expanduser("~/.claude/settings.json")
@@ -674,7 +692,7 @@ def write_settings(path: str, settings: dict) -> None:
 def last_fired(db_path: str | None = None) -> dict | None:
     """The most recent time the gate blocked or was overridden, from its own
     store. None when the store does not exist or nothing has fired yet."""
-    db_path = db_path or user_db_path()
+    db_path = db_path or gate_db_path()
     if not os.path.exists(db_path):
         return None
     conn = sqlite3.connect(db_path)
