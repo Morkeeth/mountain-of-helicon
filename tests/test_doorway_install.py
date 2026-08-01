@@ -149,3 +149,26 @@ def test_the_gate_allows_a_repo_whose_docs_agree(tmp_path, monkeypatch):
 
 def test_last_fired_is_none_before_the_store_exists(tmp_path):
     assert doorway.last_fired(str(tmp_path / "none.db")) is None
+
+
+# --------------------------------------------------------------------------
+# where the gate logs — a configured user's block belongs in their own store,
+# so it shows up in the dashboard / `helicon runs`, not a hidden side-DB
+# --------------------------------------------------------------------------
+
+def test_gate_logs_into_the_configured_store_when_one_exists(tmp_path, monkeypatch):
+    # config.py captures CONFIG_FILE at import (fine in production — the hook is
+    # a fresh process each call); steer it directly so the test is order-proof.
+    monkeypatch.delenv("HELICON_HOME", raising=False)
+    monkeypatch.delenv("HELICON_CONFIG", raising=False)
+    cfg = tmp_path / "config.json"
+    store = tmp_path / "mystore" / "helicon.db"
+    cfg.write_text(json.dumps({"db_path": str(store)}))
+    monkeypatch.setattr("helicon.config.CONFIG_FILE", str(cfg))
+    assert doorway.gate_db_path() == str(store)
+
+
+def test_a_stranger_with_no_config_keeps_the_standalone_store(tmp_path, monkeypatch):
+    monkeypatch.setenv("HELICON_HOME", str(tmp_path / "home"))
+    # HELICON_HOME forces the config-free store even if a config is around
+    assert doorway.gate_db_path() == doorway.user_db_path()

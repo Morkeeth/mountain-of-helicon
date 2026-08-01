@@ -1083,7 +1083,7 @@ def _doorway_gate():
     try:
         from helicon.db import init_db
         from helicon.capture import hook_gate
-        conn = init_db(doorway.user_db_path())
+        conn = init_db(doorway.gate_db_path())
         g = hook_gate(conn, cwd, session, prompt)
     except Exception:
         return  # fail open, always
@@ -2528,7 +2528,7 @@ def cmd_doctor(_args):
         checks.append(("FAIL", f"doorway: {_sp} is not valid JSON — "
                                "helicon doorway install will refuse to touch it"))
     checks.append(("OK", f"doorway gate entrypoint: {sys.executable} -m helicon doorway gate"))
-    _udb = _dw.user_db_path()
+    _udb = _dw.gate_db_path()
     if not os.path.exists(_udb):
         checks.append(("WARN", f"doorway store not created yet ({_udb}) — it fires on the first prompt"))
     else:
