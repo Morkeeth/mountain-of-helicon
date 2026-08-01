@@ -123,6 +123,9 @@ _SAFE_GIT = {"log", "grep", "show", "rev-parse", "ls-files", "diff",
 _ADDRESS = re.compile(r"0x[0-9a-fA-F]{4,}(?:[…]|\.\.\.)[0-9a-fA-F]{2,}|0x[0-9a-fA-F]{40}")
 _AUTHORITY = re.compile(r"\b(?:owner\(\)|upgrade authority|admin(?:istrator)?|"
                         r"controlled by|proxy admin|implementation\(\))\b", re.I)
+# What turns a nearby address into the value being ASSERTED rather than the
+# contract being talked about.
+_COPULA = re.compile(r"(?:==|=|→|->|:|\bis\b|\bare\b|\bwas\b|\bwere\b|\bset to\b)")
 _PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./\[\]-]+\.(?:ts|tsx|js|jsx|mjs|py|go|rs|"
                          r"sol|rb|java|md|json|toml|ya?ml))`")
 
@@ -449,35 +452,111 @@ def _probe_path(repo: str, path: str, git: bool) -> dict:
 # probe 4 — on-chain authority. Usually unverifiable, and says so.
 # --------------------------------------------------------------------------
 
-def _probe_chain(address: str, rpc_url: str | None, allow_network: bool) -> dict:
-    elided = "…" in address or "..." in address
-    shown = f"eth_call owner() -> {address}"
-    if elided:
-        return {"verdict": UNVERIFIABLE, "probe": shown, "output": "",
-                "why": f"the doc elides the address ({address}); nothing to call. "
-                       "Write it in full to make this checkable."}
-    if not rpc_url or not allow_network:
-        return {"verdict": UNVERIFIABLE, "probe": shown, "output": "",
-                "why": "no RPC available — set claims.probes.rpc_url and pass "
-                       "--net to let this probe reach the chain"}
+def _elision(addr: str) -> tuple[str, str] | None:
+    """An elided address -> its (prefix, suffix) in lowercase hex, or None if
+    the address is written in full. `0x1101…D70e` -> ("1101", "d70e")."""
+    m = re.match(r"0x([0-9a-fA-F]{4,})(?:…|\.\.\.)([0-9a-fA-F]{2,})$", addr.strip())
+    if not m:
+        return None
+    return m.group(1).lower(), m.group(2).lower()
+
+
+def _matches_elision(full: str, addr: str) -> bool:
+    """Does a full address satisfy an elided one? An elision that pins 4 hex
+    chars either side is 32 bits of the address — enough to confirm or
+    contradict, which is why an elided VALUE is still checkable even though an
+    elided CALL TARGET is not."""
+    parts = _elision(addr)
+    if not parts:
+        return full.lower() == addr.strip().lower()
+    prefix, suffix = parts
+    f = full.lower()[2:]
+    return f.startswith(prefix) and f.endswith(suffix)
+
+
+def _resolve_target(addr: str, corpus: set) -> tuple[str | None, str]:
+    """An elided call target -> the full address, taken from the repo's OWN
+    docs. This is a derivation, never a guess: the full form must appear in the
+    corpus and must be the ONLY member matching the elision. Two candidates is
+    an ambiguity the probe refuses rather than picks."""
+    if not _elision(addr):
+        return addr, ""
+    hits = sorted({c for c in corpus if _matches_elision(c, addr)})
+    if len(hits) == 1:
+        return hits[0], f"resolved {addr} -> {hits[0]} from this repo's own docs"
+    if not hits:
+        return None, (f"the doc elides the call target ({addr}) and no full form "
+                      "appears anywhere in this repo's docs; nothing to call")
+    return None, (f"{addr} is ambiguous — {len(hits)} addresses in these docs "
+                  f"match it ({', '.join(h[:10] + '…' for h in hits)})")
+
+
+def _eth_call(rpc_url: str, to: str, data: str) -> tuple[str | None, str]:
+    """(result, error). Any transport or node failure is an error string, and
+    every caller must turn that into UNVERIFIABLE — never into a verdict."""
     import urllib.request
     payload = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "eth_call",
-                          "params": [{"to": address, "data": "0x8da5cb5b"},
-                                     "latest"]}).encode()
+                          "params": [{"to": to, "data": data}, "latest"]}).encode()
     req = urllib.request.Request(rpc_url, data=payload,
                                  headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             body = json.loads(resp.read().decode())
     except Exception as e:  # noqa: BLE001 — any RPC failure is unverifiable, not false
-        return {"verdict": UNVERIFIABLE, "probe": shown, "output": "",
-                "why": f"RPC call failed: {type(e).__name__}: {e}"}
+        return None, f"RPC call failed: {type(e).__name__}: {e}"
+    if isinstance(body, dict) and body.get("error"):
+        return None, f"node returned an error: {body['error'].get('message')}"
     result = (body or {}).get("result")
     if not result or len(result) < 42:
-        return {"verdict": UNVERIFIABLE, "probe": shown, "output": str(body)[:200],
-                "why": "RPC returned no owner() value"}
-    return {"verdict": UPHELD, "probe": shown, "output": "0x" + result[-40:],
-            "why": "read from chain; compare against the doc's stated owner"}
+        return None, "RPC returned no owner() value"
+    return "0x" + result[-40:], ""
+
+
+def _probe_chain(target: str, stated: str | None, rpc_url: str | None,
+                 allow_network: bool, corpus: set | None = None) -> dict:
+    """Settle an on-chain authority claim against the chain itself.
+
+    Two addresses, two different jobs. The CALL TARGET must be exact or there
+    is nothing to call. The STATED VALUE may stay elided — it is compared, not
+    dialled, and a 4+4 elision still discriminates.
+
+    A stated value the doc never gives is not a pass: the chain's answer is
+    reported and the verdict is UNVERIFIABLE, because nothing was asserted to
+    contradict."""
+    shown = f"eth_call owner() -> {target}"
+    resolved, note = _resolve_target(target, corpus or set())
+    if resolved is None:
+        return {"verdict": UNVERIFIABLE, "probe": shown, "output": "",
+                "why": note + ". Write it in full to make this checkable."}
+    shown = f"eth_call owner() -> {resolved}"
+    if not rpc_url or not allow_network:
+        return {"verdict": UNVERIFIABLE, "probe": shown, "output": "",
+                "why": "no RPC available — set claims.probes.rpc_url and pass "
+                       "--net to let this probe reach the chain"}
+    onchain, err = _eth_call(rpc_url, resolved, "0x8da5cb5b")
+    if onchain is None:
+        return {"verdict": UNVERIFIABLE, "probe": shown, "output": "", "why": err}
+    lead = (note + "; ") if note else ""
+    if int(onchain, 16) == 0:
+        # A zero owner is the shape of a wrong question, not a false doc: an
+        # implementation sitting behind a proxy, or a contract that was never
+        # Ownable, both answer 0x0. Calling that CONTRADICTED would publish a
+        # false verdict off an address the probe chose itself.
+        return {"verdict": UNVERIFIABLE, "probe": shown, "output": onchain,
+                "why": f"{lead}owner() at {resolved} is the zero address — that "
+                       "contract has no owner to compare, so the sentence is "
+                       "unchecked rather than false"}
+    if not stated:
+        return {"verdict": UNVERIFIABLE, "probe": shown, "output": onchain,
+                "why": f"{lead}chain says owner() = {onchain}, but the sentence "
+                       "asserts no owner to compare it against"}
+    if _matches_elision(onchain, stated):
+        return {"verdict": UPHELD, "probe": shown, "output": onchain,
+                "why": f"{lead}chain says owner() = {onchain}; the doc says "
+                       f"{stated}. They agree."}
+    return {"verdict": CONTRADICTED, "probe": shown, "output": onchain,
+            "why": f"{lead}the doc says owner() = {stated}; the chain says "
+                   f"{onchain}. Read at head, live."}
 
 
 # --------------------------------------------------------------------------
@@ -649,7 +728,18 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
                 break
     saturated |= product
 
+    # Every full address the repo writes down anywhere in its rules docs. An
+    # elided call target is resolved against this and nothing else — the repo
+    # gets to say what its own `0x274C38…9351` means, and if it never spells it
+    # out the probe stays UNVERIFIABLE rather than reaching for an explorer.
+    corpus = {m.group(0) for _rel, text in docs
+              for m in _ADDRESS.finditer(text) if not _elision(m.group(0))}
+
     for rel, text in docs:
+        # The contract a section is about, carried forward within one doc: the
+        # sentence that names owner() often does not repeat the address the
+        # paragraph above it just introduced.
+        context_addr, section = None, None
         for block in split_assertions(text):
             assertion, heading = block["text"], block["heading"]
             cube = _cube_for(cubes, repo_name, rel, assertion)
@@ -660,13 +750,25 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
                     "stored": cube is not None}
             for res in _derive_and_run(repo, git, assertion, heading, switches,
                                        evidence, rpc_url, allow_network,
-                                       saturated):
+                                       saturated, corpus, context_addr):
                 results.append({**base, **res})
+            # First address under this heading wins, and the next heading
+            # clears it. Nearest-preceding is the wrong rule: the sentence
+            # right before an owner() claim is usually "real logic lives at
+            # implementation 0x…", and an implementation is exactly the
+            # address you must NOT dial for a proxy's owner.
+            if heading != section:
+                section, context_addr = heading, None
+            if context_addr is None and not _AUTHORITY.search(assertion):
+                seen = [m.group(0) for m in _ADDRESS.finditer(assertion)]
+                if seen:
+                    context_addr = seen[0]
     return results
 
 
 def _derive_and_run(repo, git, assertion, heading, switches, evidence,
-                    rpc_url, allow_network, saturated=frozenset()) -> list[dict]:
+                    rpc_url, allow_network, saturated=frozenset(),
+                    corpus=frozenset(), context_addr=None) -> list[dict]:
     """Sentence -> the probes its own shape earns. Order matters: an on-chain
     authority claim is answered by the chain, not by a grep that would happen
     to agree with it."""
@@ -674,10 +776,33 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
     tokens = content_tokens(assertion)
 
     # chain — an authority claim about an address
-    addr = _ADDRESS.search(assertion)
-    if addr and _AUTHORITY.search(assertion):
-        res = _probe_chain(addr.group(0), rpc_url, allow_network)
-        out.append({"kind": "chain", **res})
+    auth = _AUTHORITY.search(assertion)
+    hits = list(_ADDRESS.finditer(assertion))
+    if hits and auth:
+        # An authority sentence names up to two addresses doing different jobs.
+        # "owner() of 0xAAA is 0xBBB": what precedes the authority word is the
+        # contract to dial, what follows it is the value being asserted. A
+        # sentence that only asserts a value ("the upgrade authority is
+        # owner() = 0x1101…D70e") leaves the target to its section.
+        # Position alone is not enough: "the proxy admin of 0xAAA" puts the
+        # SUBJECT after the authority word. What makes an address the asserted
+        # value is a copula between the two — "admin = 0xAAA", not "admin of
+        # 0xAAA". Get this wrong and the probe dials the value it meant to
+        # check.
+        stated_m = next((m for m in hits if m.start() >= auth.end()
+                         and _COPULA.search(assertion[auth.end():m.start()])), None)
+        subjects = [m for m in hits if m is not stated_m]
+        stated = stated_m.group(0) if stated_m else None
+        target = subjects[0].group(0) if subjects else context_addr
+        if target is None:
+            out.append({"kind": "chain", "verdict": UNVERIFIABLE,
+                        "probe": f"eth_call owner() -> {stated}", "output": "",
+                        "why": f"the sentence asserts owner() = {stated} but "
+                               "names no contract, and no address appears "
+                               "earlier in this doc to dial"})
+        else:
+            res = _probe_chain(target, stated, rpc_url, allow_network, corpus)
+            out.append({"kind": "chain", **res})
         return out  # the chain is the only witness that counts here
 
     # command — the sentence quotes a command and its result
