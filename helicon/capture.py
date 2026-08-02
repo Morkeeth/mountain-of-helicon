@@ -263,7 +263,7 @@ def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
     return {"ok": True, "task_run_id": rid, "capture_id": capture_id}
 
 
-def hook_gate(conn, cwd, session="", prompt="") -> dict | None:
+def hook_gate(conn, cwd, session="", prompt="", mode="block") -> dict | None:
     """The doorway, live. Called by the UserPromptSubmit hook BEFORE anything is
     delivered: if this repo's loaded context contains claims the running code
     disproves, the prompt is refused in the operator's own terminal.
@@ -311,9 +311,13 @@ def hook_gate(conn, cwd, session="", prompt="") -> dict | None:
                             f"{d['reason']}\n  waved through: {', '.join(refs)}\n"
                             f"  logged on the run.")}
 
-    _record_gate_event(conn, task_run_id, "gate_blocked", detail)
+    # The event names what actually happened to the run. A warn logged as
+    # `gate_blocked` would make the gate's own evidence trail claim a refusal
+    # that never occurred — the exact failure class this product audits for.
+    _record_gate_event(conn, task_run_id,
+                       "gate_warned" if mode == "warn" else "gate_blocked", detail)
     return {"action": "block", "verdict": v, "decision": d,
-            "message": doorway.format_block(v, d)}
+            "message": doorway.format_block(v, d, mode=mode)}
 
 
 def _repo_root(cwd: str) -> str | None:

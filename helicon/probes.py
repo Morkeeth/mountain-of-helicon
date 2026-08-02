@@ -113,6 +113,15 @@ _CAPABILITY_HEADINGS = ("context", "stack", "architecture", "overview",
 # The sentence already knows. Do not tell it what it just said.
 _ACK = re.compile(r"\b(?:retired|no longer|closed|deprecated|removed|sunset|"
                   r"disabled|gone|shut down|killed off|discontinued)\b", re.I)
+# A capability held behind a future condition is not a capability being
+# claimed. "do NOT open user self-funding until the upgrade authority is off
+# the hot wallet" is a SEQUENCING RULE — it asserts the thing is shut, which is
+# what the switch also says, so the two agree and there is nothing to disprove.
+# Deliberately narrower than a bare prohibition: "Points and USDC are never
+# conflated" forbids something too, while still asserting escrow-funding works.
+# The deferral (until / before / once) is what marks the closed door.
+_DEFERRED = re.compile(r"\b(?:do not|do NOT|don't|must not|should not|never|"
+                       r"no|not)\b[^.;\n]{0,80}?\b(?:until|before|once)\b", re.I)
 
 # A quoted command with its stated result: `git log ...` = 0 commits
 _CMD_RESULT = re.compile(r"`([^`]+)`\s*(?:=|==|→|->|returns?|gives?|yields?)\s*"
@@ -279,7 +288,7 @@ def find_kill_switches(repo: str) -> list[dict]:
             switches.setdefault(name, {
                 "name": name, "decl_file": rel, "decl_line": line,
                 "decl_text": text[m.start():m.end()].strip(),
-                "words": name, "sites": []})
+                "words": name, "path_words": "", "sites": []})
 
     # Where each switch is actually consulted, plus 410s that stand alone.
     named = set(switches)
@@ -299,22 +308,35 @@ def find_kill_switches(repo: str) -> list[dict]:
                 continue
             switches[name]["sites"].append({"file": rel, "hits": hits,
                                             "gone": gone_hits})
-            switches[name]["words"] += " " + rel + " " + gate_words
+            # A route's PATH and a route's gate MESSAGE are not equal evidence.
+            # The message is the switch speaking; the path is filesystem
+            # bookkeeping that happens to contain English. Kept apart so a
+            # binding can be tested for whether it rests on a real word.
+            switches[name]["words"] += " " + gate_words
+            switches[name]["path_words"] += " " + rel
         if gone_hits and not any(name in text for name in named):
             # A 410 with no named constant is still an enforced retirement.
             key = f"410:{rel}"
             switches[key] = {
                 "name": f"HTTP 410 in {rel}", "decl_file": rel,
                 "decl_line": gone_hits[0][0], "decl_text": gone_hits[0][1],
-                "words": rel + " " + gate_words,
+                "words": gate_words, "path_words": rel,
                 "sites": [{"file": rel, "hits": gone_hits, "gone": gone_hits}]}
 
     out = []
     for sw in switches.values():
-        scope = content_tokens(sw["words"])
+        named = content_tokens(sw["words"])
+        paths = content_tokens(sw.get("path_words") or "")
+        scope = named | paths
         if not scope:
             continue
         sw["scope"] = scope
+        # Tokens the switch owns ONLY because a route file is filed under that
+        # word. `api/agent/fund/route.ts` puts "fund", "agent" and "route" into
+        # scope; a doc sentence containing any of them then reads as bound when
+        # nothing semantic connects them. Recorded, not dropped: a path token
+        # still corroborates a binding that has a real word beside it.
+        sw["path_only"] = paths - named
         out.append(sw)
     return out
 
@@ -821,17 +843,38 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
             bound = sorted((tokens & sw["scope"]) - set(saturated))
             if not bound:
                 continue
+            # A binding that rests ENTIRELY on path tokens is not a binding.
+            # world-relay's "do NOT open user self-funding until the upgrade
+            # authority is off the hot wallet" bound to CUSTODY_RETIRED on one
+            # word — "fund" — carried into scope by `api/agent/fund/route.ts`.
+            # That sentence is a sequencing rule, not an availability claim,
+            # and the switch never touched it. Disproof this cheap is how a
+            # gate earns a reputation for crying wolf, and a gate nobody
+            # believes governs nothing.
+            if not (set(bound) - sw.get("path_only", set())):
+                continue
             key = sw["name"]
             if key not in evidence:
                 evidence[key] = _switch_evidence(repo, sw, git)
             ev = evidence[key]
+            # MOOT vs DISPROVED. "do NOT open user self-funding until the
+            # upgrade authority is off the hot wallet" is a sequencing rule
+            # whose condition can no longer arrive — worth knowing, and still
+            # reported. But the code does not DISPROVE it; the code agrees with
+            # it and then goes further. Obsolete is not false, and a gate that
+            # refuses a run over the difference is crying wolf. Detected the
+            # same, weighted differently: moot findings never gate.
+            moot = bool(_DEFERRED.search(assertion))
             out.append({
-                "kind": "killswitch", "verdict": CONTRADICTED,
+                "kind": "killswitch", "verdict": CONTRADICTED, "moot": moot,
                 "probe": ev[0]["cmd"], "output": ev[0]["output"], "evidence": ev,
                 "why": (f"the running code retires this: {sw['decl_file']}:"
-                        f"{sw['decl_line']} {sw['decl_text']} — the sentence "
-                        f"still presents it as available (bound on: "
-                        f"{', '.join(bound)})"),
+                        f"{sw['decl_line']} {sw['decl_text']} — "
+                        + ("the sentence defers it to a condition that can no "
+                           "longer arrive, so the rule is MOOT, not disproved"
+                           if moot else
+                           "the sentence still presents it as available")
+                        + f" (bound on: {', '.join(bound)})"),
                 "switch": sw["name"]})
             break  # one switch per sentence; the first is the closest binding
 
