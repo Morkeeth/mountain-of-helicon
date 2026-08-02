@@ -906,29 +906,82 @@ def cmd_hook(args):
     # not the absence of one.
     from helicon.capture import hook_gate
     banner = None
+    gate_mode = _gate_mode(config)
     try:
-        g = hook_gate(conn, cwd, session, prompt)
+        g = hook_gate(conn, cwd, session, prompt, mode=gate_mode)
     except Exception:
         g = None
+    gate_ctx = None
     if g and g["action"] == "block":
-        print(_json.dumps({
-            "decision": "block",
-            "reason": g["message"],
-            "systemMessage": g["message"],
-        }))
-        return
+        mode = gate_mode
+        if mode == "off":
+            g = None
+        elif mode == "block":
+            # Hard refusal. `{"decision": "block"}` was the wrong wire for it:
+            # Claude Code accepts the JSON, drops the prompt, and renders
+            # "blocked by hook: No stderr output" — so the operator is stopped
+            # by a banner they never see, three days running, with no way to
+            # learn which lines did it. Exit 2 + stderr is the shape the
+            # harness actually prints back.
+            sys.stderr.write(g["message"] + "\n")
+            sys.exit(2)
+        else:
+            # WARN — the default. The run starts. The banner goes to the human
+            # AND the disproved lines go to the agent, which is the whole point
+            # the block was missing: the model that could fix these lines was
+            # the one thing never told about them. A gate that stops the work
+            # gets uninstalled; a gate that hands the work its own homework
+            # gets used.
+            banner = g["message"]
+            gate_ctx = _gate_context(g)
+
     if g and g["action"] == "override":
         banner = g["message"]
 
     ctx = hook_deliver(conn, cwd, session, transcript)
+    joined = "\n\n".join(x for x in (gate_ctx, ctx) if x)
     out = {}
-    if ctx:
+    if joined:
         out["hookSpecificOutput"] = {"hookEventName": "UserPromptSubmit",
-                                     "additionalContext": ctx}
+                                     "additionalContext": joined}
     if banner:
         out["systemMessage"] = banner
     if out:
         print(_json.dumps(out))
+
+
+def _gate_mode(config: dict) -> str:
+    """warn (default) / block / off. Env beats config so a wedged terminal can
+    be freed without editing a file the gate is currently refusing to let you
+    edit — the failure mode this whole change exists to remove."""
+    m = (os.environ.get("HELICON_GATE_MODE")
+         or (config.get("doorway") or {}).get("gate_mode") or "warn")
+    m = str(m).strip().lower()
+    return m if m in ("warn", "block", "off") else "warn"
+
+
+def _gate_context(g: dict) -> str:
+    """The block banner, re-aimed at the agent instead of the wall. Names the
+    lines, the probe, and what the probe actually printed, so the model can
+    correct the doc in the same turn rather than argue from the stale copy it
+    was handed at session start."""
+    bad = (g.get("decision") or {}).get("contradicted") or []
+    repo = (g.get("verdict") or {}).get("repo", "this repo")
+    out = [f"[Helicon doorway] {len(bad)} line(s) of {repo}'s loaded context are "
+           f"disproved by the code running right now. You were given these lines "
+           f"as context; they are wrong. Treat the probe output as the truth, and "
+           f"offer to correct the doc:"]
+    for b in bad:
+        where = f"{b['file']}:{b['line']}" if b.get("line") else b.get("file", "?")
+        out.append(f"  - {where}")
+        out.append(f"      claims: {str(b.get('text',''))[:200]}")
+        if b.get("probe"):
+            out.append(f"      probe:  {b['probe']}")
+        if b.get("output"):
+            out.append(f"      output: {str(b['output']).splitlines()[0][:160]}")
+        if b.get("why"):
+            out.append(f"      why:    {str(b['why'])[:200]}")
+    return "\n".join(out)
 
 
 def cmd_receipt(args):
@@ -1066,6 +1119,30 @@ def cmd_board(args):
         import os as _os
         root = resolve_root(getattr(args, "root", None), config)
         repo = args.repo if _os.path.isabs(args.repo) else _os.path.join(root, args.repo)
+        name = _os.path.basename(_os.path.normpath(_os.path.abspath(repo)))
+
+        # The exit the gate banner has always offered. `doorway.demote()` was
+        # there and tested; nothing on the CLI ever reached it, so the one
+        # sanctioned way out of a block was a command that did not exist.
+        ref = getattr(args, "demote", None) or getattr(args, "promote", None)
+        if ref:
+            from helicon.doorway import demote, promote
+            if conn is None:
+                print("  no database — run `helicon init` first")
+                return
+            if getattr(args, "demote", None):
+                tokens = _ref_tokens(conn, repo, config, ref)
+                demote(conn, name, ref, tokens=tokens,
+                       reason=getattr(args, "reason", "") or "demoted from the doorway board")
+                print(f"  cold: {name} {ref} (−{tokens} tokens loaded)\n"
+                      f"  it stays in the file; it no longer loads and no longer gates a run.\n"
+                      f"  undo: helicon board --repo {name} --promote {ref}")
+            else:
+                r = promote(conn, name, ref)
+                print(f"  restored: {name} {ref}" if r["restored"]
+                      else f"  {name} {ref} was not cold — nothing to restore")
+            return
+
         detail = repo_detail(conn, repo, config)
         print(json.dumps(detail, indent=2) if getattr(args, "json", False)
               else format_detail(detail))
@@ -1075,6 +1152,20 @@ def cmd_board(args):
         print(json.dumps(board, indent=2))
     else:
         print(format_board(board))
+
+
+def _ref_tokens(conn, repo: str, config: dict, ref: str) -> int:
+    """What the board's loaded counter should fall by. Read off the line the
+    ref names, so the number is the line's real weight and not a guess."""
+    try:
+        from helicon.doorway import repo_detail
+        for doc in repo_detail(conn, repo, config)["docs"]:
+            for ln in doc["lines"]:
+                if ln["ref"] == ref:
+                    return int(ln.get("tokens") or 0)
+    except Exception:
+        pass
+    return 0
 
 
 def cmd_reflect(args):
@@ -3031,6 +3122,12 @@ def main():
     board_p.add_argument("--root", help="repo root to scan (default: ~/CODE, or $HELICON_CODE_ROOT)")
     board_p.add_argument("--repo", help="show one repo's loaded lines and their probe verdicts")
     board_p.add_argument("--json", action="store_true", help="emit the structured board for another surface")
+    board_p.add_argument("--demote", metavar="REF",
+                         help="send one line cold: kept, but loads nothing and cannot gate a run (e.g. CLAUDE.md#70)")
+    board_p.add_argument("--promote", metavar="REF",
+                         help="undo a demotion — bring a cold line back into the loaded set")
+    board_p.add_argument("--reason", default="",
+                         help="why this line goes cold; stored with the demotion")
     reflect_p = sub.add_parser("reflect", help="Reflection: one real day of runs, outcomes, cost and rulings")
     reflect_p.add_argument("--day", help="the day to reflect on (YYYY-MM-DD); default: latest day with activity")
     reflect_p.add_argument("--json", action="store_true", help="emit the structured day reflection for another surface")
