@@ -92,7 +92,11 @@ def sweep_repo(spec: str, *, timeout: int = 90, config: dict | None = None) -> d
             return {"repo": spec, "status": NO_RULES, "contradicted": 0, "findings": []}
         conn = init_db(os.path.join(tmp, "sweep.db"))
         try:
-            v = doorway.verdict(conn, repo_dir, config)
+            # strict=True — the SWEEP profile. See probes.PROFILES: publishing
+            # a rate about other people's repos is a different job from letting
+            # this one's next prompt start, and the corpus puts 13x between the
+            # two. The survey takes the precision side.
+            v = doorway.verdict(conn, repo_dir, config, strict=True)
         finally:
             conn.close()
         findings = _findings(v.get("contradicted") or [])
