@@ -45,6 +45,7 @@ Read-only by construction: git plumbing and file reads. Network probes are
 opt-in (allow_network) and answer UNVERIFIABLE when off. Nothing here writes
 to the repo it examines.
 """
+import hashlib
 import json
 import os
 import re
@@ -432,19 +433,179 @@ def _probe_command(repo: str, cmd: str, stated: str) -> dict:
 # probe 3 — a named file, asked of git
 # --------------------------------------------------------------------------
 
+# A doc can NAME a filename without POINTING at one. Every false positive in
+# the 2026-08-03 eleven-repo sweep was this one confusion, and nothing else:
+#
+#   mem0        "Python source files: `snake_case.py`"      — a convention
+#   zed         "prefer `src/some_module.rs`"               — a placeholder
+#   LibreChat   "`app/service.ts` not `app/appConfigService.ts`" — a counter-example
+#   browser-use "`tests/ci/test_action_EventNameHere.py`"   — a template
+#   OpenHands   "the SDK repo's `server.yml`"               — another repo
+#
+# Probing these is a category error: the repo was never supposed to contain
+# them, so their absence proves nothing and convicts a doc that is correct.
+_CASE_CONVENTION = re.compile(
+    r"(?:snake_case|camelCase|PascalCase|kebab-case|SCREAMING_SNAKE|"
+    r"lowerCamelCase|<[^>]{1,30}>|\[[A-Z][A-Za-z]{2,20}\]|"
+    r"\bfoo\b|\bbar\b|\bbaz\b|some_module|"
+    r"YourName|EventNameHere|ExampleName|MyComponent)", re.I)
+# "prefer X not Y" / "instead of Y" / "avoid Y" — Y is the thing NOT to create.
+# The window has to reach back past the intervening words: LibreChat writes
+# "prefer grouping related modules under a single-word directory rather than
+# `admin/capabilities.ts`", and anchoring tight to the token missed all of it.
+_COUNTER_EXAMPLE = re.compile(
+    r"\b(?:not|instead of|rather than|avoid|never (?:create|use|name)|"
+    r"don't (?:create|use|name))\b[^.;\n]{0,60}$", re.I)
+# `[^`]` could not cross the backtick closing the GOOD example, so
+# "`app/service.ts` not `app/appConfigService.ts`" — the plainest counter-example
+# shape there is — never matched. Excluding sentence enders instead of backticks
+# keeps the window inside one clause without blinding it to quoted neighbours.
+
+# "e.g. `memory.test.ts`" is an illustration of a pattern just stated, not a
+# file the repo promises. mem0 states `<module>.test.ts` and then illustrates it.
+_ILLUSTRATION = re.compile(r"(?:e\.?g\.?|for example|such as|like)\s*[,:]?\s*`?$", re.I)
+
+# The sentence hands the path to a different repo, or to something generated.
+# NOTE the trailing \w* on the director… items: "per-test directories" ends in
+# "ies", so a trailing \b after "director" refused to match the exact sentence
+# this pattern was written for.
+_FOREIGN_OWNER = re.compile(
+    r"(?:\bSDK repo|\bupstream repo|\bthe \w+ repo's|\bother repo|\bsibling repo|"
+    r"\bgenerated|\bis written by|\bproduced by|\boutput (?:dir|directory|file)|"
+    r"\bper-test director\w*|\bartifact)", re.I)
+# A naming RULE, not a location. "Python source files: <pattern>"
+_NAMING_RULE = re.compile(
+    r"\b(?:naming|name them|named|convention|file names?|filename)\b", re.I)
+
+
+def _names_not_points(sentence: str, path: str, upto: int) -> str:
+    """Why this path token is a NAME and not a location — or "" if it is a
+    location. `upto` is the offset where the token starts, so a counter-example
+    is judged on the words immediately before it ("not `X`") rather than on the
+    sentence containing the word "not" anywhere."""
+    if _CASE_CONVENTION.search(path):
+        return "a naming pattern, not a path"
+    if _CASE_CONVENTION.search(sentence) and _NAMING_RULE.search(sentence):
+        return "quoted inside a naming rule"
+    before = sentence[:upto].rstrip().rstrip("`").rstrip()
+    if _COUNTER_EXAMPLE.search(before):
+        return "the counter-example the rule tells you NOT to create"
+    if _ILLUSTRATION.search(before):
+        return "an illustration of the pattern the sentence just stated"
+    if _FOREIGN_OWNER.search(sentence):
+        return "owned by another repo or generated at runtime"
+    if _ACK.search(sentence):
+        # OpenHands AGENTS.md:477 — "The legacy localStorage migration
+        # (`src/api/.../legacy-app-preferences-migration.ts`) was removed."
+        # The doc is DOCUMENTING the deletion. Convicting it for the file being
+        # absent punishes the one thing you want docs to do. I called this a
+        # real find on first read; the sentence says otherwise.
+        return "a file this sentence says was already removed"
+    return ""
+
+
+_INDEX_OK: dict = {}
+
+
+def _git_index_usable(repo: str) -> bool:
+    """Is git a witness worth calling here at all?
+
+    A shallow clone whose checkout died (git-lfs absent, interrupted fetch)
+    leaves files on disk and an EMPTY index. `git ls-files -- anything` then
+    returns nothing, and every path a doc names reads as deleted. On 2026-08-02
+    that produced "cline/cline: 29 contradicted / 0 upheld" and it was written
+    up as a false-positive storm in the prober. The prober was fine. The
+    repo was broken and nothing asked.
+
+    This is the mirror of the empty-store defect: there, nothing measured
+    reported CLEAN; here, nothing measured reports ROT. Both are a tool
+    describing its own state and publishing it as the world's.
+    """
+    if repo in _INDEX_OK:
+        return _INDEX_OK[repo]
+    code, out = _run(["git", "ls-files"], repo, timeout=20)
+    tracked = len(out.splitlines()) if code == 0 else 0
+    if tracked:
+        _INDEX_OK[repo] = True
+        return True
+    # An index with nothing in it is only suspicious next to a tree with
+    # something in it. A genuinely empty repo is not a broken one.
+    on_disk = 0
+    for root, dirs, files in os.walk(repo):
+        dirs[:] = [d for d in dirs if d != ".git"]
+        on_disk += len(files)
+        if on_disk > 5:
+            break
+    _INDEX_OK[repo] = on_disk <= 5
+    return _INDEX_OK[repo]
+
+
 def _probe_path(repo: str, path: str, git: bool) -> dict:
+    if git and not _git_index_usable(repo):
+        return {"verdict": UNVERIFIABLE, "probe": f"git ls-files -- {path}",
+                "output": "(index empty)",
+                "why": "this repo's git index is empty while its worktree is "
+                       "not — the checkout is incomplete, so git cannot "
+                       "testify about any path here"}
     if git:
         rc, out = _run(["git", "ls-files", "--error-unmatch", "--", path], repo)
         shown = f"git ls-files -- {path}"
         if rc == 0 and out.strip():
             return {"verdict": UPHELD, "probe": shown, "output": out.strip()[:200],
                     "why": "tracked in the repo"}
-        # not tracked under that exact path — try the basename before judging
+        # MOVED — but only when the destination is not a guess.
+        #
+        # The first cut of this matched on BASENAME and announced the first hit
+        # as the new home: codex's `app-server/README.md` "now lives at"
+        # .devcontainer/README.md, LibreChat's `[Feature]/index.ts` at
+        # src/api/backend-registry/index.ts. Both nonsense, and nonsense with a
+        # file path in it reads as authority. A wrong destination is worse than
+        # none — it is a fix someone might apply.
+        #
+        # The trustworthy case is a repo that moved a subtree: the doc's whole
+        # route survives as the TAIL of exactly one tracked path. cline's
+        # `src/shared/api.ts` -> `apps/vscode/src/shared/api.ts` is that shape.
+        # More than one candidate, or a mere basename collision, names nothing.
+        if "/" in path:
+            rcs, outs = _run(["git", "ls-files", "--", f"*/{path}"], repo)
+            cands = [l for l in outs.splitlines() if l.strip()] if rcs == 0 else []
+            if len(cands) == 1:
+                return {"verdict": CONTRADICTED, "moved_to": cands[0],
+                        "probe": f"git ls-files -- */{path}", "output": cands[0][:200],
+                        "why": f"the doc routes to {path}; that path is gone — the "
+                               f"subtree moved and it now lives at {cands[0]}"}
+            if len(cands) > 1:
+                return {"verdict": CONTRADICTED, "probe": f"git ls-files -- */{path}",
+                        "output": "; ".join(cands[:3])[:200],
+                        "why": f"the doc routes to {path}; no such path is tracked. "
+                               f"{len(cands)} files share that tail, so the "
+                               f"destination is not named here"}
         rc2, out2 = _run(["git", "ls-files", "--", f"*{os.path.basename(path)}"], repo)
         if rc2 == 0 and out2.strip():
+            hit = out2.strip().splitlines()[0][:200]
+            if "/" in path:
+                # A same-named file somewhere else is not this file. Neither
+                # UPHELD (the route is dead) nor CONTRADICTED (it may simply be
+                # a different file that shares a common name like index.ts).
+                return {"verdict": UNVERIFIABLE, "probe": shown, "output": hit,
+                        "why": f"{path} is not tracked; files named "
+                               f"{os.path.basename(path)} exist elsewhere but "
+                               f"none continues this route — git cannot settle "
+                               f"whether the doc is stale or merely loose"}
+            # MOVED. The basename fallback exists so that a doc writing
+            # `McpHub.ts` is not called a liar because the file sits in a
+            # subdirectory. But when the doc spells out a DIRECTORY and that
+            # exact route is gone, "matched on basename" launders a real
+            # relocation into a pass: cline's copilot-instructions names 18
+            # paths under `src/`, the code moved to `apps/vscode/src/`, and 15
+            # of them were reported UPHELD against their own new location.
+            #
+            # A bare filename is a reference and still upholds. A path with a
+            # directory in it is a route, and a dead route is rot — with the
+            # destination attached, which is the difference between telling
+            # someone they are broken and telling them the fix.
             return {"verdict": UPHELD, "probe": f"git ls-files -- *{os.path.basename(path)}",
-                    "output": out2.strip().splitlines()[0][:200],
-                    "why": "tracked (matched on basename)"}
+                    "output": hit, "why": "tracked (matched on basename)"}
         # Untracked is not disproved. `config-demo.json` is WRITTEN by
         # scripts/demo_seed.py and gitignored, so "git tracks no such file" was
         # exactly what the doc predicted — and this probe called the doc a liar
@@ -653,6 +814,11 @@ def _line_of(haystack: str, needle: str) -> int | None:
     return None
 
 
+# (repo, kept file) -> the identical copies it stands in for. A finding names
+# every vendor it reaches, without being counted once per vendor.
+_DOC_ALIASES: dict = {}
+
+
 def _rule_docs(repo: str) -> list[tuple[str, str]]:
     """(relative path, text) for every agent-rules file this repo commits."""
     from helicon.connectors.agent_rules import KNOWN_RULE_FILES, KNOWN_RULE_PATHS
@@ -667,7 +833,27 @@ def _rule_docs(repo: str) -> list[tuple[str, str]]:
     for mdc in sorted(glob(os.path.join(repo, ".cursor", "rules", "*.mdc"))):
         rel = os.path.relpath(mdc, repo)
         out.append((rel, _read(repo, rel)))
-    return [(rel, text) for rel, text in out if text.strip()]
+    # CLAUDE.md, AGENTS.md and GEMINI.md are routinely the same file under
+    # three names (zed ships all three byte-identical; mem0 two). Probing each
+    # copy triples one finding and inflates every count that follows — zed's
+    # "3 contradicted" was one line, counted once per vendor. The first name
+    # wins and the aliases ride along, so the finding still says where it lives.
+    seen: dict = {}
+    deduped = []
+    for rel, text in out:
+        if not text.strip():
+            continue
+        key = hashlib.sha256(text.encode()).hexdigest()
+        if key in seen:
+            seen[key].append(rel)
+            continue
+        seen[key] = []
+        deduped.append((rel, text))
+    for rel, text in deduped:
+        aliases = seen[hashlib.sha256(text.encode()).hexdigest()]
+        if aliases:
+            _DOC_ALIASES[(repo, rel)] = aliases
+    return deduped
 
 
 def _cube_index(conn, repo_name: str) -> dict:
@@ -878,8 +1064,16 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                 "switch": sw["name"]})
             break  # one switch per sentence; the first is the closest binding
 
-    # path — a file the doc names as present
+    # path — a file the doc points AT (naming one is a different act; see
+    # _names_not_points, which is the whole of the 2026-08-03 noise)
     for m in _PATH_TOKEN.finditer(assertion):
+        why_named = _names_not_points(assertion, m.group(1), m.start())
+        if why_named:
+            out.append({"kind": "path", "verdict": UNVERIFIABLE,
+                        "probe": f"(not probed) {m.group(1)}", "output": "",
+                        "why": f"{m.group(1)}: {why_named} — the repo was never "
+                               f"meant to contain it, so its absence proves nothing"})
+            continue
         out.append({"kind": "path", **_probe_path(repo, m.group(1), git)})
 
     return out
