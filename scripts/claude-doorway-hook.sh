@@ -1,39 +1,45 @@
 #!/bin/sh
-# Helicon doorway — the Claude Code UserPromptSubmit gate.
+# Helicon doorway gate — portable Claude Code UserPromptSubmit wrapper.
 #
 # Refuses to let a run start against a repo whose loaded docs the running code
-# disproves. Reads the hook JSON on stdin, writes hook JSON on stdout.
+# disproves. Reads the hook JSON on stdin, writes a block decision on stdout.
 #
-# Why a wrapper and not `helicon hook userprompt` directly: the `helicon` entry
-# point on PATH resolves to a console script whose package is not importable
-# outside a checkout (`ModuleNotFoundError: No module named 'helicon'` from any
-# other directory). A hook wired to it would have failed on every prompt, and
-# because hooks fail open it would have failed SILENTLY — a gate that governs
-# nothing while appearing installed. This pins the interpreter to this checkout.
+# Config-free and checkout-free: the gate is deterministic (git-only probes) and
+# keeps its own log under ${HELICON_HOME:-~/.helicon}. It does NOT read a
+# config.json, so it runs for anyone who has `pip install`ed helicon — the
+# earlier version of this wrapper pinned the interpreter to a checkout because a
+# bare `helicon` on PATH raised ModuleNotFoundError from other directories; the
+# packaging fix (running `python3 -m helicon`) removes that need.
 #
 # Fail-open is deliberate: any non-zero exit or crash here lets the prompt
 # through. `gate_blocked` / `gate_override` rows in the store are what prove a
 # block happened; the absence of one proves nothing.
 #
-# To disable: remove the UserPromptSubmit entry from ~/.claude/settings.json.
+# PREFER `helicon doorway install`, which wires the exact interpreter that has
+# helicon importable and needs no wrapper on PATH. This script exists for manual
+# installs and non-Claude harnesses. To disable: remove the UserPromptSubmit
+# entry from ~/.claude/settings.json (or run `helicon doorway install --uninstall`).
 
-REPO="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
-
-# No config, no gate — and say nothing rather than half-govern.
-[ -f "$REPO/config.json" ] || exit 0
-
-# stderr is not noise here, it is the one channel a block can speak on.
-# `2>/dev/null` was silencing both: a crash vanished (fail-open with no trace of
-# WHY, for days) and so did the block banner, so Claude Code printed the generic
-# "blocked by hook: No stderr output" while the gate held a full explanation it
-# had just thrown away. Kept apart now: exit 2 speaks, anything else is filed
-# and forgiven.
+# Both halves of this merge were right about different things.
+#
+# The stranger lane is right that the gate must be config-free and must not
+# resolve a checkout root: `doorway gate` replaces `hook userprompt`, and the
+# config.json existence check is gone, because requiring one is exactly what
+# made this wrapper unrunnable for anyone but the author.
+#
+# But it wrote `exec … 2>/dev/null`, and that discards the block banner. That
+# was a bug here for days: stderr is the ONE channel a block can speak on, so
+# silencing it made Claude Code print the generic "blocked by hook: No stderr
+# output" while the gate held a full explanation it had just thrown away — and
+# made crashes vanish with no trace of WHY. Keeping the two apart is the whole
+# fix: exit 2 speaks, anything else is filed and forgiven.
+#
+# So: lane 2's entrypoint, this branch's stderr discipline. `exec` is dropped
+# because the redirect has to be inspected after the run, not replaced by it.
 ERR="${TMPDIR:-/tmp}/helicon-doorway.$$.err"
 LAST="${TMPDIR:-/tmp}/helicon-doorway.last.err"
 
-PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}" \
-HELICON_CONFIG="$REPO/config.json" \
-python3 -m helicon hook userprompt 2>"$ERR"
+python3 -m helicon doorway gate 2>"$ERR"
 rc=$?
 
 if [ "$rc" -eq 2 ]; then
