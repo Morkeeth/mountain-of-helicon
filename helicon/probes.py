@@ -497,11 +497,62 @@ _PATH_NOT_ASSERTION = re.compile(
     r"|moved?|schema\s+for|following\s+schema)\b|(?:^|\W)no\s+`|not\s+`", re.I)
 
 
-def _names_not_points(sentence: str, path: str, upto: int) -> str:
+# The allowlist. A sentence earns a path probe only by saying, in so many
+# words, that the file is THERE. Written for the 591-repo sweep; measured on it.
+_PATH_PRESENT = re.compile(
+    r"\b(?:lives?\s+in|located\s+(?:in|at)|found\s+(?:in|at)|(?:is|are)\s+(?:in|at|located|defined|stored)"
+    r"|defined\s+in|entry\s*point|config(?:uration)?\s+(?:file\s+)?is|stored\s+in|configured\s+in"
+    r"|(?:config|entry|main|source)\s+(?:file\s+)?is|see\s+`|read\s+`|imported\s+from)\b", re.I)
+
+# PROFILES — the same probe, two jobs, and they want opposite things.
+#
+# Measured over the frozen 591-repo corpus, identical harness, same machine:
+#
+#     lenient (gate)    168 / 576 repos flagged   29.2%   627 path findings
+#     strict  (sweep)    36 / 577 repos flagged    6.2%    47 path findings
+#
+# Thirteen times the findings. That is not a tuning knob, it is two different
+# questions, and answering one with the other's rules is wrong both ways.
+#
+#   GATE (strict=False) reads ONE repo, whose docs this repo's own author
+#   wrote, to decide whether a run may start. A false positive is a nuisance
+#   you dismiss; a MISS ships rot into a live agent session. Recall-first, and
+#   the 20 positional rules above earn their place — they were derived from
+#   real gate false positives on real, deliberately-written sentences.
+#
+#   SWEEP (strict=True) reads STRANGERS' repos at scale to publish a number.
+#   A false positive is the entire failure mode: it inflates the headline and
+#   accuses somebody else's project in public. A miss costs a survey one row.
+#   Precision-first — hence the allowlist.
+#
+# The positional rules ("the words immediately before the token") assume a
+# sentence somebody composed. Across 576 strangers' repos they meet table
+# fragments and truncated bullets where "immediately before" is not a
+# meaningful position, and the denylist stops discriminating. The allowlist
+# does not care how mangled the sentence is: no presence cue, no probe.
+PROFILES = {False: "gate — recall-first, this repo's own docs",
+            True: "sweep — precision-first, strangers' repos at scale"}
+
+
+def _names_not_points(sentence: str, path: str, upto: int,
+                      strict: bool = False) -> str:
     """Why this path token is a NAME and not a location — or "" if it is a
     location. `upto` is the offset where the token starts, so a counter-example
     is judged on the words immediately before it ("not `X`") rather than on the
     sentence containing the word "not" anywhere."""
+    if strict:
+        # Precision-first. Everything below is a denylist — it starts from
+        # "probe it" and looks for an excuse not to. At corpus scale that
+        # default is the whole problem, so strict inverts it: start from
+        # "don't", and require the sentence to claim presence outright.
+        if ".." in path or "*" in path or path.endswith("/"):
+            return "a glob or a relative escape, not a path this repo promises"
+        if _PATH_NOT_ASSERTION.search(sentence[:upto] + " " + sentence[upto + len(path):]):
+            return "the sentence disclaims it (example, generated, renamed, negated)"
+        if not _PATH_PRESENT.search(sentence):
+            return ("the sentence never claims this file is present — naming a "
+                    "path is not asserting it exists")
+        return ""
     if _CASE_CONVENTION.search(path):
         return "a naming pattern, not a path"
     # PROSE = the sentence with the path token cut out. Every sentence-wide rule
@@ -936,7 +987,7 @@ def _cube_for(cubes: dict, repo_name: str, rel: str, assertion: str) -> dict | N
 # --------------------------------------------------------------------------
 
 def probe_docs(conn, repo_path: str, config: dict | None = None,
-               allow_network: bool = False) -> list[dict]:
+               allow_network: bool = False, strict: bool = False) -> list[dict]:
     """Every probe-able sentence in a repo's instruction docs, with a verdict.
 
     conn may be None: the probes read the repo either way, and the store only
@@ -1003,7 +1054,8 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
                     "stored": cube is not None}
             for res in _derive_and_run(repo, git, assertion, heading, switches,
                                        evidence, rpc_url, allow_network,
-                                       saturated, corpus, context_addr):
+                                       saturated, corpus, context_addr,
+                                       strict=strict):
                 results.append({**base, **res})
             # First address under this heading wins, and the next heading
             # clears it. Nearest-preceding is the wrong rule: the sentence
@@ -1021,7 +1073,8 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
 
 def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                     rpc_url, allow_network, saturated=frozenset(),
-                    corpus=frozenset(), context_addr=None) -> list[dict]:
+                    corpus=frozenset(), context_addr=None,
+                    strict: bool = False) -> list[dict]:
     """Sentence -> the probes its own shape earns. Order matters: an on-chain
     authority claim is answered by the chain, not by a grep that would happen
     to agree with it."""
@@ -1112,7 +1165,7 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
     # path — a file the doc points AT (naming one is a different act; see
     # _names_not_points, which is the whole of the 2026-08-03 noise)
     for m in _PATH_TOKEN.finditer(assertion):
-        why_named = _names_not_points(assertion, m.group(1), m.start())
+        why_named = _names_not_points(assertion, m.group(1), m.start(), strict)
         if why_named:
             out.append({"kind": "path", "verdict": UNVERIFIABLE,
                         "probe": f"(not probed) {m.group(1)}", "output": "",
