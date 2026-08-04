@@ -212,3 +212,26 @@ def test_an_empty_git_index_cannot_testify(tmp_path):
     r = _probe_path(str(repo), "src/anything.ts", git=True)
     assert r["verdict"] == UNVERIFIABLE
     assert "index is empty" in r["why"]
+
+
+@pytest.mark.parametrize("sentence,path", [
+    ("Config lives in `config/gone.yaml`.", "config/gone.yaml"),
+    ("The router is defined in `src/legacy/removed-routes.ts`.",
+     "src/legacy/removed-routes.ts"),
+    ("Flags are read from `deprecated/flags.json`.", "deprecated/flags.json"),
+    ("Auth middleware lives in `src/disabled-auth.ts`.", "src/disabled-auth.ts"),
+])
+def test_a_filename_cannot_disclaim_its_own_sentence(sentence, path):
+    """A path token is EVIDENCE, not testimony.
+
+    Every sentence-wide rule used to read the sentence with the filename still
+    in it, so `config/gone.yaml` matched _ACK's \\bgone\\b and the claim exempted
+    itself from ever being probed. The docs most likely to name a `legacy/`,
+    `deprecated/` or `removed-*` path are exactly the rotting ones, so this
+    turned the highest-yield sentences into the invisible ones.
+
+    Caught by lane 1's sweep test asserting a repo with a dead `config/gone.yaml`
+    must be flagged; it was returning 0 findings and reading as a merge problem.
+    """
+    upto = sentence.index(path)
+    assert _names_not_points(sentence, path, upto) == ""

@@ -478,6 +478,25 @@ _NAMING_RULE = re.compile(
     r"\b(?:naming|name them|named|convention|file names?|filename)\b", re.I)
 
 
+# Adopted from lane 1's 576-repo sweep. Lane 1 paired this denylist with an
+# ALLOWLIST (`_PATH_PRESENT`: fire only after "lives in" / "defined in" / "see `"),
+# and that pairing is deliberately NOT adopted. Measured against the three
+# sentences that produced every true find here —
+#
+#   "**MCP**: `src/services/mcp/McpHub.ts`."
+#   "Add enum to `ClineDefaultTool` in `src/shared/tools.ts`."
+#   "prefer using `codex-rs/codex-mcp/src/mcp_connection_manager.rs`"
+#
+# — none carries a presence cue, so the allowlist would have found nothing at
+# all. Its 0.34 precision was bought with recall this gate cannot spend. The
+# denylist half costs no recall and is pure gain, so it is taken alone.
+_PATH_NOT_ASSERTION = re.compile(
+    r"\b(?:there\s+is\s+no|isn'?t|is\s+not|no\s+longer|instead\s+of|rather\s+than|e\.?g\.?"
+    r"|for\s+example|such\s+as|creates?|created|generates?|generated|will\s+(?:write|create|generate)"
+    r"|written|outputs?\s+to|template|placeholder|example|new\s+(?:file|changelog|entry)|renamed?"
+    r"|moved?|schema\s+for|following\s+schema)\b|(?:^|\W)no\s+`|not\s+`", re.I)
+
+
 def _names_not_points(sentence: str, path: str, upto: int) -> str:
     """Why this path token is a NAME and not a location — or "" if it is a
     location. `upto` is the offset where the token starts, so a counter-example
@@ -485,22 +504,48 @@ def _names_not_points(sentence: str, path: str, upto: int) -> str:
     sentence containing the word "not" anywhere."""
     if _CASE_CONVENTION.search(path):
         return "a naming pattern, not a path"
-    if _CASE_CONVENTION.search(sentence) and _NAMING_RULE.search(sentence):
+    # PROSE = the sentence with the path token cut out. Every sentence-wide rule
+    # below reads this, never `sentence`, because a filename is not an argument
+    # its own sentence gets to make.
+    #
+    #   "Config lives in `config/gone.yaml`."
+    #
+    # `_ACK` matched \bgone\b — inside the filename — and read the sentence as
+    # documenting a removal. The file is simply CALLED gone.yaml, and the claim
+    # is a live one that git disproves. Any path containing "gone", "removed",
+    # "deprecated" or "disabled" was silently exempting itself from being probed
+    # at all, which is the one failure a rot detector cannot have: the docs most
+    # likely to name a `legacy/` or `deprecated/` path are the rotting ones.
+    prose = sentence[:upto] + " " + sentence[upto + len(path):]
+    if _CASE_CONVENTION.search(prose) and _NAMING_RULE.search(prose):
         return "quoted inside a naming rule"
     before = sentence[:upto].rstrip().rstrip("`").rstrip()
     if _COUNTER_EXAMPLE.search(before):
         return "the counter-example the rule tells you NOT to create"
     if _ILLUSTRATION.search(before):
         return "an illustration of the pattern the sentence just stated"
-    if _FOREIGN_OWNER.search(sentence):
+    if _FOREIGN_OWNER.search(prose):
         return "owned by another repo or generated at runtime"
-    if _ACK.search(sentence):
+    if _ACK.search(prose):
         # OpenHands AGENTS.md:477 — "The legacy localStorage migration
         # (`src/api/.../legacy-app-preferences-migration.ts`) was removed."
         # The doc is DOCUMENTING the deletion. Convicting it for the file being
         # absent punishes the one thing you want docs to do. I called this a
         # real find on first read; the sentence says otherwise.
         return "a file this sentence says was already removed"
+    if _PATH_NOT_ASSERTION.search(prose):
+        # The sentence-wide net from the 576-repo sweep (lane 1). Everything
+        # above judges the words immediately BEFORE the token, which is what
+        # makes those rules precise — and also what makes them miss when the
+        # disclaiming word sits further away:
+        #
+        #   "Generates `graph.json` from the code. e.g. `foo.ln.json`."
+        #
+        # `_ILLUSTRATION` wants "e.g." adjacent to the token and finds "code. "
+        # instead, so both paths got probed and the repo was convicted twice.
+        # Kept LAST on purpose: it is the bluntest rule here, so it only ever
+        # sees sentences the precise rules already declined to explain.
+        return "the sentence disclaims it (example, generated, renamed, negated)"
     return ""
 
 
