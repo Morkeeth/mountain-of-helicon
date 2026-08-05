@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#09090b"/>
-  <text x="16" y="22" font-family="Inter, -apple-system, sans-serif" font-size="16" font-weight="600" fill="#d97706" text-anchor="middle">G</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#ECE4D8"/>
+  <path d="M72 382 197 137l72 136" fill="none" stroke="#465B6F" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M188 382 318 121l132 261" fill="none" stroke="#17283A" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

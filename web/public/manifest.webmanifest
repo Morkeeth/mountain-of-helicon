@@ -1,0 +1,41 @@
+{
+  "id": "/",
+  "name": "Mountain of Helicon",
+  "short_name": "Helicon",
+  "description": "Govern agent memory, review grounded findings, and make corrections stick.",
+  "start_url": "/#board",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ECE4D8",
+  "theme_color": "#ECE4D8",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "The Doorway",
+      "short_name": "Doorway",
+      "description": "Inspect the memory loaded by each repository.",
+      "url": "/#board"
+    },
+    {
+      "name": "Needs Ruling",
+      "short_name": "Rulings",
+      "description": "Open the findings that need a human decision.",
+      "url": "/#findings"
+    },
+    {
+      "name": "The Cockpit",
+      "short_name": "Cockpit",
+      "description": "Review recent governed agent runs.",
+      "url": "/#cockpit"
+    }
+  ]
+}
