@@ -53,19 +53,19 @@ function BoardList({ onOpenRepo }: { onOpenRepo: (name: string) => void }) {
 
   const max = Math.max(1, ...d.repos.map(r => r.loaded_tokens));
   return (
-    <div style={{ maxWidth: 820, margin: '0 auto', padding: '56px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
-        <span data-testid="board-total" style={{ ...NUM, fontSize: 76, lineHeight: 1, fontWeight: 300, color: 'var(--text-primary)' }}>{fmt(d.total_loaded_tokens)}</span>
-        <span style={{ ...SERIF, fontSize: 20, color: 'var(--text-muted)' }}>tokens loaded into an agent, across {d.repo_count} repo{d.repo_count === 1 ? '' : 's'}</span>
+    <div className="max-w-[820px] mx-auto py-7 sm:py-14">
+      <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4">
+        <span data-testid="board-total" className="text-[48px] sm:text-[76px]" style={{ ...NUM, lineHeight: 1, fontWeight: 300, color: 'var(--text-primary)' }}>{fmt(d.total_loaded_tokens)}</span>
+        <span className="text-[16px] sm:text-[20px] leading-snug" style={{ ...SERIF, color: 'var(--text-muted)' }}>tokens loaded into an agent, across {d.repo_count} repo{d.repo_count === 1 ? '' : 's'}</span>
       </div>
-      <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-muted)', fontFamily: MONO }}>{d.root}</div>
+      <div className="mt-2 text-[11px] sm:text-[12.5px] break-all" style={{ color: 'var(--text-muted)', fontFamily: MONO }}>{d.root}</div>
       <div style={{ marginTop: 36 }}>
         {d.repos.map(r => (
           <button key={r.path} onClick={() => onOpenRepo(r.name)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '13px 0', borderTop: '1px solid var(--border, rgba(0,0,0,.08))', background: 'transparent', cursor: 'pointer' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_74px] items-baseline gap-x-3">
               <span style={{ ...SERIF, fontSize: 16, color: 'var(--text-primary)', flex: 1 }}>{r.name}</span>
               <span style={{ ...NUM, fontSize: 15, color: 'var(--text-primary)' }}>{fmt(r.loaded_tokens)}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 74, textAlign: 'right' }}>{r.doc_count} doc{r.doc_count === 1 ? '' : 's'}</span>
+              <span className="col-span-2 sm:col-span-1 text-left sm:text-right" style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.doc_count} doc{r.doc_count === 1 ? '' : 's'}</span>
             </div>
             <div style={{ marginTop: 7, height: 4, background: 'var(--border, rgba(0,0,0,.06))', borderRadius: 4 }}>
               <div style={{ width: `${Math.round((r.loaded_tokens / max) * 100)}%`, height: 4, borderRadius: 4, background: 'var(--helicon-accent, #35526d)' }} />
@@ -102,9 +102,9 @@ function RepoDetail({ repo, onBack }: { repo: string; onBack: () => void }) {
   if (!d) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>opening {repo}…</div>;
   const c = d.verdict_counts || {};
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px' }}>
+    <div className="max-w-[900px] mx-auto py-5 sm:py-10">
       <button onClick={onBack} style={{ fontSize: 12.5, color: 'var(--helicon-accent, #35526d)', background: 'transparent' }}>← the doorway</button>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginTop: 14 }}>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mt-3.5">
         <span style={{ ...SERIF, fontSize: 24, color: 'var(--text-primary)' }}>{d.repo}</span>
         <span data-testid="repo-loaded" style={{ ...NUM, fontSize: 30, fontWeight: 300, color: 'var(--text-primary)' }}>{fmt(d.loaded_tokens)}</span>
         <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>tokens loaded{d.cold_tokens ? ` · ${fmt(d.cold_tokens)} kept cold` : ''}</span>
@@ -117,24 +117,25 @@ function RepoDetail({ repo, onBack }: { repo: string; onBack: () => void }) {
 
       {d.docs.map(doc => (
         <div key={doc.file} style={{ marginTop: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--text-primary)' }}>{doc.file}</span>
+          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <span className="break-all" style={{ fontFamily: MONO, fontSize: 13, color: 'var(--text-primary)' }}>{doc.file}</span>
             {doc.via_import && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>@imported by {doc.via_import}</span>}
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{fmt(doc.loaded_tokens)} / {fmt(doc.tokens)} tok loaded{doc.cold ? ' · cold' : ''}</span>
+            <span className="w-full sm:w-auto sm:ml-auto" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmt(doc.loaded_tokens)} / {fmt(doc.tokens)} tok loaded{doc.cold ? ' · cold' : ''}</span>
           </div>
           <div style={{ marginTop: 8 }}>
             {doc.lines.map(ln => (
               <div key={ln.ref} style={{ padding: '9px 0', borderTop: '1px solid var(--border, rgba(0,0,0,.06))', opacity: ln.cold ? 0.5 : 1 }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
-                  <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', width: 104, flexShrink: 0, color: VERDICT_COLOR[ln.verdict] || 'var(--text-muted)' }}>{ln.verdict}</span>
-                  <span style={{ fontSize: 13.5, color: 'var(--text-primary)', flex: 1, textDecoration: ln.cold ? 'line-through' : 'none' }}>{ln.text}</span>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[104px_minmax(0,1fr)_auto] gap-x-2.5 gap-y-2 items-baseline">
+                  <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.06em', color: VERDICT_COLOR[ln.verdict] || 'var(--text-muted)' }}>{ln.verdict}</span>
+                  <span className="col-span-2 sm:col-span-1 row-start-2 sm:row-start-auto break-words" style={{ fontSize: 13.5, color: 'var(--text-primary)', textDecoration: ln.cold ? 'line-through' : 'none' }}>{ln.text}</span>
                   <button disabled={busy === ln.ref} onClick={() => setCold(ln, !ln.cold)}
-                    style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid var(--helicon-line, rgba(0,0,0,.15))', background: 'var(--helicon-panel, #fff)', color: ln.cold ? 'var(--helicon-accent, #35526d)' : 'var(--text-muted)', flexShrink: 0 }}>
+                    className="row-start-1 col-start-2 sm:col-start-3"
+                    style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid var(--helicon-line, rgba(0,0,0,.15))', background: 'var(--helicon-panel, #fff)', color: ln.cold ? 'var(--helicon-accent, #35526d)' : 'var(--text-muted)' }}>
                     {ln.cold ? 'warm' : 'demote to cold'}
                   </button>
                 </div>
                 {ln.verdict === 'CONTRADICTED' && (
-                  <div style={{ marginTop: 6, marginLeft: 114, padding: '8px 10px', borderRadius: 6, background: 'var(--helicon-panel-2, rgba(169,74,61,.06))', border: '1px solid var(--helicon-line, rgba(0,0,0,.1))' }}>
+                  <div className="sm:ml-[114px]" style={{ marginTop: 6, padding: '8px 10px', borderRadius: 6, background: 'var(--helicon-panel-2, rgba(169,74,61,.06))', border: '1px solid var(--helicon-line, rgba(0,0,0,.1))' }}>
                     <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{ln.why}</div>
                     {ln.probe && <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 11.5, color: 'var(--text-primary)' }}>$ {ln.probe}</div>}
                     {ln.output && <pre style={{ marginTop: 2, fontFamily: MONO, fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{ln.output}</pre>}
