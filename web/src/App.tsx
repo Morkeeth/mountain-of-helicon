@@ -460,7 +460,7 @@ function App() {
                 className="text-[15px] md:text-[19px] tracking-tight text-zinc-100 whitespace-nowrap"
                 style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
               >
-                Mount Helicon
+                Mountain of Helicon
               </h1>
               {/* tagline + badge are desktop furniture: on a phone they pushed the
                   header 169px past the viewport and shore the score clean off */}
