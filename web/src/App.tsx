@@ -125,12 +125,12 @@ const ROUTABLE_TABS: Tab[] = [
    truncated to "NEEDS RULI…" / "GOLDEN RU…" in a 78px slot, and the fix is
    fewer words, not 8px type on the surface that carries the verdict.
 
-   Jul 22: More is gone. It survived only to hold one item (Morning Brief) once
-   the nav was cut to five, and a menu holding one thing is a menu that exists to
-   look like a product. Five slots cost the same 78px as four-plus-More did, so
-   the bar now IS the whole nav — nothing on the phone is behind a second tap. */
+   Aug 5: The Doorway/Lab cut hid the daily ruling queue behind Lab even though
+   this is the phone's primary action. Rulings returns as the center destination
+   with its live needs-you badge; every lower-frequency surface stays in Lab. */
 const BAR_TABS: { key: Tab; short: string }[] = [
   { key: 'board', short: 'Doorway' },
+  { key: 'findings', short: 'Rulings' },
   { key: 'lab', short: 'Lab' },
 ];
 
@@ -637,7 +637,7 @@ function App() {
       </main>
       </div>
 
-      {/* Phone nav: the complete five-item daily loop under the thumb. */}
+      {/* Phone nav: the front door, the human decision queue, and every deeper surface. */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch"
         style={{
