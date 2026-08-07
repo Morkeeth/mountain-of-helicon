@@ -34,6 +34,12 @@
       "enabled": false,
       "memory_dir": "~/.cursor"
     },
+    "cursor-cloud": {
+      "enabled": false,
+      "export_dir": "~/Downloads/cursor-cloud-agent-transcripts",
+      "include_text": false,
+      "max_text_chars": 6000
+    },
     "agent-rules": {
       "enabled": true,
       "repos_dir": "~/projects",

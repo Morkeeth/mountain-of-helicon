@@ -1,4 +1,4 @@
-from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, codex, agent_rules, skills, letta_memfs, graphiti, mem0, lifeos
+from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, cursor_cloud, codex, agent_rules, skills, letta_memfs, graphiti, mem0, lifeos
 from helicon.models import ConnectorResult
 
 CONNECTORS = {
@@ -7,6 +7,10 @@ CONNECTORS = {
     "git": git.scan,
     "chatgpt": chatgpt.scan,
     "cursor": cursor.scan,
+    # Cursor Cloud exports are explicit local bundles. Metadata-only by default:
+    # prompts/responses require include_text=true; reasoning and tool payloads
+    # are never ingested.
+    "cursor-cloud": cursor_cloud.scan,
     # The return path for `policy --inject --targets codex`. Without it the law
     # goes out to Codex and nothing Codex learns ever comes back.
     "codex": codex.scan,

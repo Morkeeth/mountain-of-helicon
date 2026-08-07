@@ -254,6 +254,35 @@ plain HTTP and never expose a personal memory store directly on a public IP.
 `HELICON_PASSWORD` protects dashboard API routes and is intentionally separate
 from `HELICON_MCP_TOKEN`.
 
+### Feed Cursor Cloud runs back into memory
+
+The `cursor-cloud` connector reads local export bundles containing
+`index.json` and per-run `transcript.json`, `diff-metadata.json`, and
+`events.json` files:
+
+```json
+{
+  "connectors": {
+    "cursor-cloud": {
+      "enabled": true,
+      "export_dir": "~/Downloads/cursor-cloud-agent-transcripts",
+      "include_text": false
+    }
+  }
+}
+```
+
+It selects the newest export for each stable cloud-agent id and produces one
+idempotent session summary: repository, branch, model, status, message/tool
+counts, observed tool failures, events, and diff/PR outcome. Metadata-only is
+the default because raw exports may contain private prompts, reasoning,
+terminal commands, file contents, diffs, and credentials.
+
+Set `include_text` to `true` only when conversation prose belongs in the memory
+store. That opt-in includes bounded user and final-assistant text with common
+token patterns redacted. Reasoning, tool arguments, terminal output, file
+contents, search results, and diffs are never ingested.
+
 ## CLI (55 commands)
 
 `init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
