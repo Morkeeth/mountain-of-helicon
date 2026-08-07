@@ -1,27 +1,23 @@
 #!/bin/sh
-# Helicon doorway — the Claude Code UserPromptSubmit gate.
+# Helicon doorway gate — portable Claude Code UserPromptSubmit wrapper.
 #
 # Refuses to let a run start against a repo whose loaded docs the running code
-# disproves. Reads the hook JSON on stdin, writes hook JSON on stdout.
+# disproves. Reads the hook JSON on stdin, writes a block decision on stdout.
 #
-# Why a wrapper and not `helicon hook userprompt` directly: the `helicon` entry
-# point on PATH resolves to a console script whose package is not importable
-# outside a checkout (`ModuleNotFoundError: No module named 'helicon'` from any
-# other directory). A hook wired to it would have failed on every prompt, and
-# because hooks fail open it would have failed SILENTLY — a gate that governs
-# nothing while appearing installed. This pins the interpreter to this checkout.
+# Config-free and checkout-free: the gate is deterministic (git-only probes) and
+# keeps its own log under ${HELICON_HOME:-~/.helicon}. It does NOT read a
+# config.json, so it runs for anyone who has `pip install`ed helicon — the
+# earlier version of this wrapper pinned the interpreter to a checkout because a
+# bare `helicon` on PATH raised ModuleNotFoundError from other directories; the
+# packaging fix (running `python3 -m helicon`) removes that need.
 #
 # Fail-open is deliberate: any non-zero exit or crash here lets the prompt
 # through. `gate_blocked` / `gate_override` rows in the store are what prove a
 # block happened; the absence of one proves nothing.
 #
-# To disable: remove the UserPromptSubmit entry from ~/.claude/settings.json.
+# PREFER `helicon doorway install`, which wires the exact interpreter that has
+# helicon importable and needs no wrapper on PATH. This script exists for manual
+# installs and non-Claude harnesses. To disable: remove the UserPromptSubmit
+# entry from ~/.claude/settings.json (or run `helicon doorway install --uninstall`).
 
-REPO="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
-
-# No config, no gate — and say nothing rather than half-govern.
-[ -f "$REPO/config.json" ] || exit 0
-
-PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}" \
-HELICON_CONFIG="$REPO/config.json" \
-exec python3 -m helicon hook userprompt 2>/dev/null
+exec python3 -m helicon doorway gate 2>/dev/null
