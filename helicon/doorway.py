@@ -21,9 +21,12 @@ Two design choices carried from the rest of the repo:
 
 Read-only: filesystem reads only, nothing is written to the repos examined.
 """
+import difflib
+import json
 import os
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from glob import glob
 
@@ -534,3 +537,172 @@ def format_board(board: dict) -> str:
                      f"{r['doc_count']:>4}  {cold}")
     lines.append("")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------
+# The stranger's install — the doorway gate as a Claude Code hook.
+#
+# LANE 2: make the doorway installable by someone who is not the author, on a
+# machine that is not this checkout, in one command. The gate itself is keyless
+# and config-free (capture.hook_gate -> doorway.verdict, deterministic git
+# probes), so a stranger needs no config.json and no seeded store — only a place
+# to keep the gate's own log. Writing to ~/.claude/settings.json is the single
+# most dangerous thing in this repo, so every write below is backed up, shown as
+# a diff, confirmed, idempotent, and exactly reversible. The pure functions here
+# (load/add/remove/diff) take and return dicts so the writer is fully testable
+# without touching a real settings file.
+# --------------------------------------------------------------------------
+
+DOORWAY_MARKER = "helicon doorway gate"   # identifies the hook Helicon added
+
+
+def user_home() -> str:
+    """Where the gate keeps its own store — independent of any checkout or
+    config.json, so the gate runs for a stranger who only `pip install`ed."""
+    return os.environ.get("HELICON_HOME") or os.path.expanduser("~/.helicon")
+
+
+def user_db_path() -> str:
+    return os.path.join(user_home(), "doorway.db")
+
+
+def gate_db_path() -> str:
+    """Where the gate logs. A configured user's blocks belong in the SAME store
+    their dashboard and `helicon runs` read — otherwise a block on their desktop
+    lands in a side-store nothing surfaces (the "I gated a run and can't see it"
+    trap). A stranger with no config keeps the config-free ~/.helicon store, and
+    an explicit HELICON_HOME always forces the standalone store."""
+    if os.environ.get("HELICON_HOME"):
+        return user_db_path()
+    try:
+        from helicon.config import load_config
+        cfg = load_config()
+        if cfg and cfg.get("db_path"):
+            return cfg["db_path"]
+    except Exception:
+        pass
+    return user_db_path()
+
+
+def claude_settings_path() -> str:
+    return os.environ.get("CLAUDE_SETTINGS") or \
+        os.path.expanduser("~/.claude/settings.json")
+
+
+def gate_command() -> str:
+    """The command the hook runs, pinned to THIS interpreter — the one that has
+    helicon importable. The author's original wrapper existed only because a
+    bare `helicon` on PATH raised ModuleNotFoundError from outside a checkout;
+    pinning the interpreter is the real packaging fix, and it needs no wrapper."""
+    return f"{sys.executable} -m helicon doorway gate"
+
+
+def _hook_group(cmd: str) -> dict:
+    return {"hooks": [{"type": "command", "command": cmd}]}
+
+
+def load_settings(path: str) -> dict:
+    """Parse settings.json, or {} when absent/empty. A malformed file raises
+    (json.JSONDecodeError, a ValueError) — we must never silently overwrite a
+    file we could not read."""
+    if not os.path.exists(path):
+        return {}
+    with open(path, encoding="utf-8") as fh:
+        text = fh.read()
+    if not text.strip():
+        return {}
+    return json.loads(text)
+
+
+def _groups(settings: dict) -> list:
+    return (settings.get("hooks") or {}).get("UserPromptSubmit") or []
+
+
+def has_doorway_hook(settings: dict) -> bool:
+    return any(DOORWAY_MARKER in (h.get("command") or "")
+               for g in _groups(settings) for h in (g.get("hooks") or []))
+
+
+def add_doorway_hook(settings: dict, cmd: str) -> dict:
+    """Settings with our UserPromptSubmit group added — idempotent, and without
+    disturbing any hook already there."""
+    import copy
+    new = copy.deepcopy(settings)
+    if has_doorway_hook(new):
+        return new
+    new.setdefault("hooks", {}).setdefault("UserPromptSubmit", []).append(
+        _hook_group(cmd))
+    return new
+
+
+def remove_doorway_hook(settings: dict) -> dict:
+    """Settings with EXACTLY our groups removed — every other hook and every
+    other key left as it was. Empty containers we would have created are pruned;
+    a UserPromptSubmit list still holding other hooks is kept."""
+    import copy
+    new = copy.deepcopy(settings)
+    hooks = new.get("hooks")
+    if not isinstance(hooks, dict):
+        return new
+    ups = hooks.get("UserPromptSubmit")
+    if not isinstance(ups, list):
+        return new
+    kept = [g for g in ups
+            if not any(DOORWAY_MARKER in (h.get("command") or "")
+                       for h in (g.get("hooks") or []))]
+    if kept:
+        hooks["UserPromptSubmit"] = kept
+    else:
+        hooks.pop("UserPromptSubmit", None)
+        if not hooks:
+            new.pop("hooks", None)
+    return new
+
+
+def settings_diff(old: dict, new: dict, path: str) -> str:
+    a = json.dumps(old, indent=2, sort_keys=True).splitlines(keepends=True)
+    b = json.dumps(new, indent=2, sort_keys=True).splitlines(keepends=True)
+    label = os.path.basename(path)
+    return "".join(difflib.unified_diff(a, b, fromfile=f"{label} (now)",
+                                        tofile=f"{label} (after)"))
+
+
+def backup_settings(path: str) -> str | None:
+    """Copy the current file aside before any write. Returns the backup path, or
+    None when there was nothing to back up (first-ever write)."""
+    if not os.path.exists(path):
+        return None
+    import shutil
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    bak = f"{path}.helicon-bak.{ts}"
+    shutil.copy2(path, bak)
+    return bak
+
+
+def write_settings(path: str, settings: dict) -> None:
+    """Atomic write (temp + rename) so an interrupted write cannot truncate the
+    user's settings."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.helicon-tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(settings, indent=2) + "\n")
+    os.replace(tmp, path)
+
+
+def last_fired(db_path: str | None = None) -> dict | None:
+    """The most recent time the gate blocked or was overridden, from its own
+    store. None when the store does not exist or nothing has fired yet."""
+    db_path = db_path or gate_db_path()
+    if not os.path.exists(db_path):
+        return None
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT kind, ts FROM run_events "
+            "WHERE kind IN ('gate_blocked','gate_override') "
+            "ORDER BY ts DESC LIMIT 1").fetchone()
+    except sqlite3.OperationalError:
+        return None
+    finally:
+        conn.close()
+    return {"kind": row[0], "ts": row[1]} if row else None
