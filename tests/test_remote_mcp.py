@@ -77,10 +77,11 @@ def test_remote_mcp_initialize_and_safe_tool_list(client):
         "jsonrpc": "2.0",
         "id": 1,
         "method": "initialize",
-        "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
+        "params": {"protocolVersion": "2025-03-26", "capabilities": {}},
     })
     assert initialized.status_code == 200
     assert initialized.json()["result"]["serverInfo"]["name"] == "helicon"
+    assert initialized.json()["result"]["protocolVersion"] == "2025-03-26"
 
     listed = _post(client, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
     names = {tool["name"] for tool in listed.json()["result"]["tools"]}
