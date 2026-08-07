@@ -1148,6 +1148,32 @@ def cmd_doorway(args):
         print("  new terminals in any repo are now gated; a contradicted repo is refused.")
 
 
+def cmd_sweep(args):
+    """helicon sweep — run the doorway gate over MANY repos (a corpus). Each repo
+    is cloned shallow into a temp dir, scored with the same verdict the gate uses
+    (helicon.doorway.verdict), and thrown away. Keyless; network + git only."""
+    import json as _json
+    from helicon.sweep import run_sweep, load_corpus, format_sweep
+    repos = list(getattr(args, "repos", None) or [])
+    if getattr(args, "from_file", None):
+        repos += load_corpus(args.from_file)
+    if not repos:
+        sys.exit('  usage: helicon sweep owner/name ... | --from <corpus-file>')
+    config = {}
+    try:
+        from helicon.config import load_config
+        config = load_config()
+    except Exception:
+        config = {}
+    sc = run_sweep(repos, jobs=getattr(args, "jobs", 8),
+                   timeout=getattr(args, "timeout", 90), config=config)
+    if getattr(args, "save", None):
+        with open(args.save, "w", encoding="utf-8") as fh:
+            _json.dump(sc, fh, indent=2)
+    print(_json.dumps(sc, indent=2) if getattr(args, "json", False)
+          else format_sweep(sc))
+
+
 def cmd_board(args):
     """The doorway board: every repo under a root (default ~/CODE) and the live
     token cost each one loads into an agent — CLAUDE.md, its @imports, and the
@@ -3155,6 +3181,14 @@ def main():
     doorway_p.add_argument("--yes", "-y", action="store_true", help="skip the confirmation prompt (for scripts)")
     doorway_p.add_argument("--settings", help="settings.json path (default ~/.claude/settings.json or $CLAUDE_SETTINGS)")
 
+    sweep_p = sub.add_parser("sweep", help="Run the doorway gate over MANY repos (a corpus): which advertise claims their own code disproves")
+    sweep_p.add_argument("repos", nargs="*", help="repo specs: owner/name, a clone URL, or a local path")
+    sweep_p.add_argument("--from", dest="from_file", help="corpus file: one repo spec per line (# comments ok)")
+    sweep_p.add_argument("--jobs", type=int, default=8, help="concurrent clones (default 8)")
+    sweep_p.add_argument("--timeout", type=int, default=90, help="per-repo clone timeout in seconds")
+    sweep_p.add_argument("--save", help="write the full structured scorecard JSON to this path")
+    sweep_p.add_argument("--json", action="store_true", help="emit the structured scorecard to stdout")
+
     board_p = sub.add_parser("board", help="The doorway: every repo under ~/CODE and the token cost each loads into an agent")
     board_p.add_argument("--root", help="repo root to scan (default: ~/CODE, or $HELICON_CODE_ROOT)")
     board_p.add_argument("--repo", help="show one repo's loaded lines and their probe verdicts")
@@ -3242,6 +3276,7 @@ def main():
         "board": cmd_board,
         "doorway": cmd_doorway,
         "bench": cmd_bench,
+        "sweep": cmd_sweep,
         "reflect": cmd_reflect,
         "move": cmd_move,
         "leaderboard": cmd_leaderboard,
@@ -3296,7 +3331,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "doorway")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "doorway", "sweep")
 
     from helicon.config import CONFIG_FILE, load_config as _load
     if args.command not in SELF_CONFIGURING:

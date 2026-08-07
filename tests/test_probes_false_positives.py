@@ -126,3 +126,46 @@ def test_a_file_that_is_simply_missing_is_still_contradicted(tmp_path):
 def test_a_tracked_file_is_still_upheld(tmp_path):
     repo = _repo(tmp_path, {"src/main.ts": "export const ok = 1;\n"})
     assert probes._probe_path(repo, "src/main.ts", git=True)["verdict"] == UPHELD
+
+
+# --------------------------------------------------------------------------
+# class 3 — a filename MENTIONED is not a filename CLAIMED PRESENT
+#
+# The dominant false-positive class in the first public sweep (2026-08): the
+# path probe fired on every backticked filename in every sentence, so a schema
+# subject, an example, a generated file, or even "there is no `.eleventy.js`"
+# each manufactured a contradiction. 92% of that sweep's findings were this.
+# The probe now fires only when the sentence ASSERTS the file is present.
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("sentence", [
+    "Each fact in `items.json` follows this schema:",         # schema subject
+    "Generates `graph.json` from the source code.",           # generated file
+    "e.g., `foo.ln.json` in the home directory.",             # example
+    "Create a new changelog file `2024-10-13.md` (today's date).",  # template/placeholder
+    "The config file is `eleventy.config.cjs` (not `.eleventy.js`).",  # negation of the 2nd token
+    "No `karma.conf.js` — config is implicit via the Angular CLI.",  # "no `x`" negation
+    "See the ABI at `../frontend/lib/abi/generated.ts`.",     # relative-escape token
+])
+def test_a_merely_mentioned_path_is_not_probed(sentence):
+    """None of these ASSERT a file is present, so none should yield a path
+    verdict — mentioning a filename is not claiming it exists."""
+    out = probes._derive_and_run(".", False, sentence, "", [], {}, None, False)
+    assert not [r for r in out if r.get("kind") == "path"], sentence
+
+
+def test_a_real_presence_claim_is_still_probed(tmp_path):
+    """The guard must not be a blanket amnesty: a sentence that truly asserts a
+    path is present still gets probed, and a missing one is still CONTRADICTED."""
+    repo = _repo(tmp_path, {"src/main.ts": "export const ok = 1;\n"})
+    for sentence, tok in [
+        ("Configuration lives in `config/settings.yaml`.", "config/settings.yaml"),
+        ("The entry point is `src/worker.py`.", "src/worker.py"),
+    ]:
+        out = probes._derive_and_run(repo, True, sentence, "", [], {}, None, False)
+        paths = [r for r in out if r.get("kind") == "path"]
+        assert paths and paths[0]["verdict"] == CONTRADICTED, sentence
+    # and a present one is UPHELD
+    out = probes._derive_and_run(repo, True, "The main file is `src/main.ts`.", "", [], {}, None, False)
+    paths = [r for r in out if r.get("kind") == "path"]
+    assert paths and paths[0]["verdict"] == UPHELD
