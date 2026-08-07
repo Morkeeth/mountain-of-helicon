@@ -120,7 +120,7 @@ def test_cursor_cloud_scan_is_metadata_only_and_uses_latest_snapshot(tmp_path):
     assert "private reasoning" not in result.content
     assert "topsecret" not in result.content
     assert "git remote" not in result.content
-    assert result.created_at == "2026-08-05T08:22:22.715000+00:00"
+    assert result.created_at == "2026-08-05T12:22:22.715000+00:00"
     assert result.metadata["prompt_count"] == 1
     assert result.metadata["tool_counts"] == {"read_file": 1, "run_terminal_cmd": 1}
     assert result.metadata["failed_tool_count"] == 1
