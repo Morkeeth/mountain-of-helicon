@@ -227,6 +227,33 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
+### Remote MCP for cloud agents
+
+`helicon serve` also exposes a stateless MCP endpoint at `/mcp` when a dedicated
+token is configured:
+
+```bash
+export HELICON_MCP_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+HELICON_CONFIG=/path/to/config.json helicon serve
+```
+
+Configure the remote client with `https://your-helicon-host/mcp` and send
+`Authorization: Bearer <token>`. The endpoint refuses to start with a token
+shorter than 32 characters, rejects requests over 1 MiB, serializes access to
+the SQLite connection, and returns `Cache-Control: no-store`.
+
+Remote access deliberately exposes the agent workflow, including context,
+guard, ask, and point-of-use flags, but not `helicon_compile`,
+`helicon_triage`, or `helicon_consolidate`. Those maintenance tools can write
+host files or mutate the store in bulk and remain available only through the
+local stdio transport.
+
+The built-in server does not terminate TLS. Put it behind HTTPS on a private
+network or an authenticated reverse proxy; never send the bearer token over
+plain HTTP and never expose a personal memory store directly on a public IP.
+`HELICON_PASSWORD` protects dashboard API routes and is intentionally separate
+from `HELICON_MCP_TOKEN`.
+
 ## CLI (55 commands)
 
 `init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
