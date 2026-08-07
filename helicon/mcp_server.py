@@ -194,6 +194,17 @@ TOOLS = [
     },
 ]
 
+# Remote callers get the agent workflow, not host-level maintenance. `flag`
+# writes only a pending finding for later human review, while context retrieval
+# records usage. The excluded tools can write arbitrary compiled files or run
+# bulk store mutations and therefore retain the stronger local-stdio trust
+# boundary.
+REMOTE_TOOL_NAMES = frozenset(
+    tool["name"] for tool in TOOLS
+    if tool["name"] not in {"helicon_compile", "helicon_triage", "helicon_consolidate"}
+)
+SUPPORTED_PROTOCOL_VERSIONS = ("2025-03-26", "2024-11-05")
+
 
 def _token_estimate(text: str) -> int:
     return len(text) // 4
@@ -603,6 +614,90 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
     return json.dumps({"error": f"Unknown tool: {name}"})
 
 
+def handle_rpc_message(msg: dict, conn, *, allowed_tool_names=None):
+    """Handle one MCP JSON-RPC message for stdio or stateless HTTP.
+
+    Notifications intentionally return ``None``. Remote transports pass an
+    allowlist so a bearer token grants agent-context access, not arbitrary host
+    file writes or bulk maintenance.
+    """
+    if not isinstance(msg, dict):
+        return {
+            "jsonrpc": "2.0",
+            "id": None,
+            "error": {"code": -32600, "message": "Invalid Request"},
+        }
+
+    method = msg.get("method", "")
+    msg_id = msg.get("id")
+    allowed = set(allowed_tool_names) if allowed_tool_names is not None else {
+        tool["name"] for tool in TOOLS
+    }
+
+    if method == "initialize":
+        params = msg.get("params", {})
+        requested_version = params.get("protocolVersion") if isinstance(params, dict) else None
+        protocol_version = (
+            requested_version
+            if requested_version in SUPPORTED_PROTOCOL_VERSIONS
+            else SUPPORTED_PROTOCOL_VERSIONS[-1]
+        )
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "protocolVersion": protocol_version,
+                "capabilities": {"tools": {"listChanged": False}},
+                "serverInfo": {"name": "helicon", "version": "0.2.0"},
+            },
+        }
+
+    if method == "notifications/initialized":
+        return None
+
+    if method == "tools/list":
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "tools": [tool for tool in TOOLS if tool["name"] in allowed],
+            },
+        }
+
+    if method == "tools/call":
+        params = msg.get("params", {})
+        if not isinstance(params, dict) or not isinstance(params.get("arguments", {}), dict):
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": "Invalid tool parameters"},
+            }
+        tool_name = params.get("name", "")
+        if tool_name not in allowed:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32602, "message": f"Tool not available: {tool_name}"},
+            }
+        result_text = handle_tool_call(tool_name, params.get("arguments", {}), conn)
+        return {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "result": {
+                "content": [{"type": "text", "text": result_text}],
+                "isError": False,
+            },
+        }
+
+    if msg_id is None:
+        return None
+    return {
+        "jsonrpc": "2.0",
+        "id": msg_id,
+        "error": {"code": -32601, "message": f"Method not found: {method}"},
+    }
+
+
 def main():
     config = load_config()
     conn = init_db(config.get("db_path", "data/helicon.db"))
@@ -613,50 +708,9 @@ def main():
         if msg is None:
             break
 
-        method = msg.get("method", "")
-        msg_id = msg.get("id")
-
-        if method == "initialize":
-            _send_message({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {"listChanged": False}},
-                    "serverInfo": {"name": "helicon", "version": "0.2.0"},
-                },
-            })
-
-        elif method == "notifications/initialized":
-            pass
-
-        elif method == "tools/list":
-            _send_message({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {"tools": TOOLS},
-            })
-
-        elif method == "tools/call":
-            params = msg.get("params", {})
-            tool_name = params.get("name", "")
-            arguments = params.get("arguments", {})
-            result_text = handle_tool_call(tool_name, arguments, conn)
-            _send_message({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "result": {
-                    "content": [{"type": "text", "text": result_text}],
-                    "isError": False,
-                },
-            })
-
-        elif msg_id is not None:
-            _send_message({
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {"code": -32601, "message": f"Method not found: {method}"},
-            })
+        response = handle_rpc_message(msg, conn)
+        if response is not None:
+            _send_message(response)
 
     conn.close()
 
