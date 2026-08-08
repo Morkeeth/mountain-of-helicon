@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArtifactView } from './ArtifactView';
+import { ArtifactView, type ArtifactStatus } from './ArtifactView';
 
 /* GOVERNED RUNS (V2.2) — the atomic unit of the control plane.
    Forward runs freeze their contract before work. Imported sessions preserve
@@ -16,7 +16,7 @@ const MONO = 'var(--helicon-mono)';
 
 type Tokens = { input?: number; output?: number; cache_read?: number; cache_creation?: number; total?: number };
 type Prompt = { ts?: string; text: string; source?: string };
-type Artifact = { path: string; content_hash?: string; observed_at?: string; state?: string };
+type Artifact = { path: string; content_hash?: string; observed_at?: string; state?: string; attribution?: string };
 type Governed = { objective?: string; acceptance_test?: string; verification_outcome?: string };
 type Run = {
   id: string; task_run_id?: string; provenance: string; repo: string; branch?: string;
@@ -108,7 +108,13 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
   const [art, setArt] = useState<Artifact | null>(run.artifact_manifest?.[0] || null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [artStatus, setArtStatus] = useState<ArtifactStatus>('loading');
+  const [artWhy, setArtWhy] = useState<string | undefined>();
   const t = run.tokens || {};
+
+  const onArtStatus = useCallback((s: ArtifactStatus, why?: string) => {
+    setArtStatus(s); setArtWhy(why);
+  }, []);
 
   const rule = async (verdict: 'accepted' | 'rework' | 'rollback') => {
     if (!run.task_run_id) { setMsg('This run is imported — govern it first to record a verdict.'); return; }
@@ -178,8 +184,13 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
             Repository state observed when this session was imported; attribution to the session is unverified.
           </p>
         )}
-        <div className="p-3 rounded-xl" style={{ background: 'var(--helicon-panel)', border: '1px solid var(--helicon-line)', maxHeight: 320, overflowY: 'auto' }}>
-          {art ? <ArtifactView repoPath={run.repo} art={{ type: 'markdown', label: art.path, ref: art.path, content_hash: art.content_hash }} /> : <p className="text-[12px]" style={{ color: FAINT }}>No artifact captured.</p>}
+        {run.provenance === 'observed' && (run.artifact_manifest?.length ?? 0) > 0 && (
+          <p className="mb-2 text-[11px] p-2 rounded-lg" style={{ color: 'var(--helicon-critical)', background: 'var(--helicon-panel-2)', border: '1px solid var(--helicon-line)' }}>
+            Unverified attribution — these are repository changes present when the session stopped, taken from a repo-wide diff. A file changed by a concurrent session in the same repo can appear here. Not proven to be this session's output; session-level file attribution does not yet exist.
+          </p>
+        )}
+        <div className="p-3 rounded-xl" style={{ background: 'var(--helicon-panel)', border: `1px solid ${artStatus === 'mismatch' ? 'var(--helicon-critical)' : 'var(--helicon-line)'}`, maxHeight: 320, overflowY: 'auto' }}>
+          {art ? <ArtifactView repoPath={run.repo} art={{ type: 'markdown', label: art.path, ref: art.path, content_hash: art.content_hash }} onStatus={onArtStatus} /> : <p className="text-[12px]" style={{ color: FAINT }}>No artifact captured.</p>}
         </div>
         {art?.content_hash && <p className="mt-1 text-[10px]" style={{ color: FAINT, fontFamily: MONO }}>sha256:{art.content_hash} · {art.state}</p>}
       </section>
@@ -188,6 +199,11 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
       <section className="mt-7">
         <div className="text-[10px] uppercase tracking-[0.16em] mb-1" style={{ color: MUTED }}>Your verdict</div>
         <p className="text-[11.5px] mb-2.5" style={{ color: FAINT }}>Did this run achieve the intended outcome, or only complete the mechanical implementation?</p>
+        {artStatus === 'mismatch' && (
+          <p className="text-[12px] mb-2.5" style={{ color: 'var(--helicon-critical)' }}>
+            INSPECT reports a hash mismatch{artWhy ? ` (${artWhy})` : ''}. Accept will refuse.
+          </p>
+        )}
         {run.human_acceptance && run.human_acceptance !== 'pending' ? (
           <div className="text-[13px]" style={{ color: run.human_acceptance === 'accepted' ? GOOD : 'var(--helicon-critical)' }}>Ruled: {run.human_acceptance}</div>
         ) : (
@@ -197,7 +213,12 @@ function RunDetail({ run, onBack, onRuled }: { run: Run; onBack: () => void; onR
             <button disabled={busy} onClick={() => rule('rollback')} className="px-4 py-2 rounded-lg text-[13px] bg-white disabled:opacity-40" style={{ border: '1px solid var(--helicon-line-2)', color: 'var(--helicon-critical)' }}>Reject</button>
           </div>
         )}
-        {msg && <p className="mt-2.5 text-[12px]" style={{ color: INK }}>{msg}</p>}
+        {/* The refusal must READ as a refusal. This matched 'Accept refused' /
+            'hash mismatch' — the wording of the integration-nightrun lane's
+            backend, which main superseded. main raises "artifact has changed
+            since it was captured…", so neither substring hit and the one
+            message that must be red rendered in ordinary ink. */}
+        {msg && <p className="mt-2.5 text-[12px]" style={{ color: msg.includes('changed since it was captured') || msg.includes('changed since capture') || msg.includes('hash mismatch') ? 'var(--helicon-critical)' : INK }}>{msg}</p>}
       </section>
 
       {/* receipt + events */}

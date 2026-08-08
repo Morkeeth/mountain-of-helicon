@@ -317,11 +317,18 @@ def verify_artifact(conn, task_run_id) -> dict:
     `unhashable` is reported rather than treated as a pass: a manifest entry
     with no recorded hash cannot be bound to anything, and the count says how
     much of the artifact the verdict actually covers.
+
+    Every path is resolved and required to stay INSIDE the recorded repo. A
+    manifest is data, and a `../..` entry would otherwise make this function
+    read — and report on — a file the run never touched. (Taken from the
+    integration-nightrun lane, which had this containment check and nothing
+    else this version lacks.)
     """
     run = _get_run(conn, task_run_id)
     if run is None:
         raise TaskRunError(f"no such task run: {task_run_id}")
     repo = (run["repo_ref"] or "").partition("@")[0]
+    root = os.path.realpath(repo) if repo else ""
     manifest = _loads(run["artifact_manifest"]) or []
     mismatched, missing, unhashable, checked = [], [], 0, 0
     for m in manifest:
@@ -332,6 +339,12 @@ def verify_artifact(conn, task_run_id) -> dict:
             unhashable += 1
             continue
         full = os.path.join(repo, m["path"]) if repo else m["path"]
+        if root:
+            resolved = os.path.realpath(full)
+            if not (resolved == root or resolved.startswith(root + os.sep)):
+                mismatched.append({"path": m["path"], "recorded": recorded,
+                                   "actual": "path escapes the recorded repo"})
+                continue
         if not os.path.isfile(full):
             missing.append(m["path"])
             continue
