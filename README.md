@@ -59,7 +59,8 @@ helicon demo
 
 On first run this installs/builds the dashboard with npm, seeds a labelled
 19-memory demo under `~/.helicon/demo`, and serves it only on
-`http://127.0.0.1:8420`. No personal connector runs and no API key is required.
+`http://127.0.0.1:8420/#findings`. No personal connector runs and no API key is
+required.
 
 ## Use it on your own stack
 
