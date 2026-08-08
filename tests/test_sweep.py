@@ -203,6 +203,23 @@ def test_frozen_corpus_is_591_unique_repository_names():
                for repo in repos)
 
 
+def test_verified_report_matches_complete_survivor_ledger():
+    ledger = (ROOT / "docs/agent-context-verification-2026-08-09.md").read_text()
+    report = (ROOT / "docs/agent-context-report-2026-08.md").read_text()
+    rows = [line for line in ledger.splitlines()
+            if re.match(r"^\|\s*\d+\s*\|", line)]
+
+    assert len(rows) == 30
+    assert sum("**TRUE**" in row for row in rows) == 9
+    assert sum("**FALSE**" in row for row in rows) == 21
+    assert "6 / 577 = **1.04%**" in report
+    assert "**Input:** 591" in report
+    assert "**Scored:** 577" in report
+    assert "**Excluded:** 14" in report
+    for stale in ("26.6%", "1.74%", "precision 16/47 = 0.34"):
+        assert stale not in report
+
+
 def test_format_sweep_is_stable_and_shows_evidence():
     sc = {"n_input": 2, "scored": 2, "flagged": 1, "rate": 0.5,
           "findings_total": 1, "by_status": {"scored": 2},
