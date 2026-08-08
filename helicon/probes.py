@@ -469,9 +469,15 @@ _ILLUSTRATION = re.compile(r"(?:e\.?g\.?|for example|such as|like)\s*[,:]?\s*`?$
 # NOTE the trailing \w* on the director… items: "per-test directories" ends in
 # "ies", so a trailing \b after "director" refused to match the exact sentence
 # this pattern was written for.
+#
+# `\bgenerated` only ever matched the past participle, so "Generates `graph.json`
+# from the source code" — the ACTIVE voice a README reaches for first — probed
+# and convicted a file the sentence says the tool writes at runtime. Same claim,
+# different tense, opposite verdict.
 _FOREIGN_OWNER = re.compile(
     r"(?:\bSDK repo|\bupstream repo|\bthe \w+ repo's|\bother repo|\bsibling repo|"
-    r"\bgenerated|\bis written by|\bproduced by|\boutput (?:dir|directory|file)|"
+    r"\bgenerat(?:e|es|ed|ing)\b|\bis written by|\bproduce[sd] by|"
+    r"\bproduced\b|\boutput (?:dir|directory|file)|"
     r"\bper-test director\w*|\bartifact)", re.I)
 # A naming RULE, not a location. "Python source files: <pattern>"
 _NAMING_RULE = re.compile(
@@ -485,16 +491,22 @@ def _names_not_points(sentence: str, path: str, upto: int) -> str:
     sentence containing the word "not" anywhere."""
     if _CASE_CONVENTION.search(path):
         return "a naming pattern, not a path"
-    if _CASE_CONVENTION.search(sentence) and _NAMING_RULE.search(sentence):
+    # The sentence-wide amnesties must read the PROSE, never the path. Left
+    # whole, `config/gone.yaml` matched _ACK's "gone" and `deprecated.ts` its
+    # "deprecated" — the filename excused itself, and the probe went silent on
+    # exactly the paths most likely to be dead. Mask this token out first; the
+    # token has already been judged on its own above.
+    prose = sentence[:upto] + " " + sentence[upto + len(path):]
+    if _CASE_CONVENTION.search(prose) and _NAMING_RULE.search(prose):
         return "quoted inside a naming rule"
     before = sentence[:upto].rstrip().rstrip("`").rstrip()
     if _COUNTER_EXAMPLE.search(before):
         return "the counter-example the rule tells you NOT to create"
     if _ILLUSTRATION.search(before):
         return "an illustration of the pattern the sentence just stated"
-    if _FOREIGN_OWNER.search(sentence):
+    if _FOREIGN_OWNER.search(prose):
         return "owned by another repo or generated at runtime"
-    if _ACK.search(sentence):
+    if _ACK.search(prose):
         # OpenHands AGENTS.md:477 — "The legacy localStorage migration
         # (`src/api/.../legacy-app-preferences-migration.ts`) was removed."
         # The doc is DOCUMENTING the deletion. Convicting it for the file being

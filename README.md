@@ -145,9 +145,19 @@ offending lines are named, in your own terminal, before a token is spent.
 ```bash
 helicon board                 # every repo under ~/CODE and what it loads into an agent
 helicon board --repo <name>   # every loaded line, with its probe verdict
+helicon doorway install       # wire the gate into ~/.claude/settings.json (backup + diff + confirm)
+helicon doorway install --uninstall   # remove exactly what it added
 helicon hook --print-config   # the settings.json snippet (never auto-installed)
 helicon receipt <session>     # did the harness actually RECEIVE the injection?
 ```
+
+The gate a stranger installs is **keyless and config-free**: `helicon doorway install`
+writes one `UserPromptSubmit` hook (shown as a diff, backed up first, idempotent,
+and exactly reversible), and the hook — `python3 -m helicon doorway gate` — needs no
+`config.json` to run. On the next prompt in any repo whose loaded docs its own code
+disproves, the run is refused in your terminal. Its blocks log into your configured
+store when you have one (so they show up in `helicon runs` / the dashboard), and fall
+back to a standalone `~/.helicon` store for a stranger who has no config.
 
 Three rules it obeys, all from the same law:
 
@@ -289,9 +299,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (55 commands)
+## CLI (57 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
