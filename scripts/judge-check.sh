@@ -24,10 +24,12 @@ git clone --quiet "$SRC" "$TMP/repo" || fail "git clone"
 cd "$TMP/repo"
 ok "cloned to $TMP/repo (only committed files from here on)"
 
-echo "== frontend assets are in git =="
-test -f web/dist/index.html || fail "web/dist/index.html not in git"
+echo "== frontend builds from source =="
+npm ci --silent || fail "npm ci"
+npm run build --silent || fail "npm run build"
+test -f web/dist/index.html || fail "web/dist/index.html missing after build"
 for ref in $(grep -o '/assets/[^"]*' web/dist/index.html); do
-  test -f "web/dist$ref" || fail "index.html references $ref but it is not in git (blank dashboard)"
+  test -f "web/dist$ref" || fail "index.html references missing $ref (blank dashboard)"
   ok "web/dist$ref"
 done
 
@@ -42,13 +44,8 @@ fi
 ok "pip install -e . gives a working CLI"
 
 echo "== boot (the golden path: helicon demo -> seeded, keyless, localhost) =="
-mkdir -p static && cp -r web/dist/. static/
-# The judge's one command is `helicon demo`: seed a populated store + keyless
-# config, no personal data. Seed here, then boot the same app the demo boots.
-"$TMP/venv/bin/python" -c "from helicon.demo import seed, write_demo_config; seed(); write_demo_config()" \
-  >"$TMP/seed.log" 2>&1 || { cat "$TMP/seed.log"; fail "helicon demo seed"; }
-export HELICON_CONFIG="$PWD/config-demo.json"
-"$TMP/venv/bin/python" -m uvicorn helicon.api.app:app --host 127.0.0.1 --port "$PORT" >"$TMP/server.log" 2>&1 &
+export HELICON_DEMO_DIR="$TMP/demo"
+"$TMP/venv/bin/helicon" demo --port "$PORT" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 30); do
   curl -sf "http://127.0.0.1:$PORT/api/health" >/dev/null 2>&1 && break
@@ -66,7 +63,7 @@ echo "$NEEDS" | grep -qi 'qwencloud\|/Users/\|/home/' && fail "personal data lea
 ok "review queue has rulings and leaks no personal data"
 
 INDEX="$(curl -sf "http://127.0.0.1:$PORT/")" || fail "GET /"
-echo "$INDEX" | grep -q "Mount Helicon" || fail "GET / did not return the dashboard"
+echo "$INDEX" | grep -q "Mountain of Helicon" || fail "GET / did not return the dashboard"
 ASSET="$(echo "$INDEX" | grep -o '/assets/index[^"]*\.js' | head -1)"
 [ -n "$ASSET" ] || fail "no JS asset referenced by GET /"
 curl -sf -o /dev/null "http://127.0.0.1:$PORT$ASSET" || fail "GET $ASSET is 404 — blank dashboard"

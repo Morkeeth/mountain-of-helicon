@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mount Helicon CLI - plug-and-play memory audit for AI agent stacks.
+"""Mountain of Helicon CLI - plug-and-play memory audit for AI agent stacks.
 
 Usage:
   helicon init          Auto-detect your AI tools and create config
@@ -20,6 +20,8 @@ import json
 import os
 import sys
 import platform
+import shutil
+import subprocess
 
 
 def _detect_sources() -> dict:
@@ -114,7 +116,7 @@ def _detect_sources() -> dict:
 
 def cmd_init(args):
     """Auto-detect AI tools and create config.json."""
-    print("Mount Helicon init - detecting your AI stack...\n")
+    print("Mountain of Helicon init - detecting your AI stack...\n")
     detected = _detect_sources()
 
     if not detected:
@@ -212,7 +214,7 @@ def cmd_scan(args):
         print("No connectors configured. Run `helicon init` first.")
         return
 
-    print("Mount Helicon scan\n")
+    print("Mountain of Helicon scan\n")
     stats = run_scan(config)
     print(f"\nFound {stats['total_raw']} items, added {stats['added']}, skipped {stats['skipped']} dupes")
     print(f"Total in DB: {stats['total_in_db']}")
@@ -235,7 +237,7 @@ def cmd_reconcile(args):
     conn = init_db(config["db_path"])
 
     mode = "APPLY" if args.apply else "dry-run"
-    print(f"Mount Helicon reconcile ({mode})\n")
+    print(f"Mountain of Helicon reconcile ({mode})\n")
     print("Re-scanning sources to compute present hashes...")
     scopes = collect_present_hashes(config, source=args.source)
     if not scopes:
@@ -282,7 +284,7 @@ def cmd_fix_skills(args):
     skills_dir = args.skills_dir or DEFAULT_SKILLS_DIR
 
     mode = "APPLY" if args.apply else "dry-run"
-    print(f"Mount Helicon fix-skills ({mode})  dir: {skills_dir}\n")
+    print(f"Mountain of Helicon fix-skills ({mode})  dir: {skills_dir}\n")
     if client is None:
         print("No Qwen key configured (set QWEN_API_KEY). Descriptions can't be "
               "generated; listing files that need one:\n")
@@ -331,7 +333,7 @@ def cmd_serve(args):
     """Start the web UI (bound to localhost by default)."""
     port = args.port or 8420
     host = _serve_host(getattr(args, "host", None))
-    print(f"Starting Mount Helicon at http://{host}:{port}")
+    print(f"Starting Mountain of Helicon at http://{host}:{port}")
     if host not in ("127.0.0.1", "localhost", "::1"):
         print(f"  ⚠  {host} exposes an UNAUTHENTICATED mutation API to your network.")
     print("Press Ctrl+C to stop\n")
@@ -339,14 +341,40 @@ def cmd_serve(args):
     uvicorn.run("helicon.api.app:app", host=host, port=port)
 
 
+def _ensure_demo_dashboard() -> str:
+    """Build the dashboard in a source checkout, or fail with one clear exit."""
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dist_index = os.path.join(repo_root, "web", "dist", "index.html")
+    if os.path.isfile(dist_index):
+        return dist_index
+
+    web_dir = os.path.join(repo_root, "web")
+    package_json = os.path.join(web_dir, "package.json")
+    npm = shutil.which("npm")
+    if not os.path.isfile(package_json) or not npm:
+        raise SystemExit(
+            "The visual demo needs the dashboard bundle, but it is not built.\n\n"
+            "  source checkout: install Node.js, then run `helicon demo` again\n"
+            "  terminal demo:  bash scripts/demo.sh\n\n"
+            "Mountain of Helicon never serves a stale committed web bundle.")
+
+    print("  building the dashboard (first run only)...", flush=True)
+    subprocess.run([npm, "ci"], cwd=web_dir, check=True)
+    subprocess.run([npm, "run", "build"], cwd=web_dir, check=True)
+    if not os.path.isfile(dist_index):
+        raise SystemExit("Dashboard build completed without web/dist/index.html.")
+    return dist_index
+
+
 def cmd_demo(args):
     """Seed the demo store and open the dashboard — one command, no key, no
     personal data, bound to localhost."""
+    _ensure_demo_dashboard()
     from helicon.demo import ensure_demo
     info = ensure_demo()
     os.environ["HELICON_CONFIG"] = info["config"]
     port = args.port or 8420
-    print("Mount Helicon — demo")
+    print("Mountain of Helicon — demo")
     print(f"  {info['cubes']} planted memories seeded · no personal data · local only")
     print(f"  open  http://127.0.0.1:{port}")
     print("  start on 'Needs Ruling' — rule one finding and watch it become law")
@@ -2053,7 +2081,7 @@ def cmd_ci(args):
         "connectors": {"agent-rules": {"enabled": True, "repos": [repo], "max_repos": 1}},
     }
     conn = init_db(db)
-    print(f"Mount Helicon CI — scanning agent-memory files in {repo}\n")
+    print(f"Mountain of Helicon CI — scanning agent-memory files in {repo}\n")
     run_scan(config)
 
     # R13's full working: which sentences the running system contradicts, with
@@ -2077,7 +2105,7 @@ def cmd_ci(args):
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary_path:
             with open(summary_path, "a", encoding="utf-8") as fh:
-                fh.write("## Mount Helicon — agent memory rot exam\n\n")
+                fh.write("## Mountain of Helicon — agent memory rot exam\n\n")
                 fh.write(f"**{res['rot_found']}/{res['classes']} rot classes firing** "
                          f"in `{os.path.basename(repo)}`\n\n")
                 fh.write("| Class | Verdict | Detail |\n|---|---|---|\n")
@@ -2685,7 +2713,7 @@ def cmd_doctor(_args):
         checks.append(("OK", f"doorway store {_udb} — last {_f['kind']} at {_f['ts']}") if _f
                       else ("OK", f"doorway store {_udb} — no block/override logged yet"))
 
-    print("Mount Helicon doctor\n")
+    print("Mountain of Helicon doctor\n")
     for level, msg in checks:
         print(f"  [{level:<4}] {msg}")
     fails = sum(1 for level, _ in checks if level == "FAIL")
@@ -2753,7 +2781,7 @@ def cmd_score(args):
 
 def cmd_stack(args):
     """Audit your AI agent stack."""
-    print("Mount Helicon stack audit\n")
+    print("Mountain of Helicon stack audit\n")
     detected = _detect_sources()
 
     if not detected:
@@ -3064,7 +3092,7 @@ def cmd_consolidation_eval(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Mount Helicon - memory audit for AI agent stacks")
+    parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
 
     init_p = sub.add_parser("init", help="Auto-detect AI tools and create config")
