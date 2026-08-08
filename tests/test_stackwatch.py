@@ -381,7 +381,7 @@ def test_ci_runs_with_no_config_at_all(tmp_path, monkeypatch):
     # is honest and expected here: without a config it cannot measure, and says
     # so rather than guessing. The gate firing is what must not happen.
     assert "No config at" not in r.stdout, "the config gate blocked a self-configuring command"
-    assert "Mount Helicon CI" in r.stdout, r.stdout[:300]
+    assert "Mountain of Helicon CI" in r.stdout, r.stdout[:300]
     assert r.returncode == 0, f"exit {r.returncode}\n{r.stdout[-500:]}\n{r.stderr[-300:]}"
 
 
