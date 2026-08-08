@@ -25,8 +25,8 @@ cd "$TMP/repo"
 ok "cloned to $TMP/repo (only committed files from here on)"
 
 echo "== frontend builds from source =="
-npm ci --silent || fail "npm ci"
-npm run build --silent || fail "npm run build"
+( cd web && npm ci --silent ) || fail "npm ci"
+( cd web && npm run build --silent ) || fail "npm run build"
 test -f web/dist/index.html || fail "web/dist/index.html missing after build"
 for ref in $(grep -o '/assets/[^"]*' web/dist/index.html); do
   test -f "web/dist$ref" || fail "index.html references missing $ref (blank dashboard)"
