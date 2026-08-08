@@ -20,7 +20,7 @@ fail() { echo "FAIL: $1"; exit 1; }
 ok()   { echo "  ok: $1"; }
 
 echo "== judge-check: fresh clone =="
-git clone --quiet "$SRC" "$TMP/repo" || fail "git clone"
+git clone --quiet --no-hardlinks "$SRC" "$TMP/repo" || fail "git clone"
 cd "$TMP/repo"
 ok "cloned to $TMP/repo (only committed files from here on)"
 
