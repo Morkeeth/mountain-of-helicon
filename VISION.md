@@ -1,6 +1,6 @@
-# Mount Helicon — Product Vision
+# Mountain of Helicon — Product Vision
 
-**Mount Helicon is the control plane for agentic work.**
+**Mountain of Helicon is the control plane for agentic work.**
 
 ## Origin
 
