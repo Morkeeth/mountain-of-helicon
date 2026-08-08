@@ -477,7 +477,7 @@ _ILLUSTRATION = re.compile(r"(?:e\.?g\.?|for example|such as|like)\s*[,:]?\s*`?$
 _FOREIGN_OWNER = re.compile(
     r"(?:\bSDK repo|\bupstream repo|\bthe \w+ repo's|\bother repo|\bsibling repo|"
     r"\bgenerat(?:e|es|ed|ing)\b|\bis written by|\bproduce[sd] by|"
-    r"\bproduced\b|\boutput (?:dir|directory|file)|"
+    r"\boutput (?:dir|directory|file)|"
     r"\bper-test director\w*|\bartifact)", re.I)
 # A naming RULE, not a location. "Python source files: <pattern>"
 _NAMING_RULE = re.compile(
