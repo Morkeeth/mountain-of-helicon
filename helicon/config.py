@@ -10,7 +10,10 @@ def expand_path(path: str) -> str:
 
 
 def load_config(path: str | None = None) -> dict:
-    config_path = path or CONFIG_FILE
+    # Read the environment at call time. `helicon demo` creates an isolated
+    # config before starting uvicorn; capturing HELICON_CONFIG at module import
+    # made that fresh-clone path silently keep pointing at config.json.
+    config_path = path or os.environ.get("HELICON_CONFIG") or CONFIG_FILE
     if not os.path.exists(config_path):
         # An EXPLICIT config that is not there is an error, not an empty config.
         # Returning {} silently made `HELICON_CONFIG=config-demo.json helicon

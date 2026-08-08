@@ -6,6 +6,9 @@ dashboard. These pin the properties that make that true: the store is seeded
 and the server never binds to the world by default.
 """
 import json
+from pathlib import Path
+
+import pytest
 
 import helicon.demo as demo
 import helicon.cli as cli
@@ -28,6 +31,66 @@ def test_demo_config_is_keyless_local_and_scans_nothing(tmp_path):
     assert cfg["server"]["host"] == "127.0.0.1"   # never exposes a mutation API to the network
     assert cfg["qwen_api_key"] == ""              # keyless: the deterministic exam is the demo
     assert cfg["connectors"] == {}                # scans no personal source
+
+
+def test_demo_defaults_to_user_writable_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("HELICON_DEMO_DIR", str(tmp_path / "demo-home"))
+
+    info = demo.ensure_demo()
+
+    assert info["db"] == str(tmp_path / "demo-home" / "helicon-demo.db")
+    assert info["config"] == str(tmp_path / "demo-home" / "config-demo.json")
+    assert Path(info["db"]).is_file()
+    assert json.loads(Path(info["config"]).read_text())["db_path"] == info["db"]
+    assert "site-packages" not in info["db"]
+
+
+def test_config_environment_is_read_when_demo_sets_it(tmp_path, monkeypatch):
+    from helicon.config import load_config
+
+    config_path = tmp_path / "late-config.json"
+    config_path.write_text(json.dumps({"db_path": str(tmp_path / "late.db")}))
+    monkeypatch.setenv("HELICON_CONFIG", str(config_path))
+
+    assert load_config()["db_path"] == str(tmp_path / "late.db")
+
+
+def test_demo_builds_missing_dashboard_once(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    web = repo / "web"
+    web.mkdir(parents=True)
+    (web / "package.json").write_text("{}")
+    fake_cli = repo / "helicon" / "cli.py"
+    fake_cli.parent.mkdir()
+    fake_cli.write_text("")
+    monkeypatch.setattr(cli, "__file__", str(fake_cli))
+    monkeypatch.setattr(cli.shutil, "which", lambda name: "/usr/bin/npm")
+    calls = []
+
+    def fake_run(command, cwd, check):
+        calls.append(command)
+        if command[-1] == "build":
+            (web / "dist").mkdir()
+            (web / "dist" / "index.html").write_text("<html></html>")
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    assert cli._ensure_demo_dashboard() == str(web / "dist" / "index.html")
+    assert calls == [["/usr/bin/npm", "ci"], ["/usr/bin/npm", "run", "build"]]
+    calls.clear()
+    assert cli._ensure_demo_dashboard() == str(web / "dist" / "index.html")
+    assert calls == []
+
+
+def test_demo_without_source_or_npm_exits_clearly(tmp_path, monkeypatch):
+    fake_cli = tmp_path / "repo" / "helicon" / "cli.py"
+    fake_cli.parent.mkdir(parents=True)
+    fake_cli.write_text("")
+    monkeypatch.setattr(cli, "__file__", str(fake_cli))
+    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+
+    with pytest.raises(SystemExit, match="terminal demo"):
+        cli._ensure_demo_dashboard()
 
 
 def test_serve_binds_loopback_by_default(monkeypatch):
