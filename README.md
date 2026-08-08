@@ -43,7 +43,7 @@ macOS Python 3.9 users the exact upgrade command without a traceback.
   reality; `helicon doorway install` adds a reversible Claude Code preflight.
 - **Memory governance:** a 13-class rot exam, human rulings, receipts, undo, and
   Golden Rules.
-- **Agent access:** 16 local MCP tools plus an authenticated remote MCP endpoint.
+- **Agent access:** local MCP exposes 16 tools, plus an authenticated remote endpoint.
 - **Connectors:** Claude Code, Cursor and Cursor Cloud exports, git, Obsidian,
   agent rules, ChatGPT exports, Mem0, Letta, Graphiti, and LifeOS adapters.
 - **Dashboard:** Doorway, Rulings, governed runs, memory health, and the deeper
@@ -78,7 +78,7 @@ verdict. Semantic embeddings are an optional install; the core remains slim.
 
 ## CI for agent memory (GitHub Action)
 
-The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
+The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs 13 documented failure classes through the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
 
 ```yaml
 # .github/workflows/memory-ci.yml
