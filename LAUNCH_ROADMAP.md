@@ -18,10 +18,10 @@ cross-agent learning are mature.
 - [x] One canonical repository: `Morkeeth/mountain-of-helicon`.
 - [x] Warning semantics in README, demo copy, and runtime.
 - [x] Public-corpus claim uses the hand-verified 1.74% repo rate.
-- [ ] Clean-clone terminal demo succeeds.
-- [ ] Clean-clone visual demo builds assets, seeds a writable isolated store,
+- [x] Clean-clone terminal demo succeeds.
+- [x] Clean-clone visual demo builds assets, seeds a writable isolated store,
       serves the SPA, and exposes at least one ruling.
-- [ ] Full Python suite and frontend lint/build pass without concurrent agents.
+- [x] Full Python suite and frontend lint/build pass without concurrent agents.
 
 ## Gate 1 — Public repository release
 
