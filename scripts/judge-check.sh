@@ -42,6 +42,7 @@ else
 fi
 if ! python3 -m venv "${VENV_ARGS[@]}" "$TMP/venv"; then
   command -v uv >/dev/null 2>&1 || fail "python venv unavailable and uv is not installed"
+  rm -rf "$TMP/venv"
   uv venv --python "$(command -v python3)" "${VENV_ARGS[@]}" "$TMP/venv" || fail "uv venv"
 fi
 if "$TMP/venv/bin/python" -m pip --version >/dev/null 2>&1; then
