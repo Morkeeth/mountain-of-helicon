@@ -376,7 +376,7 @@ def cmd_demo(args):
     port = args.port or 8420
     print("Mountain of Helicon — demo")
     print(f"  {info['cubes']} planted memories seeded · no personal data · local only")
-    print(f"  open  http://127.0.0.1:{port}")
+    print(f"  open  http://127.0.0.1:{port}/#findings")
     print("  start on 'Needs Ruling' — rule one finding and watch it become law")
     print("\nPress Ctrl+C to stop\n")
     import uvicorn
