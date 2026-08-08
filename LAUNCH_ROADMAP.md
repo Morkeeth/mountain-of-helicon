@@ -76,9 +76,14 @@ cross-agent learning are mature.
 ## Launch acceptance command
 
 ```bash
+python3 scripts/launch_check.py
 bash scripts/judge-check.sh --full
 ```
 
-It must clone only committed files, install from scratch, build the dashboard,
-run `helicon demo`, verify populated health/findings endpoints, and resolve the
-referenced JavaScript asset.
+The first command verifies source-controlled claims and reports founder-owned
+online gates separately. The second must clone only committed files, install
+from scratch, build the dashboard, run `helicon demo`, verify populated
+health/findings endpoints, and resolve the referenced JavaScript asset.
+
+Tomorrow's human/Claude review order and exact adversarial prompt are in
+`REVIEW_PACKET.md`; launch copy and moonshot bets are in `LAUNCH_KIT.md`.
