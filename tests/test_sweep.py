@@ -53,6 +53,34 @@ def test_a_repo_whose_docs_agree_is_clean(tmp_path):
     assert r["contradicted"] == 0
 
 
+def test_one_probe_on_a_long_physical_line_publishes_one_finding(tmp_path):
+    """A result belongs to the assertion that earned it, not every sentence on
+    the same physical Markdown line.
+
+    Real corpus shape: BenjaminBenetti/fmwk-pwr and joemooney/aida keep long
+    multi-sentence paragraphs on one line. `repo_detail` indexed probes by
+    (file, line), then painted the one path contradiction onto all five
+    assertions on that line — 18 duplicate findings across the scorecard even
+    though the loader and raw prober each saw the document once.
+    """
+    repo = _repo(tmp_path, {
+        "CLAUDE.md": (
+            "Entry point is `src/missing.ts`. "
+            "It starts the server. "
+            "The server handles requests. "
+            "Tests exercise the API. "
+            "Deployments use containers.\n"
+        ),
+        "src/present.ts": "export const ok = 1;\n",
+    })
+
+    result = sweep.sweep_repo(repo)
+
+    assert result["contradicted"] == 1
+    assert len(result["findings"]) == 1
+    assert result["findings"][0]["probe"] == "git ls-files -- src/missing.ts"
+
+
 def test_a_directory_without_a_rules_file_is_excluded_not_clean(tmp_path):
     repo = _repo(tmp_path, {"src/main.py": "x = 1\n"})
     r = sweep.sweep_repo(repo)
