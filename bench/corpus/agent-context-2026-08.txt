@@ -333,10 +333,10 @@ mcgaryes/nextjs-template
 mcgivrer/demo001-arm64
 meitner-se/publicapis-gen
 mertssmnoglu/fork_aya.is-services
-{"message":"try again in 1.881634756s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 31.881054ms","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 3.382707846s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}steeltanuki/sebastian-ai
-{"message":"try again in 21.556716613s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 9.856526558s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 3.859225018s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}ohcnetwork/care
-{"message":"try again in 2.292990814s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 843.567099ms","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}SeedClassIntelligence/SRT1-CORE
-{"message":"try again in 29.80793653s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 18.077413794s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}{"message":"try again in 6.362541838s","documentation_url":"https://docs.github.com/rest/search/search#search-code","status":"429"}Alishahryar1/free-claude-code
+steeltanuki/sebastian-ai
+ohcnetwork/care
+SeedClassIntelligence/SRT1-CORE
+Alishahryar1/free-claude-code
 mhernesniemi/hoikka
 microsoft/Agent365-devTools
 mikahas/speede

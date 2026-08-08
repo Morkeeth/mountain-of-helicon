@@ -6,11 +6,16 @@ well as an owner/name), so nothing here touches the network. The engine reuses
 and the honest exclusion of unscorable repos.
 """
 import os
+import re
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from helicon import sweep
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _repo(root, files):
@@ -188,6 +193,14 @@ def test_load_corpus_ignores_comments_and_blanks(tmp_path):
     f = tmp_path / "corpus.txt"
     f.write_text("# header\n\nowner/one\nowner/two  # trailing\n\n")
     assert sweep.load_corpus(str(f)) == ["owner/one", "owner/two"]
+
+
+def test_frozen_corpus_is_591_unique_repository_names():
+    repos = sweep.load_corpus(str(ROOT / "bench/corpus/agent-context-2026-08.txt"))
+    assert len(repos) == 591
+    assert len(set(repos)) == 591
+    assert all(re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo)
+               for repo in repos)
 
 
 def test_format_sweep_is_stable_and_shows_evidence():
