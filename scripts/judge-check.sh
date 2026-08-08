@@ -34,12 +34,22 @@ for ref in $(grep -o '/assets/[^"]*' web/dist/index.html); do
 done
 
 echo "== install =="
+VENV_ARGS=()
 if [ "${1:-}" = "--full" ]; then
-  python3 -m venv "$TMP/venv"
+  VENV_ARGS=()
 else
-  python3 -m venv --system-site-packages "$TMP/venv"
+  VENV_ARGS=(--system-site-packages)
 fi
-"$TMP/venv/bin/pip" install --quiet -e . || fail "pip install -e ."
+if ! python3 -m venv "${VENV_ARGS[@]}" "$TMP/venv"; then
+  command -v uv >/dev/null 2>&1 || fail "python venv unavailable and uv is not installed"
+  uv venv --python "$(command -v python3)" "${VENV_ARGS[@]}" "$TMP/venv" || fail "uv venv"
+fi
+if "$TMP/venv/bin/python" -m pip --version >/dev/null 2>&1; then
+  "$TMP/venv/bin/python" -m pip install --quiet -e . || fail "pip install -e ."
+else
+  command -v uv >/dev/null 2>&1 || fail "venv has no pip and uv is not installed"
+  uv pip install --quiet --python "$TMP/venv/bin/python" -e . || fail "uv pip install -e ."
+fi
 "$TMP/venv/bin/helicon" --help >/dev/null 2>&1 || fail "CLI entry point missing after install"
 ok "pip install -e . gives a working CLI"
 
