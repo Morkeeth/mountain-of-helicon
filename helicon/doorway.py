@@ -276,7 +276,7 @@ def _by_line(results: list) -> dict:
 
 
 def repo_detail(conn, repo_path: str, config: dict | None = None,
-                allow_network: bool = False) -> dict:
+                allow_network: bool = False, strict: bool = False) -> dict:
     """Every loaded line of a repo's context, each carrying a probe verdict:
     UPHELD / CONTRADICTED / UNVERIFIABLE. A line with no probe is UNVERIFIABLE —
     a verdict, not a gap. Cold lines are shown (kept) but marked loads-nothing.
@@ -439,7 +439,8 @@ def fingerprint(conn, repo: str) -> str:
 
 
 def contradicted_lines(conn, repo: str, config: dict | None = None,
-                       allow_network: bool = False) -> list[dict]:
+                       allow_network: bool = False,
+                       strict: bool = False) -> list[dict]:
     """The loaded, NOT-cold lines the running code disproves. Cold lines are
     excluded on purpose (rule 2 above): they load nothing, so they cannot be the
     reason a run is refused.
@@ -448,7 +449,7 @@ def contradicted_lines(conn, repo: str, config: dict | None = None,
     disproved at all. A rule the code has made unreachable still agrees with the
     code. The board reports them; the gate must not spend its one interruption
     on them."""
-    detail = repo_detail(conn, repo, config, allow_network)
+    detail = repo_detail(conn, repo, config, allow_network, strict=strict)
     from helicon import probes
     out = []
     for doc in detail["docs"]:
@@ -465,28 +466,40 @@ def contradicted_lines(conn, repo: str, config: dict | None = None,
 
 
 def verdict(conn, repo: str, config: dict | None = None,
-            allow_network: bool = False, fresh: bool = False) -> dict:
+            allow_network: bool = False, fresh: bool = False,
+            strict: bool = False) -> dict:
     """A repo's gate verdict, cached on the fingerprint. Cold ≈1s (the probes
-    execute); warm ≈0ms. `fresh=True` forces the probes to run again."""
+    execute); warm ≈0ms. `fresh=True` forces the probes to run again.
+
+    `strict` picks the path-probe profile — see probes.PROFILES. False is the
+    GATE (recall-first, this repo's own docs); True is the SWEEP (precision
+    first, strangers' repos at scale). Measured over the 591-repo corpus the
+    two differ by 13x in findings, so they are emphatically not the same
+    verdict and the cache key says so.
+    """
     import json as _json
     repo = os.path.abspath(os.path.expanduser(repo))
     fp = fingerprint(conn, repo)
+    # The profile is part of the identity of the answer, not a rendering
+    # option. Two profiles sharing one cache row would serve a sweep verdict
+    # to the gate — a silent 13x swing decided by whoever ran first.
+    key = f"{fp}:strict" if strict else fp
     ensure_gate_table(conn)
     if not fresh:
         row = conn.execute(
             "SELECT payload, checked_at FROM doorway_gate_cache "
-            "WHERE repo_path = ? AND fingerprint = ?", (repo, fp)).fetchone()
+            "WHERE repo_path = ? AND fingerprint = ?", (repo, key)).fetchone()
         if row:
             return {"repo": os.path.basename(os.path.normpath(repo)),
                     "path": repo, "fingerprint": fp, "cached": True,
                     "checked_at": row["checked_at"],
                     "contradicted": _json.loads(row["payload"])}
-    lines = contradicted_lines(conn, repo, config, allow_network)
+    lines = contradicted_lines(conn, repo, config, allow_network, strict=strict)
     now = _now()
     conn.execute(
         "INSERT OR REPLACE INTO doorway_gate_cache "
         "(repo_path, fingerprint, payload, checked_at) VALUES (?,?,?,?)",
-        (repo, fp, _json.dumps(lines), now))
+        (repo, key, _json.dumps(lines), now))
     conn.commit()
     return {"repo": os.path.basename(os.path.normpath(repo)), "path": repo,
             "fingerprint": fp, "cached": False, "checked_at": now,
