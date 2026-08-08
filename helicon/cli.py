@@ -1258,7 +1258,8 @@ def cmd_doorway(args):
         print("  removed. new terminals are no longer gated by Helicon.")
     else:
         print(f"  installed. the gate runs:  {cmd}")
-        print("  new terminals in any repo are now gated; a contradicted repo is refused.")
+        print("  new terminals are now checked; contradicted context warns by default.")
+        print("  set HELICON_GATE_MODE=block only when you explicitly want enforcement.")
 
 
 def cmd_sweep(args):
