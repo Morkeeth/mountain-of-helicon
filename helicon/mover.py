@@ -113,7 +113,7 @@ def render(items: list[dict], fmt: str) -> str:
     if fmt == "cursor":
         return bullets + "\n"
     if fmt == "claude-code":
-        return ("# Memory (moved + verified by Mount Helicon)\n\n" + bullets + "\n")
+        return ("# Memory (moved + verified by Mountain of Helicon)\n\n" + bullets + "\n")
     return "# Moved memory\n\n" + bullets + "\n"
 
 

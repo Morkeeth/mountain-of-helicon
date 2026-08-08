@@ -4,9 +4,9 @@
 # The story, end to end, on REAL public repos and a live gate:
 #   1. REACH   — point the checker at real repos; it finds claims their own
 #                code disproves, each with the git command + stdout that proves it.
-#   2. CONTROL — install the gate as a Claude Code hook (backup + diff + confirm),
-#                then a prompt in a contradicted repo is REFUSED in the terminal.
-#   3. OVERRIDE— the one human moment: retype with a reason; it is allowed AND logged.
+#   2. CONTROL — install the preflight as a Claude Code hook (backup + diff +
+#                confirm), then show a warning with executable evidence.
+#   3. RECORD  — attach an explicit human reason to continuing after the warning.
 #   4. SCOPE   — the honest limit: it settles what the filesystem can settle.
 #
 # Everything is keyless and deterministic (git-only probes). Network is used only
@@ -45,7 +45,7 @@ printf '{"cwd":"%s","session_id":"demo","prompt":"ship the feature"}' "$REPO" \
   | HELICON_HOME="$DEMO/home" $GATE_CMD \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['systemMessage'])"
 
-banner "3) OVERRIDE — the one human moment: a reason, logged against the blockers"
+banner "3) RECORD — an explicit reason, logged against the contradictions"
 printf '{"cwd":"%s","session_id":"demo","prompt":"helicon-override: MASTER_GUIDE lives in the wiki, proceeding"}' "$REPO" \
   | HELICON_HOME="$DEMO/home" $GATE_CMD \
   | python3 -c "import sys,json;print(json.load(sys.stdin)['systemMessage'])"

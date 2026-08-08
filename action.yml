@@ -1,6 +1,6 @@
-name: "Mount Helicon — CI for agent memory"
+name: "Mountain of Helicon — CI for agent memory"
 description: "Run the rot exam against a repo's agent-memory files (CLAUDE.md, AGENTS.md, .cursorrules, .clinerules, copilot-instructions). Fails the build when the memory your agents obey has rotted — contradictions, dead renamed names, stale instructions, drift."
-author: "Mount Helicon"
+author: "Mountain of Helicon"
 branding:
   icon: "shield"
   color: "orange"
@@ -22,9 +22,9 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
-    - name: Install Mount Helicon (slim — no torch, deterministic exam)
+    - name: Install Mountain of Helicon (slim — no torch, deterministic exam)
       shell: bash
-      run: pip install "mount-helicon @ git+https://github.com/MorkeethHQ/mount-helicon.git"
+      run: pip install "mount-helicon @ git+https://github.com/Morkeeth/mountain-of-helicon.git"
     - name: Run the rot exam
       shell: bash
       run: helicon ci --path "${{ inputs.path }}" --fail-on "${{ inputs.fail-on }}"
