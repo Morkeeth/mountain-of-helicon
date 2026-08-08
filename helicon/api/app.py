@@ -1,10 +1,13 @@
+import asyncio
+import hmac
+import json
 import os
 import sqlite3
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from helicon.config import load_config
@@ -14,6 +17,7 @@ from helicon.triage import init_triage_table
 
 _conn: sqlite3.Connection | None = None
 _config: dict = {}
+_MAX_MCP_REQUEST_BYTES = 1024 * 1024
 
 
 def _resolve_web_dir(repo_root: str) -> str | None:
@@ -60,6 +64,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Mount Helicon", version="0.1.0", lifespan=lifespan)
+    mcp_lock = asyncio.Lock()
 
     app.add_middleware(
         CORSMiddleware,
@@ -70,6 +75,7 @@ def create_app() -> FastAPI:
     )
 
     password = os.environ.get("HELICON_PASSWORD")
+    mcp_token = os.environ.get("HELICON_MCP_TOKEN")
     if password:
         @app.middleware("http")
         async def auth_middleware(request: Request, call_next):
@@ -145,6 +151,69 @@ def create_app() -> FastAPI:
         # dashboard, the app and fc/deploy-fc.sh keep working across the
         # rename. Drop it once every client reads "memories" (after Jul 20).
         return {"status": "ok", "memories": total, "cubes": total}
+
+    @app.post("/mcp")
+    async def remote_mcp(request: Request):
+        """Stateless MCP-over-HTTP for remote agents.
+
+        This boundary is disabled unless it has its own token. It deliberately
+        exposes the agent workflow only; local maintenance tools that can write
+        files or mutate the store in bulk stay on the stdio transport.
+        """
+        if not mcp_token:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "remote MCP is disabled; set HELICON_MCP_TOKEN"},
+            )
+        if len(mcp_token) < 32:
+            return JSONResponse(
+                status_code=503,
+                content={"error": "HELICON_MCP_TOKEN must be at least 32 characters"},
+            )
+
+        supplied = request.headers.get("Authorization", "")
+        expected = f"Bearer {mcp_token}"
+        if not hmac.compare_digest(supplied, expected):
+            return JSONResponse(
+                status_code=401,
+                content={"error": "unauthorized"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        content_length = request.headers.get("Content-Length")
+        if content_length:
+            try:
+                if int(content_length) > _MAX_MCP_REQUEST_BYTES:
+                    return JSONResponse(status_code=413, content={"error": "request too large"})
+            except ValueError:
+                return JSONResponse(status_code=400, content={"error": "invalid content length"})
+
+        body = await request.body()
+        if len(body) > _MAX_MCP_REQUEST_BYTES:
+            return JSONResponse(status_code=413, content={"error": "request too large"})
+        try:
+            message = json.loads(body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {"code": -32700, "message": "Parse error"},
+                },
+            )
+
+        from helicon.mcp_server import REMOTE_TOOL_NAMES, handle_rpc_message
+        async with mcp_lock:
+            response = handle_rpc_message(
+                message, get_conn(), allowed_tool_names=REMOTE_TOOL_NAMES,
+            )
+        if response is None:
+            return Response(status_code=202)
+        return JSONResponse(
+            content=response,
+            headers={"Cache-Control": "no-store"},
+        )
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     # `static/` is gitignored (Cloud Shell / deploy copy web/dist there);
