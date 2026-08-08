@@ -61,3 +61,13 @@ Dependencies are refreshed automatically on VM startup (`pip install -e .`, `pip
 - **`helicon demo` is blocked by the config gate.** `demo` is not in the `SELF_CONFIGURING` allowlist in `helicon/cli.py`, so with no `config.json` it prints "No config at …" and exits instead of seeding. To run the dashboard keyless: `python3 scripts/demo_seed.py` (seeds `data/helicon-demo.db` + writes `config-demo.json`), then `HELICON_CONFIG=config-demo.json helicon serve` (backend + prebuilt SPA on :8420). This is the working keyless path despite the one-liner in the docs.
 - **Frontend dev server.** `cd web && npm run dev` serves Vite on :5173 and proxies `/api` → `http://127.0.0.1:8420` (override with `HELICON_API`). It needs the backend (above) running for data. **`web/dist` is NOT committed** (de-tracked in `67310db` — the bundle was three days stale, 52 files / 7.6 MB) and is gitignored, so the backend alone serves nothing: run `cd web && npm run build` first, or use the Vite dev server. Never commit `web/dist`.
 - Live connectors, Qwen model calls, and embeddings still require the author's `config.json` / API keys and cannot run in this VM (see above).
+
+## The web build is a build artifact — never commit it
+
+`web/dist/` is gitignored. It is generated, not source. PRs are **source-only**: edit `web/src/**`, never `web/dist/**`. Rebuild locally when you need the backend to serve the compiled dashboard:
+
+```bash
+cd web && npm ci && npm run build   # writes web/dist/ (untracked)
+```
+
+The FastAPI backend serves `web/dist/` when present and otherwise falls back to the SPA route, so a missing `web/dist/` only means the prebuilt UI is not served — run `npm run dev` (Vite on :5173, proxies `/api`) for live frontend work. Deployment/CI is responsible for building `web/dist/`; a committed copy only drifts from source.

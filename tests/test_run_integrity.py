@@ -127,6 +127,29 @@ def test_rework_and_rollback_are_not_gated(run):
     assert taskrun.accept_run(conn, rid, "rework")["human_acceptance"] == "rework"
 
 
+def test_a_manifest_path_cannot_escape_the_recorded_repo(tmp_path):
+    """A manifest is data, not a promise. An entry pointing outside the repo it
+    was captured against would make the integrity check read — and rule on — a
+    file the run never touched, and a matching hash there would read as clean.
+    Containment came from the integration-nightrun lane; this is its test."""
+    conn = init_db(str(tmp_path / "t.db"))
+    repo = _repo(tmp_path)
+    outside = tmp_path / "outside.py"
+    outside.write_text("print('not this run')\n")
+    import hashlib
+    rid = taskrun.open_run(conn, "o", "a", repo_ref=f"{repo}@HEAD")
+    taskrun.build_packet(conn, rid)
+    taskrun.attach_artifact(conn, rid, [{
+        "path": "../outside.py", "state": "committed",
+        "content_hash": hashlib.sha256(outside.read_bytes()).hexdigest()[:16]}])
+    integrity = taskrun.verify_artifact(conn, rid)
+    assert integrity["ok"] is False
+    assert integrity["mismatched"][0]["actual"] == "path escapes the recorded repo"
+    # and the escape is a refusal at acceptance, not a warning
+    with pytest.raises(taskrun.TaskRunError):
+        taskrun.accept_run(conn, rid, "accepted")
+
+
 def test_an_unhashed_entry_is_reported_not_counted_as_a_pass(tmp_path):
     """Legacy manifests carry no hash. They cannot be bound to anything, and the
     count says how much of the artifact the verdict actually covers — rather
