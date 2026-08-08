@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from scripts import launch_check
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -61,3 +63,28 @@ def test_example_server_is_local_only_and_has_no_fake_key():
     config = _read("config.example.json")
     assert '"host": "127.0.0.1"' in config
     assert "sk-your-qwen-api-key" not in config
+
+
+def test_executable_launch_receipt_passes_source_controlled_gates():
+    checks = launch_check.run(ROOT)
+    blockers = [check for check in checks if check.required and check.ok is not True]
+    assert blockers == []
+    assert any(check.key == "online" and check.ok is None for check in checks)
+
+
+def test_launch_receipt_json_is_machine_reviewable():
+    import json
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "launch_check.py"), "--json"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    payload = json.loads(result.stdout)
+    assert payload["ready"] is True
+    assert payload["blockers"] == []
+    assert {check["owner"] for check in payload["checks"]} == {"code", "founder"}
