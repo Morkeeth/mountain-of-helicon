@@ -273,3 +273,118 @@ def test_gate_fails_open_when_probing_explodes(conn, tmp_path, monkeypatch):
     # explosion never leaves a half-written verdict behind.
     assert conn.execute("SELECT COUNT(*) FROM run_events "
                         "WHERE kind='gate_blocked'").fetchone()[0] == 0
+
+
+# --------------------------------------------------------------------------
+# warn mode — the default after 2026-08-02
+#
+# Three days of world-relay prompts were refused by a banner Claude Code never
+# rendered ("blocked by hook: No stderr output"), naming lines the operator
+# could not see, offering a `--demote` flag that did not exist. A gate can only
+# spend an interruption it can explain. These pin the way out.
+# --------------------------------------------------------------------------
+
+def test_warn_mode_does_not_block_and_still_names_the_line(conn, tmp_path):
+    repo = _contradicted_repo(tmp_path)
+    v = doorway.verdict(conn, str(repo))
+    d = doorway.decide(v, "fix the nav")
+    banner = doorway.format_block(v, d, mode="warn")
+
+    assert "has not earned the right to start" not in banner
+    assert "running anyway" in banner
+    assert "CLAUDE.md:4" in banner          # the line is still named
+    # retyping the prompt is busywork once the prompt has already run
+    assert doorway.OVERRIDE_PREFIX not in banner
+
+
+def test_warn_banner_points_at_a_demote_ref_that_exists(conn, tmp_path):
+    """The banner used to print a literal `<file#line>` placeholder against a
+    flag the CLI never defined. It must now quote a real ref."""
+    repo = _contradicted_repo(tmp_path)
+    v = doorway.verdict(conn, str(repo))
+    d = doorway.decide(v, "go")
+    banner = doorway.format_block(v, d, mode="warn")
+
+    ref = v["contradicted"][0]["ref"]
+    assert f"--demote {ref}" in banner
+    assert "<file#line>" not in banner
+
+
+def test_board_demote_flag_is_a_real_command():
+    """The exit the banner advertises has to be reachable from a terminal, not
+    only from Python. `doorway.demote()` shipped tested while nothing on the CLI
+    could call it, so the banner's `fix:` line named a flag argparse rejected —
+    and the only working way past the gate was the override it listed second.
+
+    Asserted against the real CLI, because the bug was never in the function.
+    """
+    import sys as _sys
+    out = subprocess.run([_sys.executable, "-m", "helicon", "board", "--help"],
+                         capture_output=True, text=True, timeout=60).stdout
+    assert "--demote" in out, "the banner's sanctioned exit is not a real flag"
+    assert "--promote" in out, "a demotion you cannot undo is a doc edit"
+
+
+def test_a_moot_rule_is_reported_but_never_gates(conn, tmp_path):
+    """Obsolete is not false. A sequencing rule whose condition can no longer
+    arrive AGREES with the code that made it unreachable — the code does not
+    disprove it. world-relay's "do NOT open user self-funding until the upgrade
+    authority is off the hot wallet" gated three days of prompts on that
+    conflation."""
+    from helicon import probes
+    # world-relay's real shape: the gate MESSAGE says "funds", so "fund" is a
+    # named token, not a path artefact. The binding is genuine; the verdict
+    # drawn from it was not.
+    repo = tmp_path / "relay"
+    (repo / "src" / "routes").mkdir(parents=True)
+    (repo / "CLAUDE.md").write_text(
+        "# RELAY\n\n## Context\n"
+        "Keep replies terse.\n"
+        "Sequencing rule: do NOT open user self-funding until the upgrade "
+        "authority is off the hot wallet.\n")
+    (repo / "src" / "custody.ts").write_text(
+        "export const CUSTODY_RETIRED = true;\n")
+    (repo / "src" / "routes" / "r.ts").write_text(
+        'import { CUSTODY_RETIRED } from "../custody";\n'
+        "export function h(req, res) {\n"
+        "  if (CUSTODY_RETIRED) {\n"
+        '    return res.status(410).json({ error: '
+        '"Custody retired. RELAY no longer holds funds in escrow." });\n'
+        "  }\n}\n")
+    _git(repo, "init", "-q")
+    _commit(repo, "sequencing")
+
+    hits = [r for r in probes.probe_docs(conn, str(repo))
+            if r["kind"] == "killswitch" and "self-funding" in r["sentence"]]
+    assert len(hits) == 1, "still detected — the finding is real, its weight is not"
+    assert hits[0]["moot"] is True
+    assert "MOOT, not disproved" in hits[0]["why"]
+
+    # and the gate stays out of the way
+    v = doorway.verdict(conn, str(repo), fresh=True)
+    assert v["contradicted"] == []
+    assert doorway.decide(v, "go")["action"] == "allow"
+
+
+def test_editing_the_prober_invalidates_a_cached_verdict(conn, tmp_path, monkeypatch):
+    """The cache watched the commit, the docs and the cold set — but not the
+    code that decides. A false positive fixed in probes.py kept being served
+    against an untouched repo, which is the exact staleness class this product
+    exists to catch."""
+    repo = _contradicted_repo(tmp_path)
+    before = doorway.fingerprint(conn, str(repo))
+
+    real_stat = doorway.os.stat
+
+    def newer(path, *a, **k):
+        st = real_stat(path, *a, **k)
+        from helicon import probes
+        if path == probes.__file__:
+            class S:
+                st_size = st.st_size + 1
+                st_mtime_ns = st.st_mtime_ns + 1
+            return S()
+        return st
+
+    monkeypatch.setattr(doorway.os, "stat", newer)
+    assert doorway.fingerprint(conn, str(repo)) != before

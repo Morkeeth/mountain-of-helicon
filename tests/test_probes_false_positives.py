@@ -126,3 +126,89 @@ def test_a_file_that_is_simply_missing_is_still_contradicted(tmp_path):
 def test_a_tracked_file_is_still_upheld(tmp_path):
     repo = _repo(tmp_path, {"src/main.ts": "export const ok = 1;\n"})
     assert probes._probe_path(repo, "src/main.ts", git=True)["verdict"] == UPHELD
+
+
+# --------------------------------------------------------------------------
+# Naming a file is not pointing at one.
+#
+# Every false positive in the 2026-08-03 eleven-repo sweep was this single
+# confusion. Each case below is a real sentence from a real repo that the
+# probe convicted, with the repo it came from named.
+# --------------------------------------------------------------------------
+
+import pytest
+
+from helicon.probes import _names_not_points
+
+
+@pytest.mark.parametrize("sentence,path,label", [
+    ("**Python source files:** `snake_case.py` (e.g., `azure_openai.py`)",
+     "snake_case.py", "mem0 — a convention, not a file"),
+    ("Never create files with `mod.rs` paths - prefer `src/some_module.rs` instead",
+     "src/some_module.rs", "zed — a placeholder"),
+    ("The directory already provides context — `app/service.ts` not `app/appConfigService.ts`.",
+     "app/appConfigService.ts", "LibreChat — the counter-example"),
+    ("Make sure tests live in `tests/ci/test_action_EventNameHere.py`",
+     "tests/ci/test_action_EventNameHere.py", "browser-use — a template"),
+    ("The workflow structure mirrors the SDK repo's `server.yml`",
+     "server.yml", "OpenHands — another repo owns it"),
+    ("**TypeScript test files:** `<module>.test.ts` (e.g., `memory.test.ts`)",
+     "memory.test.ts", "mem0 — an illustration"),
+    ("The legacy localStorage migration (`src/api/legacy-migration.ts`) was removed.",
+     "src/api/legacy-migration.ts", "OpenHands — the doc DOCUMENTS the deletion"),
+    ("`test-results-mock-llm/` — per-test directories with `error-context.md`",
+     "error-context.md", "OpenHands — generated at runtime"),
+])
+def test_a_named_filename_is_never_probed(sentence, path, label):
+    upto = sentence.index(path)
+    assert _names_not_points(sentence, path, upto), label
+
+
+@pytest.mark.parametrize("sentence,path", [
+    ("**MCP**: `src/services/mcp/McpHub.ts`.", "src/services/mcp/McpHub.ts"),
+    ("Add enum to `ClineDefaultTool` in `src/shared/tools.ts`.", "src/shared/tools.ts"),
+    ("prefer using `codex-rs/codex-mcp/src/mcp_connection_manager.rs` to handle it",
+     "codex-rs/codex-mcp/src/mcp_connection_manager.rs"),
+])
+def test_a_real_route_is_still_probed(sentence, path):
+    """The discriminator must not buy its precision by going blind. These are
+    the sentences that produced every TRUE find in the sweep."""
+    upto = sentence.index(path)
+    assert _names_not_points(sentence, path, upto) == ""
+
+
+def test_a_moved_subtree_names_its_destination(tmp_path):
+    """cline moved src/ under apps/vscode/. The finding worth shipping is not
+    'this path is dead', it is 'it is now here' — a fix, not a complaint."""
+    import subprocess
+    from helicon.probes import _probe_path, CONTRADICTED
+    repo = tmp_path / "moved"
+    (repo / "apps" / "vscode" / "src" / "shared").mkdir(parents=True)
+    (repo / "apps" / "vscode" / "src" / "shared" / "api.ts").write_text("x\n")
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@t", "-c",
+                    "user.name=t", "commit", "-qm", "c"], check=True, capture_output=True)
+
+    r = _probe_path(str(repo), "src/shared/api.ts", git=True)
+    assert r["verdict"] == CONTRADICTED
+    assert r["moved_to"] == "apps/vscode/src/shared/api.ts"
+
+
+def test_an_empty_git_index_cannot_testify(tmp_path):
+    """A checkout that died (git-lfs missing, interrupted fetch) leaves files on
+    disk and an empty index, and then every path a doc names reads as deleted.
+    That fabricated 'cline: 29 contradicted / 0 upheld' and it was written up as
+    a prober bug for a day. Nothing measured must never report ROT."""
+    import subprocess
+    from helicon.probes import _probe_path, UNVERIFIABLE, _INDEX_OK
+    repo = tmp_path / "broken"
+    (repo / "src").mkdir(parents=True)
+    for i in range(8):
+        (repo / "src" / f"f{i}.ts").write_text("x\n")
+    subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)  # nothing added
+
+    _INDEX_OK.pop(str(repo), None)
+    r = _probe_path(str(repo), "src/anything.ts", git=True)
+    assert r["verdict"] == UNVERIFIABLE
+    assert "index is empty" in r["why"]

@@ -22,6 +22,25 @@ REPO="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 # No config, no gate — and say nothing rather than half-govern.
 [ -f "$REPO/config.json" ] || exit 0
 
+# stderr is not noise here, it is the one channel a block can speak on.
+# `2>/dev/null` was silencing both: a crash vanished (fail-open with no trace of
+# WHY, for days) and so did the block banner, so Claude Code printed the generic
+# "blocked by hook: No stderr output" while the gate held a full explanation it
+# had just thrown away. Kept apart now: exit 2 speaks, anything else is filed
+# and forgiven.
+ERR="${TMPDIR:-/tmp}/helicon-doorway.$$.err"
+LAST="${TMPDIR:-/tmp}/helicon-doorway.last.err"
+
 PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}" \
 HELICON_CONFIG="$REPO/config.json" \
-exec python3 -m helicon hook userprompt 2>/dev/null
+python3 -m helicon hook userprompt 2>"$ERR"
+rc=$?
+
+if [ "$rc" -eq 2 ]; then
+    cat "$ERR" >&2                     # the banner the operator is stopped by
+else
+    [ -s "$ERR" ] && cp "$ERR" "$LAST" # a crash is diagnosable, not deleted
+    rc=0                               # fail open, explicitly
+fi
+rm -f "$ERR"
+exit "$rc"

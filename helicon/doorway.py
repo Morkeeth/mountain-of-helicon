@@ -310,6 +310,7 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
                 "ref": ref, "line": ln, "tokens": toks, "cold": is_cold,
                 "text": re.sub(r"\s+", " ", a["text"])[:220],
                 "verdict": verdict, "kind": (pv or {}).get("kind"),
+                "moot": bool((pv or {}).get("moot")),
                 "why": (pv or {}).get("why") or
                        ("no probe exists for this claim — unverifiable by "
                         "construction, not a gap" if not pv else ""),
@@ -419,6 +420,17 @@ def fingerprint(conn, repo: str) -> str:
             parts.append(f"{d}:missing")
     name = os.path.basename(os.path.normpath(repo))
     parts.append("cold=" + ",".join(sorted(cold_refs(conn, name))))
+    # The PROBER is the fourth thing that can change the answer, and it was
+    # missing. A false positive fixed in probes.py kept being served from cache
+    # against an untouched repo — the code that decides was the one input the
+    # staleness test did not watch, which is precisely the bug class this
+    # product sells. Its size+mtime is enough: any edit moves it.
+    try:
+        from helicon import probes as _p
+        st = os.stat(_p.__file__)
+        parts.append(f"prober:{st.st_size}:{st.st_mtime_ns}")
+    except OSError:
+        parts.append("prober:unknown")
     import hashlib
     return hashlib.sha256("|".join(parts).encode()).hexdigest()[:32]
 
@@ -427,7 +439,12 @@ def contradicted_lines(conn, repo: str, config: dict | None = None,
                        allow_network: bool = False) -> list[dict]:
     """The loaded, NOT-cold lines the running code disproves. Cold lines are
     excluded on purpose (rule 2 above): they load nothing, so they cannot be the
-    reason a run is refused."""
+    reason a run is refused.
+
+    MOOT lines are excluded too, and for the stricter reason: they are not
+    disproved at all. A rule the code has made unreachable still agrees with the
+    code. The board reports them; the gate must not spend its one interruption
+    on them."""
     detail = repo_detail(conn, repo, config, allow_network)
     from helicon import probes
     out = []
@@ -435,7 +452,8 @@ def contradicted_lines(conn, repo: str, config: dict | None = None,
         if doc["cold"]:
             continue
         for ln in doc["lines"]:
-            if ln["verdict"] == probes.CONTRADICTED and not ln["cold"]:
+            if (ln["verdict"] == probes.CONTRADICTED and not ln["cold"]
+                    and not ln.get("moot")):
                 out.append({"file": doc["file"], "line": ln["line"],
                             "ref": ln["ref"], "text": ln["text"],
                             "probe": ln.get("probe"), "output": ln.get("output"),
@@ -494,14 +512,25 @@ def decide(v: dict, prompt: str = "") -> dict:
     return {"action": "block", "reason": "", "contradicted": bad}
 
 
-def format_block(v: dict, decision: dict) -> str:
-    """The banner a human reads in their own terminal at the moment they are
-    stopped. It names the exact lines, both ways out, and nothing else."""
+def format_block(v: dict, decision: dict, mode: str = "block") -> str:
+    """The banner a human reads in their own terminal. It names the exact lines,
+    the ways out, and nothing else.
+
+    `mode` changes what the banner is claiming happened, and lying about that is
+    worse than saying nothing: in warn mode the run IS starting, so a banner
+    that says "refused" teaches the operator to distrust every future banner.
+    """
     bad = decision["contradicted"]
     head = v["fingerprint"][:7]
-    out = ["⛔ HELICON — this run has not earned the right to start.", "",
-           f"  repo: {v['repo']} @ {head}",
-           f"  {len(bad)} loaded claim(s) the running code DISPROVES:", ""]
+    if mode == "warn":
+        out = ["⚠ HELICON — running anyway, but your loaded context is wrong.", "",
+               f"  repo: {v['repo']} @ {head}",
+               f"  {len(bad)} loaded claim(s) the running code DISPROVES "
+               f"(the agent has been told):", ""]
+    else:
+        out = ["⛔ HELICON — this run has not earned the right to start.", "",
+               f"  repo: {v['repo']} @ {head}",
+               f"  {len(bad)} loaded claim(s) the running code DISPROVES:", ""]
     for b in bad:
         where = f"{b['file']}:{b['line']}" if b.get("line") else b["file"]
         out.append(f"  {where}")
@@ -511,10 +540,18 @@ def format_block(v: dict, decision: dict) -> str:
         if b.get("output"):
             out.append(f"    stdout  {str(b['output']).splitlines()[0][:88]}")
         out.append("")
-    out += [f"  fix:      helicon board --repo {v['repo']} --demote <file#line>",
-            "            (or correct the line — the gate re-probes on the next prompt)",
-            f"  override: retype your prompt starting with",
-            f"            {OVERRIDE_PREFIX} <why this may run anyway>", ""]
+    first = bad[0]
+    ref = first.get("ref") or f"{first['file']}#{first.get('line','')}"
+    out += [f"  fix:      helicon board --repo {v['repo']} --demote {ref}",
+            "            (or correct the line — the gate re-probes on the next prompt)"]
+    if mode != "warn":
+        # Only offered when it is needed. In warn mode the prompt already ran,
+        # so telling the operator to retype it with a prefix is busywork.
+        out += [f"  override: retype your prompt starting with",
+                f"            {OVERRIDE_PREFIX} <why this may run anyway>",
+                f"  stop blocking: HELICON_GATE_MODE=warn (or doorway.gate_mode "
+                f"in config.json)"]
+    out.append("")
     return "\n".join(out)
 
 
