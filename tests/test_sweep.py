@@ -103,6 +103,76 @@ def test_run_sweep_aggregates_and_only_scored_repos_are_the_denominator(tmp_path
     assert sc["by_kind"].get("named-path-gone") == 1
 
 
+def test_scorecard_never_publishes_when_own_output_names_an_existing_file(
+        tmp_path, monkeypatch):
+    """Publication invariant, independent of whichever probe produced the row.
+
+    The glob branch had a local strict-mode guard, but five grep findings still
+    published their own existing source path. Basename and non-git path branches
+    are included here so the invariant cannot regress one branch at a time.
+    """
+    repo = _repo(tmp_path, {
+        "CLAUDE.md": "The old API remains available.\n",
+        "packages/server/src/main.ts": "export const main = 1;\n",
+        "public/config.js": "window.config = {};\n",
+        "src/api.ts": "export const status = 410;\n",
+    })
+
+    def verdict(*_args, **_kwargs):
+        rows = [
+            ("git ls-files -- *main.ts", "packages/server/src/main.ts"),
+            ("test -f config.js", "public/config.js"),
+            ("git grep -n -- 410", "src/api.ts:1:export const status = 410;"),
+        ]
+        return {
+            "contradicted": [
+                {
+                    "file": "CLAUDE.md",
+                    "line": index,
+                    "text": f"claim {index}",
+                    "probe": probe,
+                    "output": output,
+                    "why": "fixture contradiction",
+                }
+                for index, (probe, output) in enumerate(rows, 1)
+            ],
+        }
+
+    monkeypatch.setattr(sweep.doorway, "verdict", verdict)
+
+    scorecard = sweep.run_sweep([repo], jobs=1)
+
+    assert scorecard["findings_total"] == 0
+    assert scorecard["flagged"] == 0
+    assert scorecard["results"][0]["findings"] == []
+
+
+def test_scorecard_still_publishes_when_probe_found_no_file(tmp_path, monkeypatch):
+    repo = _repo(tmp_path, {
+        "CLAUDE.md": "Config lives in `config/missing.yaml`.\n",
+        "src/main.py": "x = 1\n",
+    })
+    monkeypatch.setattr(
+        sweep.doorway,
+        "verdict",
+        lambda *_args, **_kwargs: {
+            "contradicted": [{
+                "file": "CLAUDE.md",
+                "line": 1,
+                "text": "Config lives in `config/missing.yaml`.",
+                "probe": "git ls-files -- config/missing.yaml",
+                "output": "(no output)",
+                "why": "not tracked and not on disk",
+            }],
+        },
+    )
+
+    scorecard = sweep.run_sweep([repo], jobs=1)
+
+    assert scorecard["findings_total"] == 1
+    assert scorecard["flagged"] == 1
+
+
 def test_a_merely_mentioned_path_does_not_flag_a_repo(tmp_path):
     """The class-3 false-positive guard, seen through the sweep: a doc that only
     NAMES a file (an example, a generated file) must not make the repo flagged."""
