@@ -1,9 +1,6 @@
-# CI for agent memory — Mount Helicon dogfooding itself.
-# Runs the rot exam against this repo's own committed agent-memory files
-# (CLAUDE.md, AGENTS.md, rules) on every push and PR. Report-only here
-# (--fail-on none) so the badge stays green while the job summary shows exactly
-# what rotted; a team that wants a hard gate flips to --fail-on rot.
-name: memory-ci
+# Mountain of Helicon release gate: product tests, package, frontend, and the
+# memory exam it ships to other repositories.
+name: release-gate
 
 on:
   push:
@@ -12,14 +9,68 @@ on:
   workflow_dispatch:
 
 jobs:
-  rot-exam:
+  python:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install with test dependencies
+        run: python -m pip install -e ".[test]"
+      - name: Run complete suite
+        run: |
+          mkdir -p "$HOME/pytmp"
+          TMPDIR="$HOME/pytmp" python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install Mount Helicon (slim)
+      - name: Build and validate distributions
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check dist/*
+      - name: Verify launch scripts parse
+        run: |
+          python scripts/check_python.py
+          bash -n scripts/demo.sh
+
+  rot-exam:
+    name: Agent-memory exam
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Mountain of Helicon (slim)
         run: pip install -e .
       - name: Run the rot exam on our own memory
         run: helicon ci --fail-on none
