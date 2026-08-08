@@ -286,7 +286,15 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
     name = os.path.basename(os.path.normpath(repo))
     docs = loaded_docs(repo)
     try:
-        results = probes.probe_docs(conn, repo, config, allow_network)
+        # `strict` has to be handed on here or the profile split does nothing.
+        # It was threaded verdict -> contradicted_lines -> repo_detail and then
+        # dropped one call short of the prober, so `helicon sweep` ran the GATE
+        # profile against 574 strangers' repos and reported 29.09% flagged —
+        # the exact number the split was written to replace (b0abe55: "168/576,
+        # 29.2%, worse than the 26.6% naive baseline"). A parameter accepted and
+        # discarded is worse than one that was never added: every caller reads
+        # as configured, and the measurement looks deliberate.
+        results = probes.probe_docs(conn, repo, config, allow_network, strict=strict)
     except Exception:
         results = []
     by_line = _by_line(results)
