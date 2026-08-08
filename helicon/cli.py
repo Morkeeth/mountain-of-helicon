@@ -3167,7 +3167,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo")
 
     from helicon.config import CONFIG_FILE, load_config as _load
     if args.command not in SELF_CONFIGURING:

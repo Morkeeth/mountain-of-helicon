@@ -19,10 +19,15 @@ Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpo
 ## See it in 60 seconds (one command, no key, no personal data)
 
 ```bash
-git clone https://github.com/MorkeethHQ/mount-helicon.git && cd mount-helicon
-pip install -e .
+git clone https://github.com/Morkeeth/mountain-of-helicon.git && cd mountain-of-helicon && \
+python3 scripts/check_python.py && \
+python3 -m pip install -e . && \
 helicon demo          # seeds a labelled demo store + opens the dashboard
 ```
+
+Mountain of Helicon requires Python 3.10+. On an older stock macOS Python 3.9,
+the preflight exits with the exact Homebrew upgrade command before installation;
+it never drops into a package traceback.
 
 Open **http://127.0.0.1:8420**. The dashboard opens on **Needs Ruling** with a
 *dangerous* contradiction from a live payments store — *"Stripe is in test mode
@@ -75,9 +80,10 @@ Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=con
 ## Quick Start (60 seconds, $0)
 
 ```bash
-git clone https://github.com/MorkeethHQ/mount-helicon.git
-cd mount-helicon
-pip install -e .
+git clone https://github.com/Morkeeth/mountain-of-helicon.git
+cd mountain-of-helicon
+python3 scripts/check_python.py
+python3 -m pip install -e .
 
 helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
 helicon scan        # extract memory from your sources
