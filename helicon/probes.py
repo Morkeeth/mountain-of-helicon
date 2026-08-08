@@ -636,7 +636,19 @@ def _git_index_usable(repo: str) -> bool:
     return _INDEX_OK[repo]
 
 
-def _probe_path(repo: str, path: str, git: bool) -> dict:
+def _probe_path(repo: str, path: str, git: bool, strict: bool = False) -> dict:
+    """`strict` is the SWEEP profile. The moved-subtree verdict below is right
+    for the GATE — cline really did move `src/` under `apps/vscode/`, and a doc
+    still routing to `src/shared/api.ts` is stale. It is wrong to PUBLISH,
+    because a monorepo doc writing package-relative paths produces the identical
+    signature: `packages/server/src/main.ts` found for a doc that said
+    `src/main.ts`, which is not rot, it is a correct relative route this prober
+    cannot see the base of.
+
+    Measured on the frozen 591-repo corpus: 40 of 88 published findings (45.5%),
+    across 14 of 38 flagged repos, were this. Under the profile's own trade — a
+    miss costs the survey one row, a false positive accuses someone else's
+    project in public — strict must not publish a path git can still find."""
     if git and not _git_index_usable(repo):
         return {"verdict": UNVERIFIABLE, "probe": f"git ls-files -- {path}",
                 "output": "(index empty)",
@@ -665,6 +677,13 @@ def _probe_path(repo: str, path: str, git: bool) -> dict:
         if "/" in path:
             rcs, outs = _run(["git", "ls-files", "--", f"*/{path}"], repo)
             cands = [l for l in outs.splitlines() if l.strip()] if rcs == 0 else []
+            if cands and strict:
+                return {"verdict": UNVERIFIABLE, "probe": f"git ls-files -- */{path}",
+                        "output": "; ".join(cands[:3])[:200],
+                        "why": f"{path} is not tracked at the repo root, but git "
+                               f"finds it at {cands[0]}. That is a moved subtree "
+                               f"OR a doc writing a package-relative route, and "
+                               f"nothing here separates them — not published"}
             if len(cands) == 1:
                 return {"verdict": CONTRADICTED, "moved_to": cands[0],
                         "probe": f"git ls-files -- */{path}", "output": cands[0][:200],
@@ -1172,7 +1191,7 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                         "why": f"{m.group(1)}: {why_named} — the repo was never "
                                f"meant to contain it, so its absence proves nothing"})
             continue
-        out.append({"kind": "path", **_probe_path(repo, m.group(1), git)})
+        out.append({"kind": "path", **_probe_path(repo, m.group(1), git, strict)})
 
     return out
 
