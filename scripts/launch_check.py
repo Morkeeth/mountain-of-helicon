@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
@@ -52,6 +53,7 @@ def static_checks(root: Path) -> list[Check]:
     pyproject = _read(root, "pyproject.toml")
     roadmap = _read(root, "LAUNCH_ROADMAP.md")
     cli = _read(root, "helicon/cli.py")
+    report = _read(root, "docs/agent-context-report-2026-08.md")
 
     launch_surfaces = {
         "README.md": readme,
@@ -104,7 +106,10 @@ def static_checks(root: Path) -> list[Check]:
             "Public headline uses the hand-verified denominator",
             (
                 "10 repositories (1.74%)" in readme
-                and "10 of\n576 repos = **1.74%**" in _read(root, "docs/agent-context-report-2026-08.md")
+                and re.search(
+                    r"\*\*10 of\s+576 repos = 1\.74%\*\*",
+                    report,
+                ) is not None
             ),
             "10 / 576 repos · 1.74%",
         ),
