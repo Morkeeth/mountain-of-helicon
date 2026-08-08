@@ -165,7 +165,7 @@ def online_checks() -> list[Check]:
         "https://github.com/Morkeeth/mountain-of-helicon"
     )
     pypi_ok, pypi_detail = _public_url_status(
-        "https://pypi.org/project/mount-helicon/"
+        "https://pypi.org/pypi/mount-helicon/json"
     )
     return [
         Check(
@@ -231,7 +231,14 @@ def main() -> int:
         print("Mountain of Helicon · launch contract")
         print()
         for check in checks:
-            state = "PASS" if check.ok is True else "SKIP" if check.ok is None else "BLOCK"
+            if check.ok is True:
+                state = "PASS"
+            elif check.ok is None:
+                state = "SKIP"
+            elif check.required:
+                state = "BLOCK"
+            else:
+                state = "TODO"
             print(f"  [{state:5}] {check.label}")
             print(f"          {check.detail}")
         print()
