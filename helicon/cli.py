@@ -45,7 +45,7 @@ def _detect_sources() -> dict:
                     break
 
         if jsonl_dirs or memory_dir:
-            detected["claude_code"] = {
+            detected["claude-code"] = {
                 "enabled": True,
                 "jsonl_dir": jsonl_dirs[0] if jsonl_dirs else "",
                 "memory_dir": memory_dir or "",
@@ -114,6 +114,8 @@ def _detect_sources() -> dict:
 
 def cmd_init(args):
     """Auto-detect AI tools and create config.json."""
+    from helicon.config import config_file, helicon_home
+
     print("Mount Helicon init - detecting your AI stack...\n")
     detected = _detect_sources()
 
@@ -148,7 +150,7 @@ def cmd_init(args):
     # endpoints; the keys stay empty and the user brings them.
     env_key = os.environ.get("QWEN_API_KEY", "")
     config = {
-        "db_path": "data/helicon.db",
+        "db_path": os.path.join(helicon_home(), "helicon.db"),
         "qwen_api_key": env_key,
         "qwen_model": "qwen3.6-plus",
         "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
@@ -174,14 +176,15 @@ def cmd_init(args):
         conn = {k: v for k, v in info.items() if k != "vaults_found" and k != "repos_found"}
         config["connectors"][name] = conn
 
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.json")
+    config_path = config_file()
     if os.path.exists(config_path) and not args.force:
-        print(f"config.json already exists. Use --force to overwrite.")
+        print(f"{config_path} already exists. Use --force to overwrite.")
         return
 
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
-    print(f"Wrote config.json with {len(detected)} connector(s)")
+    print(f"Wrote {config_path} with {len(detected)} connector(s)")
 
     # The key step was invisible: init printed "Next: run helicon scan" and never
     # mentioned BYOK at all, so you could follow the instructions exactly and end
@@ -2234,25 +2237,40 @@ def cmd_resolve(args):
     conn = init_db(config["db_path"])
 
     if args.list or args.id is None:
-        # One "needs ruling" list across every rulable class, so the loop is
-        # discoverable: R1 cross-source contradictions, R11 identity forks,
-        # R12 phantom associations. Each carries the resolve verb it expects.
-        contradictions = conn.execute(
-            "SELECT id, finding, severity FROM audit_log "
-            "WHERE audit_type = 'factual' AND details LIKE '%pair_key%' "
-            "AND human_decision IS NULL AND machine_decision IS NULL ORDER BY id").fetchall()
-        forks = conn.execute(
-            "SELECT id, finding, severity FROM audit_log "
-            "WHERE audit_type = 'identity' AND human_decision IS NULL "
+        # Distribution first: `resolve --list` is the human queue's front door,
+        # so hiding R4/R3/etc. while claiming "nothing open" made an alias scan
+        # file a finding that no CLI could discover.
+        open_rows = conn.execute(
+            "SELECT id, audit_type, finding, severity, proposed_action, details "
+            "FROM audit_log WHERE human_decision IS NULL "
             "AND machine_decision IS NULL ORDER BY id").fetchall()
-        phantoms = conn.execute(
-            "SELECT id, finding, severity FROM audit_log "
-            "WHERE audit_type = 'provenance' AND human_decision IS NULL "
-            "AND machine_decision IS NULL ORDER BY id").fetchall()
-        if not (contradictions or forks or phantoms):
+        if not open_rows:
             print("Nothing open to rule. (Findings are filed by `helicon evolve`; "
                   "`helicon audit` detects read-only.)")
             return
+        class_labels = {
+            "factual": "R1 cross-source contradiction",
+            "temporal": "R3 staleness / expiry",
+            "decay": "R3 staleness / expiry",
+            "supersession": "R4 supersession / rename",
+            "identity": "R11 identity coherence",
+            "provenance": "R12 phantom association",
+        }
+        distribution = {}
+        for row in open_rows:
+            label = class_labels.get(row["audit_type"], row["audit_type"])
+            distribution[label] = distribution.get(label, 0) + 1
+        print(f"Open findings: {len(open_rows)}\n")
+        for label, count in sorted(distribution.items()):
+            print(f"  {label:<36} {count:>5}")
+        print()
+
+        contradictions = [
+            row for row in open_rows
+            if row["audit_type"] == "factual" and "pair_key" in (row["details"] or "")
+        ]
+        forks = [row for row in open_rows if row["audit_type"] == "identity"]
+        phantoms = [row for row in open_rows if row["audit_type"] == "provenance"]
         if contradictions:
             print("Cross-source contradictions (R1):\n")
             for r in contradictions:
@@ -2268,6 +2286,15 @@ def cmd_resolve(args):
             for r in phantoms:
                 print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
             print("  rule:  helicon resolve <id> --truth phantom   (or: --truth real)\n")
+        handled = {row["id"] for row in contradictions + forks + phantoms}
+        other = [row for row in open_rows if row["id"] not in handled]
+        if other:
+            print("Other open findings:\n")
+            for row in other:
+                label = class_labels.get(row["audit_type"], row["audit_type"])
+                print(f"  #{row['id']}  [{row['severity']}]  {label}: {row['finding']}")
+            print("  inspect: helicon resolve <id>")
+            print("  dismiss: helicon resolve <id> --dismiss \"why this is not rot\"\n")
         print("Inspect one:  helicon resolve <id>   (shows the evidence, decides nothing)")
         return
 
@@ -2536,7 +2563,7 @@ def cmd_doctor(_args):
     """Health check: PATH, config, Qwen key, DB, last scan. The front door —
     if any line here is broken, nothing else enters a daily loop."""
     import shutil
-    from helicon.config import CONFIG_FILE, load_config
+    from helicon.config import config_file, load_config
 
     checks = []  # (level, message) where level is OK / WARN / FAIL
 
@@ -2560,7 +2587,7 @@ def cmd_doctor(_args):
 
     config = load_config()
     if not config:
-        checks.append(("FAIL", f"no config.json at {CONFIG_FILE} — run: helicon init"))
+        checks.append(("FAIL", f"no config.json at {config_file()} — run: helicon init"))
     else:
         n = len(config.get("connectors", {}))
         level = "OK" if n else "WARN"
@@ -2629,7 +2656,12 @@ def cmd_doctor(_args):
         # and "60% semantic / 40% FTS5" stops describing what runs.
         from helicon.embeddings import semantic_health
         sh = semantic_health(conn)
-        checks.append(("OK" if sh["ok"] else "FAIL", f"semantic — {sh['reason']}"))
+        semantic_key = (
+            config.get("qwen_api_key")
+            or (config.get("embeddings") or {}).get("api_key")
+        )
+        semantic_level = "OK" if sh["ok"] else ("FAIL" if semantic_key else "WARN")
+        checks.append((semantic_level, f"semantic — {sh['reason']}"))
 
         # `serve` prefers static/ over web/dist (app.py). static/ is gitignored
         # and populated by a manual copy, so a rebuild that nobody copies leaves
@@ -3462,7 +3494,7 @@ def main():
     # stranger hitting a traceback broke the one caller that was already right.
     SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep")
 
-    from helicon.config import CONFIG_FILE, load_config as _load
+    from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING:
         try:
             _cfg = _load()
@@ -3470,11 +3502,12 @@ def main():
             sys.exit(f"{e}")
         if not _cfg:
             sys.exit(
-                f"No config at {CONFIG_FILE}.\n\n"
+                f"No config at {config_file()}.\n\n"
                 f"  see it work in 60s:  python3 scripts/demo_seed.py\n"
                 f"                       HELICON_CONFIG=config-demo.json helicon audit\n"
                 f"  point it at yours:   helicon init\n"
-                f"  or by hand:          cp config.example.json config.json\n"
+                f"  or by hand:          mkdir -p ~/.helicon && "
+                f"cp config.example.json ~/.helicon/config.json\n"
                 f"  what's wrong:        helicon doctor")
 
     cmds[args.command](args)

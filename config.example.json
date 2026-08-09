@@ -1,5 +1,5 @@
 {
-  "db_path": "data/helicon.db",
+  "db_path": "~/.helicon/helicon.db",
   "qwen_api_key": "sk-your-qwen-api-key",
   "openrouter_api_key": "",
   "qwen_model": "qwen-plus",
