@@ -14,6 +14,7 @@ no agent-rules file, timeout) is reported as such, never counted as clean.
 """
 import concurrent.futures
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -58,9 +59,37 @@ def _clone(spec: str, dst: str, timeout: int) -> tuple[bool, str]:
     return (p.returncode == 0 and os.path.isdir(dst)), (p.stderr or "")[:200]
 
 
-def _findings(contradicted: list[dict]) -> list[dict]:
+_OUTPUT_PATH = re.compile(r"^[A-Za-z0-9_.\[\]/-]+\.[A-Za-z0-9_-]+$")
+
+
+def _output_names_existing_file(repo: str, output: str) -> bool:
+    """True when a probe's own stdout identifies a file present in this repo.
+
+    Publication invariant: regardless of which probe branch produced a
+    CONTRADICTED verdict, its evidence cannot simultaneously testify that a
+    named file exists. A branch-local guard missed basename, non-git, and grep
+    output; the scorecard boundary is the one place every finding crosses.
+    """
+    for line in str(output or "").splitlines():
+        for part in line.split(";"):
+            candidate = part.strip().strip("'\"")
+            # git grep: path:line:text. Keep only the path prefix.
+            candidate = candidate.split(":", 1)[0].strip()
+            if candidate.startswith("./"):
+                candidate = candidate[2:]
+            if not candidate or not _OUTPUT_PATH.match(candidate):
+                continue
+            path = candidate if os.path.isabs(candidate) else os.path.join(repo, candidate)
+            if os.path.isfile(path):
+                return True
+    return False
+
+
+def _findings(contradicted: list[dict], repo: str) -> list[dict]:
     out = []
     for b in contradicted:
+        if _output_names_existing_file(repo, b.get("output") or ""):
+            continue
         out.append({
             "where": f"{b['file']}:{b['line']}" if b.get("line") else b.get("file"),
             "kind": classify_kind(b.get("probe")),
@@ -99,7 +128,7 @@ def sweep_repo(spec: str, *, timeout: int = 90, config: dict | None = None) -> d
             v = doorway.verdict(conn, repo_dir, config, strict=True)
         finally:
             conn.close()
-        findings = _findings(v.get("contradicted") or [])
+        findings = _findings(v.get("contradicted") or [], repo_dir)
         return {"repo": spec, "status": SCORED,
                 "contradicted": len(findings), "findings": findings}
     except Exception as e:  # noqa: BLE001 — one bad repo must not sink the sweep
