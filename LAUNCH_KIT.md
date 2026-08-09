@@ -8,10 +8,11 @@ every contradiction.**
 
 ## Launch post
 
-We scanned 576 public repos with agent-rules files.
+We ran a frozen corpus of 591 public repos with agent-rules files.
 
-A naive checker said 26.6% were contradicted. After removing false positives and
-hand-verifying every path finding, the honest result was 10 repos: 1.74%.
+577 current default branches were scoreable; all 14 exclusions are named. After
+fixing 18 duplicate projections, dropping 5 rows contradicted by their own
+stdout, and hand-verifying all 30 survivors, 9 rows in 6 repos were TRUE: 1.04%.
 
 So we built Mountain of Helicon — executable preflight for agent context.
 
@@ -22,8 +23,8 @@ Open source: https://github.com/Morkeeth/mountain-of-helicon
 
 ## Short post
 
-Agent instructions rot too. We scanned 576 public repos and hand-verified the
-findings: 10 (1.74%) told agents to rely on paths their own git tree disproved.
+Agent instructions rot too. In a frozen 591-repo corpus, 577 were scoreable and
+6 (1.04%) had a hand-verified path claim their own git tree disproved.
 
 Mountain of Helicon checks before work starts, with executable receipts.
 
@@ -34,13 +35,12 @@ https://github.com/Morkeeth/mountain-of-helicon
 1. Your coding agent loads `CLAUDE.md` / `AGENTS.md` before it reads the repo.
    What checks whether those instructions are still true?
 
-2. We scanned 576 public repos. The naive detector flagged 26.6%. That number
-   was mostly wrong. Treating every filename mention as a live path claim
-   manufactured contradictions.
+2. We ran a frozen 591-repo corpus. 577 current default branches were scoreable;
+   every one of the 14 exclusions is named.
 
-3. After fixing the dominant false positives and hand-verifying every remaining
-   path finding: 10 repos (1.74%) contained a real doc-vs-code contradiction.
-   Low, real, reproducible.
+3. After fixing 18 duplicate projections and 5 self-refuting rows, we
+   hand-verified all 30 survivors: 9 TRUE rows in 6 repos (1.04%). Low, real,
+   reproducible.
 
 4. Mountain of Helicon runs the same executable checks as a Claude Code
    preflight. A warning includes the exact claim, command, and stdout. Blocking
@@ -53,10 +53,10 @@ https://github.com/Morkeeth/mountain-of-helicon
 
 **0–7s — the finding**
 
-> “Agents trust their instruction files before reading the repo. We scanned 576
-> public repos to see whether those instructions still matched reality.”
+> “Agents trust their instruction files before reading the repo. We ran a frozen
+> 591-repo corpus to see whether those instructions still matched reality.”
 
-Show the report headline: 10 / 576, 1.74%.
+Show the report headline: 6 / 577 repos, 1.04%; 9 / 30 findings verified.
 
 **7–18s — executable receipt**
 
@@ -83,8 +83,8 @@ Pause on claim, command, stdout, and fix.
 
 **32–40s — honest scope**
 
-> “A naive detector said 26.6%. About 90% was noise. Precision discipline is
-> part of the product.”
+> “Every mechanical survivor was read in context. Twenty-one of 30 were
+> arguable or wrong, so we deleted them. Precision discipline is the product.”
 
 **40–45s — call to action**
 
@@ -120,8 +120,9 @@ opt-in with `HELICON_GATE_MODE=block`.
 No for executable and deterministic checks. Qwen is optional for judged
 contradiction and grounding checks.
 
-**Is 26.6% the real contradiction rate?**  
-No. That was the naive detector. The hand-verified repo-level result is 1.74%.
+**What is the measured contradiction rate?**
+Six of 577 scored repos had a sendable verified path contradiction: 1.04%.
+Finding-level precision after the mechanical fixes was 9/30.
 
 **Does the demo read my memory?**  
 The terminal demo uses public repos and throwaway settings/store paths. The

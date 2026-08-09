@@ -60,7 +60,7 @@ Recommended answers: **yes; `mountain-of-helicon`; omit until replaced; yes.**
 |---|---|---|
 | Product identity | Mount/Mountain and two repositories mixed | Mountain + one product repository on launch surfaces |
 | Doorway promise | Docs said “refused”; runtime warned | Warning default stated everywhere; block explicit opt-in |
-| Public evidence | Broad memory/control-plane pitch | Hand-verified 10/576 (1.74%) agent-context finding leads |
+| Public evidence | Broad memory/control-plane pitch | Hand-verified 6/577 repos (1.04%); 9/30 finding precision |
 | Terminal demo | Worked, but copy contradicted behavior | Deterministic sweep → warning → recorded reason |
 | Visual demo | Fresh clone crashed on stale config, then lacked bundle | Dynamic config, on-demand frontend build, writable demo home, direct Rulings URL |
 | CI | Report-only memory exam | Python 3.10/3.12, frontend, package, memory exam |
@@ -70,15 +70,15 @@ Recommended answers: **yes; `mountain-of-helicon`; omit until replaced; yes.**
 
 | Public claim | Evidence | Status |
 |---|---|---|
-| 10 of 576 scored repos have verified doc-vs-code contradiction | `docs/agent-context-report-2026-08.md` exhaustive path review | Supported |
-| The naive 26.6% result was false-positive dominated | Same report; classes and exclusions named | Supported, never headline alone |
+| 6 of 577 scored repos have a sendable doc-vs-code contradiction | `docs/agent-context-report-2026-08.md` + complete survivor ledger | Supported |
+| 9 of 30 mechanical survivors are TRUE | `docs/agent-context-verification-2026-08-09.md` | Supported |
 | Doorway warns before work continues | `helicon/doorway.py`, `helicon/cli.py`, terminal demo | Supported |
 | Every surfaced path contradiction includes command + stdout | `helicon/probes.py`, report evidence table, demo output | Supported for bound executable probes |
 | Keyless terminal demo touches no real Claude settings/store | `scripts/demo.sh` isolated paths and clean run | Supported |
 | Visual demo is populated and local-only | `scripts/judge-check.sh --full`, `tests/test_demo_golden.py` | Supported |
 | “All memory is true” | No system can prove this | Prohibited |
 | “Runs are blocked by default” | Runtime defaults to warn | Prohibited |
-| “26.6% of repos contain real contradictions” | Naive rate includes noise | Prohibited |
+| Any superseded corpus rate | Replaced by the 2026-08-09 rerun and full hand review | Prohibited |
 | Public hosted service is production-safe | HTTPS/session boundary not shipped | Prohibited |
 
 ## Known risks intentionally not hidden
@@ -86,8 +86,8 @@ Recommended answers: **yes; `mountain-of-helicon`; omit until replaced; yes.**
 - Repository visibility is founder-controlled and currently blocks public clone.
 - PyPI is not published; distribution name is unsettled.
 - Hosted dashboard auth/TLS is a later gate; launch is local-first.
-- Sweep precision is 0.34 at the finding level for the exhaustively reviewed
-  path class. The repo-level verified rate is the launch headline.
+- Finding precision is 0.30 after the mechanical fixes; the repo-level verified
+  1.04% rate is the launch headline.
 - The broad Truth/Continuity/Direction/Reflection/Calm vision is not the v0.1
   product promise.
 - The dashboard has deep Lab surfaces; the launch journey uses only Rulings.
