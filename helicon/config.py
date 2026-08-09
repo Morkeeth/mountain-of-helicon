@@ -1,8 +1,38 @@
 import json
 import os
 
-CONFIG_FILE = os.environ.get("HELICON_CONFIG") or os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "config.json")
+_PACKAGE_ROOT = os.path.dirname(os.path.dirname(__file__))
+_LEGACY_CONFIG_FILE = os.path.join(_PACKAGE_ROOT, "config.json")
+
+
+def helicon_home() -> str:
+    return os.path.abspath(os.path.expanduser(
+        os.environ.get("HELICON_HOME", "~/.helicon")
+    ))
+
+
+def default_config_file() -> str:
+    return os.path.join(helicon_home(), "config.json")
+
+
+# Kept as a public compatibility seam for tests and callers that monkeypatch it.
+CONFIG_FILE = os.environ.get("HELICON_CONFIG") or default_config_file()
+_INITIAL_CONFIG_FILE = CONFIG_FILE
+
+
+def config_file() -> str:
+    """Current config path: explicit env, user home, then legacy checkout."""
+    explicit = os.environ.get("HELICON_CONFIG")
+    if explicit:
+        return os.path.abspath(os.path.expanduser(explicit))
+    if CONFIG_FILE != _INITIAL_CONFIG_FILE:  # compatibility: monkeypatched path
+        return CONFIG_FILE
+    user_path = default_config_file()
+    if os.path.exists(user_path):
+        return user_path
+    if os.path.exists(_LEGACY_CONFIG_FILE):
+        return _LEGACY_CONFIG_FILE
+    return user_path
 
 
 def expand_path(path: str) -> str:
@@ -10,7 +40,7 @@ def expand_path(path: str) -> str:
 
 
 def load_config(path: str | None = None) -> dict:
-    config_path = path or CONFIG_FILE
+    config_path = os.path.abspath(os.path.expanduser(path)) if path else config_file()
     if not os.path.exists(config_path):
         # An EXPLICIT config that is not there is an error, not an empty config.
         # Returning {} silently made `HELICON_CONFIG=config-demo.json helicon
@@ -24,7 +54,7 @@ def load_config(path: str | None = None) -> dict:
                 f"config not found: {config_path}\n"
                 f"  (HELICON_CONFIG points at a file that does not exist)\n"
                 f"  demo store:  python3 scripts/demo_seed.py\n"
-                f"  your stack:  helicon init   (or cp config.example.json config.json)")
+                f"  your stack:  helicon init")
         return {}
     with open(config_path) as f:
         config = json.load(f)
