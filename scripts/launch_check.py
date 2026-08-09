@@ -105,13 +105,14 @@ def static_checks(root: Path) -> list[Check]:
             "measured-claim",
             "Public headline uses the hand-verified denominator",
             (
-                "10 repositories (1.74%)" in readme
+                "6 repositories (1.04%)" in readme
+                and "Finding-level precision was 9/30" in readme
                 and re.search(
-                    r"\*\*10 of\s+576 repos = 1\.74%\*\*",
+                    r"\*\*Verified repo prevalence:\*\* 6 / 577 = \*\*1\.04%\*\*",
                     report,
                 ) is not None
             ),
-            "10 / 576 repos · 1.74%",
+            "6 / 577 repos · 1.04% · 9 / 30 findings",
         ),
         Check(
             "terminal-demo",

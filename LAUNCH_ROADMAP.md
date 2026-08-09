@@ -17,7 +17,8 @@ cross-agent learning are mature.
 - [x] One canonical product name: Mountain of Helicon.
 - [x] One canonical repository: `Morkeeth/mountain-of-helicon`.
 - [x] Warning semantics in README, demo copy, and runtime.
-- [x] Public-corpus claim uses the hand-verified 1.74% repo rate.
+- [x] Public-corpus claim uses the rerun's hand-verified 1.04% repo rate and
+      9/30 finding precision.
 - [x] Clean-clone terminal demo succeeds.
 - [x] Clean-clone visual demo builds assets, seeds a writable isolated store,
       serves the SPA, and exposes at least one ruling.

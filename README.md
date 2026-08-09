@@ -11,10 +11,12 @@ CLI or MCP.
 
 ## The measured finding
 
-We scanned 591 public repositories with root agent-rules files. Of 576 that
-could be scored, **10 repositories (1.74%) contained a doc-vs-code contradiction
-that survived hand verification**. The naive checker reported 26.6%; roughly 90%
-of that was noise. The precision gap is part of the result, not a footnote.
+We ran the frozen 591-repository corpus and scored 577 current default branches;
+14 exclusions are named. After removing projection duplicates, enforcing the
+existing-file evidence invariant, and hand-verifying all 30 mechanical survivors,
+**6 repositories (1.04%) contained a sendable doc-vs-code contradiction**.
+Finding-level precision was 9/30. The rejected rows and reasons are part of the
+result, not a footnote.
 
 The frozen corpus, commands, stdout, exclusions, and hand-verification ledger are
 in [`docs/agent-context-report-2026-08.md`](docs/agent-context-report-2026-08.md).
@@ -36,6 +38,8 @@ into an isolated throwaway settings file, shows the warning with executable
 evidence, and records an explicit override. It does not touch your real Claude
 settings or memory store. Python 3.10+ is required; the preflight gives older
 macOS Python 3.9 users the exact upgrade command without a traceback.
+
+**Bring your own Qwen key (BYOK).** Get one free on the [Alibaba Cloud Model Studio free tier](https://www.alibabacloud.com/en/product/modelstudio), set `QWEN_API_KEY` or put it in `~/.helicon/config.json`. `helicon init` keeps configuration and the SQLite store under `~/.helicon/`, never inside the installed package. **Keyless degrade:** without a key every deterministic test still runs; only the two LLM-judged tests (Contradiction, Grounding) switch off -- the battery says so instead of faking a verdict.
 
 ## What ships
 

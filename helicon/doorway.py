@@ -244,10 +244,22 @@ def promote(conn, repo: str, ref: str) -> dict:
 # repo detail — every loaded line, its verdict, its cold state
 # --------------------------------------------------------------------------
 
-def _same_sentence(a: str, b: str) -> bool:
-    na = re.sub(r"\s+", " ", re.sub(r"[*`]", "", a or ""))[:48].strip()
-    nb = re.sub(r"\s+", " ", re.sub(r"[*`]", "", b or ""))[:48].strip()
-    return bool(na) and na == nb
+def _sentence_key(text: str) -> str:
+    """Stable assertion identity; a physical line may contain many of these."""
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def _by_assertion(results: list) -> dict:
+    """(file, exact assertion) -> strongest probe earned by that assertion."""
+    from helicon import probes
+    rank = {probes.CONTRADICTED: 2, probes.UNVERIFIABLE: 1, probes.UPHELD: 0}
+    out = {}
+    for result in results:
+        key = (result["file"], _sentence_key(result.get("sentence", "")))
+        current = out.get(key)
+        if current is None or rank.get(result["verdict"], 0) > rank.get(current["verdict"], 0):
+            out[key] = result
+    return out
 
 
 def _by_line(results: list) -> dict:
@@ -286,10 +298,19 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
     name = os.path.basename(os.path.normpath(repo))
     docs = loaded_docs(repo)
     try:
-        results = probes.probe_docs(conn, repo, config, allow_network)
+        # `strict` has to be handed on here or the profile split does nothing.
+        # It was threaded verdict -> contradicted_lines -> repo_detail and then
+        # dropped one call short of the prober, so `helicon sweep` ran the GATE
+        # profile against 574 strangers' repos and reported 29.09% flagged —
+        # the exact number the split was written to replace (b0abe55: "168/576,
+        # 29.2%, worse than the 26.6% naive baseline"). A parameter accepted and
+        # discarded is worse than one that was never added: every caller reads
+        # as configured, and the measurement looks deliberate.
+        results = probes.probe_docs(conn, repo, config, allow_network, strict=strict)
     except Exception:
         results = []
     by_line = _by_line(results)
+    by_assertion = _by_assertion(results)
     cold = cold_refs(conn, name)
 
     doc_out, loaded_total = [], 0
@@ -298,13 +319,20 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
         file, text = d["file"], d["text"]
         doc_cold = file in cold
         lines = []
-        for a in probes.split_assertions(text):
+        assertions = probes.split_assertions(text)
+        line_counts = {}
+        for assertion in assertions:
+            assertion_line = probes._line_of(text, assertion["text"])
+            line_counts[assertion_line] = line_counts.get(assertion_line, 0) + 1
+        for a in assertions:
             ln = probes._line_of(text, a["text"])
             ref = f"{file}#{ln}" if ln else f"{file}#p{abs(hash(a['text'])) % 100000}"
-            pv = by_line.get((file, ln))
-            if pv is None:
-                pv = next((r for r in results
-                           if r["file"] == file and _same_sentence(r["sentence"], a["text"])), None)
+            pv = by_assertion.get((file, _sentence_key(a["text"])))
+            # A line-level fallback is safe only when one assertion owns that
+            # line. Long one-line paragraphs produced 18 duplicate findings by
+            # projecting one probe onto every sentence sharing its line number.
+            if pv is None and line_counts.get(ln) == 1:
+                pv = by_line.get((file, ln))
             verdict = pv["verdict"] if pv else probes.UNVERIFIABLE
             toks = estimate_tokens(a["text"])
             is_cold = doc_cold or ref in cold

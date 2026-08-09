@@ -55,6 +55,6 @@ helicon sweep --from bench/corpus/agent-context-2026-08.txt --jobs 16 --timeout 
 
 ## The written evidence behind the pitch
 
-`docs/agent-context-report-2026-08.md` — the full public run over 576 repos, with
-hand-verified precision reported next to every rate (and the false-positive classes
-named and fixed). The demo is the live version of that report.
+`docs/agent-context-report-2026-08.md` — tonight's full run: 591 inputs, 577
+scored, 14 named exclusions, and 30 mechanical rows hand-verified down to 9 TRUE
+rows in 6 repos. The demo is the live version of that report.
