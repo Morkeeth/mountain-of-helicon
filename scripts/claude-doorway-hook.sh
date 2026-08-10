@@ -31,10 +31,22 @@ REPO="$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)"
 ERR="${TMPDIR:-/tmp}/helicon-doorway.$$.err"
 LAST="${TMPDIR:-/tmp}/helicon-doorway.last.err"
 
+# PYTHONSAFEPATH stops `python3 -m` from prepending the CALLER's cwd to
+# sys.path ahead of PYTHONPATH. Without it, a prompt sent from inside the old
+# ~/CODE/helicon checkout imported THAT package — which has no `hook` command —
+# so argparse exited 2 and the block branch below fired on every prompt.
+PYTHONSAFEPATH=1 \
 PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}" \
 HELICON_CONFIG="$REPO/config.json" \
 python3 -m helicon hook userprompt 2>"$ERR"
 rc=$?
+
+# argparse's usage-error exit code is 2 — the SAME code that means "block".
+# A CLI that cannot even parse its arguments has governed nothing, so its 2 is
+# a crash to be filed and forgiven, not a verdict to stop the operator with.
+if [ "$rc" -eq 2 ] && head -n 1 "$ERR" | grep -q '^usage:'; then
+    rc=1
+fi
 
 if [ "$rc" -eq 2 ]; then
     cat "$ERR" >&2                     # the banner the operator is stopped by
