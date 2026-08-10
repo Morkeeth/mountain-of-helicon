@@ -109,4 +109,20 @@ struct HeliconAPI {
         )
         return try await run(req, as: ConfirmResponse.self)
     }
+
+    // Workgraph fetchers, salvaged with WorkGraphView.swift.
+    func workCards() async throws -> WorkCardsResponse {
+        try await get("/api/workgraph/cards")
+    }
+
+    func workAttention() async throws -> WorkAttentionResponse {
+        try await get("/api/workgraph/attention")
+    }
+
+    func workTrace(_ wagerID: String) async throws -> WorkTrace {
+        try await get("/api/workgraph/cards/\(wagerID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? wagerID)")
+    }
+
+    /// GET /api/findings?lane=decision&limit=100
+
 }

@@ -347,3 +347,134 @@ struct PairEvidence {
         )
     }
 }
+
+
+// --- Workgraph models, salvaged alongside WorkGraphView.swift. The view was
+// ported without them in 5db661f and the app has not compiled since.
+struct WorkCardsResponse: Decodable {
+    let cards: [WorkCard]
+    let measurement: WorkMeasurement
+}
+
+struct WorkCard: Decodable, Identifiable {
+    let id: String
+    let intent: String
+    let beneficiary: String
+    let observableChange: String
+    let outcome: String?
+    let status: String
+    let model: String?
+    let harness: String?
+    let contextItems: Int
+    let evidenceCount: Int
+    let nextAction: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, intent, beneficiary, outcome, status, model, harness
+        case observableChange = "observable_change"
+        case contextItems = "context_items"
+        case evidenceCount = "evidence_count"
+        case nextAction = "next_action"
+    }
+}
+
+struct WorkMeasurement: Decodable {
+    let workCards: Int
+    let openCards: Int
+    let linkedRuns: Int
+    let contextPackets: Int
+    let contextWithMemory: Int
+    let declaredSkills: Int
+    let reviewedSkillVersions: Int
+    let cardsWithAllDeclaredSkillsReviewed: Int
+    let cardsWithSkills: Int
+    let cardsWithArtifacts: Int
+    let verifiedRuns: Int
+    let runsWithWallElapsed: Int
+    let runsWithTokenUsage: Int
+    let cardsWithOutcomeEvidence: Int
+    let evidenceReceipts: Int
+
+    enum CodingKeys: String, CodingKey {
+        case workCards = "work_cards", openCards = "open_cards", linkedRuns = "linked_runs"
+        case contextPackets = "context_packets", contextWithMemory = "context_with_memory", declaredSkills = "declared_skills"
+        case reviewedSkillVersions = "reviewed_skill_versions", cardsWithAllDeclaredSkillsReviewed = "cards_with_all_declared_skills_reviewed"
+        case cardsWithSkills = "cards_with_skills", cardsWithArtifacts = "cards_with_artifacts", verifiedRuns = "verified_runs", runsWithWallElapsed = "runs_with_wall_elapsed", runsWithTokenUsage = "runs_with_token_usage", cardsWithOutcomeEvidence = "cards_with_outcome_evidence", evidenceReceipts = "evidence_receipts"
+    }
+}
+
+struct WorkAttentionResponse: Decodable { let attention: [WorkAttention] }
+
+struct WorkAttention: Decodable, Identifiable {
+    var id: String { "\(wagerID)-\(action)" }
+    let wagerID: String
+    let intent: String
+    let priority: String
+    let action: String
+    let reason: String
+    enum CodingKeys: String, CodingKey {
+        case intent, priority, action, reason
+        case wagerID = "wager_id"
+    }
+}
+
+/// Read-only detail from GET /api/workgraph/cards/{id}. Optional fields are
+/// intentional: missing links remain visible rather than decoded as invented
+/// empty records.
+struct WorkTrace: Decodable {
+    let workCard: TraceCard
+    let taskRun: TraceRun?
+    let contextPacket: TracePacket?
+    let skills: [String]
+    let skillReviews: [TraceSkillReview]
+    let outcomeEvidence: [TraceEvidence]
+    let executionEvidence: [TraceEvidence]
+    let timeline: [TraceEvent]
+
+    enum CodingKeys: String, CodingKey {
+        case workCard = "work_card", taskRun = "task_run", contextPacket = "context_packet"
+        case skills, skillReviews = "skill_reviews", outcomeEvidence = "outcome_evidence"
+        case executionEvidence = "execution_evidence", timeline
+    }
+}
+
+struct TraceCard: Decodable {
+    let intent: String
+    let beneficiary: String
+    let outcome: String?
+}
+
+struct TraceRun: Decodable {
+    let model: String?
+    let harness: String?
+    let verificationOutcome: String?
+    enum CodingKeys: String, CodingKey { case model, harness; case verificationOutcome = "verification_outcome" }
+}
+
+struct TracePacket: Decodable {
+    let tokenEstimate: Int?
+    let includedMemoryItems: [TraceMemory]
+    enum CodingKeys: String, CodingKey { case tokenEstimate = "token_estimate", includedMemoryItems = "included_memory_items" }
+}
+struct TraceMemory: Decodable { let cubeID: String; enum CodingKeys: String, CodingKey { case cubeID = "cube_id" } }
+
+struct TraceSkillReview: Decodable { let skillVersion: String; enum CodingKeys: String, CodingKey { case skillVersion = "skill_version" } }
+struct TraceEvidence: Decodable { let kind: String; let reference: String }
+struct TraceEvent: Decodable, Identifiable { var id: String { "\(at)-\(kind)-\(label)" }; let at: String; let kind: String; let label: String }
+
+struct WorkLearning: Decodable {
+    let evidenceFloor: Int
+    let resolvedWorkCards: Int
+    let recommendationsWithheld: Bool
+    enum CodingKeys: String, CodingKey {
+        case evidenceFloor = "evidence_floor"
+        case resolvedWorkCards = "resolved_work_cards"
+        case recommendationsWithheld = "recommendations_withheld"
+    }
+}
+
+// MARK: - the morning brief (GET /api/brief)
+// Shapes modelled 1:1 from helicon.brief.build_brief. Every pillar carries a
+// headline the server already composed honestly, so the app never invents a
+// number — it renders what the record supports, empty pillars included.
+
