@@ -2365,6 +2365,15 @@ def cmd_capture(args):
         return
     r = sync_sessions(conn, limit=args.limit, dry_run=args.dry_run)
     print(render_sync(r))
+    if getattr(args, "govern", False):
+        from helicon.capture import govern_captures
+        g = govern_captures(conn, dry_run=args.dry_run)
+        print(f"\n    governed          {g['governed']} of {g['ungoverned']} "
+              f"ungoverned capture(s) -> task_runs")
+        if g["failed"]:
+            print(f"    failed            {g['failed']}")
+            for e in g["errors"]:
+                print(f"      · {e}")
 
 
 def cmd_lift(args):
@@ -3485,6 +3494,7 @@ def main():
     capture_p = sub.add_parser("capture", help="Observe local agent sessions into the store (idempotent; safe on a timer)")
     capture_p.add_argument("--dry-run", action="store_true", help="count what would be captured, write nothing")
     capture_p.add_argument("--list", action="store_true", help="show what has been captured")
+    capture_p.add_argument("--govern", action="store_true", help="also bridge new captures into the work graph as TaskRuns")
     capture_p.add_argument("--limit", type=int, default=None, help="stop after N")
 
     lift_p = sub.add_parser("lift", help="Does a skill make real work better? Joins the skill actually loaded to run cost and verification")

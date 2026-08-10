@@ -745,3 +745,57 @@ def render_sync(r: dict) -> str:
         lines.append(f"    failed            {r['failed']}")
         lines += [f"      · {e}" for e in r["errors"]]
     return "\n".join(lines)
+
+
+# An observed session never declared an acceptance test before work started, so
+# one is stamped after the fact with this exact marker. It exists so the run is
+# reachable in the graph — never so it can be mistaken for a governed run. Any
+# analysis that compares declared-before-work runs must exclude these.
+OBSERVED_ACCEPTANCE = "OBSERVED-AFTER-THE-FACT: no acceptance test was declared before this work"
+
+
+def _objective_from_capture(cap) -> str:
+    """The session's own first prompt, truncated. Never invented.
+
+    A capture with no readable prompt gets a description of what it is, not a
+    guess about what it was for.
+    """
+    try:
+        prompts = json.loads(cap["prompt_chain"] or "[]")
+    except json.JSONDecodeError:
+        prompts = []
+    for p in prompts:
+        text = (p.get("text") or p.get("prompt") or "").strip() if isinstance(p, dict) else str(p).strip()
+        if text:
+            return " ".join(text.split())[:200]
+    repo = (cap["repo"] or "unknown").rstrip("/").split("/")[-1]
+    return f"observed session in {repo} ({cap['branch'] or 'no branch'}) — no prompt recorded"
+
+
+def govern_captures(conn, *, limit: int | None = None, dry_run: bool = False) -> dict:
+    """Bridge observed captures into the work graph as TaskRuns.
+
+    run_captures was the ingestion; this is the edge that makes those rows part of
+    the graph instead of a parallel log. Idempotent: a capture whose task_run_id is
+    already set is skipped, so this is safe on the same timer as the capture itself.
+    """
+    rows = conn.execute(
+        "SELECT * FROM run_captures WHERE task_run_id IS NULL ORDER BY captured_at"
+    ).fetchall()
+    out = {"ungoverned": len(rows), "governed": 0, "failed": 0, "errors": [],
+           "dry_run": dry_run}
+    for cap in rows:
+        if dry_run:
+            out["governed"] += 1
+        else:
+            res = govern_from_capture(conn, cap["id"], _objective_from_capture(cap),
+                                      OBSERVED_ACCEPTANCE)
+            if res.get("ok", True) and not res.get("error"):
+                out["governed"] += 1
+            else:
+                out["failed"] += 1
+                if len(out["errors"]) < 5:
+                    out["errors"].append(f"{cap['id']}: {res.get('error')}")
+        if limit and out["governed"] >= limit:
+            break
+    return out
