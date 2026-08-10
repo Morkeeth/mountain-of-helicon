@@ -259,6 +259,10 @@ export type JudgeRun =
     };
 
 export const api = {
+  getWorkCards: () => get<{ cards: WorkCard[]; measurement: WorkgraphMeasurement }>('/workgraph/cards'),
+  getWorkCardTrace: (id: string) => get<Record<string, unknown>>(`/workgraph/cards/${encodeURIComponent(id)}`),
+  getWorkgraphAttention: () => get<{ attention: WorkgraphAttention[] }>('/workgraph/attention'),
+  getWorkgraphLearning: () => get<WorkgraphLearning>('/workgraph/learning'),
   getRot: (fresh = false) => get<RotExam>(`/rot${fresh ? '?fresh=1' : ''}`),
   getJudge: () => get<JudgeRun>('/judge'),
   getCubes: (params?: { status?: string; source?: string; type?: string; sort?: string; limit?: number; offset?: number }) => {
@@ -591,3 +595,18 @@ export interface ScoreHistoryPoint {
   reviewed: number;
   event_label: string | null;
 }
+
+// Workgraph types, salvaged alongside WorkgraphView.tsx. The view was ported
+// without them and `npm run build` has failed since 5db661f — the same mistake
+// as the Swift view, in the other front end.
+export interface WorkCard {
+  id: string; intent: string; beneficiary: string; observable_change: string;
+  outcome: 'proven' | 'disproven' | 'unproven' | null; status: 'open' | 'resolved';
+  model: string | null; harness: string | null; context_items: number; evidence_count: number;
+  next_action: string | null;
+}
+
+export interface WorkgraphMeasurement { work_cards: number; open_cards: number; outcomes: Record<string, number>; linked_runs: number; context_packets: number; context_with_memory: number; declared_skills: number; reviewed_skill_versions: number; cards_with_all_declared_skills_reviewed: number; cards_with_skills: number; cards_with_artifacts: number; verified_runs: number; runs_with_wall_elapsed: number; runs_with_token_usage: number; cards_with_outcome_evidence: number; evidence_receipts: number; }
+export interface WorkgraphAttention { wager_id: string; intent: string; priority: 'now' | 'next'; action: string; reason: string; }
+export interface WorkgraphLearning { evidence_floor: number; resolved_work_cards: number; recommendations_withheld: boolean; observations: Record<string, Array<{ value: string; resolved: number; outcomes: Record<string, number>; evidence_sufficient: boolean; verdict: string }>>; }
+
