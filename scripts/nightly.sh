@@ -28,7 +28,15 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
 PY=/Library/Frameworks/Python.framework/Versions/3.12/bin/python3
-LOG=data/nightly.log
+
+# The sidecars live next to the store, not next to this script. stackwatch.py:223
+# resolves nightly-run.json and eval-latest.json as dirname(db_path), so a store
+# that moves out of the repo takes its evidence with it. Hardcoding data/ here
+# split the writer from the reader: the nightly wrote a healthy record into the
+# repo while the detector looked in the store and filed "never completed".
+STORE=$($PY -c "import json,os;print(os.path.dirname(json.load(open('config.json'))['db_path']) or 'data')" 2>/dev/null || echo data)
+mkdir -p "$STORE"
+LOG=$STORE/nightly.log
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 echo "=== nightly start $(date -Iseconds) ===" >> "$LOG"
@@ -55,12 +63,12 @@ $PY -m helicon.cli reconcile --apply >> "$LOG" 2>&1 &&
   $PY -m helicon.cli evolve          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli runs --close --run >> "$LOG" 2>&1 &&
   $PY -m helicon.cli policy --inject --targets claude,codex >> "$LOG" 2>&1 &&
-  $PY -m helicon.cli report --llm --json > data/eval-latest.json.tmp 2>> "$LOG" &&
-  test -s data/eval-latest.json.tmp &&
-  mv -f data/eval-latest.json.tmp data/eval-latest.json
+  $PY -m helicon.cli report --llm --json > "$STORE/eval-latest.json.tmp" 2>> "$LOG" &&
+  $PY -c "import json,sys; json.load(open(sys.argv[1]))" "$STORE/eval-latest.json.tmp" 2>> "$LOG" &&
+  mv -f "$STORE/eval-latest.json.tmp" "$STORE/eval-latest.json"
 rc=$?
 # Never leave a half-written baseline behind for the next run to trip over.
-rm -f data/eval-latest.json.tmp
+rm -f "$STORE/eval-latest.json.tmp"
 
 # The run record: written by this script and by nothing else, carrying its own
 # UTC timestamp and the real exit code. stackwatch.nightly_status() reads THIS
@@ -69,7 +77,7 @@ rm -f data/eval-latest.json.tmp
 # editor save would all have forged 30 hours of fake health. Written on failure
 # too: a run that failed is a fact worth keeping, not an absence.
 printf '{"ts":"%s","rc":%d,"host":"%s"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%S)" "$rc" "$(hostname -s)" > data/nightly-run.json
+  "$(date -u +%Y-%m-%dT%H:%M:%S)" "$rc" "$(hostname -s)" > "$STORE/nightly-run.json"
 
 echo "=== nightly exit $rc $(date -Iseconds) ===" >> "$LOG"
 exit $rc
