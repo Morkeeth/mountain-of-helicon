@@ -47,7 +47,7 @@ macOS Python 3.9 users the exact upgrade command without a traceback.
   reality; `helicon doorway install` adds a reversible Claude Code preflight.
 - **Memory governance:** a 13-class rot exam, human rulings, receipts, undo, and
   Golden Rules.
-- **Agent access:** local MCP exposes 16 tools, plus an authenticated remote endpoint.
+- **Agent access:** local MCP exposes 23 tools, plus an authenticated remote endpoint.
 - **Connectors:** Claude Code, Cursor and Cursor Cloud exports, git, Obsidian,
   agent rules, ChatGPT exports, Mem0, Letta, Graphiti, and LifeOS adapters.
 - **Dashboard:** Doorway, Rulings, governed runs, memory health, and the deeper
@@ -178,7 +178,7 @@ quietly causes the rot it detects is the joke writing itself.
 
 All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
-## MCP Server (16 tools)
+## MCP Server (23 tools)
 
 Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
@@ -207,6 +207,13 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 | `helicon_playbook` | Task playbooks from review patterns |
 | `helicon_compile` | Compile reviewed memory to injectable files |
 | `helicon_triage` | Trigger auto-triage |
+| `helicon_prompt_gate` | Gate an execution prompt through a Wager -- approves only after a human accepted a BUILD or REPAIR move, else abstains |
+| `helicon_capture_launch` | Freeze the acceptance test and context packet before implementation starts |
+| `helicon_capture_closeout` | Close a run with real artifacts and a real verification receipt |
+| `helicon_workgraph_trace` | Join one work card to its task run, context, memory, skills and evidence |
+| `helicon_workgraph_attention` | Name the missing graph edge -- link_run, freeze_context, attach_artifact, choose_move |
+| `helicon_workgraph_learning` | Withhold recommendations until real resolved outcomes accumulate |
+| `helicon_workgraph_review_skill` | Record the skill version actually loaded, hashed over its bytes |
 | `helicon_consolidate` | Run a consolidation (sleep) cycle |
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
@@ -267,9 +274,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (57 commands)
+## CLI (58 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
@@ -378,7 +385,7 @@ Mountain of Helicon's capabilities stand on well-understood memory-systems patte
 </p>
 
 
-- **Backend:** Python 3.12, FastAPI (117 endpoints), SQLite + FTS5 (34 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
+- **Backend:** Python 3.12, FastAPI (121 endpoints), SQLite + FTS5 (38 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
 - **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. No hosted personal-store service is

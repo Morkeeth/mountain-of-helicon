@@ -315,6 +315,64 @@ CREATE TABLE IF NOT EXISTS prompt_library (
     promoted_at TEXT NOT NULL,
     promoted_by TEXT               -- accepted-outcome | operator-ruling
 );
+
+-- The Workgraph. Salvaged from the frozen submission's 0639b53 (2026-07-30),
+-- which was built after the freeze and never crossed over. See docs/SALVAGE-2026-08-10.md.
+--
+-- A Wager is the human's claim about a run, frozen BEFORE execution: who benefits,
+-- what observably changes, what would prove it, and what would kill it. Evidence
+-- attaches afterwards and can leave the wager unproven — that is a legal outcome,
+-- not a gap to fill.
+CREATE TABLE IF NOT EXISTS work_wagers (
+    id TEXT PRIMARY KEY,
+    task_run_id TEXT,
+    intent TEXT NOT NULL,
+    beneficiary TEXT NOT NULL,
+    observable_change TEXT NOT NULL,
+    evidence_contract TEXT NOT NULL,
+    kill_condition TEXT NOT NULL,
+    outcome TEXT,                  -- proven | disproven | unproven
+    ruling TEXT,
+    opened_at TEXT NOT NULL,
+    resolved_at TEXT,
+    status TEXT NOT NULL,          -- open | resolved
+    FOREIGN KEY(task_run_id) REFERENCES task_runs(id)
+);
+CREATE TABLE IF NOT EXISTS work_evidence (
+    id TEXT PRIMARY KEY,
+    wager_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    note TEXT,
+    observed_at TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
+    FOREIGN KEY(wager_id) REFERENCES work_wagers(id)
+);
+-- The half of the lift join that makes it honest: content_hash is taken over the
+-- actual local instruction bytes at review time, so it records the skill that was
+-- LOADED, not the one the run declared. task_runs.skill_versions is a claim; this
+-- is an observation.
+CREATE TABLE IF NOT EXISTS work_skill_reviews (
+    id TEXT PRIMARY KEY,
+    wager_id TEXT NOT NULL,
+    skill_version TEXT NOT NULL,
+    source_ref TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    reviewed_at TEXT NOT NULL,
+    UNIQUE(wager_id, skill_version),
+    FOREIGN KEY(wager_id) REFERENCES work_wagers(id)
+);
+CREATE TABLE IF NOT EXISTS next_moves (
+    id TEXT PRIMARY KEY,
+    wager_id TEXT NOT NULL,
+    action TEXT NOT NULL,          -- BUILD | INVESTIGATE | ASK | DECIDE | REPAIR | KILL
+    rationale TEXT NOT NULL,
+    status TEXT NOT NULL,          -- proposed | accepted | completed | killed
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(wager_id) REFERENCES work_wagers(id)
+);
+CREATE INDEX IF NOT EXISTS idx_work_wagers_taskrun ON work_wagers(task_run_id);
+CREATE INDEX IF NOT EXISTS idx_work_skill_reviews_wager ON work_skill_reviews(wager_id);
 """
 
 
@@ -442,6 +500,20 @@ def init_db(db_path: str) -> sqlite3.Connection:
     run_cols = {r["name"] for r in conn.execute("PRAGMA table_info(task_runs)")}
     if "outcome_contract" not in run_cols:
         conn.execute("ALTER TABLE task_runs ADD COLUMN outcome_contract TEXT")
+
+    # The lift join's missing key. run_cards.run_id is a start-clustered string
+    # ('run-2026-07-13T22:16', runs.py:174); task_runs.id is an opaque token
+    # ('tr_4cba36cdcdf8'). Nothing linked them, so work_skill_reviews could reach
+    # task_runs and stop — the cost side was unreachable and lift was unanswerable.
+    #
+    # Stamped at capture, never inferred. A time-window join over start/end was the
+    # alternative and was rejected: it would have backfilled three rows and left a
+    # permanent path that emits an approximate lift number, which is the exact
+    # failure class this tool exists to catch in other people's docs. Runs captured
+    # before this column stay NULL and are reported as unjoinable, not guessed.
+    if "run_id" not in run_cols:
+        conn.execute("ALTER TABLE task_runs ADD COLUMN run_id TEXT")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_task_runs_runid ON task_runs(run_id)")
     conn.commit()
     return conn
 
@@ -465,6 +537,22 @@ def search_cubes(conn: sqlite3.Connection, query: str, limit: int = 30,
     """
     retired_filter = "" if include_retired else \
         "AND g.review_status NOT IN ('killed', 'superseded') "
+    # A caller's query is TEXT to find, never FTS5 syntax to execute. Unquoted, a
+    # hyphenated phrase is parsed as an expression: search_cubes("definitely-not-
+    # in-demo") raised `no such column: not`, because FTS5 read NOT as its operator
+    # and `in`/`demo` as column names. build_packet swallowed that error and fell
+    # through to a keyword path that froze 11 unrelated memories into a context
+    # packet, labelled `keyword:definitely-not-in-demo`. A crash is recoverable;
+    # silently wrong context served to an agent is the failure this tool exists to
+    # catch. Each token is quoted, and an embedded quote is doubled per FTS5's
+    # string rules, so the whole query degrades to an honest phrase match.
+    # OR, not the implicit AND: an objective arrives here as a whole sentence, and
+    # requiring every word would retrieve nothing for the queries this is actually
+    # asked. rank still orders by how much matched, so the best hit stays first.
+    fts_query = " OR ".join(
+        '"' + token.replace('"', '""') + '"'
+        for token in query.split() if token.strip()
+    ) or '""'
     rows = conn.execute(
         f"""SELECT g.*, cubes_fts.rank
         FROM cubes_fts
@@ -473,7 +561,7 @@ def search_cubes(conn: sqlite3.Connection, query: str, limit: int = 30,
         {retired_filter}
         ORDER BY rank
         LIMIT ?""",
-        (query, limit),
+        (fts_query, limit),
     ).fetchall()
     results = []
     for row in rows:

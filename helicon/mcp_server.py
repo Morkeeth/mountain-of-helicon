@@ -192,6 +192,88 @@ TOOLS = [
         "description": "Read the record: a grounded portrait of who the memory shows this person is. Returns who and what recur, the mix of work they make, the areas they invest in, the record's health (reviewed %, rot classes firing, volatile facts, golden rules), and the three moves the record argues for. Call this at the start of a session to orient fast on who you are working with and what their memory needs.",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
     },
+    # --- Workgraph (salvaged from the frozen submission's 0639b53) ---
+    {
+        "name": "helicon_prompt_gate",
+        "description": "Gate an agent execution prompt through a Workgraph Wager. Pass a wager_id. Helicon returns an approved, outcome-accountable execution prompt only when a human accepted a BUILD or REPAIR move. Otherwise it abstains and explains the required human action. This tool never starts work or fabricates a next move.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "wager_id": {"type": "string", "description": "Workgraph Wager id, e.g. wg_ab12cd34ef56"},
+            },
+            "required": ["wager_id"],
+        },
+    },
+    {
+        "name": "helicon_workgraph_trace",
+        "description": "Inspect the connected evidence behind a Work Card: human outcome contract, TaskRun, frozen context/memory item ids, declared skills, artifacts, receipts, and next moves. This is read-only provenance, not a causal score or recommendation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "wager_id": {"type": "string", "description": "Work Card id, e.g. wg_ab12cd34ef56"},
+            },
+            "required": ["wager_id"],
+        },
+    },
+    {
+        "name": "helicon_workgraph_attention",
+        "description": "Return factual Work Graph interventions: missing run links, unfrozen context, unverified artifacts, missing outcome receipts, or open cards without a next move. This is a queue of missing record edges, never a performance score or invented recommendation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer", "default": 30}},
+        },
+    },
+    {
+        "name": "helicon_workgraph_learning",
+        "description": "Read outcome observations for linked Work Cards by harness, model, and declared skill. Recommendations are explicitly withheld until each observed group reaches Helicon's resolved-outcome evidence floor. This never infers causality from a diff or one successful run.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "helicon_workgraph_review_skill",
+        "description": "Bind an exact skill version declared on a Work Card's linked TaskRun to a SHA-256 snapshot of the local instruction file you actually reviewed. This records instruction provenance only; it never claims the skill is good or that the Work Card outcome is proven.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "wager_id": {"type": "string", "description": "Work Card id"},
+                "skill_version": {"type": "string", "description": "Exact declared version, e.g. workgraph@1"},
+                "source_path": {"type": "string", "description": "Readable local instruction file inspected"},
+            },
+            "required": ["wager_id", "skill_version", "source_path"],
+        },
+    },
+    {
+        "name": "helicon_capture_launch",
+        "description": "Start a real local agent run from an accepted BUILD or REPAIR Work Card. It creates the TaskRun, links it to the card, and freezes a privacy-filtered ContextPacket before implementation. It does not run an agent. Call once immediately before work, then use helicon_capture_closeout after you have actual artifacts and a human verification result.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "wager_id": {"type": "string", "description": "Accepted open Work Card id"},
+                "acceptance_test": {"type": "string", "description": "Concrete test/observation frozen before work"},
+                "query": {"type": "string", "description": "Optional context selection query; defaults to the card intent"},
+                "model": {"type": "string", "description": "Model actually executing the work"},
+                "harness": {"type": "string", "description": "Harness, e.g. claude-code, cursor, codex"},
+                "skill_versions": {"type": "array", "items": {"type": "string"}, "description": "Declared skill versions actually loaded"},
+                "repo_ref": {"type": "string", "description": "Local repository path/reference"},
+            },
+            "required": ["wager_id", "acceptance_test", "harness"],
+        },
+    },
+    {
+        "name": "helicon_capture_closeout",
+        "description": "Close a previously captured local agent run. Hashes the readable local artifact files, records the supplied human verification result and receipt, and attaches that receipt to its Work Card. This does not resolve the human outcome. Never call it with invented verification or paths you did not produce.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_run_id": {"type": "string", "description": "TaskRun id returned by helicon_capture_launch"},
+                "artifacts": {"type": "array", "items": {"type": "string"}, "description": "Readable local files to hash"},
+                "verification": {"type": "string", "enum": ["verified", "contradicted", "unverified"], "description": "Human verification result"},
+                "evidence": {"type": "string", "description": "Actual command output, URL, or observation supporting the verification"},
+                "input_tokens": {"type": "integer", "minimum": 0, "description": "Observed model input tokens, if the harness supplied them; requires output_tokens"},
+                "output_tokens": {"type": "integer", "minimum": 0, "description": "Observed model output tokens, if the harness supplied them; requires input_tokens"},
+            },
+            "required": ["task_run_id", "artifacts", "verification", "evidence"],
+        },
+    },
 ]
 
 # Remote callers get the agent workflow, not host-level maintenance. `flag`
@@ -472,6 +554,73 @@ def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
 
 
 def handle_tool_call(name: str, arguments: dict, conn) -> str:
+    if name == "helicon_prompt_gate":
+        from helicon.wager import WagerError, compile_execution_prompt
+        try:
+            return json.dumps({
+                "verdict": "approved",
+                "wager_id": arguments.get("wager_id", ""),
+                "prompt": compile_execution_prompt(conn, arguments.get("wager_id", "")),
+            }, indent=2)
+        except WagerError as exc:
+            return json.dumps({
+                "verdict": "abstain",
+                "wager_id": arguments.get("wager_id", ""),
+                "reason": str(exc),
+            }, indent=2)
+
+    if name == "helicon_workgraph_trace":
+        from helicon.wager import WagerError, trace_work_card
+        try:
+            return json.dumps(trace_work_card(conn, arguments.get("wager_id", "")), indent=2)
+        except WagerError as exc:
+            return json.dumps({"error": str(exc)}, indent=2)
+
+    if name == "helicon_workgraph_attention":
+        from helicon.wager import workgraph_attention
+        return json.dumps({"attention": workgraph_attention(conn, arguments.get("limit", 30))}, indent=2)
+
+    if name == "helicon_workgraph_learning":
+        from helicon.wager import workgraph_learning
+        return json.dumps(workgraph_learning(conn), indent=2)
+
+    if name == "helicon_workgraph_review_skill":
+        from helicon.wager import WagerError, review_declared_skill
+        try:
+            return json.dumps(review_declared_skill(
+                conn, arguments.get("wager_id", ""), skill_version=arguments.get("skill_version", ""),
+                source_path=arguments.get("source_path", "")), indent=2)
+        except WagerError as exc:
+            return json.dumps({"error": str(exc)}, indent=2)
+
+    if name == "helicon_capture_launch":
+        from helicon.capture import CaptureError, launch
+        from helicon.wager import WagerError, compile_execution_prompt
+        wager_id = arguments.get("wager_id", "")
+        try:
+            # A capture cannot become a backdoor around the Prompt Gate.
+            prompt = compile_execution_prompt(conn, wager_id)
+            result = launch(conn, wager_id, acceptance_test=arguments.get("acceptance_test", ""),
+                            query=arguments.get("query", ""), model=arguments.get("model", ""),
+                            harness=arguments.get("harness", ""), skills=arguments.get("skill_versions", []) or [],
+                            repo_ref=arguments.get("repo_ref"))
+            return json.dumps({**result, "execution_prompt": prompt}, indent=2)
+        except (CaptureError, WagerError) as exc:
+            return json.dumps({"error": str(exc)}, indent=2)
+
+    if name == "helicon_capture_closeout":
+        from helicon.capture import CaptureError, close
+        from helicon.taskrun import TaskRunError
+        try:
+            return json.dumps(close(conn, arguments.get("task_run_id", ""),
+                                    artifacts=arguments.get("artifacts", []) or [],
+                                    verification=arguments.get("verification", ""),
+                                    evidence=arguments.get("evidence", ""),
+                                    input_tokens=arguments.get("input_tokens"),
+                                    output_tokens=arguments.get("output_tokens")), indent=2)
+        except (CaptureError, TaskRunError) as exc:
+            return json.dumps({"error": str(exc)}, indent=2)
+
     if name == "helicon_flag":
         return json.dumps(_flag_memory(
             conn, arguments.get("memory_id", ""),
