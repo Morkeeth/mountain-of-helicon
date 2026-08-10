@@ -2,7 +2,7 @@
 
 Alibaba Cloud documents three memory backends for Qwen agents: Model Studio
 Memory Bank, Mem0 + Hologres, and Mem0 + AnalyticDB. This read-side adapter
-lets Mount Helicon audit all the Mem0-shaped ones: pull every memory for a
+lets Mountain of Helicon audit all the Mem0-shaped ones: pull every memory for a
 user and hand it to the same battery/snapshot/reconcile machinery as any
 other source. We audit; the store keeps the write path.
 

@@ -1,7 +1,7 @@
-"""Auto-triage engine: Mount Helicon makes its own decisions based on learned patterns.
+"""Auto-triage engine: Mountain of Helicon makes its own decisions based on learned patterns.
 
 When pattern confidence is high enough, auto-approve or auto-kill without
-human review. The human only sees uncertain items. This is what makes Mount Helicon
+human review. The human only sees uncertain items. This is what makes Mountain of Helicon
 an agent, not just a tool.
 """
 

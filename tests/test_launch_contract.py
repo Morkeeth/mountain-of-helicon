@@ -15,6 +15,9 @@ def test_public_launch_surfaces_use_canonical_identity():
         "README.md",
         "DEMO.md",
         "action.yml",
+        "CLAUDE.md",
+        "ARCHITECTURE.md",
+        "ROT.md",
         "web/public/welcome.html",
         "web/src/components/Landing.tsx",
     ]
@@ -42,9 +45,10 @@ def test_readme_leads_with_working_terminal_demo():
     assert demo_pos < dashboard_pos
 
 
-def test_github_action_installs_current_repository():
+def test_github_action_installs_the_revision_the_consumer_pinned():
     action = _read("action.yml")
-    assert "github.com/Morkeeth/mountain-of-helicon.git" in action
+    assert 'python -m pip install "$GITHUB_ACTION_PATH"' in action
+    assert "git+https://" not in action
 
 
 def test_release_workflow_covers_product_not_only_memory_exam():

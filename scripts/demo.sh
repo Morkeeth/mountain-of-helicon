@@ -21,6 +21,7 @@ rm -rf "$DEMO"; mkdir -p "$DEMO/home"
 banner(){ printf '\n\033[1m========== %s ==========\033[0m\n' "$1"; sleep 0.4; }
 
 banner "1) REACH — real public repos whose docs their own code disproves"
+echo "   (selected examples from 6 verified repos; frozen-corpus prevalence: 6/577 = 1.04%)"
 $HELICON sweep hoangtruong01/HorseTrack pvieito/CodeSignKit octocat/Hello-World \
   --jobs 3 --timeout 60
 
