@@ -118,13 +118,13 @@ def test_baseline_copy_is_clean(repo):
 
 def test_count_drift_in_claude_md_is_caught(repo):
     """The real Jul 15 lie: CLAUDE.md said 11 MCP tools while source had 14."""
-    _mutate(repo, "CLAUDE.md", "MCP Server (16 tools", "MCP Server (11 tools")
+    _mutate(repo, "CLAUDE.md", "MCP Server (23 tools", "MCP Server (11 tools")
     assert _fails(check_counts(str(repo)), "MCP tools", "CLAUDE.md")
 
 
 def test_count_drift_in_readme_still_caught(repo):
     """v1's one real skill must not regress."""
-    _mutate(repo, "README.md", "MCP Server (16 tools)", "MCP Server (8 tools)")
+    _mutate(repo, "README.md", "MCP Server (23 tools)", "MCP Server (8 tools)")
     assert _fails(check_counts(str(repo)), "MCP tools", "README.md")
 
 
@@ -159,8 +159,8 @@ def test_cli_list_short_is_caught(repo):
 def test_claude_md_table_list_drift_is_caught(repo):
     """CLAUDE.md declared 18 tables and listed 18, while source had 24."""
     _mutate(repo, "CLAUDE.md",
-            ", run_captures, run_events, prompt_library, doorway_cold, doorway_gate_cache)", ")")
-    _mutate(repo, "CLAUDE.md", "(34 tables:", "(23 tables:")
+            ", work_wagers, work_evidence, work_skill_reviews, next_moves)", ")")
+    _mutate(repo, "CLAUDE.md", "(38 tables:", "(23 tables:")
     assert _fails(check_lists(str(repo)), "tables list", "CLAUDE.md")
 
 
@@ -219,7 +219,7 @@ def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
 
 def test_deleting_a_claim_is_not_a_way_to_pass(repo):
     """The cheapest fake fix is removing the number. It must fail, not pass."""
-    _mutate(repo, "CLAUDE.md", "- 28 routers (117 endpoints), 16 MCP tools", "- routers, MCP tools")
+    _mutate(repo, "CLAUDE.md", "- 29 routers (121 endpoints), 23 MCP tools", "- routers, MCP tools")
     drift = _fails(check_counts(str(repo)), "API routers", "CLAUDE.md")
     assert drift and "not found" in drift[0]["why"]
 

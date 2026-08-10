@@ -2255,6 +2255,22 @@ def cmd_evolve(args):
               f"(pushes {gold['total'] - prev_rules} new ruling(s) to ~/.claude)")
 
 
+def cmd_lift(args):
+    """Does a skill make real work better? Joins the skill actually loaded to what
+    the run cost and whether it verified. Prints an honest refusal when the store
+    has too few runs — an empty store is CLEAN, not healthy."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.wager import skill_lift, render_skill_lift
+    conn = init_db(load_config()["db_path"])
+    report = skill_lift(conn, args.skill)
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(report, indent=2))
+    else:
+        print(render_skill_lift(report))
+
+
 def cmd_resolve(args):
     """Close a cross-source contradiction with the truth. Files the human
     decision, writes a correction cube (approved, full provenance) so
@@ -3332,6 +3348,10 @@ def main():
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
     evolve_p.add_argument("--obey", action="store_true", help="also push the compiled policy to ~/.claude so the agent obeys it (.bak kept)")
 
+    lift_p = sub.add_parser("lift", help="Does a skill make real work better? Joins the skill actually loaded to run cost and verification")
+    lift_p.add_argument("skill", help="skill name or version prefix, e.g. stranger or stranger@2")
+    lift_p.add_argument("--json", action="store_true", help="machine-readable report")
+
     resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction memory + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
     resolve_p.add_argument("--truth", help="the true value, one of the asserted dates/values")
@@ -3490,6 +3510,7 @@ def main():
         "policy": cmd_gold,
         "gold": cmd_gold,
         "evolve": cmd_evolve,
+        "lift": cmd_lift,
         "resolve": cmd_resolve,
         "watch": cmd_watch,
         "alias": cmd_alias,
