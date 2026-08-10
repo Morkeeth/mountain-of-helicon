@@ -70,11 +70,23 @@ def test_cost_is_unknown_not_zero_when_the_run_has_no_card():
 
 
 def test_the_headline_counts_only_independent_checks(client):
+    """CI has an empty store; a developer machine does not.
+
+    This assertion used to demand a number in the headline unconditionally, so it
+    passed on Oscar's populated store and failed on every clean checkout — red on
+    9 consecutive pushes while the suite reported 792 passing locally. That is the
+    stranger problem this project exists to catch, inside its own test file. Both
+    branches are asserted now, and which one applies is decided by the data.
+    """
     d = client.get("/api/claims").json()
     expected = d["counts"]["INDEPENDENTLY_CHECKED"] + d["counts"]["HUMAN_RULED"]
     assert d["independently_checked"] == expected
-    assert str(expected) in d["headline"]
-    assert "checked by something other than the agent" in d["headline"]
+    if d["total"] == 0:
+        assert d["headline"].startswith("NO DATA")
+        assert "not a pass" in d["headline"]
+    else:
+        assert str(expected) in d["headline"]
+        assert "checked by something other than the agent" in d["headline"]
 
 
 def test_an_empty_store_reports_no_data_not_clean(tmp_path):
