@@ -1,7 +1,7 @@
 # The Memory-Rot Catalogue
 
 Agent memory fails in repeatable ways. This catalogue names the failure classes,
-grounds each in documented public evidence, and maps each to the Mount Helicon
+grounds each in documented public evidence, and maps each to the Mountain of Helicon
 check that catches it — or honestly says none does yet. The origin story: four of
 these failures happened in the author's own agent stack in a single day
 (2026-07-04), and this repo's checks scored 1 caught / 3 missed on first contact.

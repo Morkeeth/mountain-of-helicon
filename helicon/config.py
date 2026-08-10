@@ -40,6 +40,9 @@ def expand_path(path: str) -> str:
 
 
 def load_config(path: str | None = None) -> dict:
+    # Resolve at call time. `helicon demo` sets HELICON_CONFIG immediately
+    # before uvicorn starts, while normal installs prefer ~/.helicon and retain
+    # legacy checkout compatibility through config_file().
     config_path = os.path.abspath(os.path.expanduser(path)) if path else config_file()
     if not os.path.exists(config_path):
         # An EXPLICIT config that is not there is an error, not an empty config.
@@ -53,7 +56,7 @@ def load_config(path: str | None = None) -> dict:
             raise FileNotFoundError(
                 f"config not found: {config_path}\n"
                 f"  (HELICON_CONFIG points at a file that does not exist)\n"
-                f"  demo store:  python3 scripts/demo_seed.py\n"
+                f"  demo:        helicon demo\n"
                 f"  your stack:  helicon init")
         return {}
     with open(config_path) as f:

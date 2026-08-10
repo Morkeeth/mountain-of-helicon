@@ -1,124 +1,89 @@
-# Mount Helicon
+# Mountain of Helicon
 
-<p align="center">
-  <img src="docs/img/helicon-desktop-1440.png" alt="Mount Helicon: the review queue, ruling on a finding against the author's live memory store" width="100%">
-</p>
+**Executable preflight for agent context.** Mountain of Helicon checks whether
+the instructions an agent is about to load still match the repository in front
+of it. Every contradiction carries the command and stdout that proved it.
 
-**The test-and-focus layer for AI agent memory.** Mem0 stores it, Letta organizes it, Zep timestamps it — none of them test whether what's remembered is still *true*. Mount Helicon is the exam: it regression-tests what your agent retrieves, scores whether that context is still true, retires what isn't, and turns what's left into your next move — every answer citing the exact memory it came from. **CI for memory, with receipts.**
+It is local-first, keyless for deterministic checks, and warns by default before
+work continues. It can also audit longer-lived memory, let a human rule on
+contradictions, and compile those rulings into policy agents can query through
+CLI or MCP.
 
-It sits *on top of any store* (or none), reads any agent's memory read-only — Claude Code, Cursor, Copilot, Cline, ChatGPT, git, Obsidian, or a Mem0/Letta/Graphiti store — and never becomes a store itself.
+## The measured finding
 
-Built for the [Qwen Cloud Global AI Hackathon](https://qwencloud-hackathon.devpost.com/) -- Track 1: MemoryAgent.
+We ran the frozen 591-repository corpus and scored 577 current default branches;
+14 exclusions are named. After removing projection duplicates, enforcing the
+existing-file evidence invariant, and hand-verifying all 30 mechanical survivors,
+**6 repositories (1.04%) contained a sendable doc-vs-code contradiction**.
+Finding-level precision was 9/30. The rejected rows and reasons are part of the
+result, not a footnote.
 
-> **Where this is heading:** the calm **control plane for agentic work** — as your
-> work fragments across Claude Code, Cursor, Codex, and cloud agents, Helicon keeps
-> one inspectable system of record: what's true now, what changed, what it cost, and
-> the three things worth your judgment. This submission ships the governance
-> foundation of that vision. The full north star: [`VISION.md`](VISION.md).
+The frozen corpus, commands, stdout, exclusions, and hand-verification ledger are
+in [`docs/agent-context-report-2026-08.md`](docs/agent-context-report-2026-08.md).
+Release gates and intentionally deferred work are tracked in
+[`LAUNCH_ROADMAP.md`](LAUNCH_ROADMAP.md).
 
-## See it in 60 seconds (one command, no key, no personal data)
-
-```bash
-git clone https://github.com/Morkeeth/mountain-of-helicon.git && cd mountain-of-helicon && \
-python3 scripts/check_python.py && \
-python3 -m pip install -e . && \
-helicon demo          # seeds a labelled demo store + opens the dashboard
-```
-
-Mountain of Helicon requires Python 3.10+. On an older stock macOS Python 3.9,
-the preflight exits with the exact Homebrew upgrade command before installation;
-it never drops into a package traceback.
-
-Open **http://127.0.0.1:8420**. The dashboard opens on **Needs Ruling** with a
-*dangerous* contradiction from a live payments store — *"Stripe is in test mode
-(March) vs. we went live, every charge is real money (July)."* Believe the stale
-one and an agent charges real customers. **One tap** on the current answer and it's
-ruled — compiled into the law, and the receipt proves the **guard now blocks** the
-dangerous claim before an agent can act on it, with **Undo**. That's the whole loop:
-**a claim → its evidence → your ruling → enforced protection.** Localhost-bound,
-keyless, scans nothing on your machine. Full walkthrough:
-[`GOLDEN_SUBMISSION.md`](GOLDEN_SUBMISSION.md).
-
-## The Problem
-
-The record is measured and it is bad. Shown two contradicting sources, GPT-4 flags the conflict only **6.3%** of the time -- it just picks one and answers confidently ([WikiContradict, NeurIPS 2024](https://arxiv.org/pdf/2406.13805)). The best frontier model detects that a stored memory has been invalidated **55.2%** of the time ([STALE, 2026](https://arxiv.org/pdf/2605.06527)). **64% of memory-agent recommendation errors trace to outdated memory that was never forgotten** ([Memora, 2026](https://arxiv.org/html/2604.20006v1)), and accuracy on superseded facts collapses from 68% to 28% as session history grows -- 24x more memory buys back zero points: "the bottleneck is memory maintenance, not comprehension" ([Supersede, 2026](https://arxiv.org/html/2606.27472)). Independent production testing of a popular OSS memory store measured **49% effective accuracy after 30 days at a 38% staleness rate** ([RankSquire Infrastructure Lab, 2026](https://ranksquire.com/2026/05/06/long-term-memory-for-ai-agents/)).
-
-The labs know. OpenAI's Agents SDK docs say it verbatim: *"Memory can become stale. Agents are instructed to treat memories as guidance only."* Anthropic's memory-tool freshness strategy is one line: delete files *"that haven't been accessed in a long time."* Alibaba's own AnalyticDB team titled their blog *"Is Your AI Agent Getting Dumber?"* -- and Qwen3.7-Max markets 35-hour autonomous runs as *"resilient to context rot and instruction drift"* with no way for anyone to verify it. Mem0 ($24M) stores. Letta ($10M) organizes. Zep timestamps. Every shipped mitigation is recency deletion, write-time dedup, or "the human should review." **Nobody ships a test that asks: is this stored memory still true?**
-
-Mount Helicon is the exam. It runs on real data only -- this repo was built and tested against its author's live memory store (~7,800 memories as of 2026-07-17, roughly 4,200 of them live; it grows on every scan, so run `helicon doctor` for today's count), and it has failed its own audits more than once (see receipts in the demo).
-
-## The moat: what a memory store cannot do (one command)
-
-Mem0 stores. AgentPrizm confidence-scores. Both keep what an agent wrote. Neither can **examine whether two memories disagree on what an entity IS**, catch a **relationship no source ever grounded**, make a **ruling stick** so a corrected mistake cannot silently return, or **turn that ruling into policy** the next generation obeys. Those are four things a store structurally cannot do — and they are the exam.
-
-```bash
-python3 scripts/demo_mem0_audit.py --mock     # audits a Mem0-format store, no key
-```
-
-Four phases, on a store's own memories:
-1. **Audit** — catches an **identity fork** (`Aurora` defined as a *payments protocol* in one memory, a *lending market* in another) and a **phantom association** (`Aurora → Solana`, asserted once, grounded by nothing). R11 and R12 — blind spots no confidence score reveals.
-2. **Rule** — you settle each; Helicon records the verdict *and compiles it into the Golden Rules the agent reads before it writes* (`Aurora IS a payments protocol (ruled canonical); the 'market' framing is wrong`). A store keeps both contradictory memories; Helicon turns your verdict into policy — the *govern* half a store has no place to put.
-3. **Re-audit** — clean. The rulings stuck.
-4. **Recurrence** — a new memory re-asserts the ruled-out definition, and Helicon **re-alarms**. A store forgets it ever asked; Helicon remembers what you ruled.
-
-Same story in the dashboard: `python3 scripts/demo_seed.py && HELICON_CONFIG=config-demo.json helicon serve` → rule the fork and the phantom in the review queue, watch them clear.
-
-## Why it fits Track 1 (MemoryAgent)
-
-**Memory stores remember. Mount Helicon judges what is still true.** It is itself a memory agent: it accumulates findings, human rulings, Golden Rules, regret events and retrieval failures across sessions, and uses them to make future agent decisions more accurate.
-
-| Track 1 criterion | Mount Helicon's answer |
-|---|---|
-| **Persistent memory / accumulates experience** | Findings, rulings, Golden Rules, regret ledger and score history persist in SQLite across every session |
-| **Remembers preferences** | Auto-triage learns keep/kill rules from *your* past rulings; Golden Rules encode your standing decisions with provenance |
-| **Improves decisions across sessions** | Rulings compile into Golden Rules the agent obeys next session; the never-twice guard stops a corrected fact silently resurfacing |
-| **Efficient store / retrieve** | Hybrid FTS5 + semantic retrieval; the battery tests what a task *actually* retrieves, not the whole store |
-| **Timely forgetting** | 13-class rot exam + per-type Weibull decay + `reconcile` retires memories reality no longer contains |
-| **Recall within limited context** | Selectors + retrieval-quality battery + Next Moves surface only what matters, each citing its source |
-| **Qwen Cloud, load-bearing** | Contradiction + grounding judging, cross-source adjudication, rule compilation, and Next Moves synthesis — cached, cost-tracked, honest keyless degrade |
-
-## Quick Start (60 seconds, $0)
+## Try the complete terminal demo
 
 ```bash
 git clone https://github.com/Morkeeth/mountain-of-helicon.git
 cd mountain-of-helicon
 python3 scripts/check_python.py
 python3 -m pip install -e .
-
-helicon init        # auto-detects Claude Code, Cursor, Obsidian, git
-helicon scan        # extract memory from your sources
-helicon doctor      # health check: PATH, config, key, DB, last scan
-helicon check "what am I working on"   # context-quality verdict
-helicon audit         # the rot exam: 13 documented failure classes, checked live
-helicon serve       # dashboard at http://localhost:8420
+bash scripts/demo.sh
 ```
+
+The demo scans named public repositories, installs the Claude Code doorway hook
+into an isolated throwaway settings file, shows the warning with executable
+evidence, and records an explicit override. It does not touch your real Claude
+settings or memory store. Python 3.10+ is required; the preflight gives older
+macOS Python 3.9 users the exact upgrade command without a traceback.
 
 **Bring your own Qwen key (BYOK).** Get one free on the [Alibaba Cloud Model Studio free tier](https://www.alibabacloud.com/en/product/modelstudio), set `QWEN_API_KEY` or put it in `~/.helicon/config.json`. `helicon init` keeps configuration and the SQLite store under `~/.helicon/`, never inside the installed package. **Keyless degrade:** without a key every deterministic test still runs; only the two LLM-judged tests (Contradiction, Grounding) switch off -- the battery says so instead of faking a verdict.
 
-Judge reproduction from a clean machine is scripted: `bash scripts/judge-check.sh` clones, installs, boots, and fails loudly on any crack. `scripts/cloudshell-run.sh` is the same flow inside Alibaba Cloud Shell.
+## What ships
 
-## Proof of Alibaba Cloud
+- **Doorway:** `helicon sweep` checks agent-rules files against repository
+  reality; `helicon doorway install` adds a reversible Claude Code preflight.
+- **Memory governance:** a 13-class rot exam, human rulings, receipts, undo, and
+  Golden Rules.
+- **Agent access:** local MCP exposes 16 tools, plus an authenticated remote endpoint.
+- **Connectors:** Claude Code, Cursor and Cursor Cloud exports, git, Obsidian,
+  agent rules, ChatGPT exports, Mem0, Letta, Graphiti, and LifeOS adapters.
+- **Dashboard:** Doorway, Rulings, governed runs, memory health, and the deeper
+  Lab surfaces.
 
-The backend is **deployed and running on Alibaba Cloud** — a live public URL:
+## Visual demo
 
-- **Live on Alibaba Cloud ECS (Singapore / ap-southeast-1):** **http://47.237.3.97:8420** — `GET /api/health` → `{"status":"ok",...}`, `GET /` → the dashboard (HTTP 200). Serves the seeded demo store (no personal data). Reproducible on any Linux host via [`scripts/cloudshell-run.sh`](scripts/cloudshell-run.sh) (local-first).
-- **Qwen inference on Alibaba Model Studio** — [`helicon/qwen.py`](helicon/qwen.py) (load-bearing: contradiction + grounding judging).
-- **Embeddings on Alibaba DashScope** — [`helicon/embeddings.py`](helicon/embeddings.py) (`text-embedding-v4`).
-- **Also container-deployable to Function Compute** — [`fc/s.yaml`](fc/s.yaml) + [`fc/Dockerfile`](fc/Dockerfile).
+The web bundle is generated, never committed stale. From a source checkout:
 
-## Three ways to run it (the dashboard is optional)
+```bash
+helicon demo
+```
 
-You don't have to host anything, and you don't need the browser.
+On first run this installs/builds the dashboard with npm, seeds a labelled
+19-memory demo under `~/.helicon/demo`, and serves it only on
+`http://127.0.0.1:8420/#findings`. No personal connector runs and no API key is
+required.
 
-- **CLI** — `helicon audit`, `helicon check "<task>"`, `helicon doctor`, `helicon policy`. The full audit, headless. `helicon watch` runs it on a cron and only pings you when something *new* rots — the ambient, no-browser daily loop.
-- **In your IDE / agent (MCP)** — `helicon mcp` exposes 16 tools so your coding agent audits and repairs its own memory mid-conversation: `helicon_context` pulls memory *with provenance*, `helicon_flag` corrects at the point of use, `helicon_stale`/`helicon_contradictions` surface rot. This is the agent-native path — the tool lives inside Claude Code / Cursor, no human dashboard required.
-- **Dashboard** (`helicon serve`) — for when you want to sit down and review visually: Next Moves, findings, golden rules.
+## Use it on your own stack
 
-Packaged as a proper CLI (a `helicon` entry point via `pyproject.toml`), so once it's on PyPI the install is `pipx install mount-helicon` (or `uvx mount-helicon` for zero-install). Today, from the clone: `pip install -e .`, then `helicon init`. Semantic search is an optional extra (`pip install "mount-helicon[embeddings]"`); the core install is slim (no torch) so the CLI, the rot exam, and CI stay fast.
+```bash
+helicon init
+helicon scan
+helicon doctor
+helicon audit
+helicon check "what am I working on"
+helicon serve
+```
+
+Qwen is optional and BYOK. Without a key, deterministic checks continue and the
+two LLM-judged checks report themselves unavailable rather than fabricating a
+verdict. Semantic embeddings are an optional install; the core remains slim.
 
 ## CI for agent memory (GitHub Action)
 
-The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
+The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs 13 documented failure classes through the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
 
 ```yaml
 # .github/workflows/memory-ci.yml
@@ -128,19 +93,23 @@ jobs:
   rot-exam:
     runs-on: ubuntu-latest
     steps:
-      - uses: MorkeethHQ/mount-helicon@main
+      - uses: Morkeeth/mountain-of-helicon@main
         with:
           fail-on: rot   # or 'none' for report-only
 ```
 
-Locally it's the same one command: `helicon ci` (add `--fail-on none` for report-only). This repo dogfoods it — see `.github/workflows/memory-ci.yml`.
+Locally it's the same one command: `helicon ci`. This repo dogfoods the exam in
+report-only mode (`--fail-on none`) so known R6 findings remain visible without
+making unrelated pull requests permanently red. Teams that have ruled their
+baseline clean should use the Action's default `fail-on: rot`.
 
-## The live doorway (a run is actually stopped, not advised)
+## The live doorway (a warning backed by executable proof)
 
-Everything above produces a verdict. This is where a verdict becomes an act:
-a Claude Code `UserPromptSubmit` hook that **refuses to let a run start** against
-a repo whose loaded docs the running code disproves. The prompt is erased and the
-offending lines are named, in your own terminal, before a token is spent.
+Everything above produces a verdict. The doorway puts it where work begins: a
+Claude Code `UserPromptSubmit` hook warns when the repository disproves loaded
+instructions, naming the offending lines and executable evidence in the terminal.
+Warning is the default because a preflight that wedges a terminal gets removed.
+Teams that explicitly want enforcement can set `HELICON_GATE_MODE=block`.
 
 ```bash
 helicon board                 # every repo under ~/CODE and what it loads into an agent
@@ -155,22 +124,21 @@ The gate a stranger installs is **keyless and config-free**: `helicon doorway in
 writes one `UserPromptSubmit` hook (shown as a diff, backed up first, idempotent,
 and exactly reversible), and the hook — `python3 -m helicon doorway gate` — needs no
 `config.json` to run. On the next prompt in any repo whose loaded docs its own code
-disproves, the run is refused in your terminal. Its blocks log into your configured
-store when you have one (so they show up in `helicon runs` / the dashboard), and fall
-back to a standalone `~/.helicon` store for a stranger who has no config.
+disproves, the warning appears in your terminal and the run continues. Warnings and
+explicit overrides log into your configured store (so they show up in `helicon runs`
+/ the dashboard), and fall back to a standalone `~/.helicon` store for a stranger
+who has no config.
 
 Three rules it obeys, all from the same law:
 
-- **Machine-applied.** A `CONTRADICTED` verdict came from a probe that executed and
-  disagreed, so no human is asked. The only human moment is an override — retype the
-  prompt as `helicon-override: <reason>` — and the reason is logged verbatim against
-  the blockers it waved through.
+- **Machine-evidenced.** A `CONTRADICTED` verdict came from a probe that executed and
+  disagreed. The operator can correct/demote the line, continue after the warning,
+  or explicitly record an override reason.
 - **Cold lines never block.** Demoting a line keeps it forever and loads nothing, so
   it cannot poison a run and must not stop one. `--demote` is a real exit, not advice.
-- **Fail open, loudly.** Any error lets the prompt through; a gate that bricks a
-  terminal gets uninstalled, and then it governs nothing. The logged `gate_blocked` /
-  `gate_override` events are what make a block provable — the absence of one proves
-  nothing.
+- **Fail open, loudly.** Any error lets the prompt through; a doorway that bricks a
+  terminal gets uninstalled, and then it governs nothing. Logged warning/override
+  events make intervention inspectable — the absence of one proves nothing.
 
 `helicon receipt` is the honest half of delivery. Every other step can be satisfied by
 a row Helicon itself wrote; this one opens the transcript the **harness** wrote and
@@ -192,7 +160,7 @@ quietly causes the rot it detects is the joke writing itself.
 
 ## Three Layers
 
-**Layer 1 -- Extraction.** Nine pluggable connectors: Claude Code (JSONL transcripts + memory files), Obsidian, git history, ChatGPT exports, Cursor, agent rules files, plus read-side adapters for **Letta MemFS**, **Graphiti** (bi-temporal metadata mapped into memories; 17 tests), and **Mem0** -- the store Alibaba's own agent-memory docs recommend (Model Studio Memory Bank, Mem0 + Hologres, Mem0 + AnalyticDB), so Mount Helicon audits the stacks Alibaba itself suggests. Rewritten and expiring Mem0 memories carry their temporal fields into the freshness tests. Agent *rules* files (CLAUDE.md, AGENTS.md, .cursorrules) are split into section-level memories so regression catches a single rule drifting. Every item becomes a **HeliconCube**: versioned memory unit with source, confidence, content hash, review status, decay parameters (MemOS-inspired). A SAGE-style novelty gate (ADD/NOOP/MERGE) prevents redundant storage.
+**Layer 1 -- Extraction.** Pluggable connectors cover Claude Code, Cursor and Cursor Cloud exports, Obsidian, git history, ChatGPT exports, agent rules, LifeOS, Letta MemFS, Graphiti, and Mem0. Rewritten and expiring Mem0 memories carry their temporal fields into freshness tests. Agent *rules* files (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`) are split into section-level memories so regression catches one section drifting. Every item becomes a **HeliconCube**: a versioned memory unit with source, confidence, content hash, review status, and decay parameters. A novelty gate prevents redundant storage.
 
 **Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On its first run it handled 585 of the 1,268 memories the store held at that time autonomously. Spin detection, kill prediction, Helicon Score.
 
@@ -217,7 +185,7 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 ```json
 {
   "mcpServers": {
-    "helicon": { "command": "helicon", "args": ["mcp"], "cwd": "/path/to/mount-helicon" }
+    "helicon": { "command": "helicon", "args": ["mcp"], "cwd": "/path/to/mountain-of-helicon" }
   }
 }
 ```
@@ -347,7 +315,7 @@ Honest numbers from the first run (232 files, 1,667 section memories): **6/16 fi
 
 ## Access & trust model (read this before connecting your vault)
 
-A tool that audits your memory reads your memory. That access is scary, so here is exactly what Mount Helicon does with it — from the code, not a promise:
+A tool that audits your memory reads your memory. That access is scary, so here is exactly what Mountain of Helicon does with it — from the code, not a promise:
 
 **Reads (always read-only):** your configured sources — Claude Code transcripts, Obsidian vault, git repos, rules files, memory stores via adapters. Connectors never write to a source. The life-OS benchmark and the rot exam open the store read-only.
 
@@ -386,13 +354,14 @@ Everything destructive is dry-run by default and takes `--apply`.
 - Retrieval: P@3 0.615, MRR 0.596. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
 - **Decay predicts human kills at rank-AUC 0.78** (mean confidence of killed memories 0.14 vs approved 0.27). A real, independent signal.
 - Consolidation: ~9-10x fewer tokens; Qwen-judged quality favors synthesis (self-graded, shown as direction, not proof).
-- Zero fake data anywhere: the demo DB is the author's real Claude Code transcripts (210+), Obsidian vault, and git repos.
+- The public demo store is 19 labelled planted memories and contains no personal
+  data. Live scans read only the sources each user configures.
 
 ## Built on established patterns, extended
 
-Mount Helicon's capabilities stand on well-understood memory-systems patterns and take each one further. The lineage, stated honestly — the second column is the established idea, the third is our own build on top of it:
+Mountain of Helicon's capabilities stand on well-understood memory-systems patterns and take each one further. The lineage, stated honestly — the second column is the established idea, the third is our own build on top of it:
 
-| Capability | Established pattern | How Mount Helicon extends it |
+| Capability | Established pattern | How Mountain of Helicon extends it |
 |-----------|--------|---------------------------|
 | Versioned memory units | Structured memory units, not raw text | HeliconCube: source, hash, valid_from, confidence, decay per type |
 | Multi-axis audit | Temporal/factual/logical consistency checks | 13-class rot exam, each with a receipt and a never-twice guard |
@@ -405,14 +374,16 @@ Mount Helicon's capabilities stand on well-understood memory-systems patterns an
 ## Architecture
 
 <p align="center">
-  <img src="docs/architecture.svg" alt="Mount Helicon architecture: the store, retrieve, output, attribute, rule, law loop" width="100%">
+  <img src="docs/architecture.svg" alt="Mountain of Helicon architecture: the store, retrieve, output, attribute, rule, law loop" width="100%">
 </p>
 
 
 - **Backend:** Python 3.12, FastAPI (117 endpoints), SQLite + FTS5 (34 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
 - **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
-- **Distribution:** BYOK + local-first. Live deployment on Alibaba Cloud ECS at http://47.237.3.97:8420 (Singapore), plus Cloud Shell run (`scripts/cloudshell-run.sh`)
+- **Distribution:** BYOK + local-first. No hosted personal-store service is
+  advertised for v0.1; public hosting waits for HTTPS, sessions, configured
+  CORS, rate limits, and backups.
 
 ## License
 

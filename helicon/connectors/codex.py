@@ -46,8 +46,8 @@ MAX_CHARS = 2000
 OWN_OUTPUT_MARKERS = (
     "# AGENTS.md instructions",
     "# GOLDEN RULES",
-    "Compiled by Mount Helicon",
-    "by Mount Helicon. Regenerate:",
+    "Compiled by Mountain of Helicon",
+    "by Mountain of Helicon. Regenerate:",
 )
 
 

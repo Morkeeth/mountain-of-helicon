@@ -175,7 +175,13 @@ def test_verdict_caches_on_the_fingerprint(conn, tmp_path):
     repo = _contradicted_repo(tmp_path)
     first = doorway.verdict(conn, str(repo))
     assert first["cached"] is False
-    assert doorway.verdict(conn, str(repo))["cached"] is True
+    expected_revision = subprocess.check_output(
+        ["git", "rev-parse", "--short=7", "HEAD"], cwd=repo, text=True
+    ).strip()
+    assert first["revision"] == expected_revision
+    cached = doorway.verdict(conn, str(repo))
+    assert cached["cached"] is True
+    assert cached["revision"] == expected_revision
 
 
 def test_editing_the_doc_invalidates_the_cache(conn, tmp_path):

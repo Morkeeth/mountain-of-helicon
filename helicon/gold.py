@@ -1,6 +1,6 @@
 """GOLDEN RULES — the stack's law, compiled from human judgment.
 
-Every surface of Mount Helicon produces decisions with provenance: rulings
+Every surface of Mountain of Helicon produces decisions with provenance: rulings
 on findings, dismissal precedents, approved triage rules, declared renames,
 canonical sources, and the operator's standing feedback memories. Scattered,
 they are history. Compiled, they are an OPINIONATED, EVOLVING rulebook for
@@ -274,7 +274,7 @@ def _compile_from(g: dict, sections: tuple = SECTIONS,
         "",
         f"_The opinionated law of this agent stack: {total} rules, every one "
         f"born from a human decision or a declared fact. Compiled {now} UTC "
-        f"by Mount Helicon. Regenerate: `helicon gold` · "
+        f"by Mountain of Helicon. Regenerate: `helicon gold` · "
         f"Inject: `helicon gold --inject`._",
         "",
     ]

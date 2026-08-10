@@ -86,7 +86,7 @@ def collect_drift(conn: sqlite3.Connection, state: dict,
 
 def format_drift_report(drift: dict, ran_scan: bool, now: str) -> str:
     lines = [
-        "# Mount Helicon — drift report",
+        "# Mountain of Helicon — drift report",
         "",
         f"_{now} · scan {'ran' if ran_scan else 'skipped'} · "
         f"{drift['rot_found']}/10 rot classes showing rot_",
@@ -174,7 +174,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
         if notify:
             flips = len(drift["flips"])
             notify_macos(
-                "Mount Helicon",
+                "Mountain of Helicon",
                 f"{len(drift['new_findings'])} new finding(s)"
                 + (f", {flips} rot class flip(s)" if flips else "")
                 + " — drift-report.md")

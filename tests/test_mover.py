@@ -34,7 +34,7 @@ def test_plan_move_splits_kept_and_held():
 def test_render_targets():
     items = [{"text": "one"}, {"text": "two"}]
     assert render(items, "cursor") == "- one\n- two\n"
-    assert "moved + verified by Mount Helicon" in render(items, "claude-code")
+    assert "moved + verified by Mountain of Helicon" in render(items, "claude-code")
     assert render(items, "markdown").startswith("# Moved memory")
 
 
