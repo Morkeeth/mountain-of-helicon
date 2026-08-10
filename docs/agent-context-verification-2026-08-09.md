@@ -36,15 +36,15 @@ as `(no output)` rather than omitted.
 | 23 | `myadmin-plugins/mail-module@1ecb89c` | `CLAUDE.md:109` | Read `CALIBER_LEARNINGS.md` | `git ls-files -- CALIBER_LEARNINGS.md` | `(no output)` | **TRUE** — concrete relative project file, included by the same managed block in `git add`, but absent and unignored |
 | 24 | `nicolafavero/eml-to-mailmd@3e1ee2e` | `AGENTS.md:44` | Do not create `main.py`; only source is `eml_to_mailmd.py` | `git ls-files -- main.py` | `(no output)` | **FALSE** — explicit prohibition; absence is intended |
 | 25 | `pedrosanto90/portfolio_os@1ac856d` | `CLAUDE.md:25` | Components use `ComponentName/ComponentName.tsx` | `git ls-files -- ComponentName/ComponentName.tsx` | `(no output)` | **FALSE** — naming template; concrete components follow it |
-| 26 | `pvieito/CodeSignKit@6c8616c` | `CLAUDE.md:9` | Read `README.md` for project-specific guidance | `git ls-files -- README.md` | `(no output)` | **TRUE** — active symlinked instruction; no README on disk or in history |
-| 27 | `pvieito/XCTestKit@7badb9a` | `CLAUDE.md:9` | Read `README.md` for project-specific guidance | `git ls-files -- README.md` | `(no output)` | **TRUE** — active symlinked instruction; no README on disk or in history |
+| 26 | `pvieito/CodeSignKit@6c8616c` | `CLAUDE.md:9` | Read `README.md` for project-specific guidance | `git ls-files -- README.md` | `(no output)` | **TRUE** — active symlinked instruction; no README on disk or in history; same instruction blob/owner as row 27 |
+| 27 | `pvieito/XCTestKit@7badb9a` | `CLAUDE.md:9` | Read `README.md` for project-specific guidance | `git ls-files -- README.md` | `(no output)` | **TRUE** — active symlinked instruction; no README on disk or in history; same instruction blob/owner as row 26 |
 | 28 | `smalls257/claude-md-autoresearch@4805caf` | `CLAUDE.md:3` | Local rules live in each directory's `AGENTS.md` | `git ls-files -- AGENTS.md` | `(no output)` | **FALSE** — describes consumer repositories for a global-CLAUDE experiment, not this repo |
 | 29 | `stdkoehler/gamemAIster-frontend@b8e372b` | `CLAUDE.md:19` | Port configured in `.claude/launch.json` | `git ls-files -- .claude/launch.json` | `(no output)` | **FALSE** — environment-specific local preview configuration; repository absence does not disprove it |
 | 30 | `stefanoginella/auto-bmad@9224abd` | `CLAUDE.md:153` | `validate-module.py` requires `merge-config.py` | `git ls-files -- validate-module.py` | `(no output)` | **FALSE** — basename reference to an ignored installer-owned script whose full path is documented elsewhere |
 
 ## Totals
 
-- **TRUE:** 9 rows across 6 repositories.
+- **TRUE:** 9 rows across 6 repositories and 5 independent maintainer situations.
 - **FALSE:** 21 rows.
 - **Finding-level precision:** 9 / 30 = **0.30**.
 - **Verified repo-level prevalence:** 6 / 577 scored = **1.04%**.

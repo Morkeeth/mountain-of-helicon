@@ -1,4 +1,4 @@
-"""Evaluation harness: measures Mount Helicon's own retrieval, forgetting, and audit quality.
+"""Evaluation harness: measures Mountain of Helicon's own retrieval, forgetting, and audit quality.
 
 Three benchmarks:
 1. Retrieval precision: does helicon_context return the right cubes for known queries?

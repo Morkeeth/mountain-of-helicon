@@ -17,7 +17,7 @@ from helicon.qwen import get_client, complete_json
 from helicon.lenses import detect_lens, lens_guidance
 
 
-_SYSTEM = """You are Mount Helicon's focus engine. You receive the current STATE of a
+_SYSTEM = """You are Mountain of Helicon's focus engine. You receive the current STATE of a
 developer's AI-agent memory: open FINDINGS (memory that failed a rot check:
 contradictions, dead renamed names, stale notes, wrongly-retired memory) and
 PROJECT signals (what is stalling, spinning, or decaying). Detection already

@@ -23,7 +23,7 @@ function HowItWorks() {
   return (
     <div className="rounded-xl border border-zinc-300 bg-white px-5 py-4 mb-5 shadow-sm">
       <div className="flex items-baseline justify-between">
-        <b className="text-[13px] text-zinc-800">How Mount Helicon works</b>
+        <b className="text-[13px] text-zinc-800">How Mountain of Helicon works</b>
         <button className="text-[11px] text-zinc-500 hover:text-zinc-800"
           onClick={() => { localStorage.setItem('hm-guide', '1'); setHidden(true); }}>got it, hide</button>
       </div>

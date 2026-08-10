@@ -18,6 +18,8 @@ reasonable interpretation. An arguable row is FALSE.
 - **Excluded:** 14, named below.
 - **Mechanical survivors:** 30 rows in 25 repositories.
 - **Hand-verified TRUE:** 9 rows in 6 repositories.
+- **Independent maintainer situations:** 5 (`CodeSignKit` and `XCTestKit` share
+  one owner and the same symlinked instruction blob).
 - **Finding precision:** 9 / 30 = **0.30**.
 - **Verified repo prevalence:** 6 / 577 = **1.04%**.
 
@@ -48,6 +50,11 @@ Measurement code includes:
   existing file, do not publish it;
 - `0ebb8e4` — repair four frozen-corpus lines contaminated by concatenated GitHub
   429 JSON while preserving 591 unique repository names.
+
+The reduced per-repository machine receipt from that run is committed at
+[`bench/results/agent-context-scorecard-2026-08-09.json`](../bench/results/agent-context-scorecard-2026-08-09.json).
+It preserves all 591 statuses and all mechanical findings without temporary
+clone paths.
 
 The run completed with **no timeouts**. That is what happened tonight; no timeout
 count is borrowed from a different run.

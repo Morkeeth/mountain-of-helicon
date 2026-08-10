@@ -20,18 +20,19 @@ or your real store — it uses a throwaway `settings.json` and an isolated
 > "Every one of these repos ships an agent-rules file that tells an agent to read
 > a file the repository does not contain. Here's the command that proves it."
 
-**2. CONTROL — Helicon becomes the door, not a dashboard.**
+**2. CONTROL — Helicon becomes the preflight, not another dashboard.**
 `helicon doorway install` wires the gate into Claude Code as a `UserPromptSubmit`
 hook — shown as a diff, backed up first, confirmed, reversible. Then a real prompt
-in a contradicted repo is **refused in the terminal**, before the run starts, with
-the probe evidence inline.
-> "The run hasn't earned the right to start. The gate stopped it at the door."
+in a contradicted repo receives a **warning in the terminal** with the probe
+evidence inline. The run continues by default; enforcement is explicit opt-in.
+> "The context is wrong before the first model token. Here is the command that proves it."
 
-**3. OVERRIDE — the one human moment, and it's logged.**
-Retype the prompt starting with `helicon-override: <reason>`. The run proceeds —
-and the reason is recorded against the exact blockers it waved through. `helicon
-doctor` shows the gate's own store and when it last fired.
-> "No silent bypass. If you override the door, the door remembers who and why."
+**3. RECORD — the human decision is explicit and logged.**
+Retype the prompt starting with `helicon-override: <reason>` when you want the
+reason preserved. The run already continues in warning mode; this records the
+operator's judgment against the exact contradictions. `helicon doctor` shows the
+doorway's own store and when it last fired.
+> "The warning is automatic. The reason for proceeding can be durable."
 
 **4. SCOPE — the honest limit, said out loud.**
 The gate settles what the **filesystem** can settle: a named path that is gone, a

@@ -1,0 +1,3903 @@
+{
+  "schema_version": 1,
+  "measured_at": "2026-08-09T00:18:37+02:00",
+  "corpus": "bench/corpus/agent-context-2026-08.txt",
+  "measurement_commit": "0ebb8e4",
+  "summary": {
+    "n_input": 591,
+    "scored": 577,
+    "flagged": 25,
+    "rate": 0.0433,
+    "findings_total": 30,
+    "by_status": {
+      "scored": 577,
+      "no-rules-file": 11,
+      "clone-failed": 3
+    },
+    "by_kind": {
+      "named-path-gone": 30
+    },
+    "distribution": {
+      "0": 552,
+      "1": 22,
+      "2": 2,
+      "4": 1
+    }
+  },
+  "results": [
+    {
+      "repo": "hoangtruong01/HorseTrack",
+      "status": "scored",
+      "contradicted": 4,
+      "findings": [
+        {
+          "where": "CLAUDE.md:9",
+          "kind": "named-path-gone",
+          "claim": "Read `MASTER_GUIDE.md` for the operating model.",
+          "probe": "git ls-files -- MASTER_GUIDE.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names MASTER_GUIDE.md; git tracks no such file and it is not on disk"
+        },
+        {
+          "where": "CLAUDE.md:11",
+          "kind": "named-path-gone",
+          "claim": "Read `PORTABILITY.md` for copy strategy across Roo, Claude Code, Codex, and future projects.",
+          "probe": "git ls-files -- PORTABILITY.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names PORTABILITY.md; git tracks no such file and it is not on disk"
+        },
+        {
+          "where": "AGENTS.md:9",
+          "kind": "named-path-gone",
+          "claim": "Read `MASTER_GUIDE.md` for the operating model.",
+          "probe": "git ls-files -- MASTER_GUIDE.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names MASTER_GUIDE.md; git tracks no such file and it is not on disk"
+        },
+        {
+          "where": "AGENTS.md:11",
+          "kind": "named-path-gone",
+          "claim": "Read `PORTABILITY.md` for copy strategy across Roo, Codex, Codex, and future projects.",
+          "probe": "git ls-files -- PORTABILITY.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names PORTABILITY.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "WadeBalsamo/Qualitative_Research_Algorithm",
+      "status": "scored",
+      "contradicted": 2,
+      "findings": [
+        {
+          "where": "CLAUDE.md:13",
+          "kind": "named-path-gone",
+          "claim": "| Path | Role | |------|------| | `qra.py` | CLI entry point (setup / run / analyze / ingest / classify / assemble / gnn / probe / migrate / add-data [--classify-mode] / reclassify-run / testset / cv ",
+          "probe": "git ls-files -- qra_config.json",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names qra_config.json; git tracks no such file and it is not on disk"
+        },
+        {
+          "where": "CLAUDE.md:253",
+          "kind": "named-path-gone",
+          "claim": "`db_path` → `qra.db`); overlay/manifest path helpers retained as legacy strings | | `src/process/output_index.py` | `00_index.txt` generation | | `src/process/cross_validation.py` | VAAMR × VCE code c",
+          "probe": "git ls-files -- efficacy_summary.json",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names efficacy_summary.json; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "orbforge/sensorbox",
+      "status": "scored",
+      "contradicted": 2,
+      "findings": [
+        {
+          "where": "CLAUDE.md:51",
+          "kind": "named-path-gone",
+          "claim": "Python project managed with `uv`; entrypoint `asu/main.py` (FastAPI).",
+          "probe": "git ls-files -- asu/main.py",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names asu/main.py; git tracks no such file and it is not on disk"
+        },
+        {
+          "where": "CLAUDE.md:66",
+          "kind": "named-path-gone",
+          "claim": "Config lives in `www/config.js`.",
+          "probe": "git ls-files -- www/config.js",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names www/config.js; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "Broccode/acci_framework",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": ".cursorrules:322",
+          "kind": "named-path-gone",
+          "claim": "Configuration is in `cursor-tools.config.json` (or `~/.cursor-tools/config.json`).",
+          "probe": "git ls-files -- cursor-tools.config.json",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names cursor-tools.config.json; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "DrakeDamon/Portfolio",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "AGENTS.md:5",
+          "kind": "named-path-gone",
+          "claim": "Next.js site: lives in `portfolio-nextjs/` with its own `src/`, `content/`, and config (`next.config.mjs`).",
+          "probe": "git ls-files -- next.config.mjs",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names next.config.mjs; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "PyAutoLabs/PyAutoNerves",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "AGENTS.md:17",
+          "kind": "named-path-gone",
+          "claim": "Canonical boundaries live in `PyAutoBrain/ORGANISM.md`; the full body map (every repo, not just organs) is `PyAutoMind/repos.yaml`.",
+          "probe": "git ls-files -- PyAutoBrain/ORGANISM.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names PyAutoBrain/ORGANISM.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "Strategic-Cowork-Consulting/confidence-routed-extraction",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:136",
+          "kind": "named-path-gone",
+          "claim": "FastAPI exception handlers live in `api/exceptions.py`.",
+          "probe": "git ls-files -- api/exceptions.py",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names api/exceptions.py; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "URML-MARS/URML",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:139",
+          "kind": "named-path-gone",
+          "claim": "RFCs live in `/docs/rfcs/NNNN-short-name.md`, numbered sequentially.",
+          "probe": "git ls-files -- /docs/rfcs/NNNN-short-name.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names /docs/rfcs/NNNN-short-name.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "VarunDasharadhi/newsletter-demo",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:16",
+          "kind": "named-path-gone",
+          "claim": "Read `workflows/scrape_website.md`, figure out the required inputs, then execute `tools/scrape_single_site.py`",
+          "probe": "git ls-files -- workflows/scrape_website.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names workflows/scrape_website.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "algotiqa/gui",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "AGENTS.md:53",
+          "kind": "named-path-gone",
+          "claim": "No `karma.conf.js` — config is implicit via the Angular CLI; browser defaults to ChromeHeadless.",
+          "probe": "git ls-files -- karma.conf.js",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names karma.conf.js; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "cpliakas/claude-code-engineering-leaders",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:93",
+          "kind": "named-path-gone",
+          "claim": "Do not duplicate the version in `plugin.json` — for relative-path marketplace plugins, the marketplace entry is the single source of truth",
+          "probe": "git ls-files -- plugin.json",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names plugin.json; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "elsom25/jcmcginnis-2022",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": ".cursorrules:87",
+          "kind": "named-path-gone",
+          "claim": "Posts live in `src/_posts/` with naming: `YYYY-MM-DD-slug.md`",
+          "probe": "git ls-files -- YYYY-MM-DD-slug.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names YYYY-MM-DD-slug.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "fxp/AI-Buzzwords",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:374",
+          "kind": "named-path-gone",
+          "claim": "**No emoji in author signature** (always — see `feedback_no_zhipu.md` in user memory)",
+          "probe": "git ls-files -- feedback_no_zhipu.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names feedback_no_zhipu.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "joemooney/aida",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:27",
+          "kind": "named-path-gone",
+          "claim": "**Per-spec transition history lives in the orphan-branch GIT LOG.** **The source-of-truth for spec-state time series is the `aida-store` branch's git history** — every `aida edit` targeted-commits the",
+          "probe": "git ls-files -- objects/TYPE/000/SPEC-ID.yaml",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names objects/TYPE/000/SPEC-ID.yaml; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "jorgejr568/organizze-mcp",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "AGENTS.md:198",
+          "kind": "named-path-gone",
+          "claim": "Read `openapi.yaml` before adding wire fields — it's the source of truth, and gaps against it are what motivate most of the change history.",
+          "probe": "git ls-files -- openapi.yaml",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names openapi.yaml; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "lh1207/levihuff.net",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:101",
+          "kind": "named-path-gone",
+          "claim": "The config file is `eleventy.config.cjs` (not `.eleventy.js`).",
+          "probe": "git ls-files -- .eleventy.js",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names .eleventy.js; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "limhaowei/prescription-manager",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": ".cursor/rules/convex_rules.mdc:23",
+          "kind": "named-path-gone",
+          "claim": "HTTP endpoints are defined in `convex/http.ts` and require an `httpAction` decorator.",
+          "probe": "git ls-files -- convex/http.ts",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names convex/http.ts; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "myadmin-plugins/mail-module",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:109",
+          "kind": "named-path-gone",
+          "claim": "Read `CALIBER_LEARNINGS.md` for patterns and anti-patterns learned from previous sessions.",
+          "probe": "git ls-files -- CALIBER_LEARNINGS.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names CALIBER_LEARNINGS.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "nicolafavero/eml-to-mailmd",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "AGENTS.md:44",
+          "kind": "named-path-gone",
+          "claim": "non creare `main.py` o altri file entry point (l'unico sorgente è `eml_to_mailmd.py`)",
+          "probe": "git ls-files -- main.py",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names main.py; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "pedrosanto90/portfolio_os",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:25",
+          "kind": "named-path-gone",
+          "claim": "Each component lives in **its own directory** as `ComponentName/ComponentName.tsx` with a barrel `index.ts` re-export (`export { default } from './ComponentName'`).",
+          "probe": "git ls-files -- ComponentName/ComponentName.tsx",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names ComponentName/ComponentName.tsx; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "pvieito/CodeSignKit",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:9",
+          "kind": "named-path-gone",
+          "claim": "Read `README.md` for project-specific architecture, targets, and conventions.",
+          "probe": "git ls-files -- README.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names README.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "pvieito/XCTestKit",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:9",
+          "kind": "named-path-gone",
+          "claim": "Read `README.md` for project-specific architecture, targets, and conventions.",
+          "probe": "git ls-files -- README.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names README.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "smalls257/claude-md-autoresearch",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:3",
+          "kind": "named-path-gone",
+          "claim": "Local rules live in each directory's `AGENTS.md`.",
+          "probe": "git ls-files -- AGENTS.md",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names AGENTS.md; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "stdkoehler/gamemAIster-frontend",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:19",
+          "kind": "named-path-gone",
+          "claim": "`npm run dev` — Vite dev server (port 5173, configured in `.claude/launch.json` as `gamemaister-frontend` for `preview_start`)",
+          "probe": "git ls-files -- .claude/launch.json",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names .claude/launch.json; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "stefanoginella/auto-bmad",
+      "status": "scored",
+      "contradicted": 1,
+      "findings": [
+        {
+          "where": "CLAUDE.md:153",
+          "kind": "named-path-gone",
+          "claim": "`merge-config.py` — **retained only to satisfy the standalone-module validator** (`validate-module.py` requires the file to exist); auto-bmad **does not invoke it**. abm never writes the installer-own",
+          "probe": "git ls-files -- validate-module.py",
+          "stdout": [
+            "(no output)"
+          ],
+          "why": "the doc names validate-module.py; git tracks no such file and it is not on disk"
+        }
+      ]
+    },
+    {
+      "repo": "0xzaar/quantum-chain-explorer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "1368129224/tgbot-for-tdl",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "1amageek/SwiftAgent",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "1yololomg1/render-confirmlicense",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "584973/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "6block/gonkascan",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "AGASocial/iablee-app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "AT-Lorlando/Astronix",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Accenture/DBTestCompareGenerator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Adek2k4/Psychedelia_game",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Ajulibe/Sonari",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Alfred768/xclaw",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Alishahryar1/free-claude-code",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "AndresSaa/process-wal",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Andrew-Hird/rav4cool",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "AndriyKalashnykov/animal-rescue",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "AnwHRlg/KXgFxbTiINY",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Ash-Bash/Kiama",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Atemndobs/ops-central",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Aurealibe/claude-config",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Aureliolo/story-factory",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "BNETDocs/bnetdocs-web",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "BenjaminBenetti/fmwk-pwr",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "BentoBoxWorld/Boxed",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Binamra7/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "BiribiNet/contracts",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "BrunoAlan/f1-the-game",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "BuildHound/BuildHound",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Butterski/rayomd",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "CengizKuscu/claude-to-opencode",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Changwanseo/Changwanseo.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Charles-beta-he/trusted-games-platform",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Chris443C/Warextdll",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ChristianAlexanderDiaz/WeeklyTimeTrials",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ChristopheM44/RpgMaster",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Church-Plugins/cp-sync",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "CogappLabs/honey-duck",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ConductionNL/openconnector",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "DaVas1410/cnn_astro",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Darkroom4364/netlens",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Daspy11/a16z-11labs-hackathon",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "DavidSchmidt00/padel-agent",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Dialog-IF/aamachine",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "DimitriBolt/CO2Flux",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "DobroslavRadosavljevic/hsize",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Endle/fireSeqSearch",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Esl1h/VSysNow",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "FeyoMx/menucapibobba",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "FigmaAI/KleverDesktop",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "First4Figures/n8n.first4figures.com",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "FluffyLabs/codec",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Fruehwirth/flag-trainer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Fun10165/ortools_planner",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "G-Ivan-A/clarify-engine-ai",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "GOVINSAGA/gobblecube-eta-challenge",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Gerstep/HumanCompiler",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "GreenButtonAlliance/OpenESPI-GreenButton-Java",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Gustpbbr/Teste-ChatGPT",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "I6ayInU/KVKJhiK4Y",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "IIIFours/autopilot",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "IanDirkArmstrong/lumos",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Ibonarambarri/UD_RL-A1",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "IkramBagban/tos-weather-forecast",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "IlgarBaghishov/MPElectroML",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "IntegradorIMSS2026Team01/EpiForecast-MX",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "J-D-3/density-clustering",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "JF9SOM/ctld-launcher",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "JJonka/portfolio",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Jahia/tomcat-log-provider",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "JavierCervilla/BTCStampsAPI",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "JayCanuck/webrtc-ws-server",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Jochern/DHBW-seminararbeit-predictive-policing",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "JohnnyQ-commits/Aqueduct",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "JunMystery/AI-Agent-Standards",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "KaiserGranatapfel/GameCubeRecompiled",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "KiloMusician/claude-code-tips",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "LedgerHQ/app-boilerplate",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "LerianStudio/fetcher",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "LindaHaviv/second-brain",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "LoggingNewMemory/Project-Raco",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Lucasantunesribeiro/LinkGuardiao",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Lucasmind/nodeava-workshop-public",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Marcogn/poke-team-builder",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MatheusMansano06/NOVAES-ESTOQUE",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MattKilmer/claude-autofix-bot",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MattMagg/MisterSmith",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Mike-Jenkins-Org/autogit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Modular-Earth-LLC/job-finding-assistant",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MofaggolHoshen/job-orchestrator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MolasoftLLC/mola-ai-flutter-templete",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MonkeyDPino/giphy-app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "MrMaxie/mcp-mail-bridge",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "NASA-AMMOS/MGViz",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "NaverPayDev/pie",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Nitmi/baud-cli",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Open-Document-Alliance/Agent-Review-CLI",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "OpenAdminOS/OpenAdminOS",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "OttoMa2002/whaletechtakehome",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PabloLerma/PabloLerma.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PandaTechAM/be-lib-masstransit-outbox",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ParinTF/Bonsai",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Paths-Design/coding-agent-working-standard",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PaulBratslavsky/astro-strapi-example-project",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PavelLizunov/suflyor",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PePoDev/PePoDev",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PeggyJV/sommelier-strangelove",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PeonPing/openpeon",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "PoJung-Lu/Read_Excels",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Prismer-AI/Prismer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Procrat/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "RasaHQ/studio-docs",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Roznoshchik/Lurnby",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Rustlib-tests/behave",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SJSURoboticsTeam/urc-machiato-2026",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SOFE4620-ML9/nba-lineup",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SSSYoung/vibe-coding-mobile-engineering",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SahajNanda/PktReplay",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SamBunker/JCEsports-ExpressJS",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SamarthParnami/aether",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SeedClassIntelligence/SRT1-CORE",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Shakudo-io/opencode-mattermost-plugin",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ShanireZ/Horus",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ShiirooS/Migracion-SIDEM",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Shlomob/ocmonitor-share",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Shresth-Senwal/pixel-palettes-pls",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Simplon-hdf/Discord-bot-signature",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Sjaaak777/knowledge-base-system",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SmokinCaterpillar/pypet",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "SolaceLabs/solace-msg-utility",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Sothatsit/work-stream",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "StanfordSpezi/spezi-web-design-system",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "StanleyChanH/Anti-BossShield",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Surote/pvc-extract",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "TTTPOB/rpclip",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "TazWake/Public",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "TheJolman/re-imagine",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ThorStarlord/sensemaking-skills",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "TienNHM/tiennhm.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "TrueSelph/jvspatial",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "UDDITwork/YourCareer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Uadriam/Projeto_FATEC_Adotei",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Uniswap/uniswapx-parameterization-api",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "VASST/PVAC",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "VictorBischoff/crispy-invention",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "WaveringAna/wisp.place-monorepo",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "WebSurfinMurf/openproject",
+      "status": "clone-failed",
+      "error": "remote: Repository not found.\nfatal: repository 'https://github.com/WebSurfinMurf/openproject/' not found\n",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "WhiteTomX/prompt-cloak",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "WhoJoshi69/Youtube-subscription-manager",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Wotjek/PriceChecker",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Xextech/rahito-goc-aw",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "XiAce-Lite/IndigoMovieManager_origin",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Yhx888/sciflow",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "Zaegan/InfiniteCalc",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ZeytEymen/antrenman-log",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "aalcar/vrm",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "abjin/rocksdb-parallel-compaction-experiment",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "absolutezeroo/Hearthbound",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ac-frg/benchmark",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "adrian-d-hidalgo/nestjs-mcp-server",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "adux/acrofestival",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "aesthetic-inc/ai-workspace",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "agradecido/mdv-news-crud-laravel-hex",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ai-assist-org/ai-assist",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "aicell-lab/reef-imaging",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "airwaylab-app/airwaylab",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "aktsmm/vscode-agent-skill-ninja",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "al-siv/score68",
+      "status": "clone-failed",
+      "error": "remote: Repository not found.\nfatal: repository 'https://github.com/al-siv/score68/' not found\n",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alegrilaw/expense-tracker",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alexeygrigorev/ai-data-pipelines",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alexisbeaulieu97/untaped-ansible",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alexkapoulas/BiomePruner",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alfred1994/alpha-pilot",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alisadiq-ai/sketric_ai_agency",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alleato-llc/dorado",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "alperhankendi/Ctxo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "anatolii-iumashev/agiletracker",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "anchildress1/save-the-sun",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "andrewck24/volleybro",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "andyfangdz/meteogram-js",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "anosatsuk124/github-notify",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "anson-vandoren/protoglot",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "antosubash/simple_module_python",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "appboypov/pew-pew-cli",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "arylipszyc/Laudus_extraction",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ashishchandan-lang/app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "asienicki/slnx-mermaid",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "assagman/opencode-dotenv",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "atomicdsolutions/rss-feed-generator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "authgear/authgear-demo-app-rn",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "azerv1/thimiko",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "backspring-labs/squad-ops",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "badlogic/vs-claude",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "baruchiro/gh-prstuck",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "belikh/jupiter-os",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "benbjurstrom/plink",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "berntpopp/clingen-link",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "bichikim/web-react",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "blakebauman/aem-camp",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "bluewave-labs/checkmate-cli",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "bobboyms/storage-engine",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "bonitasoft/bonita-artifacts-model",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "bossjones/boss-ai-monitoring",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "brandon-fryslie/chaperone-auth-gateway",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "broadinstitute/delphy",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "brookstalley/cordyceps",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "c0dev0id/claude-viewer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "cachix/devenv",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "campbellssource/Dartmoor-tors-android",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "camptocamp/geospatial-sdk",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "cenconq25/claude-code-app-studio",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "centuari-labs/backend-v2",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "cgroening/rs-sparcli",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "charlescohanlon/adfel_agentic_system",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "charyou/SoraVault",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "chen1tian/AbpWpfWithCM",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "chetstriker/LLMtary",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "chinthana-w/s-imply",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "chrille0313/swiftcut-old",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "christopherhouse/Personal-Developer-Platform",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ckotzbauer/vulnerability-operator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ckuether/GolfTrackingAppMVP",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "co-cddo/cloudmaturity",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "cobbler/cobbler-web",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "cocosip/FastDFS-dotnet",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "coloredcow-admin/cypress-agentic-kit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "conormcquaid/webber",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "cosgroma/mbse-lab",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "credit-union-2-0-llc/broflo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "czottmann/pi-tensorx",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dabibhabi/swish",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dandibbert/fal-openai",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dangkhoa2250/corelab",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "data-miner00/webutils",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "david12345/hike",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "davidsheffield/WorkshopCode",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "davidsu/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "davraamides/todotxt-mode",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dayalsoap/copilot_acp_adapter",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dcurlewis/ai-context-system",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "decentraland/events",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "delorenj/toWers",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "derleiti/ai-twitch-bot",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "diego-mascarenhas/cms-core",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "digitalpetri/opc-ua-demo-server",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dilee/zen-dev-toolkit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dilgerma/node-apps-with-eventsourcing-and-ralph-loop",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "diy-accounting-uk/www.diyaccounting.co.uk",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dkim949/melody-to-arrangement",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "domfahey/pdfviewer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "donate-mate/design-tokens",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "doopush/doopush",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dovlatyanc/sky-track",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "dqx-translation-project/dqx-translation-project.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "drevops/tui",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "edalcin/BioCultTermos",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "eduardoalcantara/edit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "elvisdragonmao/eden",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "elvisdragonmao/utils",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "elvisdragonmao/working-copy-i18n-zh",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "emansom/canvas-ultrafast",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "emdmed/terminal-notes",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "en-dash-consulting/html-in-canvas-dot-dev",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "enspyrco/tech_world_game_server",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "erent8/Advanced-Customer-Detection",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ericmjl/protein-mass-spec-calculator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "erik-sutton95/OpenZCine",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "esong2001/esong2001.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "evaldasguogis/claude-demo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "eyalamirmusic/cpp_data_structures",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "eynmim/Live_Transcript",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fal-works/conceptual-model",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fanurchroniken/makemymateapp",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fedir/ghstat",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fhsh-tp/fhsh.py-dojo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "firetiger-oss/connect-sse",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fivetaku/llm-wiki",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "flarecat/python-template",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "flume/enthistory",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fofefranklin57-rgb/immogest",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "frobinson47/subscription-tracker",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "frostyard/updex",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "fsprojects/Paket",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gab3-dev/api-pj-georef",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "getcatalystiq/agent-plane",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ghnjk/ec-erp-static",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gidimiz/LD2450-radar-on-ESP32",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gkimpson/WorldCupGame",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gkmz/baidupan-cli",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "glossarist/iev",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "glsorre/Crane",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gogpu/gg",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gonholfol/RustEditProCrack",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gregrickaby/type95",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "gtrias/i18next-mcp-server",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "guedesopaulo/python_dev",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "haddocking/haddock3",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "half2me/antdump",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "harrsh-in/dayline",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hasseily/NoxArchaistCompanion",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hectcastro/gh-metrics",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "helpermedia/AppWaffle",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hengfengliya/imgood",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hereya/postgres",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hirokidaichi/guess-project",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hoangsonww/JWT-Module",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hoxuanji/be-automation",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hschne/puny-monitor",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hugogu/journal-maker",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hypervel/components",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "hzwjs/linear-lite",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ianunciacion-maker/cd-aiAuto-site",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ichiroc/chatgpt2scratch",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "idosebban-cmd/duel",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ieverythng/nao_chatbot_llm",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ikendra/linkedin-organic-feed",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "imatza-rh/mcp-zuul",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "intelli-bigno/public_clotehs_size_app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "invincible-jha/aumai-specs",
+      "status": "clone-failed",
+      "error": "remote: Repository not found.\nfatal: repository 'https://github.com/invincible-jha/aumai-specs/' not found\n",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "iocanel/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "itsyogesh/relaycode",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jakeonrails/claude-usage",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jamesKhor/Zcybernews",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "janderswag/docuchat.app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jbetancur/react-data-table-component",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jeronimonunes/grafana-otel-docker-stack",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jhandley/survaize",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jhl-labs/vibe-project",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jhonsu01/Prototipo-de-juego-interactivo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jkarreno/grinemweb",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jketreno/clare",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jkraemer/fera",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "joshRpowell/gamechanger",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "joshspeagle/frasian_tilting",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jpoindexter/fabrk-dev",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jpoutrin/portman-cli",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "juanje/complex-system-kb",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "juanvieiraprado99/ng-mapcn",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "julianhinz/trip-calendar",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "julienlegoux/vps-boot",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jungju/homi",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "justinabrahms/agent-chat",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jvkersch/tmtools",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "jwalsh/xscrabble-v3",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kaladivo/prahoproject.com",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kaltura/conversational-avatar-embed-sdk",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kantord/headson",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "katzkawai/geojson_nagoya",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kdridi/ticket-system-specs",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kelisiWu123/web-package",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kengggg/panya-manee",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kinwahlai/paperclip-ansible",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kkawailab/PlotsInPython",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kmee/sifen",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kousen/java_8_recipes",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ksmuvva/Multi-Agent--Council",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kt3k/bulbo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ktinboulder/dps-daily-summary",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "kvsankar/moon-mission",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "labeveryday/stock-scanner",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ld000/blog-hugo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "lelegendaire/la-cave-du-coin",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "lemoncrow-lab/lemoncrow",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "lepinkainen/pyfi-discord",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "lila-graph/lila-research",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "liuzijunnn-ops/footballLLM1",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "livekit/client-sdk-swift",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "loganngarcia/chaplin-ui",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "lucidspriter/C3SpriterPlugin",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "luckyhegde6/cricfunboard",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "madebyshun/blue-agent",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "manasse-e/ericandtheweb",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "manifesto-ai/core-legacy",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "manusa/podman-mcp-server",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "marc-shade/Ollama-Workbench",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "marrinexyq-droid/JChatMind",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "martink-rsa/accessible-quiz-builder",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "matheusmendes720/workconnect-tcc",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "matthewrankin/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mattiasthalen/osiq",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "maxuser74/EnergyMeters",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "maxvandenhoven/hive",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mcgaryes/nextjs-template",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mcgivrer/demo001-arm64",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "meitner-se/publicapis-gen",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mertssmnoglu/fork_aya.is-services",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mhernesniemi/hoikka",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "microsoft/Agent365-devTools",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mikahas/speede",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mikkokotila/sequencer",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mistermelphin/ytdownloader",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "miyanaga/go-simple-ftp-test",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mjcumming/home-topology",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mlennie/hermes-mcp",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mmust08/semantic-search-poc",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mriffle/parquet-to-tsv",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mshogin/archlint",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "msobczyk-x/overgrowth",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "mutable-state-inc/siliconswarm-at-ensue-plugin",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nadzbernardino/Chris-and-the-Jollibabees",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nanohype/eks-gitops",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "narnia-sh/layrr",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ndellagrotte/worlium",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nf-core/modules",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nicobako/when-exactly",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "niranjan94/telaio",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nirholas/universal-crypto-mcp",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nmpacheco/llm-agent-tutor",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "noseidel/bitbucketapi",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ntsqvl/drape",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nullclaw/nulltickets",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "numbersmembers/colomn-editorial-hub",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nushey/agents-md-generator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "nwbort/accc-mergers",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ohcnetwork/care",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "oleksandr-rud/cascade-codex",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "omicscodeathon/cancerag",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "onedeveloper/today",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "oo-ni/io.obs_log",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "oozoofrog/mcp-baepsae",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "openshift/cluster-kube-descheduler-operator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "openshift/kueue-operator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "openshift/ocm-agent",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "openstates/jurisdictions",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "oriolrius/node-red-api-gateway",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "osad-sakana/podcast-recorder",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "oscaruiz/playas-cantabria",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ovcharenkoo/ovcharenkoo.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pankajudhas81/pi-claude-auth",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "patrick-motard/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "paul-10101/Dive2026-Solunet",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pawcoding/astro-loader-pocketbase",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "peiman/changie",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "peligwen/peliglot",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "physiomelinks/circulatory_autogen",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pipec80/iroko",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pktgen/Pktgen-DPDK",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pkxro/digink",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "plamen911/propcalc-api",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "polidisio/MyMouseBattery",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pooyakhosravi/EyeDataHub",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "prashhviji/social-work",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "preethamdandu/tunie-music-app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "prof18/Shellporter",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "publicrust/RustEditProCrack",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "publicrust/cui-builder",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pulserver/pulserver",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pvieito/JupyterKit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "pvieito/VGASimulatorKit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "qduc/easyocr.js",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "quadbio/cell-annotator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "qualitymastery/Playwright-Advance-Framework",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "quantumlayer-atlas/atlas",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "radekamirko/C.R.I.S.P",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rahlplx/vibemate",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "raik184h-labs/raik184h-labs-linked-list-lab-linked-list-lab",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "randomm/kuiskaus",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ravirann/luna-health",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rchinth2003/HLSHarness",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rderaison/bromure",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "redpanda-data/connect",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "reso830/Project_Alice",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "revans04/srfm",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rexleimo/agno-Go",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "richardadonnell/Upwork-Job-Proposal-Automation",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "richardgaunt/civictheme-cms",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rivero205/SCRAPING_SISTEMA_HIBRIDO",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rkpontes/flutter_official_architecture",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rodbv/floripatalks",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rokka-io/rokka-gallery",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rotorflight/rotorflight-firmware",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rpmessner/waveform",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rsha0920/asx-statarb",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rubences/documentador",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rust-tieng-viet/rust-tieng-viet.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rvigo/cl",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "rxampeny/deepai",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sadopc/magnetism",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "salacoste/daytona-wildberries-typescript-sdk",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "samuelloranger/labby",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sapped/sappcap-landing",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "saulotarsobc/sc-ptz-control",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "saumilptl/boilerplate",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "saveoursecrets/sdk",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "scttfrdmn/aws-research-train-demo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "scxr/facilitator",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "seanwilliamcarroll/interpreters",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "seb-schulz/hostsharing-dyndns",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "semos-labs/attyx",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sergev/v-edit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sethlaw/sputr",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "shawicx/scx-api-tool",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "short-pixel-optimizer/shortpixel-image-optimiser",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "shreyansh232/promptr",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sicuranext/karna",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "silvabyte/opencode.nvim",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "six2dez/burp-ai-agent",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "skh8erboi113-ai/Homesolve2",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "skulidropek/mcp-terminal",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "slabgorb/bicycle-repair-man",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "smarroquinc10/14-SECOP-Dr-Camila-Mendoza",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sombaner/Technical-Design-Review-Board",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "souravzzz/qsim",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "spylik/erlroute",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "stackkit/laravel-google-cloud-scheduler",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "steeltanuki/sebastian-ai",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "strait-dev/strait-ts",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "su6i/agent-constitution",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "supermarmar/guides",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "suzugross/fabriq_studio",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "sylee6529/stay-booking",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "syncloud/plex",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tagty/md2resume",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "takahashim/natsuzora",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tangisaiah/Compoundings",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tardigrada78/schulemargadantnet",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tcyeee/esp-display",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tecuzin/mlops",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "teebes/drawtwo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "thamam/clad-board",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "thbraet/nmbs_tracking",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "thenerd31/sniff",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "thisismydemo/giscus",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tomgun/virtual-tree",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tommyrunner/tune-ui",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tonkotsuboy/kano-portfolio",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "torgbuiedunyenyo/coordinate-general",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tosuke/dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "transaurus/staging-PaloAltoNetworks-docusaurus-openapi-docs",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "trevorstenson/time-travel-rust",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tsortwehttam/begat",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "turlockmike/mcp-rand",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "tylerstraub/JSlalom2024",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "typlx/chrome-grammar-fix-extension",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "uiuifree/agent-team-builder",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "umezawa0513/umejugg-siteswapmaster",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "uriba107/HoundTTS",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "userdocs/qbittorrent-nox-static-test",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vangberg/pdit",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "varunkumarcs22055/woodmark",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vctb12/Gaming-Stores",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ven0m79/dm-project",
+      "status": "no-rules-file",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vian21/toneparse",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vichannnnn/holy-grail",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vivek-dataskate/DabbahWala",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vivekpal1/kdo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "vllm-project/agentic-api",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "w3bsuki/dr1plo",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "wang-junjian/wang-junjian.github.io",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "wboayue/fusion-ahrs",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "wolfwdavid/checkin_app",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "wonhotoss/LiDAR-mimic",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "workmani/vacation-requests",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "wst7/tam",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "wujiaxuans/Atlas",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "xhubio/nanook-landing-page",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "xiaoFeng5210/aurora-utils",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "yahiafarghaly/PrettyOS",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "yassineS/bio_ai_experiment",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "ye1su/sy-translate",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "yuchiki/wikipedian",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "zachallia/asstrology",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "zackees/pio-compiler",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "zaheer800/WellNest",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "zdim/.dotfiles",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "zsh2401/VibeAcademy",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    },
+    {
+      "repo": "zumWohl/TicketScribe",
+      "status": "scored",
+      "contradicted": 0,
+      "findings": []
+    }
+  ]
+}

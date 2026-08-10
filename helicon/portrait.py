@@ -126,7 +126,7 @@ def build_digest(conn: sqlite3.Connection, config: dict) -> dict:
 
 
 _SYS = (
-    "You are Mount Helicon reading someone's memory back to them. In myth, Helicon is the "
+    "You are Mountain of Helicon reading someone's memory back to them. In myth, Helicon is the "
     "mountain of the Muses, home of Mnemosyne, Memory herself, mother of the nine Muses; its "
     "Hippocrene spring is where true recall and inspiration are drawn. You are that spring. You "
     "have been handed a DIGEST of what this builder's memory actually holds: recurring "

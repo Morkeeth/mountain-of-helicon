@@ -1,4 +1,4 @@
-# Mount Helicon — Architecture
+# Mountain of Helicon — Architecture
 
 **A test layer that lives *outside* the memory store.** It reads an AI coding agent's memory read-only, regression-tests it for rot on a timer, asks the human to rule only on what's uncertain, and compiles those rulings into GOLDEN RULES the agent loads next session — closing the loop so corrections stick.
 

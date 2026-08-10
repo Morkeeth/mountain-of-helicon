@@ -2,7 +2,7 @@
 
 The MemoryAgent track names four sub-goals: efficient storage & retrieval,
 timely forgetting of outdated information, recall under limited context
-windows, and cross-session accuracy. Mount Helicon already measures all four;
+windows, and cross-session accuracy. Mountain of Helicon already measures all four;
 this module groups the existing checks under the track's own language. Any
 memory stack a connector can scan could be scored by this same report.
 

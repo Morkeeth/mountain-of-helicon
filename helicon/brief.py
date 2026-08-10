@@ -212,7 +212,7 @@ def build_brief(conn, config=None, limit: int = 3) -> dict:
 
 def format_brief(b: dict) -> str:
     """Human-readable rendering for the CLI — the 9am screen."""
-    L = ["\n  ── Mount Helicon · morning brief ─────────────────────────────"]
+    L = ["\n  ── Mountain of Helicon · morning brief ───────────────────────"]
     L.append(f"\n  TRUTH       {b['truth']['headline']}")
     for m in b["truth"]["no_longer_trustworthy"]:
         L.append(f"                ↓ [{m['id']}] {m['title']}  (conf {m['confidence']})")

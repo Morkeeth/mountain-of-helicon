@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mount Helicon CLI - plug-and-play memory audit for AI agent stacks.
+"""Mountain of Helicon CLI - plug-and-play memory audit for AI agent stacks.
 
 Usage:
   helicon init          Auto-detect your AI tools and create config
@@ -20,6 +20,8 @@ import json
 import os
 import sys
 import platform
+import shutil
+import subprocess
 
 
 def _detect_sources() -> dict:
@@ -52,7 +54,7 @@ def _detect_sources() -> dict:
             }
             sessions_index = os.path.join(claude_dir, "sessions-index.json")
             if os.path.exists(sessions_index):
-                detected["claude_code"]["sessions_index"] = sessions_index
+                detected["claude-code"]["sessions_index"] = sessions_index
 
     cursor_dir = os.path.join(home, ".cursor")
     if os.path.isdir(cursor_dir):
@@ -116,7 +118,7 @@ def cmd_init(args):
     """Auto-detect AI tools and create config.json."""
     from helicon.config import config_file, helicon_home
 
-    print("Mount Helicon init - detecting your AI stack...\n")
+    print("Mountain of Helicon init - detecting your AI stack...\n")
     detected = _detect_sources()
 
     if not detected:
@@ -126,7 +128,7 @@ def cmd_init(args):
         print("  - Obsidian (iCloud or ~/Documents/Obsidian/)")
         print("  - Git repos (~/CODE/, ~/projects/, ~/src/)")
         print("  - ChatGPT exports (~/Downloads/*.json)")
-        return
+        print("A user config will still be created so you can add paths manually.\n")
 
     print(f"Found {len(detected)} source(s):\n")
     for name, info in detected.items():
@@ -192,7 +194,6 @@ def cmd_init(args):
     # `doctor` mentioned it, and only if you thought to run it.
     if env_key:
         print("Qwen key picked up from $QWEN_API_KEY (Model Studio + DashScope wired)")
-        print("Next: run `helicon scan` to extract memory items")
     else:
         print("\n  BYOK - one step left. Helicon is local-first and ships no key:")
         print("    export QWEN_API_KEY='sk-...'   &&  helicon init --force")
@@ -202,20 +203,24 @@ def cmd_init(args):
         print("  classes all still run keyless. What you lose is the Qwen-judged")
         print("  half - contradiction, identity, grounding - and DashScope")
         print("  embeddings (retrieval falls back to local keyword+MiniLM).")
+    if detected:
         print("\nNext: run `helicon scan` to extract memory items")
+    else:
+        print(f"\nNext: edit {config_path} to add a connector, or run `helicon demo`.")
 
 
 def cmd_scan(args):
     """Scan all configured sources."""
-    from helicon.config import load_config
+    from helicon.config import config_file, load_config
     from helicon.scanner import run_scan
 
     config = load_config()
     if not config.get("connectors"):
-        print("No connectors configured. Run `helicon init` first.")
+        print(f"No connectors configured. Edit {config_file()} to add a source, "
+              "or run `helicon demo`.")
         return
 
-    print("Mount Helicon scan\n")
+    print("Mountain of Helicon scan\n")
     stats = run_scan(config)
     print(f"\nFound {stats['total_raw']} items, added {stats['added']}, skipped {stats['skipped']} dupes")
     print(f"Total in DB: {stats['total_in_db']}")
@@ -238,7 +243,7 @@ def cmd_reconcile(args):
     conn = init_db(config["db_path"])
 
     mode = "APPLY" if args.apply else "dry-run"
-    print(f"Mount Helicon reconcile ({mode})\n")
+    print(f"Mountain of Helicon reconcile ({mode})\n")
     print("Re-scanning sources to compute present hashes...")
     scopes = collect_present_hashes(config, source=args.source)
     if not scopes:
@@ -285,7 +290,7 @@ def cmd_fix_skills(args):
     skills_dir = args.skills_dir or DEFAULT_SKILLS_DIR
 
     mode = "APPLY" if args.apply else "dry-run"
-    print(f"Mount Helicon fix-skills ({mode})  dir: {skills_dir}\n")
+    print(f"Mountain of Helicon fix-skills ({mode})  dir: {skills_dir}\n")
     if client is None:
         print("No Qwen key configured (set QWEN_API_KEY). Descriptions can't be "
               "generated; listing files that need one:\n")
@@ -334,7 +339,7 @@ def cmd_serve(args):
     """Start the web UI (bound to localhost by default)."""
     port = args.port or 8420
     host = _serve_host(getattr(args, "host", None))
-    print(f"Starting Mount Helicon at http://{host}:{port}")
+    print(f"Starting Mountain of Helicon at http://{host}:{port}")
     if host not in ("127.0.0.1", "localhost", "::1"):
         print(f"  ⚠  {host} exposes an UNAUTHENTICATED mutation API to your network.")
     print("Press Ctrl+C to stop\n")
@@ -342,16 +347,42 @@ def cmd_serve(args):
     uvicorn.run("helicon.api.app:app", host=host, port=port)
 
 
+def _ensure_demo_dashboard() -> str:
+    """Build the dashboard in a source checkout, or fail with one clear exit."""
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dist_index = os.path.join(repo_root, "web", "dist", "index.html")
+    if os.path.isfile(dist_index):
+        return dist_index
+
+    web_dir = os.path.join(repo_root, "web")
+    package_json = os.path.join(web_dir, "package.json")
+    npm = shutil.which("npm")
+    if not os.path.isfile(package_json) or not npm:
+        raise SystemExit(
+            "The visual demo needs the dashboard bundle, but it is not built.\n\n"
+            "  source checkout: install Node.js, then run `helicon demo` again\n"
+            "  terminal demo:  bash scripts/demo.sh\n\n"
+            "Mountain of Helicon never serves a stale committed web bundle.")
+
+    print("  building the dashboard (first run only)...", flush=True)
+    subprocess.run([npm, "ci"], cwd=web_dir, check=True)
+    subprocess.run([npm, "run", "build"], cwd=web_dir, check=True)
+    if not os.path.isfile(dist_index):
+        raise SystemExit("Dashboard build completed without web/dist/index.html.")
+    return dist_index
+
+
 def cmd_demo(args):
     """Seed the demo store and open the dashboard — one command, no key, no
     personal data, bound to localhost."""
+    _ensure_demo_dashboard()
     from helicon.demo import ensure_demo
     info = ensure_demo()
     os.environ["HELICON_CONFIG"] = info["config"]
     port = args.port or 8420
-    print("Mount Helicon — demo")
+    print("Mountain of Helicon — demo")
     print(f"  {info['cubes']} planted memories seeded · no personal data · local only")
-    print(f"  open  http://127.0.0.1:{port}")
+    print(f"  open  http://127.0.0.1:{port}/#findings")
     print("  start on 'Needs Ruling' — rule one finding and watch it become law")
     print("\nPress Ctrl+C to stop\n")
     import uvicorn
@@ -900,8 +931,8 @@ def cmd_hook(args):
         return
 
     # THE GATE, before the courier. A run against a repo whose loaded docs the
-    # running code disproves is refused here — in the operator's own terminal,
-    # with the prompt erased — rather than noted in a CLI nobody typed.
+    # running code disproves is surfaced here in the operator's own terminal.
+    # Warn is the default; explicit block mode erases/refuses the prompt.
     #
     # Every failure path allows the prompt. A gate that bricks a terminal when
     # it breaks gets uninstalled, and then it governs nothing; the logged
@@ -1233,7 +1264,8 @@ def cmd_doorway(args):
         print("  removed. new terminals are no longer gated by Helicon.")
     else:
         print(f"  installed. the gate runs:  {cmd}")
-        print("  new terminals in any repo are now gated; a contradicted repo is refused.")
+        print("  new terminals are now checked; contradicted context warns by default.")
+        print("  set HELICON_GATE_MODE=block only when you explicitly want enforcement.")
 
 
 def cmd_sweep(args):
@@ -2056,7 +2088,7 @@ def cmd_ci(args):
         "connectors": {"agent-rules": {"enabled": True, "repos": [repo], "max_repos": 1}},
     }
     conn = init_db(db)
-    print(f"Mount Helicon CI — scanning agent-memory files in {repo}\n")
+    print(f"Mountain of Helicon CI — scanning agent-memory files in {repo}\n")
     run_scan(config)
 
     # R13's full working: which sentences the running system contradicts, with
@@ -2080,7 +2112,7 @@ def cmd_ci(args):
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary_path:
             with open(summary_path, "a", encoding="utf-8") as fh:
-                fh.write("## Mount Helicon — agent memory rot exam\n\n")
+                fh.write("## Mountain of Helicon — agent memory rot exam\n\n")
                 fh.write(f"**{res['rot_found']}/{res['classes']} rot classes firing** "
                          f"in `{os.path.basename(repo)}`\n\n")
                 fh.write("| Class | Verdict | Detail |\n|---|---|---|\n")
@@ -2717,7 +2749,7 @@ def cmd_doctor(_args):
         checks.append(("OK", f"doorway store {_udb} — last {_f['kind']} at {_f['ts']}") if _f
                       else ("OK", f"doorway store {_udb} — no block/override logged yet"))
 
-    print("Mount Helicon doctor\n")
+    print("Mountain of Helicon doctor\n")
     for level, msg in checks:
         print(f"  [{level:<4}] {msg}")
     fails = sum(1 for level, _ in checks if level == "FAIL")
@@ -2785,7 +2817,7 @@ def cmd_score(args):
 
 def cmd_stack(args):
     """Audit your AI agent stack."""
-    print("Mount Helicon stack audit\n")
+    print("Mountain of Helicon stack audit\n")
     detected = _detect_sources()
 
     if not detected:
@@ -2799,7 +2831,7 @@ def cmd_stack(args):
         status = "active" if info.get("enabled") else "disabled"
         print(f"  [{status}] {name}")
 
-    if "claude_code" in detected:
+    if "claude-code" in detected:
         claude_dir = os.path.join(home, ".claude")
         session_count = 0
         memory_count = 0
@@ -2809,7 +2841,7 @@ def cmd_stack(args):
                 for f in files:
                     if f.endswith(".jsonl"):
                         session_count += 1
-        mem_dir = detected["claude_code"].get("memory_dir", "")
+        mem_dir = detected["claude-code"].get("memory_dir", "")
         if mem_dir and os.path.isdir(mem_dir):
             memory_count = len([f for f in os.listdir(mem_dir) if f.endswith(".md")])
 
@@ -3096,7 +3128,7 @@ def cmd_consolidation_eval(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Mount Helicon - memory audit for AI agent stacks")
+    parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
 
     init_p = sub.add_parser("init", help="Auto-detect AI tools and create config")
@@ -3503,8 +3535,7 @@ def main():
         if not _cfg:
             sys.exit(
                 f"No config at {config_file()}.\n\n"
-                f"  see it work in 60s:  python3 scripts/demo_seed.py\n"
-                f"                       HELICON_CONFIG=config-demo.json helicon audit\n"
+                f"  see it work locally: helicon demo\n"
                 f"  point it at yours:   helicon init\n"
                 f"  or by hand:          mkdir -p ~/.helicon && "
                 f"cp config.example.json ~/.helicon/config.json\n"

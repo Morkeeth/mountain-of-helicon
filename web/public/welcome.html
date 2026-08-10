@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mount Helicon — CI for agent memory</title>
+<title>Mountain of Helicon — executable preflight for agent context</title>
 <link rel="icon" href="/favicon.svg">
 <style>
   /* Same faces as before, served from us instead of Google. The landing page is
@@ -103,13 +103,13 @@
 <body>
 
 <div class="wrap hero">
-  <div class="kicker">Mount Helicon · CI for agent memory</div>
-  <h1>Your agent trusts everything it remembers. <em>30% of it was rot.</em></h1>
-  <p class="sub">A local, read-only test layer that runs ten documented failure classes against your agent's real memory, and surfaces only what needs you: the conflict, its evidence, one decision.</p>
+  <div class="kicker">Mountain of Helicon · executable agent-context checks</div>
+  <h1>Your agent loads instructions before it checks whether they are <em>still true.</em></h1>
+  <p class="sub">A local, read-only test layer that runs 13 documented failure classes against your agent's real memory, and surfaces only what needs you: the conflict, its evidence, one decision.</p>
   <div class="btns">
     <a class="btn solid" href="#setup">Run the exam</a>
     <a class="btn ghost" href="/#findings">Open the review</a>
-    <a class="btn ghost" href="https://github.com/MorkeethHQ/mount-helicon">GitHub</a>
+    <a class="btn ghost" href="https://github.com/Morkeeth/mountain-of-helicon">GitHub</a>
   </div>
 
   <div class="board" id="board">
@@ -137,7 +137,7 @@
 <section class="wrap">
   <h2>The review, not the archive</h2>
   <div class="shot"><img src="/shot-findings.png" alt="The FINDINGS review: conflicts first, each with evidence and one decision"></div>
-  <p class="shot-cap">Everything on screen failed a check. Conflicts first, evidence attached, one ruling each. Stale bulk-kills in one click. The 3,000 memories that passed are not your problem.</p>
+  <p class="shot-cap">Everything on screen failed a check. Conflicts first, evidence attached, one ruling each. Memories that pass stay out of the way.</p>
 </section>
 
 <section class="wrap">
@@ -146,7 +146,7 @@
     <div class="stat"><b>&lt;16%</b><p>of conflict reasoning recovered by frontier models <a href="https://aclanthology.org/2026.acl-long.11.pdf">CONFRAG, ACL 2026</a></p></div>
     <div class="stat"><b>64%</b><p>of memory-agent errors: outdated memory never forgotten <a href="https://arxiv.org/html/2604.20006v1">Memora, 2026</a></p></div>
     <div class="stat"><b>68→28%</b><p>accuracy on superseded facts as history grows, up to gpt-5.4 <a href="https://arxiv.org/html/2606.27472">Supersede, 2026</a></p></div>
-    <div class="stat"><b>6/16</b><p>our own catch rate vs 21 human-labeled rot instances, zero LLM. Misses published. <a href="https://github.com/MorkeethHQ/mount-helicon/blob/main/ROT.md">ROT.md</a></p></div>
+    <div class="stat"><b>6/16</b><p>our own catch rate vs 21 human-labeled rot instances, zero LLM. Misses published. <a href="https://github.com/Morkeeth/mountain-of-helicon/blob/main/ROT.md">ROT.md</a></p></div>
   </div>
 </section>
 
@@ -158,13 +158,13 @@
 
 <section class="wrap" id="setup">
   <h2>Setup · read-only · keyless works</h2>
-  <pre>git clone https://github.com/MorkeethHQ/mount-helicon &amp;&amp; cd mount-helicon &amp;&amp; pip install -e .
+  <pre>git clone https://github.com/Morkeeth/mountain-of-helicon &amp;&amp; cd mountain-of-helicon &amp;&amp; python3 -m pip install -e .
 
 <span class="p">helicon init</span>              <span class="c"># detects Claude Code, Cursor, Obsidian, git</span>
 <span class="p">helicon scan</span>              <span class="c"># read-only ingest</span>
-<span class="p">helicon rot</span>               <span class="c"># the exam: 10 classes, deterministic, free</span>
+<span class="p">helicon rot</span>               <span class="c"># the exam: 13 classes, deterministic, free</span>
 <span class="p">helicon watch --install</span>   <span class="c"># notify only on new drift</span></pre>
-  <p class="fine">A Qwen key (Model Studio free tier) adds live-judged contradiction and grounding verdicts. Without one, every deterministic check still runs. Your files are never written. <a href="https://github.com/MorkeethHQ/mount-helicon#access--trust-model-read-this-before-connecting-your-vault">Access model</a> · <a href="https://github.com/MorkeethHQ/mount-helicon/blob/main/ROT.md">The rot catalogue</a></p>
+  <p class="fine">A Qwen key adds live-judged contradiction and grounding verdicts. Without one, every deterministic check still runs. Connectors read sources without writing them. <a href="https://github.com/Morkeeth/mountain-of-helicon#access--trust-model-read-this-before-connecting-your-vault">Access model</a> · <a href="https://github.com/Morkeeth/mountain-of-helicon/blob/main/ROT.md">The rot catalogue</a></p>
 </section>
 
 <div class="wrap boom">

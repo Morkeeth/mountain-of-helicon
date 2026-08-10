@@ -1,4 +1,4 @@
-"""Mount Helicon MCP Server - expose memory audit as tools for AI agents.
+"""Mountain of Helicon MCP Server - expose memory audit as tools for AI agents.
 
 Run with: python -m helicon.mcp_server
 """
@@ -100,7 +100,7 @@ TOOLS = [
     },
     {
         "name": "helicon_guard",
-        "description": "Check a proposed output against the compiled law (GOLDEN_RULES) BEFORE you write it. Pass the claim/text you are about to assert; Mount Helicon returns any rulings it contradicts - a dead project name used as current, or a definition a human ruled against. verdict is 'blocked' (a critical ruling contradicts it - do not write it), 'warn', or 'clean'. Call it before asserting facts about the user's projects, names, or decisions, so a ruled-against claim never lands.",
+        "description": "Check a proposed output against the compiled law (GOLDEN_RULES) BEFORE you write it. Pass the claim/text you are about to assert; Mountain of Helicon returns any rulings it contradicts - a dead project name used as current, or a definition a human ruled against. verdict is 'blocked' (a critical ruling contradicts it - do not write it), 'warn', or 'clean'. Call it before asserting facts about the user's projects, names, or decisions, so a ruled-against claim never lands.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -111,7 +111,7 @@ TOOLS = [
     },
     {
         "name": "helicon_context",
-        "description": "Proactive memory injection. Describe what you're working on and Mount Helicon returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context. Every memory carries its id, last_verified date and used_count. If any memory is stale or wrong, call helicon_flag with that id.",
+        "description": "Proactive memory injection. Describe what you're working on and Mountain of Helicon returns the most relevant memories, ranked by freshness, confidence, and relevance. Use at the start of a task to load context. Every memory carries its id, last_verified date and used_count. If any memory is stale or wrong, call helicon_flag with that id.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -146,7 +146,7 @@ TOOLS = [
     },
     {
         "name": "helicon_playbook",
-        "description": "Get task-specific guidance based on learned review patterns and feedback. Describe what you're about to do and Mount Helicon returns the relevant playbook with rules, common mistakes, and a prompt template.",
+        "description": "Get task-specific guidance based on learned review patterns and feedback. Describe what you're about to do and Mountain of Helicon returns the relevant playbook with rules, common mistakes, and a prompt template.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -157,7 +157,7 @@ TOOLS = [
     },
     {
         "name": "helicon_compile",
-        "description": "Compile Mount Helicon's learned patterns into injectable files: core-memory.md (top memories), skill files (per-category rules), and a CLAUDE.md patch. Returns the compiled content.",
+        "description": "Compile Mountain of Helicon's learned patterns into injectable files: core-memory.md (top memories), skill files (per-category rules), and a CLAUDE.md patch. Returns the compiled content.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -168,7 +168,7 @@ TOOLS = [
     },
     {
         "name": "helicon_triage",
-        "description": "Run auto-triage on pending memory items. Mount Helicon auto-approves/kills items where it has high confidence based on learned patterns. Returns what was triaged and why.",
+        "description": "Run auto-triage on pending memory items. Mountain of Helicon auto-approves/kills items where it has high confidence based on learned patterns. Returns what was triaged and why.",
         "inputSchema": {
             "type": "object",
             "properties": {

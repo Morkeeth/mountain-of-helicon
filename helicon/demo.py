@@ -19,8 +19,23 @@ from helicon.db import init_db, insert_cube
 from helicon.models import HeliconCube
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEMO_DB = os.path.join(_REPO, "data", "helicon-demo.db")
-DEMO_CONFIG = os.path.join(_REPO, "config-demo.json")
+
+
+def _demo_root() -> str:
+    """A writable demo home, independent of source checkout/site-packages."""
+    explicit = os.environ.get("HELICON_DEMO_DIR")
+    if explicit:
+        return os.path.abspath(os.path.expanduser(explicit))
+    helicon_home = os.environ.get("HELICON_HOME")
+    if helicon_home:
+        return os.path.join(os.path.abspath(os.path.expanduser(helicon_home)), "demo")
+    return os.path.join(os.path.expanduser("~"), ".helicon", "demo")
+
+
+# Compatibility names for callers that import them. Functions below resolve
+# their defaults at call time so tests/operators can set HELICON_DEMO_DIR later.
+DEMO_DB = os.path.join(_demo_root(), "helicon-demo.db")
+DEMO_CONFIG = os.path.join(_demo_root(), "config-demo.json")
 
 # A coherent, HIGH-STAKES vault: one founder shipping a live payments product,
 # "Ledger". The memories are what their agents actually know — and the rot is
@@ -134,7 +149,8 @@ CUBES = [
 ]
 
 
-def seed(db_path: str = DEMO_DB) -> dict:
+def seed(db_path: str | None = None) -> dict:
+    db_path = db_path or os.path.join(_demo_root(), "helicon-demo.db")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     conn = init_db(db_path)
     # Idempotent reset: clear cubes + any findings from a prior run.
@@ -285,23 +301,32 @@ def seed(db_path: str = DEMO_DB) -> dict:
     return {"db": db_path, "cubes": n}
 
 
-def write_demo_config(path: str = DEMO_CONFIG) -> tuple[str, bool]:
+def write_demo_config(path: str | None = None, db_path: str | None = None) -> tuple[str, bool]:
     """Write the KEYLESS config the demo store needs, if it is not already there.
 
     Keyless on purpose: the deterministic exam is the demo, and it needs no key.
     Binds to 127.0.0.1 — the demo never exposes a mutation API to the network.
-    Never overwrites an existing file — that one may hold real credentials.
+    This path is dedicated to planted demo data, so an old demo config is
+    repaired to the deterministic safe shape rather than trusted indefinitely.
     """
-    if os.path.exists(path):
-        return path, False
+    path = path or os.path.join(_demo_root(), "config-demo.json")
+    db_path = db_path or os.path.join(_demo_root(), "helicon-demo.db")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     cfg = {
-        "db_path": "data/helicon-demo.db",
+        "db_path": db_path,
         "qwen_api_key": "",
         "qwen_model": "qwen3.6-flash",
         "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         "connectors": {},
         "server": {"host": "127.0.0.1", "port": 8420, "password": ""},
     }
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                if json.load(f) == cfg:
+                    return path, False
+        except (OSError, json.JSONDecodeError):
+            pass
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
         f.write("\n")
@@ -312,6 +337,9 @@ def ensure_demo() -> dict:
     """Seed a clean demo store and write its keyless config. Idempotent: reseeds
     to a deterministic state every call, so `helicon demo` always opens the same
     compelling dashboard. Returns {db, config, cubes}."""
-    res = seed()
-    cfg, _ = write_demo_config()
+    root = _demo_root()
+    db_path = os.path.join(root, "helicon-demo.db")
+    config_path = os.path.join(root, "config-demo.json")
+    res = seed(db_path)
+    cfg, _ = write_demo_config(config_path, db_path)
     return {"db": res["db"], "config": cfg, "cubes": res["cubes"]}

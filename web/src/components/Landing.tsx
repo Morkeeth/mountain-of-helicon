@@ -1,4 +1,4 @@
-/* The front door, a full tour of Mount Helicon across the three surfaces
+/* The front door, a full tour of Mountain of Helicon across the three surfaces
    (terminal, IDE/MCP, dashboard), built with the real Court design tokens so it
    matches the app exactly. Real command output only. */
 
@@ -59,7 +59,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
         <div className="px-8 py-12">
           <div className="text-[10px] uppercase tracking-[0.3em] mb-5" style={{ color: '#C5A25A' }}>The court of record for agent memory</div>
           <h1 className="text-[clamp(30px,5vw,52px)] leading-[1.1] max-w-[16ch] m-0" style={{ ...SERIF, color: '#f6f1e9', fontWeight: 500 }}>
-            Memory stores remember. Mount Helicon knows what's <span style={{ color: '#C5A25A', fontStyle: 'italic' }}>still true.</span>
+            Memory stores remember. Mountain of Helicon checks what's <span style={{ color: '#C5A25A', fontStyle: 'italic' }}>still true.</span>
           </h1>
           <p className="text-[17px] mt-5 max-w-[60ch]" style={{ color: '#c3cad9' }}>
             It runs a twelve-class rot exam across your agent's live memory, context, and output, turns your rulings into precedent, and hands back your next move, every answer citing the memory it came from.
@@ -69,7 +69,7 @@ export default function Landing({ onEnter }: { onEnter: () => void }) {
               Enter the dashboard →
             </button>
             <span className="text-[13px] px-4 py-2.5 rounded-lg" style={{ color: '#eef0f4', border: '1px solid rgba(255,255,255,0.22)', fontFamily: 'var(--font-mono, monospace)' }}>
-              github.com/MorkeethHQ/mount-helicon
+              github.com/Morkeeth/mountain-of-helicon
             </span>
           </div>
         </div>
@@ -179,7 +179,7 @@ $ `}<CMD c="helicon scan" />{`            `}<DIM c="# read your memory, read-onl
 $ `}<CMD c="helicon serve" />{`           `}<DIM c="# dashboard → localhost:8420" />{``}</Term>
         <p className="text-[15px] mt-6 pt-6" style={{ color: 'var(--helicon-muted)', borderTop: '1px solid var(--helicon-line)' }}>
           <strong style={{ ...SERIF, color: 'var(--helicon-ink)', fontWeight: 500 }}>Mem0 stores. Letta organizes. Zep timestamps.</strong>{' '}
-          Mount Helicon is the exam, and every answer shows its receipts.
+          Mountain of Helicon is the exam, and every answer shows its receipts.
         </p>
       </section>
     </div>

@@ -109,13 +109,13 @@ export default function Reading() {
       >
         <img
           src="/mountain.png"
-          alt="Mount Helicon"
+          alt="Mountain of Helicon"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: 'center 42%', animation: 'heliconMist 30s ease-in-out infinite' }}
         />
         <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(241,236,225,0.04) 38%, rgba(241,236,225,0.62) 100%)' }} />
         <div className="absolute left-8 top-7">
-          <div className="text-[12px] uppercase" style={{ letterSpacing: '0.34em', lineHeight: 2, fontWeight: 500, color: 'var(--helicon-ink)' }}>Mount Helicon</div>
+          <div className="text-[12px] uppercase" style={{ letterSpacing: '0.34em', lineHeight: 2, fontWeight: 500, color: 'var(--helicon-ink)' }}>Mountain of Helicon</div>
           <div className="text-[27px] leading-none" style={{ ...SERIF, fontStyle: 'italic', fontWeight: 400, color: 'var(--helicon-ink)' }}>the reading</div>
           <div style={{ width: 44, height: 1, background: 'var(--helicon-faint)', marginTop: 12 }} />
         </div>
