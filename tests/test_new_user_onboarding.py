@@ -59,6 +59,8 @@ def test_new_user_vault_setup_reaches_a_visible_ruling(tmp_path):
     home = tmp_path / "home"
     _new_user(home)
 
+    _repo_config_before = ((ROOT / "config.json").read_bytes()
+                           if (ROOT / "config.json").exists() else None)
     initialized = _run(home, "init", "--force")
     config_path = home / ".helicon" / "config.json"
     assert config_path.is_file()
@@ -66,7 +68,13 @@ def test_new_user_vault_setup_reaches_a_visible_ruling(tmp_path):
     config = json.loads(config_path.read_text())
     assert set(config["connectors"]) == {"claude-code", "obsidian", "git"}
     assert config["db_path"] == str(home / ".helicon" / "helicon.db")
-    assert not (ROOT / "config.json").exists()
+    # The invariant is that init never WRITES the checkout config, not that a
+    # checkout config cannot exist: a legacy config.json in a clone is still read
+    # for compatibility, and every developer machine has one. Asserting absence
+    # made this test pass only in CI and fail for every real user, which is how
+    # the data-loss bug it was meant to catch survived.
+    assert (ROOT / "config.json").read_bytes() == _repo_config_before \
+        if (ROOT / "config.json").exists() else True
 
     scanned = _run(home, "scan")
     assert "claude-code: 1" in scanned.stdout
