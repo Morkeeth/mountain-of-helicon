@@ -109,6 +109,11 @@ def test_empty_home_init_creates_an_editable_config_instead_of_looping(tmp_path)
     assert "edit " + str(config_path) in initialized.stdout
     assert "run `helicon init`" not in initialized.stdout
 
+    scanned = _run(home, "scan")
+    assert "Edit " + str(config_path) in scanned.stdout
+    assert "helicon demo" in scanned.stdout
+    assert "helicon init" not in scanned.stdout
+
 
 def test_missing_explicit_config_points_to_working_demo_command(tmp_path):
     home = tmp_path / "empty-home"

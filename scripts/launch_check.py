@@ -86,6 +86,7 @@ def static_checks(root: Path) -> list[Check]:
         "CLAUDE.md": _read(root, "CLAUDE.md"),
         "ARCHITECTURE.md": _read(root, "ARCHITECTURE.md"),
         "ROT.md": _read(root, "ROT.md"),
+        "docs/architecture-diagram.html": _read(root, "docs/architecture-diagram.html"),
         "web/public/welcome.html": _read(root, "web/public/welcome.html"),
         "web/src/components/Landing.tsx": _read(root, "web/src/components/Landing.tsx"),
     }

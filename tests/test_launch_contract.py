@@ -18,6 +18,7 @@ def test_public_launch_surfaces_use_canonical_identity():
         "CLAUDE.md",
         "ARCHITECTURE.md",
         "ROT.md",
+        "docs/architecture-diagram.html",
         "web/public/welcome.html",
         "web/src/components/Landing.tsx",
     ]
