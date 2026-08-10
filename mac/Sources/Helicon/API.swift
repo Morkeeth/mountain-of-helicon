@@ -125,4 +125,25 @@ struct HeliconAPI {
 
     /// GET /api/findings?lane=decision&limit=100
 
+
+    /// GET /api/claims -> the verification ladder the fleet board renders.
+    func claims(limit: Int = 50) async throws -> ClaimsPayload {
+        try await get("/api/claims", [URLQueryItem(name: "limit", value: String(limit))])
+    }
+
+    /// GET /api/fleet -> live control plane.
+    func fleet() async throws -> FleetPayload {
+        try await get("/api/fleet")
+    }
+
+    /// POST /api/surfaces/open — records that a surface was shown, so removing an
+    /// unused surface later is decided on usage rather than taste.
+    func recordSurfaceOpen(_ surface: String) async throws {
+        var req = URLRequest(url: base.appendingPathComponent("/api/surfaces/open"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["surface": surface])
+        _ = try? await URLSession.shared.data(for: req)
+    }
+
 }

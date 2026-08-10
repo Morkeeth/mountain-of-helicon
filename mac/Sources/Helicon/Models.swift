@@ -478,3 +478,38 @@ struct WorkLearning: Decodable {
 // headline the server already composed honestly, so the app never invents a
 // number — it renders what the record supports, empty pillars included.
 
+
+
+// Fleet board payloads. Optionals are deliberate: cost is UNKNOWN when a run has
+// no cost card, and rendering it as 0 would make unmeasured work look free.
+struct ClaimRow: Decodable, Identifiable {
+    let id: String
+    let claimed: String
+    let written: Int
+    let cost: Double?
+    let costKnown: Bool
+    let level: String
+    let why: String
+    enum CodingKeys: String, CodingKey {
+        case id, claimed, written, cost, level, why
+        case costKnown = "cost_known"
+    }
+}
+
+struct ClaimsPayload: Decodable {
+    let claims: [ClaimRow]
+    let counts: [String: Int]
+    let levels: [String]
+    let meaning: [String: String]
+    let total: Int
+    let headline: String
+}
+
+struct FleetPayload: Decodable {
+    let runningCount: Int
+    let observedCount: Int
+    enum CodingKeys: String, CodingKey {
+        case runningCount = "running_count"
+        case observedCount = "observed_count"
+    }
+}

@@ -50,6 +50,9 @@ final class Cockpit {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
+        // Recorded so the fleet-vs-queue comparison has both arms. A surface that
+        // never reports cannot be shown to be unused.
+        Task { try? await HeliconAPI().recordSurfaceOpen("queue") }
         let host = NSHostingController(rootView: QueueView().environmentObject(Store.shared))
         let w = NSWindow(contentViewController: host)
         w.title = "Review Queue"
@@ -223,5 +226,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     static func note(_ msg: String) {
         FileHandle.standardError.write("[app] \(msg)\n".data(using: .utf8)!)
+    }
+}
+
+/// The fleet board. A SEPARATE window from the review queue by ruling, not by
+/// accident: Oscar, 2026-08-10 — "add feature and we remove the ones we dont use
+/// in the future". Both surfaces record their opens (`POST /api/surfaces/open`),
+/// so whichever one goes is decided on usage rather than taste.
+@MainActor
+final class FleetWindow {
+    static let shared = FleetWindow()
+    private var window: NSWindow?
+
+    func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let host = NSHostingController(rootView: FleetView())
+        let w = NSWindow(contentViewController: host)
+        w.title = "Fleet"
+        w.setContentSize(NSSize(width: 1020, height: 760))
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.isReleasedWhenClosed = false
+        w.center()
+        window = w
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
