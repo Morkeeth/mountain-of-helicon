@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sqlite3
+import sys
 import time
 
 MODELS = {
@@ -181,7 +182,11 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
         return result
     except Exception as e:
         if "403" in str(e) or "AllocationQuota" in str(e):
-            print(f"[qwen] Quota exhausted, skipping: {str(e)[:80]}")
+            # stderr, never stdout: `report --llm --json > eval-latest.json`
+            # redirects stdout into the baseline file, so a stdout warning here
+            # lands INSIDE the JSON and the file parses as CSV. That is how 14
+            # nights of "eval-latest.json is empty, unreadable" were filed.
+            print(f"[qwen] Quota exhausted, skipping: {str(e)[:80]}", file=sys.stderr)
             return ""
         raise
 
