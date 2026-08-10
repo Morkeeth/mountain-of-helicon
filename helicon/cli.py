@@ -2255,6 +2255,27 @@ def cmd_evolve(args):
               f"(pushes {gold['total'] - prev_rules} new ruling(s) to ~/.claude)")
 
 
+
+def cmd_capture(args):
+    """Observe local agent sessions into run_captures. Idempotent by session id,
+    so it is safe on a timer. The suite had 337 transcripts on disk and 0 captures
+    until this was wired: every starved surface downstream was starved here."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.capture import sync_sessions, render_sync, list_captures
+    conn = init_db(load_config()["db_path"])
+    if getattr(args, "list", False):
+        rows = list_captures(conn)
+        print(f"  {len(rows)} capture(s)")
+        for r in rows[:args.limit or 20]:
+            print(f"    {r['id']}  {(r['repo'] or '?').split('/')[-1]:22} "
+                  f"{r['branch'] or '-':24} {r['prompt_count'] or 0:3} prompts  "
+                  f"{r['captured_at'][:16]}")
+        return
+    r = sync_sessions(conn, limit=args.limit, dry_run=args.dry_run)
+    print(render_sync(r))
+
+
 def cmd_lift(args):
     """Does a skill make real work better? Joins the skill actually loaded to what
     the run cost and whether it verified. Prints an honest refusal when the store
@@ -3348,6 +3369,11 @@ def main():
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
     evolve_p.add_argument("--obey", action="store_true", help="also push the compiled policy to ~/.claude so the agent obeys it (.bak kept)")
 
+    capture_p = sub.add_parser("capture", help="Observe local agent sessions into the store (idempotent; safe on a timer)")
+    capture_p.add_argument("--dry-run", action="store_true", help="count what would be captured, write nothing")
+    capture_p.add_argument("--list", action="store_true", help="show what has been captured")
+    capture_p.add_argument("--limit", type=int, default=None, help="stop after N")
+
     lift_p = sub.add_parser("lift", help="Does a skill make real work better? Joins the skill actually loaded to run cost and verification")
     lift_p.add_argument("skill", help="skill name or version prefix, e.g. stranger or stranger@2")
     lift_p.add_argument("--json", action="store_true", help="machine-readable report")
@@ -3510,6 +3536,7 @@ def main():
         "policy": cmd_gold,
         "gold": cmd_gold,
         "evolve": cmd_evolve,
+        "capture": cmd_capture,
         "lift": cmd_lift,
         "resolve": cmd_resolve,
         "watch": cmd_watch,

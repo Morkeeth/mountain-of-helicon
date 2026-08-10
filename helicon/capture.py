@@ -663,3 +663,75 @@ def promote_prompt(conn, task_run_id, by="accepted-outcome") -> dict:
          run["model"], run["harness"], "accepted", _now(), by))
     conn.commit()
     return {"ok": True, "prompt_id": pid, "prompt": prompt_text[:120]}
+
+
+def captured_session_ids(conn) -> set[str]:
+    """Every session_id already in run_captures, flattened out of the JSON column.
+
+    A daemon that re-reads the transcript directory must be able to answer "have I
+    seen this one" without a UNIQUE constraint on a JSON array. This is that answer.
+    """
+    out: set[str] = set()
+    for (blob,) in conn.execute("SELECT session_ids FROM run_captures").fetchall():
+        try:
+            out.update(json.loads(blob or "[]"))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
+def sync_sessions(conn, *, limit: int | None = None, provenance: str = "observed",
+                  dry_run: bool = False) -> dict:
+    """Observe every safe session on disk that has not been captured yet.
+
+    This is the ingestion the suite was missing. `capture.py` could already read a
+    transcript into a RunRecord, but nothing ever called it: on 2026-08-10 there
+    were 337 transcripts on disk, 36 of them safe, and `run_captures` held ZERO
+    rows. Every starved surface downstream — lift, next-prompt, the work graph —
+    was starved by this one gap, not by a missing feature.
+
+    Idempotent by session id, so it is safe to run on a timer. Sessions outside a
+    ~/CODE safe root or classified private are skipped by `_session_is_safe` and
+    counted, never captured: the privacy boundary is not a performance problem to
+    optimise away.
+    """
+    seen = captured_session_ids(conn)
+    found = discover_sessions(safe_only=False)
+    result = {"on_disk": len(found), "already_captured": 0, "unsafe": 0,
+              "captured": 0, "failed": 0, "errors": [], "dry_run": dry_run}
+    for meta in found:
+        if meta["session_id"] in seen:
+            result["already_captured"] += 1
+            continue
+        # discover_sessions() exposes the working directory as "repo"; reading it
+        # as "cwd" silently rejected all 337 sessions as out-of-boundary.
+        if not _session_is_safe(meta.get("repo", ""), meta["path"], meta.get("branch")):
+            result["unsafe"] += 1
+            continue
+        if dry_run:
+            result["captured"] += 1
+            continue
+        res = capture_session(conn, meta["path"], provenance=provenance)
+        if res.get("ok"):
+            result["captured"] += 1
+            seen.add(meta["session_id"])
+        else:
+            result["failed"] += 1
+            if len(result["errors"]) < 5:
+                result["errors"].append(f"{meta['session_id'][:8]}: {res.get('error')}")
+        if limit and result["captured"] >= limit:
+            break
+    return result
+
+
+def render_sync(r: dict) -> str:
+    head = "  CAPTURE" + ("  (dry run — nothing written)" if r["dry_run"] else "")
+    lines = [head, "",
+             f"    on disk           {r['on_disk']}",
+             f"    already captured  {r['already_captured']}",
+             f"    outside boundary  {r['unsafe']}   (not under a ~/CODE safe root, or private)",
+             f"    captured now      {r['captured']}"]
+    if r["failed"]:
+        lines.append(f"    failed            {r['failed']}")
+        lines += [f"      · {e}" for e in r["errors"]]
+    return "\n".join(lines)
