@@ -802,3 +802,60 @@ def govern_captures(conn, *, limit: int | None = None, dry_run: bool = False) ->
         if limit and out["governed"] >= limit:
             break
     return out
+
+
+def link_captures_to_run_cards(conn, *, dry_run: bool = False) -> dict:
+    """Stamp task_runs.run_id by SESSION IDENTITY, never by time window.
+
+    run_cards cluster session cost records (runs.py:_finalize_run) and
+    run_captures store the session ids they were built from, so the same session
+    appears on both sides and the join is an equality, not a guess. This is the
+    key that db.py's ALTER created and that nothing had yet been able to fill for
+    an imported run.
+
+    The rejected alternative is still rejected: matching task_runs.execution_
+    started_at inside run_cards[start, end] would have produced a number from
+    proximity. A session id is the thing that actually produced both rows.
+    """
+    from helicon.runs import scan_session_costs, group_runs
+    import os as _os
+    projects = _os.path.expanduser("~/.claude/projects")
+    session_to_run: dict[str, str] = {}
+    if _os.path.isdir(projects):
+        for proj in sorted(_os.listdir(projects)):
+            pdir = _os.path.join(projects, proj)
+            if not _os.path.isdir(pdir):
+                continue
+            for run in group_runs(scan_session_costs(pdir)):
+                # _finalize_run exposes the cluster's members as session_ids;
+                # the private _members key does not survive it.
+                for sid in run.get("session_ids", []):
+                    session_to_run[sid] = run["run_id"]
+
+    known = {r[0] for r in conn.execute("SELECT run_id FROM run_cards")}
+    rows = conn.execute(
+        "SELECT id, task_run_id, session_ids FROM run_captures "
+        "WHERE task_run_id IS NOT NULL").fetchall()
+    out = {"captures": len(rows), "linked": 0, "no_session_match": 0,
+           "no_card": 0, "dry_run": dry_run}
+    for cap in rows:
+        try:
+            sids = json.loads(cap["session_ids"] or "[]")
+        except json.JSONDecodeError:
+            sids = []
+        rid = next((session_to_run[s] for s in sids if s in session_to_run), None)
+        if rid is None:
+            out["no_session_match"] += 1
+            continue
+        if rid not in known:
+            # The session is real but no card was ever cut for its run. Counted
+            # and left NULL — an unjoinable run is reported, never estimated.
+            out["no_card"] += 1
+            continue
+        if not dry_run:
+            conn.execute("UPDATE task_runs SET run_id=? WHERE id=? AND run_id IS NULL",
+                         (rid, cap["task_run_id"]))
+        out["linked"] += 1
+    if not dry_run:
+        conn.commit()
+    return out
