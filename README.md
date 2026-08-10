@@ -274,9 +274,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (58 commands)
+## CLI (60 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 

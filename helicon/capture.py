@@ -13,6 +13,16 @@ Honesty rules:
 - Privacy: default-deny via context_policy + the cockpit safe-root allowlist.
   Trading/wallet/treasury/journal sessions are never captured.
 - Reuses runs.parse_session_cost (never a competing cost system).
+
+
+BOUNDARY — this module is NOT the Workgraph capture protocol.
+Here: OBSERVE work that already happened. Reads Claude Code transcripts
+into run_captures (discover_sessions, capture_session, sync_sessions).
+There: RECORD work as it happens. helicon/workgraph_capture.py opens a
+TaskRun against a Wager and closes it with a verification receipt
+(launch, close, CaptureError).
+Two modules said "capture" and meant different things; mcp_server.py
+imported launch/close from HERE and crashed only when the tool was called.
 """
 import glob
 import hashlib
