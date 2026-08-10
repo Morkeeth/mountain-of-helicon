@@ -211,12 +211,13 @@ def cmd_init(args):
 
 def cmd_scan(args):
     """Scan all configured sources."""
-    from helicon.config import load_config
+    from helicon.config import config_file, load_config
     from helicon.scanner import run_scan
 
     config = load_config()
     if not config.get("connectors"):
-        print("No connectors configured. Run `helicon init` first.")
+        print(f"No connectors configured. Edit {config_file()} to add a source, "
+              "or run `helicon demo`.")
         return
 
     print("Mountain of Helicon scan\n")
