@@ -74,3 +74,17 @@ jobs:
         run: pip install -e .
       - name: Run the rot exam on our own memory
         run: helicon ci --fail-on none
+
+  mac-app:
+    name: Desktop app builds
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The Mac app is the product's front door and nothing tested it. A salvage
+      # on 2026-08-10 ported WorkGraphView.swift without the models and fetchers
+      # it calls, and `swift build` failed for four commits (5db661f..1c59a6d)
+      # while the Python suite stayed green the whole time. A compile is the
+      # cheapest possible check and it would have caught it on the first push.
+      - name: swift build
+        working-directory: mac
+        run: swift build
