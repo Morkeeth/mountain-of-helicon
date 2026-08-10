@@ -238,7 +238,8 @@ def list_captures(conn) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
+def govern_from_capture(conn, capture_id, objective, acceptance,
+                        task_class: str | None = None) -> dict:
     """Wrap a captured session in the governed lifecycle: open (objective +
     acceptance frozen NOW — honestly after the fact for an imported session) →
     packet → attach the real captured artifact → link. Human accept/reject is a
@@ -249,7 +250,8 @@ def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
         return {"ok": False, "error": f"no capture {capture_id}"}
     try:
         rid = taskrun.open_run(
-            conn, objective, acceptance, model=cap["model"] or "",
+            conn, objective, acceptance, task_class=task_class,
+            model=cap["model"] or "",
             harness=cap["harness"] or "claude-code",
             repo_ref=f"{cap['repo']}@{cap['start_commit']}")
         taskrun.record_event(conn, rid, "opened", actor="human", detail=objective)
@@ -789,7 +791,8 @@ def govern_captures(conn, *, limit: int | None = None, dry_run: bool = False) ->
             out["governed"] += 1
         else:
             res = govern_from_capture(conn, cap["id"], _objective_from_capture(cap),
-                                      OBSERVED_ACCEPTANCE)
+                                      OBSERVED_ACCEPTANCE,
+                                      task_class="auto-observed")
             if res.get("ok", True) and not res.get("error"):
                 out["governed"] += 1
             else:

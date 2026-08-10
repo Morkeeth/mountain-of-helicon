@@ -142,6 +142,8 @@ def create_app() -> FastAPI:
     app.include_router(cockpit_router, prefix="/api")
     app.include_router(runs2_router, prefix="/api")
     app.include_router(doorway_router, prefix="/api")
+    from helicon.api.fleet import router as fleet_router
+    app.include_router(fleet_router, prefix="/api")
     from helicon.api.workgraph import router as workgraph_router
     app.include_router(workgraph_router, prefix="/api")
 
