@@ -58,7 +58,8 @@ echo "=== nightly start $(date -Iseconds) ===" >> "$LOG"
 #
 # Chained with && like every other step: a step that fails quietly is the exact
 # bug this nightly exists to stop being.
-$PY -m helicon.cli reconcile --apply >> "$LOG" 2>&1 &&
+$PY -m helicon.cli capture --govern >> "$LOG" 2>&1 &&
+  $PY -m helicon.cli reconcile --apply >> "$LOG" 2>&1 &&
   $PY -m helicon.cli triage          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli evolve          >> "$LOG" 2>&1 &&
   $PY -m helicon.cli runs --close --run >> "$LOG" 2>&1 &&
