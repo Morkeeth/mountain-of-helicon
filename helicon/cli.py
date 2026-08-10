@@ -70,7 +70,12 @@ def _detect_sources() -> dict:
                     "vault_path": os.path.join(obsidian_base, vaults[0]),
                     "vaults_found": vaults,
                 }
-    else:
+    # Not an else. The local-vault candidates used to be the non-Darwin branch, so
+    # on macOS only an iCloud-synced vault was ever detected — and a plain local
+    # vault is Obsidian's DEFAULT. A Mac user whose vault lives in ~/Documents got
+    # a config with no obsidian connector and no explanation. iCloud still wins
+    # when both exist; this only fills the gap when it found nothing.
+    if "obsidian" not in detected:
         for candidate in [
             os.path.join(home, "Documents", "Obsidian"),
             os.path.join(home, "Obsidian"),
@@ -178,10 +183,34 @@ def cmd_init(args):
         conn = {k: v for k, v in info.items() if k != "vaults_found" and k != "repos_found"}
         config["connectors"][name] = conn
 
-    config_path = config_file()
+    # init WRITES to the user's home, never to the checkout. config_file() falls
+    # back to a config.json sitting in the package root for read compatibility,
+    # and init inherited that fallback as a write target: running `helicon init`
+    # from a clone — or running the test suite, which invokes init with a fake
+    # HOME and cwd=REPO_ROOT — overwrote the developer's own live config and
+    # repointed db_path at a pytest temp directory. That is a stranger-facing
+    # data-loss bug: it passes in CI, where no checkout config exists, and fires
+    # on every real machine. Reading the legacy path stays supported; writing it
+    # does not.
+    from helicon.config import default_config_file, _LEGACY_CONFIG_FILE
+    config_path = default_config_file()
     if os.path.exists(config_path) and not args.force:
         print(f"{config_path} already exists. Use --force to overwrite.")
         return
+    # Carry a legacy checkout config forward rather than silently superseding it:
+    # once the home file exists, config_file() prefers it, so an un-migrated
+    # db_path would point the install at a different (empty) store.
+    if os.path.exists(_LEGACY_CONFIG_FILE) and not os.path.exists(config_path):
+        try:
+            with open(_LEGACY_CONFIG_FILE) as fh:
+                legacy = json.load(fh)
+            for key, value in legacy.items():
+                if key != "connectors":
+                    config.setdefault(key, value)
+            print(f"  carried {len(legacy)} setting(s) forward from "
+                  f"{_LEGACY_CONFIG_FILE}")
+        except (OSError, json.JSONDecodeError):
+            pass
 
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     with open(config_path, "w") as f:
