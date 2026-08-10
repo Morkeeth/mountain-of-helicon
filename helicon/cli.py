@@ -2256,6 +2256,68 @@ def cmd_evolve(args):
 
 
 
+def _require_wager_args(args, *names):
+    missing = [f"--{name.replace('_', '-')}" for name in names if not getattr(args, name)]
+    if missing:
+        raise SystemExit(f"wager {args.action} requires: {', '.join(missing)}")
+
+
+def cmd_wager(args):
+    """Outcome Gate record: declare value before work, then attach receipts."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.wager import (attach_evidence, compile_execution_prompt, link_wager_to_run, open_wager,
+                               record_next_move, render_wager, resolve_wager, review_declared_skill,
+                               trace_work_card, workgraph_attention)
+
+    conn = init_db(load_config()["db_path"])
+    if args.action == "open":
+        _require_wager_args(args, "intent", "beneficiary", "change", "proof", "kill")
+        wager_id = open_wager(
+            conn, intent=args.intent, beneficiary=args.beneficiary,
+            observable_change=args.change, evidence_contract=args.proof,
+            kill_condition=args.kill, task_run_id=args.task_run,
+        )
+        print(render_wager(conn, wager_id))
+    elif args.action == "evidence":
+        _require_wager_args(args, "id", "kind", "reference")
+        evidence_id = attach_evidence(conn, args.id, kind=args.kind, reference=args.reference,
+                                      note=args.note or "", observed_at=args.observed_at)
+        print(f"Evidence {evidence_id} attached to {args.id}. Execution evidence is not outcome proof.")
+    elif args.action == "resolve":
+        _require_wager_args(args, "id", "outcome")
+        resolve_wager(conn, args.id, args.outcome, ruling=args.ruling or "")
+        print(render_wager(conn, args.id))
+    elif args.action == "move":
+        _require_wager_args(args, "id", "next_action", "rationale")
+        move_id = record_next_move(conn, args.id, args.next_action, rationale=args.rationale,
+                                   status=args.status)
+        print(f"Next move {move_id}: {args.next_action} for {args.id}")
+    elif args.action == "link":
+        _require_wager_args(args, "id", "task_run")
+        link_wager_to_run(conn, args.id, args.task_run)
+        print(render_wager(conn, args.id))
+    elif args.action == "review-skill":
+        _require_wager_args(args, "id", "skill", "path")
+        result = review_declared_skill(conn, args.id, skill_version=args.skill, source_path=args.path)
+        print(f"Reviewed {result['skill_version']} · sha256 {result['content_hash']} · {args.id}")
+    elif args.action == "attention":
+        items = workgraph_attention(conn, limit=args.limit)
+        if not items:
+            print("No factual Work Graph interventions are pending.")
+        for item in items:
+            print(f"[{item['priority'].upper()}] {item['action']} · {item['wager_id']}\n  {item['intent']}\n  {item['reason']}")
+    elif args.action == "prompt":
+        _require_wager_args(args, "id")
+        print(compile_execution_prompt(conn, args.id))
+    elif args.action == "trace":
+        _require_wager_args(args, "id")
+        print(json.dumps(trace_work_card(conn, args.id), indent=2))
+    else:
+        _require_wager_args(args, "id")
+        print(render_wager(conn, args.id))
+
+
 def cmd_capture(args):
     """Observe local agent sessions into run_captures. Idempotent by session id,
     so it is safe on a timer. The suite had 337 transcripts on disk and 0 captures
@@ -3369,6 +3431,28 @@ def main():
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
     evolve_p.add_argument("--obey", action="store_true", help="also push the compiled policy to ~/.claude so the agent obeys it (.bak kept)")
 
+    wager_p = sub.add_parser("wager", help="Outcome Gate: declare a human outcome before agent work, then attach receipts")
+    wager_p.add_argument("action", choices=["open", "evidence", "resolve", "move", "link", "review-skill", "prompt", "trace", "attention", "show"])
+    wager_p.add_argument("--id", help="Wager id (required except with `wager open`)")
+    wager_p.add_argument("--intent", help="Outcome being pursued (open)")
+    wager_p.add_argument("--beneficiary", help="Who receives the value (open)")
+    wager_p.add_argument("--change", help="Observable real-world change (open)")
+    wager_p.add_argument("--proof", help="Evidence contract required to claim success (open)")
+    wager_p.add_argument("--kill", help="Condition that ends further investment (open)")
+    wager_p.add_argument("--task-run", help="Optional existing TaskRun id (open)")
+    wager_p.add_argument("--kind", help="Evidence kind, e.g. test, deploy, user-feedback (evidence)")
+    wager_p.add_argument("--reference", help="Evidence ref, path, URL, or command (evidence)")
+    wager_p.add_argument("--note", help="Evidence note (evidence)")
+    wager_p.add_argument("--observed-at", help="Observed timestamp (evidence; defaults to now)")
+    wager_p.add_argument("--skill", help="Exact declared skill version (review-skill)")
+    wager_p.add_argument("--path", help="Readable local instruction file to hash (review-skill)")
+    wager_p.add_argument("--outcome", choices=["proven", "disproven", "unproven"], help="Human outcome (resolve)")
+    wager_p.add_argument("--ruling", help="Human ruling / explanation (resolve)")
+    wager_p.add_argument("--next-action", choices=["BUILD", "INVESTIGATE", "ASK", "DECIDE", "REPAIR", "KILL"], help="Next action (move)")
+    wager_p.add_argument("--rationale", help="Why this next action is warranted (move)")
+    wager_p.add_argument("--status", default="proposed", choices=["proposed", "accepted", "completed", "killed"], help="Next-move status (move)")
+    wager_p.add_argument("--limit", type=int, default=30, help="Maximum interventions (attention)")
+
     capture_p = sub.add_parser("capture", help="Observe local agent sessions into the store (idempotent; safe on a timer)")
     capture_p.add_argument("--dry-run", action="store_true", help="count what would be captured, write nothing")
     capture_p.add_argument("--list", action="store_true", help="show what has been captured")
@@ -3536,6 +3620,7 @@ def main():
         "policy": cmd_gold,
         "gold": cmd_gold,
         "evolve": cmd_evolve,
+        "wager": cmd_wager,
         "capture": cmd_capture,
         "lift": cmd_lift,
         "resolve": cmd_resolve,

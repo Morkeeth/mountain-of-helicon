@@ -594,7 +594,7 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
             return json.dumps({"error": str(exc)}, indent=2)
 
     if name == "helicon_capture_launch":
-        from helicon.capture import CaptureError, launch
+        from helicon.workgraph_capture import CaptureError, launch
         from helicon.wager import WagerError, compile_execution_prompt
         wager_id = arguments.get("wager_id", "")
         try:
@@ -609,7 +609,7 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
             return json.dumps({"error": str(exc)}, indent=2)
 
     if name == "helicon_capture_closeout":
-        from helicon.capture import CaptureError, close
+        from helicon.workgraph_capture import CaptureError, close
         from helicon.taskrun import TaskRunError
         try:
             return json.dumps(close(conn, arguments.get("task_run_id", ""),
