@@ -45,6 +45,30 @@ def _public_url_status(url: str) -> tuple[bool, str]:
         return False, f"unreachable · {url} · {exc}"
 
 
+def _pypi_status() -> tuple[bool, str]:
+    url = "https://pypi.org/pypi/mount-helicon/json"
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "mountain-of-helicon-launch-check"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read().decode())
+    except urllib.error.HTTPError as exc:
+        return False, f"HTTP {exc.code} · {url}"
+    except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        return False, f"unreachable/invalid · {url} · {exc}"
+    info = payload.get("info") or {}
+    links = list((info.get("project_urls") or {}).values())
+    links.append(info.get("home_page") or "")
+    canonical = "github.com/Morkeeth/mountain-of-helicon"
+    owned = any(canonical in str(link) for link in links)
+    return (
+        owned,
+        f"published and linked to {CANONICAL_REPO}"
+        if owned else "published, but metadata does not link to the canonical repository",
+    )
+
+
 def static_checks(root: Path) -> list[Check]:
     readme = _read(root, "README.md")
     demo = _read(root, "DEMO.md")
@@ -59,6 +83,9 @@ def static_checks(root: Path) -> list[Check]:
         "README.md": readme,
         "DEMO.md": demo,
         "action.yml": action,
+        "CLAUDE.md": _read(root, "CLAUDE.md"),
+        "ARCHITECTURE.md": _read(root, "ARCHITECTURE.md"),
+        "ROT.md": _read(root, "ROT.md"),
         "web/public/welcome.html": _read(root, "web/public/welcome.html"),
         "web/src/components/Landing.tsx": _read(root, "web/src/components/Landing.tsx"),
     }
@@ -85,9 +112,13 @@ def static_checks(root: Path) -> list[Check]:
         ),
         Check(
             "repository",
-            "Consumer links target the product repository",
-            CANONICAL_REPO in readme and CANONICAL_REPO in action and FROZEN_REPO not in readme + action,
-            CANONICAL_REPO,
+            "Consumer links target product repo; Action installs its checked-out revision",
+            (
+                CANONICAL_REPO in readme
+                and FROZEN_REPO not in readme + action
+                and "$GITHUB_ACTION_PATH" in action
+            ),
+            f"{CANONICAL_REPO} · $GITHUB_ACTION_PATH",
         ),
         Check(
             "warning-semantics",
@@ -165,9 +196,7 @@ def online_checks() -> list[Check]:
     repo_ok, repo_detail = _public_url_status(
         "https://github.com/Morkeeth/mountain-of-helicon"
     )
-    pypi_ok, pypi_detail = _public_url_status(
-        "https://pypi.org/pypi/mount-helicon/json"
-    )
+    pypi_ok, pypi_detail = _pypi_status()
     return [
         Check(
             "public-repository",

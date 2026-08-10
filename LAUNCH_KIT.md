@@ -12,7 +12,8 @@ We ran a frozen corpus of 591 public repos with agent-rules files.
 
 577 current default branches were scoreable; all 14 exclusions are named. After
 fixing 18 duplicate projections, dropping 5 rows contradicted by their own
-stdout, and hand-verifying all 30 survivors, 9 rows in 6 repos were TRUE: 1.04%.
+stdout, and hand-verifying all 30 survivors, 6 of 577 repos were TRUE (1.04%);
+9 of 30 mechanical rows survived (0.30 finding precision).
 
 So we built Mountain of Helicon — executable preflight for agent context.
 
@@ -39,8 +40,8 @@ https://github.com/Morkeeth/mountain-of-helicon
    every one of the 14 exclusions is named.
 
 3. After fixing 18 duplicate projections and 5 self-refuting rows, we
-   hand-verified all 30 survivors: 9 TRUE rows in 6 repos (1.04%). Low, real,
-   reproducible.
+   hand-verified all 30 survivors: 6 of 577 repos were TRUE (1.04%), with 9 of
+   30 mechanical rows surviving. Low, real, reproducible.
 
 4. Mountain of Helicon runs the same executable checks as a Claude Code
    preflight. A warning includes the exact claim, command, and stdout. Blocking

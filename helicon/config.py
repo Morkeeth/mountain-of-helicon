@@ -56,7 +56,7 @@ def load_config(path: str | None = None) -> dict:
             raise FileNotFoundError(
                 f"config not found: {config_path}\n"
                 f"  (HELICON_CONFIG points at a file that does not exist)\n"
-                f"  demo store:  python3 scripts/demo_seed.py\n"
+                f"  demo:        helicon demo\n"
                 f"  your stack:  helicon init")
         return {}
     with open(config_path) as f:

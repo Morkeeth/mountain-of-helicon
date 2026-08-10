@@ -1,4 +1,4 @@
-# Mount Helicon
+# Mountain of Helicon
 
 Three-layer memory system for AI agent output. Extracts what agents built, learns how the human reviews, and audits its own memory for staleness and contradictions.
 

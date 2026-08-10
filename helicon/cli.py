@@ -128,7 +128,7 @@ def cmd_init(args):
         print("  - Obsidian (iCloud or ~/Documents/Obsidian/)")
         print("  - Git repos (~/CODE/, ~/projects/, ~/src/)")
         print("  - ChatGPT exports (~/Downloads/*.json)")
-        return
+        print("A user config will still be created so you can add paths manually.\n")
 
     print(f"Found {len(detected)} source(s):\n")
     for name, info in detected.items():
@@ -194,7 +194,6 @@ def cmd_init(args):
     # `doctor` mentioned it, and only if you thought to run it.
     if env_key:
         print("Qwen key picked up from $QWEN_API_KEY (Model Studio + DashScope wired)")
-        print("Next: run `helicon scan` to extract memory items")
     else:
         print("\n  BYOK - one step left. Helicon is local-first and ships no key:")
         print("    export QWEN_API_KEY='sk-...'   &&  helicon init --force")
@@ -204,7 +203,10 @@ def cmd_init(args):
         print("  classes all still run keyless. What you lose is the Qwen-judged")
         print("  half - contradiction, identity, grounding - and DashScope")
         print("  embeddings (retrieval falls back to local keyword+MiniLM).")
+    if detected:
         print("\nNext: run `helicon scan` to extract memory items")
+    else:
+        print(f"\nNext: edit {config_path} to add a connector, or run `helicon demo`.")
 
 
 def cmd_scan(args):
@@ -928,8 +930,8 @@ def cmd_hook(args):
         return
 
     # THE GATE, before the courier. A run against a repo whose loaded docs the
-    # running code disproves is refused here — in the operator's own terminal,
-    # with the prompt erased — rather than noted in a CLI nobody typed.
+    # running code disproves is surfaced here in the operator's own terminal.
+    # Warn is the default; explicit block mode erases/refuses the prompt.
     #
     # Every failure path allows the prompt. A gate that bricks a terminal when
     # it breaks gets uninstalled, and then it governs nothing; the logged
@@ -3532,8 +3534,7 @@ def main():
         if not _cfg:
             sys.exit(
                 f"No config at {config_file()}.\n\n"
-                f"  see it work in 60s:  python3 scripts/demo_seed.py\n"
-                f"                       HELICON_CONFIG=config-demo.json helicon audit\n"
+                f"  see it work locally: helicon demo\n"
                 f"  point it at yours:   helicon init\n"
                 f"  or by hand:          mkdir -p ~/.helicon && "
                 f"cp config.example.json ~/.helicon/config.json\n"

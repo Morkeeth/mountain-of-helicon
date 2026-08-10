@@ -93,3 +93,40 @@ def test_new_user_vault_setup_reaches_a_visible_ruling(tmp_path):
     assert "Open findings: 1" in queue.stdout
     assert "R4 supersession / rename" in queue.stdout
     assert "Dead name 'RELAY'" in queue.stdout
+
+
+def test_empty_home_init_creates_an_editable_config_instead_of_looping(tmp_path):
+    home = tmp_path / "empty-home"
+    home.mkdir()
+
+    initialized = _run(home, "init")
+
+    config_path = home / ".helicon" / "config.json"
+    assert config_path.is_file()
+    config = json.loads(config_path.read_text())
+    assert config["connectors"] == {}
+    assert "A user config will still be created" in initialized.stdout
+    assert "edit " + str(config_path) in initialized.stdout
+    assert "run `helicon init`" not in initialized.stdout
+
+
+def test_missing_explicit_config_points_to_working_demo_command(tmp_path):
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    env = dict(os.environ)
+    env["HOME"] = str(home)
+    env["HELICON_CONFIG"] = str(home / "missing.json")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "helicon", "scan"],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    message = result.stdout + result.stderr
+    assert "helicon demo" in message
+    assert "scripts/demo_seed.py" not in message
+    assert "config-demo.json" not in message

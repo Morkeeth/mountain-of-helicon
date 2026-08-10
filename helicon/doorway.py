@@ -26,6 +26,7 @@ import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 from datetime import datetime, timezone
 from glob import glob
@@ -154,6 +155,20 @@ def _is_repo(path: str) -> bool:
     if os.path.isdir(os.path.join(path, ".git")):
         return True
     return bool(_seed_docs(path))
+
+
+def _git_revision(repo: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short=7", "HEAD"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        return result.stdout.strip() if result.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
 
 
 def list_repos(root: str | None = None, config: dict | None = None,
@@ -300,12 +315,10 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
     try:
         # `strict` has to be handed on here or the profile split does nothing.
         # It was threaded verdict -> contradicted_lines -> repo_detail and then
-        # dropped one call short of the prober, so `helicon sweep` ran the GATE
-        # profile against 574 strangers' repos and reported 29.09% flagged —
-        # the exact number the split was written to replace (b0abe55: "168/576,
-        # 29.2%, worse than the 26.6% naive baseline"). A parameter accepted and
-        # discarded is worse than one that was never added: every caller reads
-        # as configured, and the measurement looks deliberate.
+        # dropped one call short of the prober, so `helicon sweep` silently ran
+        # the recall-first GATE profile against strangers' repos. A parameter
+        # accepted and discarded is worse than one never added: every caller
+        # reads as configured, and the wrong measurement looks deliberate.
         results = probes.probe_docs(conn, repo, config, allow_network, strict=strict)
     except Exception:
         results = []
@@ -471,7 +484,7 @@ def contradicted_lines(conn, repo: str, config: dict | None = None,
                        strict: bool = False) -> list[dict]:
     """The loaded, NOT-cold lines the running code disproves. Cold lines are
     excluded on purpose (rule 2 above): they load nothing, so they cannot be the
-    reason a run is refused.
+    reason a run is warned or blocked.
 
     MOOT lines are excluded too, and for the stricter reason: they are not
     disproved at all. A rule the code has made unreachable still agrees with the
@@ -508,6 +521,7 @@ def verdict(conn, repo: str, config: dict | None = None,
     import json as _json
     repo = os.path.abspath(os.path.expanduser(repo))
     fp = fingerprint(conn, repo)
+    revision = _git_revision(repo)
     # The profile is part of the identity of the answer, not a rendering
     # option. Two profiles sharing one cache row would serve a sweep verdict
     # to the gate — a silent 13x swing decided by whoever ran first.
@@ -519,7 +533,8 @@ def verdict(conn, repo: str, config: dict | None = None,
             "WHERE repo_path = ? AND fingerprint = ?", (repo, key)).fetchone()
         if row:
             return {"repo": os.path.basename(os.path.normpath(repo)),
-                    "path": repo, "fingerprint": fp, "cached": True,
+                    "path": repo, "fingerprint": fp, "revision": revision,
+                    "cached": True,
                     "checked_at": row["checked_at"],
                     "contradicted": _json.loads(row["payload"])}
     lines = contradicted_lines(conn, repo, config, allow_network, strict=strict)
@@ -530,7 +545,8 @@ def verdict(conn, repo: str, config: dict | None = None,
         (repo, key, _json.dumps(lines), now))
     conn.commit()
     return {"repo": os.path.basename(os.path.normpath(repo)), "path": repo,
-            "fingerprint": fp, "cached": False, "checked_at": now,
+            "fingerprint": fp, "revision": revision, "cached": False,
+            "checked_at": now,
             "contradicted": lines}
 
 
@@ -565,7 +581,7 @@ def format_block(v: dict, decision: dict, mode: str = "block") -> str:
     that says "refused" teaches the operator to distrust every future banner.
     """
     bad = decision["contradicted"]
-    head = v["fingerprint"][:7]
+    head = v.get("revision") or v["fingerprint"][:7]
     if mode == "warn":
         out = ["⚠ HELICON — running anyway, but your loaded context is wrong.", "",
                f"  repo: {v['repo']} @ {head}",

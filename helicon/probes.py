@@ -506,13 +506,11 @@ _PATH_PRESENT = re.compile(
 
 # PROFILES — the same probe, two jobs, and they want opposite things.
 #
-# Measured over the frozen 591-repo corpus, identical harness, same machine:
-#
-#     lenient (gate)    168 / 576 repos flagged   29.2%   627 path findings
-#     strict  (sweep)    36 / 577 repos flagged    6.2%    47 path findings
-#
-# Thirteen times the findings. That is not a tuning knob, it is two different
-# questions, and answering one with the other's rules is wrong both ways.
+# The original profile experiment showed a large recall/precision separation.
+# Those pre-fix counts are intentionally not repeated here: projection
+# duplicates, self-refuting output, and corpus contamination changed the
+# measurement. The authoritative dated result and machine receipt live in
+# docs/agent-context-report-2026-08.md and bench/results/.
 #
 #   GATE (strict=False) reads ONE repo, whose docs this repo's own author
 #   wrote, to decide whether a run may start. A false positive is a nuisance

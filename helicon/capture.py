@@ -266,7 +266,7 @@ def govern_from_capture(conn, capture_id, objective, acceptance) -> dict:
 def hook_gate(conn, cwd, session="", prompt="", mode="block") -> dict | None:
     """The doorway, live. Called by the UserPromptSubmit hook BEFORE anything is
     delivered: if this repo's loaded context contains claims the running code
-    disproves, the prompt is refused in the operator's own terminal.
+    disproves, the operator sees the configured warning/block intervention.
 
     This is the line between analysis and control. `helicon board` and the
     Intervention Gate already produce this verdict; until now it only ever

@@ -5,6 +5,7 @@ well as an owner/name), so nothing here touches the network. The engine reuses
 `helicon.doorway.verdict`; these tests pin the aggregation, the classification,
 and the honest exclusion of unscorable repos.
 """
+import json
 import os
 import re
 import subprocess
@@ -206,9 +207,16 @@ def test_frozen_corpus_is_591_unique_repository_names():
 def test_verified_report_matches_complete_survivor_ledger():
     ledger = (ROOT / "docs/agent-context-verification-2026-08-09.md").read_text()
     report = (ROOT / "docs/agent-context-report-2026-08.md").read_text()
+    receipt = json.loads(
+        (ROOT / "bench/results/agent-context-scorecard-2026-08-09.json").read_text()
+    )
     rows = [line for line in ledger.splitlines()
             if re.match(r"^\|\s*\d+\s*\|", line)]
 
+    assert len(receipt["results"]) == 591
+    assert receipt["summary"]["scored"] == 577
+    assert receipt["summary"]["findings_total"] == 30
+    assert sum(result.get("contradicted", 0) for result in receipt["results"]) == 30
     assert len(rows) == 30
     assert sum("**TRUE**" in row for row in rows) == 9
     assert sum("**FALSE**" in row for row in rows) == 21
