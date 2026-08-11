@@ -15,10 +15,33 @@ Usage:
   helicon optimize      LLM-powered optimization suggestions
 """
 
+import sys
+
+# BEFORE anything else imports, because the failure it replaces is illegible.
+#
+# pyproject declares requires-python >=3.10 and CI pins 3.10/3.12, so from the
+# inside this looks solved. From the outside it is not: stock macOS ships
+# /usr/bin/python3 at 3.9.6, which is exactly what a stranger who clones this
+# repo will type. They got:
+#
+#     File ".../helicon/config.py", line 42, in <module>
+#       def load_config(path: str | None = None) -> dict:
+#     TypeError: unsupported operand type(s) for |: 'type' and 'NoneType'
+#
+# PEP 604 unions in an annotation, evaluated at def time. The message names
+# neither Python nor a version, so the first thing this tool ever said to a new
+# user was a type error about a pipe character. Say the real thing instead.
+if sys.version_info < (3, 10):
+    sys.exit(
+        "Mountain of Helicon needs Python 3.10 or newer.\n"
+        f"  you are running: {sys.version.split()[0]} ({sys.executable})\n\n"
+        "  macOS ships 3.9 as /usr/bin/python3, so this is expected on a fresh Mac.\n"
+        "  install a newer one:  brew install python@3.12\n"
+        "  then run:             python3.12 -m pip install -e .\n")
+
 import argparse
 import json
 import os
-import sys
 import platform
 import shutil
 import subprocess
