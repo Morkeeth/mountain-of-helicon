@@ -433,6 +433,13 @@ def workgraph_attention(conn, limit: int = 30) -> list[dict]:
                 items.append({**base, "priority": "next", "action": "verify_run", "reason": "An artifact exists but its verification outcome is missing."})
             elif row["run_status"] == "verified" and not row["outcome_evidence"]:
                 items.append({**base, "priority": "next", "action": "attach_outcome_evidence", "reason": "Run verification exists but the Work Card has no beneficiary/world outcome evidence receipt."})
+            elif row["run_status"] == "reviewed" and not row["outcome_evidence"]:
+                # `helicon run close` ends at 'reviewed', not 'verified' — accept_run
+                # is the last writer. Checking only for 'verified' meant the queue
+                # went quiet on exactly the cards the CLI produces: the work is
+                # finished and the card is the only thing left to settle, which is
+                # the moment this list is most worth reading.
+                items.append({**base, "priority": "next", "action": "attach_outcome_evidence", "reason": "The run is closed and ruled, but the Work Card has no beneficiary/world outcome evidence receipt."})
         declared_skills = _json_list(row["skill_versions"])
         if declared_skills and row["reviewed_skills"] < len(set(declared_skills)):
             items.append({**base, "priority": "next", "action": "review_declared_skills", "reason": "Declared skill versions are not all bound to reviewed local instruction files."})
