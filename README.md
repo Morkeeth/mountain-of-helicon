@@ -38,6 +38,16 @@ into an isolated throwaway settings file, shows the warning with executable
 evidence, and records an explicit override. It does not touch your real Claude
 settings or memory store.
 
+**It took six cold clones before one ran clean.** Not six errors found by reading
+the code — six real clones from GitHub into `/tmp`, installed into an empty
+`HOME`, driven with the stock macOS interpreter, following the block above
+exactly. Attempts 1, 3 and 5 each surfaced something the previous one had not:
+output that greeted a stranger by the author's name, `pip install` blaming the
+repo for a missing `setup.py` that was really a three-year-old pip, and a server
+that failed to bind and still printed `open http://127.0.0.1:8420`. The suite was
+green through all of it, because none of those are things a test suite is looking
+at. If you hit a seventh, that is a bug and worth an issue.
+
 **Run `check_python.py` first; it is not a formality.** Python 3.10+ is required,
 and a stock Mac fails this two different ways, neither of which names the real
 cause. `/usr/bin/python3` is 3.9 and dies on a PEP 604 annotation
