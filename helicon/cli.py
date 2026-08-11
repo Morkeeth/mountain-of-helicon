@@ -760,6 +760,94 @@ def _latest_open_run(conn):
     return r["id"] if r else None
 
 
+# --- the Workgraph's front door -------------------------------------------
+#
+# `open_wager` is the only way a Work Card can come into existence, and until
+# now it had no caller outside tests/. `helicon_capture_launch` (MCP) takes a
+# `wager_id` that no CLI command and no MCP tool could produce, so the graph was
+# enterable only at step two: two live cards in two weeks, both hand-made by an
+# agent dogfooding the module it had just written. The write path was not
+# unwired, it was unreachable — schema, not a feature.
+#
+# It hangs off `run open` / `run close` rather than a command of its own on
+# purpose. That is the surface a terminal already uses to start and finish a
+# piece of work, and a Work Card nobody has to remember to open is the only kind
+# that will ever have rows in it.
+#
+# No new table and no new tool: work_wagers and work_evidence already existed and
+# were already read by workgraph_attention, list_work_cards and measure_workgraph.
+
+def _open_work_card(conn, run_id, args, contract):
+    """Open a Work Card for a run the operator just opened, and link it.
+
+    Returns the card id, or None when the run cannot support one. The three
+    fields a card needs beyond the objective are exactly the three the pre-run
+    gate already BLOCKS on (beneficiary / observable_change / evidence_source),
+    so a normally-opened run always has them; only a --force override past those
+    blockers can arrive here without, and then no card is written. A card built
+    out of blanks would be a claim nobody made.
+    """
+    from helicon.wager import WagerError, open_wager
+
+    missing = [f for f in ("beneficiary", "observable_change", "evidence_source")
+               if not (contract or {}).get(f)]
+    if missing:
+        print(f"  work card:  not opened — the outcome contract is missing "
+              f"{', '.join(missing)} (this run was forced past the gate)")
+        return None
+
+    # The kill condition is the one Work Card field the run surface does not
+    # already ask for. `--kill` states it; without one it is DERIVED from the
+    # acceptance test the operator did freeze, and says so in its own text. A
+    # derived restatement of something they wrote is not the same as inventing a
+    # claim on their behalf — but a reader must be able to tell which they are
+    # looking at, so the string carries its own provenance.
+    kill = (getattr(args, "kill", None) or "").strip()
+    if not kill:
+        kill = f"(derived at open, not stated) the acceptance test does not pass: {args.acceptance}"
+
+    try:
+        return open_wager(
+            conn,
+            intent=args.objective,
+            beneficiary=contract["beneficiary"],
+            observable_change=contract["observable_change"],
+            evidence_contract=contract["evidence_source"],
+            kill_condition=kill,
+            task_run_id=run_id)
+    except WagerError as e:
+        # A run that opened is a real run. Failing to card it is worth saying
+        # out loud and worth nothing more than that.
+        print(f"  work card:  not opened — {e}")
+        return None
+
+
+def _close_work_card(conn, run_id, verdict, note):
+    """Attach the close as evidence on the linked Work Card. Never resolve it.
+
+    A closed run says the ARTIFACT was accepted. A resolved Work Card says the
+    real-world change was observed. Those are different claims and only the
+    second one is a wager settling, so `resolve_wager` stays a human act: the
+    card is left open, carrying its verification receipt, and shows up in
+    `workgraph_attention` as a card awaiting an outcome ruling. Auto-resolving
+    here would make every card 'unproven' the instant work finished and quietly
+    kill the one ratio the graph exists to measure.
+    """
+    from helicon.wager import WagerError, attach_evidence
+
+    card = conn.execute(
+        "SELECT id, status FROM work_wagers WHERE task_run_id=?", (run_id,)).fetchone()
+    if card is None or card["status"] != "open":
+        return
+    try:
+        attach_evidence(conn, card["id"], kind="taskrun-verification", reference=run_id,
+                        note=note or f"run closed: {verdict}")
+    except WagerError as e:
+        print(f"  work card:  receipt not attached — {e}")
+        return
+    print(f"  work card {card['id']}: verification receipt attached; outcome still unruled")
+
+
 def cmd_run(args):
     """Govern a task run FORWARD: freeze objective + acceptance + base commit
     BEFORE work, then close on the real outcome. This is the 'steer by outcome'
@@ -840,6 +928,9 @@ def cmd_run(args):
         print(f"  objective:  {args.objective}")
         print(f"  acceptance: {args.acceptance}")
         print(f"  base:       {os.path.basename(repo)}@{commit[:8]}")
+        card_id = _open_work_card(conn, rid, args, contract)
+        if card_id:
+            print(f"  work card:  {card_id}  (open — rule its outcome when you can see the change)")
         # The compounding edge: a prompt you ACCEPTED on a similar objective,
         # offered before the work rather than filed after it. Silent when there
         # is no real match — a confident-looking wrong suggestion is worse than
@@ -889,6 +980,7 @@ def cmd_run(args):
             pr = capture.promote_prompt(conn, rid, by="operator-ruling")
             promoted = "  · prompt promoted to the reusable library" if pr.get("ok") else ""
         print(f"  closed {rid}: {verdict}{promoted}")
+        _close_work_card(conn, rid, verdict, args.note or "")
         print(taskrun.render_receipt(conn, rid))
         return
 
@@ -3370,6 +3462,8 @@ def main():
                        help="gate (pre-run check, opens nothing) / open / status / close")
     run_p.add_argument("objective", nargs="?", help="for open/gate: the task objective")
     run_p.add_argument("--acceptance", help="for open/gate: what 'accepted' means (frozen before work)")
+    run_p.add_argument("--kill", help="open: what would make this work not worth continuing (the Work Card's "
+                                      "kill condition; derived from --acceptance and labelled as derived if omitted)")
     run_p.add_argument("--repo", help="repo path (default: cwd)")
     run_p.add_argument("--id", help="for close: the run id (default: latest open)")
     # Outcome-contract fields (the run's promise before it earns the right to start)
