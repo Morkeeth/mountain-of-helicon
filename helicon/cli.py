@@ -1383,14 +1383,66 @@ def _doorway_gate():
     if g and g["action"] == "override":
         banner = g["message"]
 
+    idle_ctx = _idle_notice_once(session)
+
     out = {}
-    if gate_ctx:
+    context = "\n\n".join(c for c in (gate_ctx, idle_ctx) if c)
+    if context:
         out["hookSpecificOutput"] = {"hookEventName": "UserPromptSubmit",
-                                     "additionalContext": gate_ctx}
+                                     "additionalContext": context}
     if banner:
         out["systemMessage"] = banner
     if out:
         print(_json.dumps(out))
+
+
+def _idle_notice_once(session: str) -> str:
+    """Speak the idle-terminal number into an arriving session, at most once.
+
+    This is the loop the fleet screen could not close on its own. It measures
+    idle terminal-hours, and then waits to be asked — but the whole finding it
+    exists to report is that eight terminals sat idle for two hours and NOTHING
+    NOTICED. A metric nobody looks at is the same failure as a capability nobody
+    remembers, which is the problem the screen was built for.
+
+    It goes to additionalContext, not systemMessage, on purpose: the reader who
+    can act on it is the AGENT. It arrives holding an ability it walked in
+    without, which is the whole memory-prosthesis claim, applied to itself.
+
+    ONCE per session, recorded in surface_opens — no new table. On every prompt
+    it would be wallpaper by the third one, and a muted notice is a deleted one.
+    The recorded row is written BEFORE the work, so a slow or failing probe still
+    costs a session at most one attempt.
+
+    Fail-open and silent, like everything else on this path: the gate runs on a
+    real person's prompt and must never be the reason one does not go through.
+    """
+    if not session:
+        return ""
+    try:
+        from helicon.db import init_db
+        from helicon import doorway
+        from helicon.api.surfaces import _ensure as _ensure_surface_opens
+        conn = init_db(doorway.gate_db_path())
+        # surface_opens is created on first use by the API, not by the schema, so
+        # the gate's own store may never have seen it. Without this the INSERT
+        # raises, the blanket except swallows it, and the notice silently never
+        # fires — a feature that ships already dead and reports nothing.
+        _ensure_surface_opens(conn)
+        spoken = conn.execute(
+            "SELECT 1 FROM surface_opens WHERE surface='idle-notice' AND opened_by=?",
+            (session,)).fetchone()
+        if spoken:
+            return ""
+        conn.execute(
+            "INSERT INTO surface_opens (surface, opened_by, opened_at) VALUES (?,?,?)",
+            ("idle-notice", session, __import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc).replace(tzinfo=None).isoformat()))
+        conn.commit()
+        from helicon import fleet
+        return fleet.idle_notice(exclude_session=session)
+    except Exception:
+        return ""
 
 
 def cmd_doorway(args):
