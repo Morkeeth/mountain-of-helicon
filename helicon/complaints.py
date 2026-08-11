@@ -233,6 +233,18 @@ def recent(conn, limit: int = 20, label_filter: str | None = None) -> list[dict]
     return [dict(r) for r in rows]
 
 
+def by_project(conn, project: str) -> list[tuple[str, int]]:
+    """What he pushed back on in ONE project, by kind. Feeds the fleet screen's
+    friction line — the only field on it sourced from a human rather than a
+    machine."""
+    rows = conn.execute(
+        "SELECT json_extract(metadata,'$.label') AS label, COUNT(*) c "
+        "FROM helicon_cubes WHERE type='complaint' "
+        "AND json_extract(metadata,'$.project')=? "
+        "GROUP BY label ORDER BY c DESC", (project,)).fetchall()
+    return [(r["label"] or "unlabelled", r["c"]) for r in rows]
+
+
 def by_label(conn) -> list[tuple[str, int]]:
     """The count is the point. One complaint is noise; the same objection four
     times is a defect in how the agent works."""

@@ -1185,8 +1185,10 @@ def cmd_fleet(args):
     from helicon import fleet, autogov
     config = load_config()
     conn = init_db(config["db_path"])
-    print(fleet.format_fleet(
-        fleet.running(conn),
+    print(fleet.format_projects(
+        fleet.projects(conn),
+        fleet.idle_terminals(),
+        fleet.capabilities(conn),
         fleet.spend_by_project(conn, days=args.days),
         autogov.unreviewed(conn, limit=50),
         fleet.efficiency(conn)))
