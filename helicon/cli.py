@@ -375,6 +375,38 @@ def cmd_fix_skills(args):
         print("Dry-run: nothing written. Run with --apply to write (creates .bak backups).")
 
 
+def _refuse_if_port_taken(host: str, port: int, command: str) -> None:
+    """Fail BEFORE the invitation, not after it.
+
+    uvicorn's exit code is honest — it returns 3 when it cannot bind. The OUTPUT
+    is not. `helicon demo` printed
+
+        open  http://127.0.0.1:8420/#findings
+        Press Ctrl+C to stop
+
+    and then exited, because uvicorn's bind error goes to stderr unbuffered while
+    those lines sit in a buffered stdout. So the last words on the screen were an
+    invitation to open a URL that serves nothing, with the reason scrolled above
+    it. A stranger clicks the dead link and concludes the project is broken.
+
+    Found on a cold clone where port 8420 was already held by a launchd job. Any
+    stranger with another dev server, a container, or a previous `helicon serve`
+    hits the same thing.
+    """
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind((host if host != "localhost" else "127.0.0.1", port))
+        except OSError:
+            sys.exit(
+                f"  port {port} on {host} is already in use, so the server cannot start.\n\n"
+                f"  something else is on it — another `helicon serve`, a dev server, a container.\n"
+                f"    see what:      lsof -nP -iTCP:{port} -sTCP:LISTEN\n"
+                f"    or pick one:   helicon {command} --port {port + 1}\n")
+
+
 def _serve_host(explicit=None, default="127.0.0.1"):
     """Bind address. Default 127.0.0.1: the API mutates the store without auth,
     so it must not face the network unless the operator opts in explicitly."""
@@ -391,6 +423,7 @@ def cmd_serve(args):
     """Start the web UI (bound to localhost by default)."""
     port = args.port or 8420
     host = _serve_host(getattr(args, "host", None))
+    _refuse_if_port_taken(host, port, "serve")
     print(f"Starting Mountain of Helicon at http://{host}:{port}")
     if host not in ("127.0.0.1", "localhost", "::1"):
         print(f"  ⚠  {host} exposes an UNAUTHENTICATED mutation API to your network.")
@@ -432,6 +465,7 @@ def cmd_demo(args):
     info = ensure_demo()
     os.environ["HELICON_CONFIG"] = info["config"]
     port = args.port or 8420
+    _refuse_if_port_taken("127.0.0.1", port, "demo")
     print("Mountain of Helicon — demo")
     print(f"  {info['cubes']} planted memories seeded · no personal data · local only")
     print(f"  open  http://127.0.0.1:{port}/#findings")
