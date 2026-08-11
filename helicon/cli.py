@@ -2997,6 +2997,60 @@ def cmd_mcp(_args):
     mcp_main()
 
 
+# The four numbers the eval baseline exists to carry. docdrift.EVAL_CLAIMS reads
+# exactly these dotted paths to check a prose claim in README.md / CLAUDE.md
+# against a measurement, so a document without them is not a degraded report —
+# it is not a baseline at all, and everything downstream can only fail later and
+# less legibly than here.
+_REPORT_GRADED_PATHS = (
+    "sub_goals.efficient_storage_retrieval.precision_at_3",
+    "sub_goals.efficient_storage_retrieval.mrr",
+    "sub_goals.efficient_storage_retrieval.query_count",
+    "sub_goals.timely_forgetting.decay_predicts_human_kills_auc",
+)
+
+
+def _has_path(obj, dotted: str) -> bool:
+    """Whether a dotted path is PRESENT. Present-and-null is present: an honest
+    unmeasured number is a real answer, and refusing it here would push the
+    report toward inventing one."""
+    for part in dotted.split("."):
+        if not isinstance(obj, dict) or part not in obj:
+            return False
+        obj = obj[part]
+    return True
+
+
+def _report_must_say_something(rep, payload: str) -> None:
+    """Refuse to exit 0 on a document that says nothing.
+
+    Moving the stray warning off stdout stopped this command corrupting its own
+    output, but it did not make the command answerable for having output. A
+    `report` that produced an empty dict, or one missing the numbers it exists to
+    publish, would still print something JSON-shaped and exit 0 — and the nightly
+    would promote it over a good baseline and go green on nothing.
+
+    A command that produces no usable output and calls that success is the exact
+    defect this project exists to catch. It does not get an exemption for being
+    ours.
+    """
+    if not isinstance(rep, dict) or not rep:
+        sys.exit("  report --json produced an empty report. Refusing to exit 0 "
+                 "on a document that says nothing.")
+    missing = [p for p in _REPORT_GRADED_PATHS if not _has_path(rep, p)]
+    if missing:
+        sys.exit("  report --json is missing the graded fields the eval baseline exists to carry:\n"
+                 + "".join(f"    {p}\n" for p in missing)
+                 + "  Refusing to exit 0 on a report that cannot state its own numbers.")
+    try:
+        json.loads(payload)
+    except ValueError as e:
+        # Belt and braces for the ORIGINAL failure mode: whatever reaches stdout
+        # must parse, and this command finds that out rather than the shell guard
+        # in scripts/nightly.sh finding out for it six hours later.
+        sys.exit(f"  report --json serialized to something unparseable: {e}")
+
+
 def cmd_report(args):
     """MemoryAgent compliance report: existing checks grouped under the track's
     four sub-goals. Numbers live from the DB, thresholds printed with them."""
@@ -3023,8 +3077,9 @@ def cmd_report(args):
 
     rep = memoryagent_report(conn, client=client, model=model)
     if getattr(args, "json", False):
-        import json as _json
-        print(_json.dumps(rep, indent=2, default=str))
+        payload = json.dumps(rep, indent=2, default=str)
+        _report_must_say_something(rep, payload)
+        print(payload)
         return
     print(format_report(rep))
 
