@@ -2922,7 +2922,12 @@ def cmd_report(args):
         client = get_client(config)
         model = resolve_model("default", config)
         if client is None:
-            print("No Qwen key; running deterministic-only.\n")
+            # stderr, NOT stdout. With --json this line used to land at byte 0 of
+            # the document, so `json.load` died on "Expecting value: line 1
+            # column 1" and the nightly exited 1 every night launchd ran without
+            # QWEN_API_KEY in its environment. A human diagnostic on the
+            # machine-readable stream is a corrupt document, not a helpful note.
+            print("No Qwen key; running deterministic-only.\n", file=sys.stderr)
 
     rep = memoryagent_report(conn, client=client, model=model)
     if getattr(args, "json", False):
