@@ -443,10 +443,33 @@ def _ensure_demo_dashboard() -> str:
     package_json = os.path.join(web_dir, "package.json")
     npm = shutil.which("npm")
     if not os.path.isfile(package_json) or not npm:
+        # THE TWO CASES ARE DIFFERENT AND THE OLD MESSAGE ANSWERED ONLY ONE.
+        #
+        # Installed from a wheel — `uvx --from git+... helicon demo`, or a plain
+        # `pip install` — there is no checkout at all. web/ is not a Python
+        # package so it is not in the wheel. The old text offered "install
+        # Node.js, then run `helicon demo` again" and "bash scripts/demo.sh",
+        # and a uvx user has neither a web/ to build nor a scripts/ to run: a
+        # dead end with two dead exits, on the install path the README leads
+        # with. Written before uvx was the front door; correct then, wrong now.
+        # Offer only exits that EXIST. Whether `scripts/demo.sh` is on disk is a
+        # fact; inferring it from the absence of web/ is a guess, and guessing
+        # wrong is how the old message sent uvx users to a file they do not have.
+        terminal_demo = os.path.isfile(os.path.join(repo_root, "scripts", "demo.sh"))
+        if not os.path.isfile(package_json) and not terminal_demo:
+            raise SystemExit(
+                "The dashboard is not in the installed package — web/ is a "
+                "frontend build, not a Python module.\n\n"
+                "  see a real finding right now, no clone, no dashboard:\n"
+                "    helicon ci --path . --fail-on none\n\n"
+                "  want the dashboard? it needs the source tree:\n"
+                "    git clone https://github.com/Morkeeth/mountain-of-helicon\n"
+                "    cd mountain-of-helicon && helicon demo\n")
         raise SystemExit(
-            "The visual demo needs the dashboard bundle, but it is not built.\n\n"
-            "  source checkout: install Node.js, then run `helicon demo` again\n"
-            "  terminal demo:  bash scripts/demo.sh\n\n"
+            "The visual demo needs the dashboard bundle, and Node.js is not "
+            "installed to build it.\n\n"
+            "  install Node.js, then run `helicon demo` again\n"
+            "  or skip the dashboard:  bash scripts/demo.sh\n\n"
             "Mountain of Helicon never serves a stale committed web bundle.")
 
     print("  building the dashboard (first run only)...", flush=True)

@@ -83,13 +83,23 @@ def test_demo_builds_missing_dashboard_once(tmp_path, monkeypatch):
 
 
 def test_demo_without_source_or_npm_exits_clearly(tmp_path, monkeypatch):
+    """A SOURCE TREE with scripts/demo.sh but no built dashboard is still told
+    about the terminal demo, because that exit actually exists here.
+
+    The original fixture had no scripts/ either, which made it indistinguishable
+    from a wheel install — and the assertion quietly encoded "there is always a
+    checkout". uvx made that false: see tests/test_demo_without_a_checkout.py.
+    The message now discriminates on what is ON DISK rather than inferring.
+    """
     fake_cli = tmp_path / "repo" / "helicon" / "cli.py"
     fake_cli.parent.mkdir(parents=True)
     fake_cli.write_text("")
+    (tmp_path / "repo" / "scripts").mkdir()
+    (tmp_path / "repo" / "scripts" / "demo.sh").write_text("#!/bin/bash\n")
     monkeypatch.setattr(cli, "__file__", str(fake_cli))
     monkeypatch.setattr(cli.shutil, "which", lambda name: None)
 
-    with pytest.raises(SystemExit, match="terminal demo"):
+    with pytest.raises(SystemExit, match="demo.sh"):
         cli._ensure_demo_dashboard()
 
 
