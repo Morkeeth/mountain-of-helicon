@@ -40,10 +40,15 @@ def test_idle_counts_terminals_not_finished_jobs(tmp_path, monkeypatch):
     processes that had run to completion and exited. A finished job is not an
     idle terminal, and a proof number inflated fifteenfold is not a proof."""
     monkeypatch.setattr(fleet, "PROJECTS_DIR", str(tmp_path))
-    _session(tmp_path / "a", "terminal", human=True, cwd="/x", age_min=120)
+    _session(tmp_path / "a", "sess-alive", human=True, cwd="/x", age_min=120)
     for i in range(10):
         _session(tmp_path / "b", f"judge{i}", human=False,
                  cwd=f"/private/var/folders/cvfit-judge-{i}", age_min=120)
+    # Pin liveness rather than consult the real process table. The first version
+    # named this session "terminal" and asserted it was counted — which passed on
+    # macOS because `ps` output contains "Terminal", and failed on Linux CI where
+    # it does not. The test was reading the developer's desktop, not the code.
+    monkeypatch.setattr(fleet, "alive_session_ids", lambda: {"sess-alive"})
 
     idle = fleet.idle_terminals()
 
