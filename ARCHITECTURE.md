@@ -76,7 +76,7 @@ flowchart LR
 
 *Roadmap (not shown as working): a `TaskRun`/`ContextPacket` loop feeding a causal
 consequence signal back into the escalation decision, and a reproducible A/B
-comparison surface. See `HELICON_OS_FEATURE_MAP.md`.*
+comparison surface. See `docs/archive/HELICON_OS_FEATURE_MAP.md`.*
 
 ## Where Qwen Cloud does the work
 

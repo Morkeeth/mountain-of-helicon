@@ -87,4 +87,4 @@ from scratch, build the dashboard, run `helicon demo`, verify populated
 health/findings endpoints, and resolve the referenced JavaScript asset.
 
 Tomorrow's human/Claude review order and exact adversarial prompt are in
-`REVIEW_PACKET.md`; launch copy and moonshot bets are in `LAUNCH_KIT.md`.
+`docs/archive/REVIEW_PACKET.md`; launch copy and moonshot bets are in `docs/archive/LAUNCH_KIT.md`.
