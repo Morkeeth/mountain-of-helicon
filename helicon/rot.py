@@ -296,7 +296,14 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
         try:
             from helicon.probes import probe_docs, CONTRADICTED, UNVERIFIABLE
             probes = probe_docs(conn, repo_root, config=config)
-            bad = [p for p in probes if p["verdict"] == CONTRADICTED]
+            # MOOT is detected as CONTRADICTED and weighted differently —
+            # probes.py: "moot findings never gate". That promise was kept by
+            # doorway.py and broken here: counting an obsolete sequencing rule
+            # as rot set R13 to ROT FOUND and made `helicon ci` exit 1 over a
+            # rule the code already agrees with. Obsolete is not false.
+            moot = [p for p in probes if p["verdict"] == CONTRADICTED and p.get("moot")]
+            bad = [p for p in probes
+                   if p["verdict"] == CONTRADICTED and not p.get("moot")]
             unver = [p for p in probes if p["verdict"] == UNVERIFIABLE]
             if not probes:
                 checks.append(_check(
@@ -305,8 +312,10 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
                     "docs — unmeasured, not clean"))
             else:
                 receipt = (f"{len(bad)} sentence(s) contradicted by the running "
-                           f"system, {len(unver)} unverifiable, "
-                           f"{len(probes) - len(bad) - len(unver)} upheld")
+                           f"system, "
+                           + (f"{len(moot)} moot, " if moot else "")
+                           + f"{len(unver)} unverifiable, "
+                           + f"{len(probes) - len(bad) - len(moot) - len(unver)} upheld")
                 if bad:
                     receipt += ": " + "; ".join(
                         f"{p['file']}:{p['line']} ({p['kind']})" for p in bad[:3])

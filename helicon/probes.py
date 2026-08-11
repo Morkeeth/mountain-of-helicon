@@ -111,6 +111,45 @@ _GATED = re.compile(
 # Headings under which a bare noun phrase IS a present-tense capability claim.
 _CAPABILITY_HEADINGS = ("context", "stack", "architecture", "overview",
                         "what it does", "how it works", "components", "system")
+# ...but ONLY when the sentence itself is polarity-neutral. The heading is the
+# weakest evidence this probe has: it infers a claim the sentence never made.
+# Twice now that inference has convicted docs for WARNING about a dead rail —
+# OpenHands :477 on 2026-08-02 (a doc correctly documenting a deletion), and
+# world-relay CLAUDE.md on 2026-08-11, where NINE findings were heading-only
+# and EIGHT were false. It convicted "First-party custody — DEAD, and it stays
+# dead."; it convicted a strikethrough correcting an earlier error; it
+# convicted the sentence explaining the false positives.
+#
+# "This rail is available" and "this rail is dead, do not use it" carry the
+# same nouns and mean opposite things. Token proximity cannot separate them and
+# never will, so where the only evidence IS proximity, polarity decides. A
+# death word, an explicit negation, a past-tense framing, a struck-through
+# retraction or a gone-status code all mark a sentence describing an absence:
+# the switch and the sentence AGREE, and there is nothing to disprove.
+#
+# The asymmetry is deliberate. Abstaining loses a find now and then. Convicting
+# a warning teaches people to delete their warnings — it destroys the exact
+# sentences this probe exists to protect, and it trains the reader to ignore
+# the feed. Quiet beats wrong.
+#
+# This gate applies to the heading fallback ALONE. A sentence carrying its own
+# availability verb ("escrow is live", "do NOT open funding until X") states
+# its own polarity and is judged as before — which is why _GATED claims, full
+# of "not" and "never" by construction, are untouched by this.
+_ABSENCE_POLARITY = re.compile(
+    # death words — the rail is announced as over
+    r"\b(?:dead|retired|deprecated|sunset|withdrawn|bricked|defunct|"
+    r"discontinued|obsolete|gone|removed|closed|disabled|dark)\b"
+    r"|\bno longer\b|\b(?:shut|switched|turned|powered)\s+(?:down|off)\b"
+    r"|\bkilled off\b|\bdo not resurrect\b"
+    # explicit negation
+    r"|\b(?:not|never|cannot|nothing|none|nobody)\b|\bn't\b|\bno\s+\w+\b"
+    # past-tense framing — describing what the system USED to be
+    r"|\b(?:was|were|used to|formerly|previously|once was)\b"
+    # a retraction: struck-through text, or a sentence marking its own error
+    r"|~~|\b(?:corrected|correction|retracted|wrong|incorrect|mistaken)\b"
+    # gone-status codes
+    r"|\b(?:404|410)\b", re.I)
 # The sentence already knows. Do not tell it what it just said.
 _ACK = re.compile(r"\b(?:retired|no longer|closed|deprecated|removed|sunset|"
                   r"disabled|gone|shut down|killed off|discontinued)\b", re.I)
@@ -1136,7 +1175,10 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
 
     # killswitch — the code enforces a retirement this sentence ignores
     availability = bool(_AVAILABILITY.search(assertion)) or bool(_GATED.search(assertion))
-    if not availability and heading:
+    if not availability and heading and not _ABSENCE_POLARITY.search(assertion):
+        # Heading fallback — the weakest evidence, so it convicts only a
+        # polarity-neutral sentence. See _ABSENCE_POLARITY: a sentence that
+        # already announces the absence agrees with the switch.
         h = heading.lower()
         availability = any(k in h for k in _CAPABILITY_HEADINGS)
     if availability and not _ACK.search(assertion):
@@ -1207,8 +1249,18 @@ def format_probes(results: list[dict], repo_path: str) -> str:
                      "docs. That is UNMEASURED, not clean.")
         return "\n".join(lines)
 
-    counts = {v: sum(1 for r in results if r["verdict"] == v)
+    # MOOT is a display label, not a fourth verdict: the stored verdict stays
+    # CONTRADICTED so every existing consumer keeps working. What changes is
+    # what the human reads. CONTRADICTED means "the running code says
+    # otherwise"; a moot rule's code says the SAME thing and has merely moved
+    # past it. Printing the two under one label inflates the count a reader
+    # uses to decide whether this tool is worth believing.
+    def _label(r):
+        return "MOOT" if r.get("moot") else r["verdict"]
+
+    counts = {v: sum(1 for r in results if _label(r) == v)
               for v in (CONTRADICTED, UNVERIFIABLE, UPHELD)}
+    moot_n = sum(1 for r in results if _label(r) == "MOOT")
     docs = sorted({r["file"] for r in results})
     lines.append(f"  {len(results)} probe(s) over {len(docs)} doc(s): "
                  f"{', '.join(docs)}")
@@ -1222,7 +1274,7 @@ def format_probes(results: list[dict], repo_path: str) -> str:
         sentence = re.sub(r"\s+", " ", r["sentence"])
         if len(sentence) > 150:
             sentence = sentence[:147] + "..."
-        lines.append(f"  {r['verdict']:<13} {where}   [{r['kind']}]")
+        lines.append(f"  {_label(r):<13} {where}   [{r['kind']}]")
         lines.append(f'     claim   "{sentence}"')
         for ev in (r.get("evidence") or [{"cmd": r["probe"], "output": r.get("output", "")}]):
             lines.append(f"     probe   $ {ev['cmd']}")
@@ -1246,7 +1298,11 @@ def format_probes(results: list[dict], repo_path: str) -> str:
         lines.append("")
 
     lines.append(f"  {counts[CONTRADICTED]} contradicted · "
-                 f"{counts[UNVERIFIABLE]} unverifiable · {counts[UPHELD]} upheld")
+                 + (f"{moot_n} moot · " if moot_n else "")
+                 + f"{counts[UNVERIFIABLE]} unverifiable · {counts[UPHELD]} upheld")
+    if moot_n:
+        lines.append("  A MOOT rule is obsolete, not wrong: the code closed the "
+                     "door it was waiting on. Worth knowing, never a gate.")
     if counts[UNVERIFIABLE]:
         lines.append("  An unverifiable claim is not a passing claim. It is a "
                      "probe you have not made runnable yet.")
