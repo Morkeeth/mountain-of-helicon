@@ -111,4 +111,8 @@ def test_efficiency_always_reports_its_sample_size(conn):
 
 def test_efficiency_is_unmeasurable_rather_than_zero_when_nothing_has_cost(conn):
     assert fleet.efficiency(conn)["accepted"]["mean_tokens"] is None
-    assert "not measurable yet" in fleet.format_fleet([], [], [], fleet.efficiency(conn))
+    # format_fleet became format_projects when the screen went project-first;
+    # the efficiency section and its honesty about zero are unchanged.
+    assert "not measurable yet" in fleet.format_projects(
+        [], {"count": 0, "terminal_hours": 0, "sessions": [], "basis": ""}, [],
+        [], [], fleet.efficiency(conn))
