@@ -255,10 +255,21 @@ def by_label(conn) -> list[tuple[str, int]]:
     return [(r["label"] or "unlabelled", r["c"]) for r in rows]
 
 
-def format_log(counts: list[tuple[str, int]], rows: list[dict]) -> str:
-    out = ["", "COMPLAINT LOG — what Oscar pushed back on", ""]
+def format_log(counts: list[tuple[str, int]], rows: list[dict], scanned=None) -> str:
+    # "what YOU pushed back on", not a name. On a cold clone the first thing this
+    # command said to a new user was "what Oscar pushed back on", which is both
+    # meaningless to them and a personalisation leak in a repo about to be public.
+    out = ["", "COMPLAINT LOG — what you pushed back on", ""]
     if not counts:
-        out.append("  no complaints stored yet. run: helicon complaints --scan")
+        if scanned is not None and not scanned.get("turns_scanned"):
+            # Telling someone to run the command they just ran is how a tool
+            # teaches you it is not listening.
+            out.append("  no transcripts found under ~/.claude/projects — nothing to read yet.")
+        elif scanned is not None:
+            out.append(f"  read {scanned['turns_scanned']} of your turns and found no "
+                       f"corrections in them.")
+        else:
+            out.append("  no complaints stored yet. run: helicon complaints --scan")
         return "\n".join(out)
     total = sum(c for _, c in counts)
     out.append(f"  {total} correction(s), by kind:")

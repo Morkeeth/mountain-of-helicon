@@ -147,6 +147,28 @@ def test_rescanning_stores_nothing_new(tmp_path, conn):
         "SELECT COUNT(*) FROM helicon_cubes WHERE type='complaint'").fetchone()[0] == 1
 
 
+def test_the_empty_state_does_not_name_the_author(conn):
+    """Found on a cold clone: the first thing this command said to a new user was
+    "COMPLAINT LOG — what Oscar pushed back on". Meaningless to them, and a
+    personalisation leak in a repo about to go public."""
+    out = complaints.format_log([], [], scanned={"turns_scanned": 0})
+
+    assert "Oscar" not in out
+    assert "what you pushed back on" in out
+
+
+def test_the_empty_state_does_not_tell_you_to_rerun_what_you_just_ran(conn):
+    """Also from the cold clone: `--scan` finished, found nothing, and answered
+    "run: helicon complaints --scan". Telling someone to run the command they
+    just ran is how a tool teaches you it is not listening."""
+    fresh = complaints.format_log([], [], scanned={"turns_scanned": 0})
+    assert "--scan" not in fresh
+    assert "no transcripts found" in fresh
+
+    scanned_but_clean = complaints.format_log([], [], scanned={"turns_scanned": 40})
+    assert "read 40 of your turns" in scanned_but_clean
+
+
 def test_no_new_table_was_added(conn):
     """The constraint was explicit: 38 tables was already too many."""
     names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}

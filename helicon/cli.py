@@ -3108,7 +3108,7 @@ def cmd_complaints(args):
         print(json.dumps({"scan": scanned, "by_label": dict(counts), "recent": rows},
                          indent=2, default=str))
         return
-    print(complaints.format_log(counts, rows))
+    print(complaints.format_log(counts, rows, scanned=scanned))
 
 
 def cmd_report(args):
@@ -3640,7 +3640,7 @@ def main():
 
     complaints_p = sub.add_parser(
         "complaints",
-        help="The complaint log: every pushback Oscar typed, recovered from the transcripts and grouped by kind")
+        help="The complaint log: every pushback you typed, recovered from your transcripts and grouped by kind")
     complaints_p.add_argument("--scan", action="store_true",
                               help="re-read the transcripts and store any new corrections (idempotent)")
     complaints_p.add_argument("--label", help="show only one kind (staleness, fabrication, scope, ...)")
