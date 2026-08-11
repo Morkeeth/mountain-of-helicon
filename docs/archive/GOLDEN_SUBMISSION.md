@@ -85,15 +85,15 @@ demonstrates use of Alibaba Cloud services and APIs."* Helicon meets both.
   **http://47.237.3.97:8420** (region **Singapore / ap-southeast-1**). Verified live:
   `GET /api/health` → `{"status":"ok",...}`, `GET /` → HTTP 200.
   It serves the seeded **demo** store (no personal data). Reproducible on any Linux
-  host with [`scripts/cloudshell-run.sh`](scripts/cloudshell-run.sh) (local-first: the
+  host with [`scripts/cloudshell-run.sh`](../../scripts/cloudshell-run.sh) (local-first: the
   same backend runs on the judge's machine, Cloud Shell, or an ECS box).
 - **The load-bearing intelligence runs on Alibaba Cloud on every request.** Every
   contradiction/grounding judgment executes on Alibaba **Model Studio**
-  ([`helicon/qwen.py`](helicon/qwen.py)); every embedding on Alibaba **DashScope**
-  `text-embedding-v4` ([`helicon/embeddings.py`](helicon/embeddings.py)). Proven
+  ([`helicon/qwen.py`](../../helicon/qwen.py)); every embedding on Alibaba **DashScope**
+  `text-embedding-v4` ([`helicon/embeddings.py`](../../helicon/embeddings.py)). Proven
   live (the call above). Kill the Alibaba side and the judging layer goes dark.
-- **Also container-deployable to Function Compute** ([`fc/s.yaml`](fc/s.yaml) +
-  [`fc/Dockerfile`](fc/Dockerfile)).
+- **Also container-deployable to Function Compute** ([`fc/s.yaml`](../../fc/s.yaml) +
+  [`fc/Dockerfile`](../../fc/Dockerfile)).
 
 ---
 

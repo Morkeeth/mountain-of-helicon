@@ -51,6 +51,9 @@ in [`docs/agent-context-report-2026-08.md`](docs/agent-context-report-2026-08.md
 Release gates and intentionally deferred work are tracked in
 [`LAUNCH_ROADMAP.md`](LAUNCH_ROADMAP.md).
 
+Build notes, night-run logs and review prompts live in
+[`docs/archive/`](docs/archive/) — kept, not deleted, just out of the front door.
+
 ## Installing on a Mac
 
 **It took six cold clones before one ran clean.** Not six errors found by reading

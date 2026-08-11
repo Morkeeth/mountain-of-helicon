@@ -6,7 +6,7 @@ test suite, the production web build, and the public ECS endpoints.
 ## Five human actions left
 
 1. Record/export a **public demo shorter than 3:00**. Target 2:35–2:50. Follow
-   [DEMO-SCRIPT.md](../DEMO-SCRIPT.md).
+   [../docs/archive/DEMO-SCRIPT.md](../docs/archive/DEMO-SCRIPT.md).
 2. Repair the stale seeded state on ECS using the command under **ECS final repair**,
    then run its verification probe.
 3. Upload the video publicly to YouTube, Vimeo, or Youku and paste its URL below.

@@ -7,8 +7,8 @@ plane, not another memory store. A local-first command center (dashboard + CLI +
 where the machine handles routine rot, the human rules only genuine contradictions,
 and every ruling becomes an enforceable rule with a receipt and a reversible undo.
 The reproducible judge demo (`helicon demo`, seeded, keyless, no personal data) and
-the sub-3-minute walkthrough are in **[`GOLDEN_SUBMISSION.md`](GOLDEN_SUBMISSION.md)**;
-the honest inventory is in **[`HELICON_OS_FEATURE_MAP.md`](HELICON_OS_FEATURE_MAP.md)**.
+the sub-3-minute walkthrough are in **[`docs/archive/GOLDEN_SUBMISSION.md`](docs/archive/GOLDEN_SUBMISSION.md)**;
+the honest inventory is in **[`docs/archive/HELICON_OS_FEATURE_MAP.md`](docs/archive/HELICON_OS_FEATURE_MAP.md)**.
 
 > **Real now vs. roadmap (strict).** *Real:* the governed-memory loop — audit →
 > human ruling → verified apply (receipt) → enforced guard → undo, tested at the
@@ -376,4 +376,4 @@ memory is the only memory you can safely port."*
 token-cost log). Screen-record the terminal at a legible font size. The Alibaba proof is the live
 ECS deployment at `http://47.237.3.97:8420` plus the running Qwen/DashScope API calls and the
 linked code files (`qwen.py`, `embeddings.py`). The full timed 3-minute
-script is in `DEMO-SCRIPT.md`.
+script is in `docs/archive/DEMO-SCRIPT.md`.
