@@ -1,13 +1,41 @@
 # Mountain of Helicon
 
-**Executable preflight for agent context.** Mountain of Helicon checks whether
-the instructions an agent is about to load still match the repository in front
-of it. Every contradiction carries the command and stdout that proved it.
+**Your CLAUDE.md is lying to your agent, and nothing tells you.**
 
-It is local-first, keyless for deterministic checks, and warns by default before
-work continues. It can also audit longer-lived memory, let a human rule on
-contradictions, and compile those rulings into policy agents can query through
-CLI or MCP.
+It says "see `docs/architecture.md`" after that file moved. It routes to a
+directory the monorepo split apart. It warns about a rail that was retired six
+weeks ago. Your agent loads all of it as fact at the start of every session, acts
+on it, and neither of you finds out.
+
+Mountain of Helicon runs the claims in those files against the repository in
+front of it, before the work starts. Every contradiction it reports carries the
+command and the stdout that proved it — so you are ruling on evidence, not on a
+model's opinion about your docs.
+
+```bash
+git clone https://github.com/Morkeeth/mountain-of-helicon.git
+cd mountain-of-helicon
+python3 scripts/check_python.py     # not optional; see below
+python3 -m pip install -e .
+bash scripts/demo.sh                # a real gate firing, with evidence, no key
+```
+
+The demo scans named public repositories, shows contradictions with the probe and
+stdout that proved each one, installs the preflight hook into a throwaway settings
+file, and records an explicit override. It touches neither your real Claude
+settings nor any memory store. Then point it at something of yours:
+`helicon sweep <owner>/<repo>`, or `helicon board --root ~/your-code`.
+
+Local-first. No API key for the deterministic checks. It **warns by default** and
+never blocks unless you opt in, because a preflight that wedges a terminal gets
+uninstalled. It can also audit longer-lived memory, let a human rule on
+contradictions, and compile those rulings into policy your agents query over CLI
+or MCP.
+
+**What it does not do:** it settles what the filesystem can settle — a named path
+that is gone, a quoted command's output, a retired capability. It cannot tell you
+whether a sentence is *true*. Silence is not a clean bill of health; it means no
+executable probe could bind.
 
 ## The measured finding
 
@@ -23,20 +51,7 @@ in [`docs/agent-context-report-2026-08.md`](docs/agent-context-report-2026-08.md
 Release gates and intentionally deferred work are tracked in
 [`LAUNCH_ROADMAP.md`](LAUNCH_ROADMAP.md).
 
-## Try the complete terminal demo
-
-```bash
-git clone https://github.com/Morkeeth/mountain-of-helicon.git
-cd mountain-of-helicon
-python3 scripts/check_python.py
-python3 -m pip install -e .
-bash scripts/demo.sh
-```
-
-The demo scans named public repositories, installs the Claude Code doorway hook
-into an isolated throwaway settings file, shows the warning with executable
-evidence, and records an explicit override. It does not touch your real Claude
-settings or memory store.
+## Installing on a Mac
 
 **It took six cold clones before one ran clean.** Not six errors found by reading
 the code — six real clones from GitHub into `/tmp`, installed into an empty
