@@ -274,9 +274,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (60 commands)
+## CLI (61 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
@@ -299,6 +299,12 @@ Four of them answer to a second name, kept working so older muscle memory doesn'
 `helicon policy` compiles **GOLDEN RULES**: the stack's law, built from your rulings, dismissal precedents, approved triage rules, declared renames, canonical sources and standing feedback — every rule with its provenance (a rule without provenance is a vibe). `--inject` writes it to `~/.claude/GOLDEN_RULES.md` (dry-run default, `.bak` kept) so every session can obey it. `helicon evolve` is the night command: scan, every selector, the exam, a gold recompile, and the morning delta — what your stack learned while you slept.
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
+
+`helicon complaints` is **the complaint log**: every time you pushed back on an agent, recovered from your own transcripts and grouped by kind. Every other signal in this repo is the machine grading itself — battery verdicts, judge runs, self-scored retrieval. A correction is a human saying *no, that is wrong* with nothing to gain by lying, and it is destroyed the moment the terminal closes.
+
+It rests on two authorship gates, both measured before they were written. A `type: user` entry is **not** necessarily the human: across ~600 local transcripts, 46% of non-tool user turns were programmatic judge runs, task notifications, messages from *other* agent sessions, or injected skill files. Count those as feedback and an agent is grading itself on its own prose. And even a turn you typed is not always your writing — pasted lane prompts are long and any correction-shaped phrase inside them sits deep in the body, so position separates them. Raw user turns score 28% precision; both gates ~81% (self-graded, the author read all 46). Storage is a cube of `type='complaint'`, so it inherits FTS, decay and the review loop — no new table.
+
+On this repo's own store the largest category is not a wrong fact. It is **wrong-plan**: the agent choosing the wrong next thing to do.
 
 ## Audit a store you don't own
 
