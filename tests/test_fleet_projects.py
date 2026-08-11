@@ -72,8 +72,91 @@ def test_the_idle_number_says_it_is_a_floor(tmp_path, monkeypatch):
     is that an unmeasured waste is one nobody argues with."""
     monkeypatch.setattr(fleet, "PROJECTS_DIR", str(tmp_path))
     _session(tmp_path / "a", "t", human=True, cwd="/x", age_min=120)
+    monkeypatch.setattr(fleet, "alive_session_ids", lambda: {"t"})
 
-    assert "silent for" in fleet.idle_terminals()["basis"]
+    basis = fleet.idle_terminals()["basis"]
+    assert "a human typed there" in basis
+    assert "process is still running" in basis
+    assert "silent" in basis
+
+
+# --- liveness: a closed terminal is not an idle one -------------------------
+
+def test_a_quiet_session_with_no_process_is_not_counted(tmp_path, monkeypatch):
+    """THE SECOND INFLATION. The human-typed gate removed dead judge processes.
+    It did NOT remove terminals that were simply CLOSED — their transcripts sit
+    at the same mtime forever and look identical to a terminal someone is
+    ignoring. Counting a closed terminal as idle time is the same lie as counting
+    a finished job, one step subtler, and it matters more now that the number
+    announces itself: nobody re-checks something that speaks first."""
+    monkeypatch.setattr(fleet, "PROJECTS_DIR", str(tmp_path))
+    _session(tmp_path / "a", "ghost", human=True, cwd="/x", age_min=120)
+    monkeypatch.setattr(fleet, "alive_session_ids", lambda: set())
+
+    idle = fleet.idle_terminals()
+
+    assert idle["count"] == 0
+    assert idle["terminal_hours"] == 0
+    assert idle["unprovable"] == 1, "not counted, but not hidden either"
+
+
+def test_a_quiet_session_with_a_live_process_is_counted(tmp_path, monkeypatch):
+    monkeypatch.setattr(fleet, "PROJECTS_DIR", str(tmp_path))
+    _session(tmp_path / "a", "live", human=True, cwd="/x", age_min=120)
+    monkeypatch.setattr(fleet, "alive_session_ids", lambda: {"live"})
+
+    idle = fleet.idle_terminals()
+
+    assert idle["count"] == 1
+    assert idle["unprovable"] == 0
+    assert "process is still running" in idle["basis"]
+
+
+# --- the notice: it speaks, but only when it should -------------------------
+
+def _idle(tmp_path, monkeypatch, n, age_min):
+    monkeypatch.setattr(fleet, "PROJECTS_DIR", str(tmp_path))
+    names = [f"s{i}" for i in range(n)]
+    for name in names:
+        _session(tmp_path / "a", name, human=True, cwd="/Users/x/CODE/proj", age_min=age_min)
+    monkeypatch.setattr(fleet, "alive_session_ids", lambda: set(names))
+
+
+def test_the_notice_speaks_when_it_matters(tmp_path, monkeypatch):
+    _idle(tmp_path, monkeypatch, n=3, age_min=60)
+
+    notice = fleet.idle_notice()
+
+    assert "3 other terminal(s)" in notice
+    assert "ListAgents" in notice, "it must hand over the CAPABILITY, not only the number"
+
+
+def test_one_idle_terminal_is_not_worth_interrupting_for(tmp_path, monkeypatch):
+    """This fires on a real person's prompt, uninvited. A notice that arrives
+    when it does not matter is a notice that gets muted, after which it may as
+    well not exist."""
+    _idle(tmp_path, monkeypatch, n=1, age_min=300)
+    assert fleet.idle_notice() == ""
+
+
+def test_quiet_shorter_than_the_per_session_floor_counts_for_nothing(tmp_path, monkeypatch):
+    """Two floors, and they mean different things. Each session must be silent
+    IDLE_AFTER_MIN before it counts at all — below that it is someone thinking,
+    not someone idle. The hours floor is then about AGGREGATE waste, so three
+    terminals quiet for 21 minutes each is a real idle hour and does fire; that
+    is the metric working, not a leak."""
+    _idle(tmp_path, monkeypatch, n=5, age_min=fleet.IDLE_AFTER_MIN - 5)
+    assert fleet.idle_notice() == ""
+
+    _idle(tmp_path, monkeypatch, n=3, age_min=21)
+    assert fleet.idle_notice() != "", "3 x 21m is an hour of real idle terminal time"
+
+
+def test_the_notice_excludes_the_session_it_is_speaking_to(tmp_path, monkeypatch):
+    """The terminal receiving this is, by definition, the one that is not idle."""
+    _idle(tmp_path, monkeypatch, n=2, age_min=60)
+    assert fleet.idle_notice() != ""
+    assert fleet.idle_notice(exclude_session="s0") == "", "2 - 1 is below the floor"
 
 
 # --- projects, derived ------------------------------------------------------
