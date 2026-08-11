@@ -1249,8 +1249,18 @@ def format_probes(results: list[dict], repo_path: str) -> str:
                      "docs. That is UNMEASURED, not clean.")
         return "\n".join(lines)
 
-    counts = {v: sum(1 for r in results if r["verdict"] == v)
+    # MOOT is a display label, not a fourth verdict: the stored verdict stays
+    # CONTRADICTED so every existing consumer keeps working. What changes is
+    # what the human reads. CONTRADICTED means "the running code says
+    # otherwise"; a moot rule's code says the SAME thing and has merely moved
+    # past it. Printing the two under one label inflates the count a reader
+    # uses to decide whether this tool is worth believing.
+    def _label(r):
+        return "MOOT" if r.get("moot") else r["verdict"]
+
+    counts = {v: sum(1 for r in results if _label(r) == v)
               for v in (CONTRADICTED, UNVERIFIABLE, UPHELD)}
+    moot_n = sum(1 for r in results if _label(r) == "MOOT")
     docs = sorted({r["file"] for r in results})
     lines.append(f"  {len(results)} probe(s) over {len(docs)} doc(s): "
                  f"{', '.join(docs)}")
@@ -1264,7 +1274,7 @@ def format_probes(results: list[dict], repo_path: str) -> str:
         sentence = re.sub(r"\s+", " ", r["sentence"])
         if len(sentence) > 150:
             sentence = sentence[:147] + "..."
-        lines.append(f"  {r['verdict']:<13} {where}   [{r['kind']}]")
+        lines.append(f"  {_label(r):<13} {where}   [{r['kind']}]")
         lines.append(f'     claim   "{sentence}"')
         for ev in (r.get("evidence") or [{"cmd": r["probe"], "output": r.get("output", "")}]):
             lines.append(f"     probe   $ {ev['cmd']}")
@@ -1288,7 +1298,11 @@ def format_probes(results: list[dict], repo_path: str) -> str:
         lines.append("")
 
     lines.append(f"  {counts[CONTRADICTED]} contradicted · "
-                 f"{counts[UNVERIFIABLE]} unverifiable · {counts[UPHELD]} upheld")
+                 + (f"{moot_n} moot · " if moot_n else "")
+                 + f"{counts[UNVERIFIABLE]} unverifiable · {counts[UPHELD]} upheld")
+    if moot_n:
+        lines.append("  A MOOT rule is obsolete, not wrong: the code closed the "
+                     "door it was waiting on. Worth knowing, never a gate.")
     if counts[UNVERIFIABLE]:
         lines.append("  An unverifiable claim is not a passing claim. It is a "
                      "probe you have not made runnable yet.")
