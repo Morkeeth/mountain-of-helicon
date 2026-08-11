@@ -3051,6 +3051,41 @@ def _report_must_say_something(rep, payload: str) -> None:
         sys.exit(f"  report --json serialized to something unparseable: {e}")
 
 
+def cmd_complaints(args):
+    """The complaint log.
+
+    Every other signal in this repo is the machine grading itself. A pushback is
+    a human saying "no, that is wrong" with nothing to gain by lying, and it is
+    destroyed when the terminal closes. This reads it back out of the transcripts
+    where it already exists and is already being lost to attrition.
+
+    See helicon/complaints.py for the two authorship gates and why 46% of
+    `type: user` turns are not the human at all.
+    """
+    from helicon import complaints
+    from helicon.config import load_config
+    from helicon.db import init_db
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+
+    scanned = None
+    if getattr(args, "scan", False):
+        scanned = complaints.scan(conn)
+        if not getattr(args, "json", False):
+            print(f"\n  scanned {scanned['turns_scanned']} authored turn(s) · "
+                  f"{scanned['complaints_found']} correction(s) · "
+                  f"{scanned['newly_stored']} new")
+
+    counts = complaints.by_label(conn)
+    rows = complaints.recent(conn, limit=args.limit, label_filter=getattr(args, "label", None))
+    if getattr(args, "json", False):
+        print(json.dumps({"scan": scanned, "by_label": dict(counts), "recent": rows},
+                         indent=2, default=str))
+        return
+    print(complaints.format_log(counts, rows))
+
+
 def cmd_report(args):
     """MemoryAgent compliance report: existing checks grouped under the track's
     four sub-goals. Numbers live from the DB, thresholds printed with them."""
@@ -3578,6 +3613,15 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    complaints_p = sub.add_parser(
+        "complaints",
+        help="The complaint log: every pushback Oscar typed, recovered from the transcripts and grouped by kind")
+    complaints_p.add_argument("--scan", action="store_true",
+                              help="re-read the transcripts and store any new corrections (idempotent)")
+    complaints_p.add_argument("--label", help="show only one kind (staleness, fabrication, scope, ...)")
+    complaints_p.add_argument("--limit", type=int, default=15, help="how many recent complaints to print")
+    complaints_p.add_argument("--json", action="store_true", help="machine-readable result")
+
     rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 13 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
     rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
@@ -3802,6 +3846,7 @@ def main():
         "check": cmd_battery,
         "battery": cmd_battery,
         "report": cmd_report,
+        "complaints": cmd_complaints,
         "audit": cmd_rot,
         "rot": cmd_rot,
         "repair": cmd_heal,
