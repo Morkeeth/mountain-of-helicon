@@ -33,15 +33,22 @@ import pytest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _run_report_without_key():
+def _run_report_without_key(config_path):
     """Run the real CLI in a subprocess with QWEN_API_KEY stripped.
 
     A subprocess, not an in-process call, because the defect lives in what
     reaches the stdout FILE DESCRIPTOR. capsys would capture a Python-level
     write and could pass while the real pipe stays corrupt.
+
+    HELICON_CONFIG points at a config this test built. Reading whatever config
+    happens to be on the machine made this pass here and fail on every stranger:
+    a fresh checkout has no ~/.helicon/config.json, so `report` exited 1 with
+    "No config at ..." and CI went red on both Python versions while the local
+    suite was green — the same shape as the npm-build gap, one directory over.
     """
     env = dict(os.environ)
     env.pop("QWEN_API_KEY", None)
+    env["HELICON_CONFIG"] = str(config_path)
     return subprocess.run(
         [sys.executable, "-m", "helicon.cli", "report", "--llm", "--json"],
         cwd=REPO,
@@ -53,8 +60,29 @@ def _run_report_without_key():
 
 
 @pytest.fixture(scope="module")
-def report_run():
-    proc = _run_report_without_key()
+def helicon_config(tmp_path_factory):
+    """A self-contained store: every connector off, an empty DB of its own.
+
+    The report's NUMBERS are irrelevant here — this file tests what reaches the
+    stdout file descriptor, and an empty store exercises that just as well as a
+    populated one, on any machine, with nothing to set up first.
+    """
+    tmp = tmp_path_factory.mktemp("helicon-report")
+    with open(os.path.join(REPO, "config.example.json"), encoding="utf-8") as f:
+        config = json.load(f)
+    config["db_path"] = str(tmp / "helicon.db")
+    config["qwen_api_key"] = ""
+    for connector in config.get("connectors", {}).values():
+        connector["enabled"] = False
+    path = tmp / "config.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(config, f)
+    return path
+
+
+@pytest.fixture(scope="module")
+def report_run(helicon_config):
+    proc = _run_report_without_key(helicon_config)
     if proc.returncode != 0:
         pytest.fail(
             "report --llm --json exited {}; stderr:\n{}".format(
