@@ -36,8 +36,16 @@ bash scripts/demo.sh
 The demo scans named public repositories, installs the Claude Code doorway hook
 into an isolated throwaway settings file, shows the warning with executable
 evidence, and records an explicit override. It does not touch your real Claude
-settings or memory store. Python 3.10+ is required; the preflight gives older
-macOS Python 3.9 users the exact upgrade command without a traceback.
+settings or memory store.
+
+**Run `check_python.py` first; it is not a formality.** Python 3.10+ is required,
+and a stock Mac fails this two different ways, neither of which names the real
+cause. `/usr/bin/python3` is 3.9 and dies on a PEP 604 annotation
+(`TypeError: unsupported operand type(s) for |`). Its bundled pip is 21.2.4,
+which predates PEP 660 and refuses with
+`ERROR: File "setup.py" or "setup.cfg" not found` — that one reads as *this repo
+is missing a file* rather than *your pip is three years old*. The preflight
+checks both and prints the exact command for each.
 
 **Bring your own Qwen key (BYOK).** Get one free on the [Alibaba Cloud Model Studio free tier](https://www.alibabacloud.com/en/product/modelstudio), set `QWEN_API_KEY` or put it in `~/.helicon/config.json`. `helicon init` keeps configuration and the SQLite store under `~/.helicon/`, never inside the installed package. **Keyless degrade:** without a key every deterministic test still runs; only the two LLM-judged tests (Contradiction, Grounding) switch off -- the battery says so instead of faking a verdict.
 
