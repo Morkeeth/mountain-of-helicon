@@ -139,6 +139,55 @@ def test_no_matching_accepted_prompt_says_unmeasured(tmp_path, monkeypatch, conn
     assert "unmeasured" in fleet.format_projects(rows, fleet.idle_terminals(), [], [], [], {})
 
 
+# --- steps: derived from repo state, never typed ----------------------------
+
+def _entry(**over):
+    e = {"name": "p", "unreviewed": 0, "complaints": [], "sessions": 0,
+         "git": {"branch": "main", "dirty": 0, "unpushed": 0, "commits_24h": 3}}
+    e["git"].update(over.pop("git", {}))
+    e.update(over)
+    return e
+
+
+def test_a_clean_project_gets_no_invented_step():
+    """Empty is a legal answer. A screen that always has advice is a screen that
+    makes advice up, and then the next-step field is stale within a week."""
+    assert fleet.next_steps(_entry()) == []
+
+
+def test_work_on_a_non_default_branch_is_named():
+    """His own settled lesson: 109 commits on a branch, 2 on main, fifteen
+    minutes from a submission deadline. The repo knows this and never said it."""
+    steps = fleet.next_steps(_entry(git={"branch": "build/thing"}))
+    assert any("not the default branch" in s for s in steps)
+
+
+def test_unpushed_commits_are_named():
+    assert any("never pushed" in s for s in fleet.next_steps(_entry(git={"unpushed": 4})))
+
+
+def test_a_big_dirty_tree_is_named():
+    assert any("uncommitted" in s for s in fleet.next_steps(_entry(git={"dirty": 23})))
+
+
+def test_a_small_dirty_tree_is_not_nagged_about():
+    assert not any("uncommitted" in s for s in fleet.next_steps(_entry(git={"dirty": 1})))
+
+
+def test_unreviewed_runs_become_a_step():
+    assert any("no verdict" in s for s in fleet.next_steps(_entry(unreviewed=3)))
+
+
+def test_pushbacks_become_a_step_naming_the_kind():
+    steps = fleet.next_steps(_entry(complaints=[("wrong-plan", 4)]))
+    assert any("wrong-plan" in s and "4" in s for s in steps)
+
+
+def test_an_open_terminal_with_nothing_landed_is_named():
+    steps = fleet.next_steps(_entry(sessions=2, git={"commits_24h": 0}))
+    assert any("stuck or the work is unscoped" in s for s in steps)
+
+
 # --- the capability section -------------------------------------------------
 
 def test_the_screen_tells_an_agent_what_it_can_do(conn):

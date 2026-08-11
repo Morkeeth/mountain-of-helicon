@@ -382,7 +382,46 @@ def projects(conn, roots=("~/CODE",)) -> list[dict]:
         topic = f"{entry['name']} {(entry['git'] or {}).get('subject', '')}"
         matches = suggest_prompt(conn, topic)
         entry["next_prompt"] = matches[0] if matches else None
+        entry["steps"] = next_steps(entry)
     return sorted(seen.values(), key=lambda e: (-e["sessions"], e["name"]))
+
+
+# The asked-for fields: "next steps, possible needed research, next prompts,
+# feature, steps". Every one of them is a CONDITION READ OFF THE REPO, never a
+# sentence someone wrote into a field. That is the whole constraint — a typed
+# "next step" is stale within a week, and then the vault dashboard problem has
+# been rebuilt inside the tool that replaces it.
+#
+# So each rule below is (condition observed in derived state) -> (the action that
+# condition implies). It cannot invent a step, and when no condition fires it
+# says so rather than filling the line with something plausible. The cost is that
+# it will never suggest the clever thing; the benefit is that it is never stale
+# and never wrong about the repo, which is what makes it worth reading at all.
+_STEP_RULES = (
+    (lambda p, g: g.get("dirty", 0) > 20,
+     lambda p, g: f"{g['dirty']} uncommitted files — commit or stash before this "
+                  f"branch becomes unreviewable"),
+    (lambda p, g: g.get("unpushed", 0) > 0,
+     lambda p, g: f"{g['unpushed']} commit(s) never pushed — nobody else can see this work"),
+    (lambda p, g: (g.get("branch") or "main") not in ("main", "master"),
+     lambda p, g: f"work is on {g['branch']}, not the default branch — open a PR or merge, "
+                  f"or it ships to nobody"),
+    (lambda p, g: p["unreviewed"] > 0,
+     lambda p, g: f"{p['unreviewed']} run(s) finished with no verdict — "
+                  f"`helicon unreviewed` then rule them"),
+    (lambda p, g: bool(p["complaints"]),
+     lambda p, g: f"you pushed back {sum(n for _, n in p['complaints'])}× here — "
+                  f"`helicon complaints --label {p['complaints'][0][0]}` before deciding"),
+    (lambda p, g: g.get("commits_24h", 0) == 0 and p["sessions"] > 0,
+     lambda p, g: "a terminal is open here and nothing has landed in 24h — "
+                  "the session is stuck or the work is unscoped"),
+)
+
+
+def next_steps(entry: dict) -> list[str]:
+    """Derived steps for one project. Empty is a legal, honest answer."""
+    git = entry.get("git") or {}
+    return [render(entry, git) for cond, render in _STEP_RULES if cond(entry, git)]
 
 
 # ------------------------------------------------------------------ rendering
@@ -454,6 +493,12 @@ def format_projects(rows: list, idle: dict, caps: list,
         if p["complaints"]:
             friction = ", ".join(f"{n}× {k}" for k, n in p["complaints"])
             L.append(f"    friction   {friction}   (helicon complaints --label ...)")
+        for i, step in enumerate(p.get("steps") or []):
+            L.append(f"    {'steps' if i == 0 else '':<10} {'·' if i else '1.'} {step}"
+                     if i == 0 else f"               · {step}")
+        if not p.get("steps"):
+            L.append("    steps      nothing the repo state implies — "
+                     "clean, pushed, on default, nothing unreviewed")
         if p["next_prompt"]:
             L.append(f"    next       reuse the prompt accepted for "
                      f"\"{p['next_prompt']['objective'][:52]}\"")
