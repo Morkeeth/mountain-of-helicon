@@ -1,0 +1,53 @@
+# Publishes mountain-of-helicon to PyPI via trusted publishing. No token is
+# stored anywhere: PyPI verifies the workflow's OIDC identity instead.
+#
+# It fires on ONE thing — a GitHub Release being published. Not on a tag, not on
+# a push to main, not on a schedule. That is deliberate: the release is the human
+# click, and nothing else in this repository should be able to reach PyPI.
+#
+# Before the first run, the pending publisher has to exist on PyPI:
+#   pypi.org → Your projects → Publishing → Add a new pending publisher
+#     PyPI project name : mountain-of-helicon
+#     Owner             : Morkeeth
+#     Repository        : mountain-of-helicon
+#     Workflow          : publish.yml
+#     Environment       : pypi
+name: publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build
+      # Metadata has to be valid before anything leaves the runner. A rejected
+      # upload is recoverable; a bad first release on PyPI is not deletable.
+      - run: python -m twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # the only thing that authenticates to PyPI
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
