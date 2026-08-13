@@ -17,14 +17,32 @@ git clone https://github.com/Morkeeth/mountain-of-helicon.git
 cd mountain-of-helicon
 python3 scripts/check_python.py     # not optional; see below
 python3 -m pip install -e .
+
+helicon ci --path ~/your-repo       # your repo. no key, no config, no init.
+```
+
+That last line is the product. It reads the `CLAUDE.md` / `AGENTS.md` /
+`.cursorrules` / `.clinerules` / copilot-instructions **your** repository commits,
+probes each claim against **your** code, and prints every contradiction with the
+command and the stdout that proved it. Nothing is uploaded, no key is asked for, and
+no configuration file is written.
+
+It is fast because there is nothing heavy in the path — no model download, no build
+step, no index to warm. The scan is `git` and subprocess calls, so on a cold clone it
+finishes in seconds; two different machines measured 3.5s and 2s for the scan itself.
+Time it on yours rather than trusting either number.
+
+If you would rather watch it work on a known-convicted repository before pointing it
+at your own:
+
+```bash
 bash scripts/demo.sh                # a real gate firing, with evidence, no key
 ```
 
 The demo scans named public repositories, shows contradictions with the probe and
 stdout that proved each one, installs the preflight hook into a throwaway settings
 file, and records an explicit override. It touches neither your real Claude
-settings nor any memory store. Then point it at something of yours:
-`helicon sweep <owner>/<repo>`, or `helicon board --root ~/your-code`.
+settings nor any memory store.
 
 Local-first. No API key for the deterministic checks. It **warns by default** and
 never blocks unless you opt in, because a preflight that wedges a terminal gets
@@ -102,12 +120,40 @@ On first run this installs/builds the dashboard with npm, seeds a labelled
 `http://127.0.0.1:8420/#findings`. No personal connector runs and no API key is
 required.
 
-## Use it on your own stack
+## Use it on your own repo
+
+One command. No key, no config, no `init`. Run it inside a repository you own:
 
 ```bash
-helicon init
-helicon scan
-helicon doctor
+helicon ci
+```
+
+Use `--path <dir>` to check a repository you are not standing in. It reads that
+repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` /
+copilot-instructions, probes each claim against the repository in front of it, and
+prints every contradiction with the command and the stdout that proved it.
+
+```
+  CONTRADICTED  CLAUDE.md:9   [path]
+     claim   "Read `MASTER_GUIDE.md` for the operating model."
+     probe   $ git ls-files -- MASTER_GUIDE.md
+     output  (no output)
+     why     the doc names MASTER_GUIDE.md; git tracks no such file and it is not on disk
+```
+
+If it prints nothing, no executable probe could bind. That is not a clean bill of
+health, and the section above says why.
+
+### Then, if you want the rest
+
+The store, the dashboard, the rulings and the memory audit need a configuration
+file, so they start with `helicon init`. Running `helicon scan` before `init` will
+tell you the config is missing rather than do anything.
+
+```bash
+helicon init                       # writes ~/.helicon/config.json
+helicon scan                       # extract memory from your configured sources
+helicon doctor                     # PATH, config, key, DB, last scan
 helicon audit
 helicon check "what am I working on"
 helicon serve
@@ -119,7 +165,7 @@ verdict. Semantic embeddings are an optional install; the core remains slim.
 
 ## CI for agent memory (GitHub Action)
 
-The rot exam runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. `helicon ci` scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs 13 documented failure classes through the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
+The same `helicon ci` from the section above also runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. It scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs 13 documented failure classes through the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
 
 ```yaml
 # .github/workflows/memory-ci.yml
@@ -404,6 +450,14 @@ Doc honesty is enforced: `python3 -m helicon.docdrift` compares this README's nu
 Everything destructive is dry-run by default and takes `--apply`.
 
 ## Honest eval numbers
+
+**None of the four numbers below reproduces on a fresh clone, and that is a gap, not
+a footnote.** They were computed against the author's own populated store — roughly
+6,900 memories carrying real human kill/approve rulings — which is personal data and
+is not in this repository. On a clean install `helicon eval` has no store to read and
+says so rather than printing anything. Treat these as *measured once, on a corpus you
+cannot see*, which is weaker evidence than the doorway numbers above, every one of
+which you can reproduce on your own repo in seconds.
 
 - Composite: **~67** (live, as of 2026-07-13 — run `helicon eval` to recompute; retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
 - Retrieval: P@3 0.615, MRR 0.596. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
