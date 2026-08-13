@@ -75,6 +75,46 @@ jobs:
       - name: Run the rot exam on our own memory
         run: helicon ci --fail-on none
 
+  # The job above proves the CLI works. It says nothing about `action.yml`, which
+  # is the thing README tells a stranger to put in their workflow — a different
+  # code path (composite action, its own inputs, its own install step) that had
+  # never once been executed on a runner. A published action nobody has watched
+  # run is a claim, not a check.
+  #
+  # So both directions are exercised here, against a fixture whose rot is planted
+  # and must stay planted:
+  #   fail-on: rot  must FAIL   — otherwise the gate cannot fail and means nothing
+  #   fail-on: none must PASS   — otherwise report-only mode wedges other people's CI
+  action-selftest:
+    name: The Action itself
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Action must FAIL on a repo with rot
+        id: should-fail
+        continue-on-error: true
+        uses: ./
+        with:
+          path: tests/fixtures/rotten-repo
+          fail-on: rot
+
+      - name: Assert it actually failed
+        run: |
+          if [ "${{ steps.should-fail.outcome }}" != "failure" ]; then
+            echo "::error::The action passed on tests/fixtures/rotten-repo."
+            echo "Either the planted rot was removed, or fail-on:rot no longer fails."
+            echo "A gate that cannot fail is decoration — fix it, do not delete this."
+            exit 1
+          fi
+          echo "fail-on:rot failed as designed."
+
+      - name: Action must PASS the same repo in report-only mode
+        uses: ./
+        with:
+          path: tests/fixtures/rotten-repo
+          fail-on: none
+
   mac-app:
     name: Desktop app builds
     runs-on: macos-latest
