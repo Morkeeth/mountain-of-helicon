@@ -25,3 +25,9 @@ scripts/make_demo_db.py
 config-demo.json
 data/helicon-demo.db
 .claude/
+
+# launch/ — internal launch strategy: unposted post drafts, roadmaps, PR targeting,
+# raw video. This repo is public; a cloner should get the tool, not the playbook.
+# Deliberately ignored, not "not committed yet". Nothing in README references it
+# (checked 2026-08-13: zero `launch/` links, zero images).
+launch/
