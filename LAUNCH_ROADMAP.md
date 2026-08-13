@@ -26,7 +26,10 @@ cross-agent learning are mature.
 
 ## Gate 1 — Public repository release
 
-- [ ] Make the GitHub repository public.
+- [x] Make the GitHub repository public. Done before 2026-08-13; verified that day
+      by unauthenticated `api.github.com/repos/Morkeeth/mountain-of-helicon` → 200
+      and a credential-free clone. This box stayed unticked long after the fact,
+      which is the failure the product exists to catch.
 - [ ] Confirm clone, README links, images, report links, and Action install URL
       work without authentication.
 - [ ] Enable branch protection requiring the release-gate workflow.
@@ -44,8 +47,10 @@ cross-agent learning are mature.
 
 ## Gate 3 — Package distribution
 
-- [ ] Decide whether to keep the distribution name `mount-helicon` or publish
-      under `mountain-of-helicon` before the first PyPI release.
+- [x] Distribution name settled 2026-08-13: **`mountain-of-helicon`**. `mount-helicon`
+      is the frozen Qwen submission's name (`MorkeethHQ/mount-helicon`, write-blocked,
+      judged 2026-08-17); a PyPI name pointing at it could not be taken back. The
+      import package and the CLI entry point both stay `helicon`.
 - [ ] Ensure demo state is always under a user-writable directory.
 - [ ] Verify `pipx install <distribution>`, `helicon --help`, and the terminal
       demo from the built wheel.

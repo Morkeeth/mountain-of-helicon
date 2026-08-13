@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mount-helicon"
+name = "mountain-of-helicon"
 version = "0.1.0"
 description = "Mountain of Helicon — executable preflight and governance for agent context"
 readme = "README.md"
@@ -31,7 +31,7 @@ dependencies = [
 
 # Semantic/hybrid retrieval is optional — without it, search degrades to FTS5
 # keyword only (the deterministic rot exam, scan, CLI, and the CI Action all
-# run slim, no torch). Full local experience: pip install "mount-helicon[embeddings]".
+# run slim, no torch). Full local: pip install "mountain-of-helicon[embeddings]".
 [project.optional-dependencies]
 embeddings = ["sentence-transformers>=3.0"]
 
