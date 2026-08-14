@@ -11,10 +11,33 @@ Statuses are honest three ways:
 
 Zero LLM calls by default — the exam is deterministic and free to run daily.
 """
+import os
+import re
 import sqlite3
 from datetime import datetime, timezone
 
 from helicon.forgetting import DEFAULT_STABILITY
+
+
+def _scrub(exc: Exception, repo_root: str | None = None) -> str:
+    """An exception message printed by `helicon ci` is user-facing copy.
+
+    A stranger's first run used to open with an absolute path from the machine
+    that ran it — on 2026-08-14, `helicon ci` against openai/codex printed
+    "[Errno 2] No such file or directory: '/private/tmp/.../codex/CLAUDE.md'".
+    The path is noise to the reader and it leaks the runner's filesystem, so
+    every path in an unmeasured receipt is reduced to its basename.
+    """
+    text = str(exc)
+    for token in sorted(re.findall(r"/[^\s'\"]+", text), key=len, reverse=True):
+        text = text.replace(token, os.path.basename(token.rstrip("/")) or "/")
+    return text
+
+
+def _is_own_repo(repo_root: str) -> bool:
+    """docdrift's claims are written against THIS package's own files, so the
+    only repository they can grade is a checkout of Mountain of Helicon."""
+    return os.path.isfile(os.path.join(repo_root, "helicon", "docdrift.py"))
 
 
 def _check(rid, name, coverage, found, receipt):
@@ -73,17 +96,33 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
 
     # R2 doc-drift — doc claims vs source truth: stated counts, the lists under
     # them, and eval metrics vs data/eval-latest.json, across every checked doc.
-    try:
-        from helicon.docdrift import check_docs
-        drift = [r for r in (check_docs(repo_root) if repo_root else check_docs())
-                 if not r["ok"]]
-        checked = len({r["doc"] for r in (check_docs(repo_root) if repo_root else check_docs())})
+    #
+    # Scope, learned on a stranger's repo 2026-08-14: every claim in docdrift is
+    # written against THIS repository's docs and counted from THIS package's
+    # source ("MCP Server (N tools)", web/src/App.tsx). Pointed at a repo we do
+    # not own it can only crash on a doc that was never meant to be there. It
+    # did exactly that on openai/codex, and the FileNotFoundError was the first
+    # thing a first-time reader saw. A foreign repo now gets a sentence saying
+    # the class did not run, which is the truth; silence would have read as pass.
+    if repo_root and not _is_own_repo(repo_root):
         checks.append(_check(
-            "R2", "Doc-drift", "TESTED", bool(drift),
-            f"{checked} docs match source" if not drift else
-            "; ".join(f"{d['doc']} {d['claim']}: {d['why']}" for d in drift)))
-    except Exception as e:
-        checks.append(_check("R2", "Doc-drift", "TESTED", None, f"unmeasured: {e}"))
+            "R2", "Doc-drift", "PARTIAL", None,
+            "not run here: the doc-drift claims are written against Mountain of "
+            "Helicon's own docs, so this class cannot grade another repository. "
+            "Your docs are unchecked, not clean"))
+    else:
+        try:
+            from helicon.docdrift import check_docs
+            results = check_docs(repo_root) if repo_root else check_docs()
+            drift = [r for r in results if not r["ok"]]
+            checked = len({r["doc"] for r in results})
+            checks.append(_check(
+                "R2", "Doc-drift", "TESTED", bool(drift),
+                f"{checked} docs match source" if not drift else
+                "; ".join(f"{d['doc']} {d['claim']}: {d['why']}" for d in drift)))
+        except Exception as e:
+            checks.append(_check("R2", "Doc-drift", "TESTED", None,
+                                 f"unmeasured: {_scrub(e, repo_root)}"))
 
     # R3 staleness/expiry — live memories past their type's half-life, unreinforced.
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
