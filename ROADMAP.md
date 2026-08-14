@@ -135,6 +135,19 @@ evidence the whole project is missing (see `project_open_source_contributions.md
 **Why this camp is second and not first:** a stranger who installs a tool Oscar
 does not open himself is being handed a liability.
 
+### R1b — same-source contradiction (not folded into R1)
+
+R1 compares claims **across** sources, by design: `pairing.py:408` skips a pair
+with `one file arguing with itself is not cross-source`. So two lines inside one
+`CLAUDE.md` that say "always use v1" and "always use v2" report **CLEAN**.
+
+Filed as its own item rather than as an R1 gap, because it is the first thing a
+first-time tester plants. Verified 2026-08-14 on a scratch repo against the
+published 0.1.0 wheel: planted, and R1 returned CLEAN. That is correct behaviour
+for R1 and a wrong answer to the user's question. Until it exists, outreach copy
+says "a rule in one file fights a rule in another source", never "contradict each
+other" unqualified.
+
 ### The port that Camp II depends on
 
 The work-graph control plane exists in `~/CODE/helicon` and **not** in this
