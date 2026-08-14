@@ -40,6 +40,27 @@ def _is_own_repo(repo_root: str) -> bool:
     return os.path.isfile(os.path.join(repo_root, "helicon", "docdrift.py"))
 
 
+def _title_only(title: str | None, content: str | None) -> bool:
+    """True when the heading is all the memory has.
+
+    Deliberately not a length test. "Format with black, line length 100." is 35
+    characters and is a whole rule; a section that is nothing but `## Security`
+    is 200 characters of nothing if you pad it. The old cutoff read the first
+    as rot and the second as fine.
+    """
+    body = (content or "").strip()
+    if not body:
+        return True
+    # Every line is a markdown heading — a table of contents, not an instruction.
+    if all(not line.strip() or line.lstrip().startswith("#")
+           for line in body.splitlines()):
+        return True
+    # The body restates the title and adds nothing. Titles arrive decorated by
+    # the scanner ("[repo] CLAUDE.md — Rules"), so compare on the last segment.
+    head = (title or "").strip().rsplit("—", 1)[-1].strip().lstrip("#").strip()
+    return bool(head) and body.lstrip("#").strip().rstrip(".") == head.rstrip(".")
+
+
 def _check(rid, name, coverage, found, receipt):
     return {
         "id": rid, "name": name, "coverage": coverage,
@@ -197,20 +218,41 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
         "R5", "Duplicate / echo memory", "TESTED", dupes > 0,
         f"{dupes} content hash(es) stored more than once among live memories"))
 
-    # R6 title-only grounding — live memories that are stubs (no substance).
-    stubs = conn.execute(
-        "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN ('pending', 'revised') "
-        "AND merged_into IS NULL AND length(content) < 40"
-    ).fetchone()[0]
-    total_live = conn.execute(
-        "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN ('pending', 'revised') "
-        "AND merged_into IS NULL"
-    ).fetchone()[0]
-    thin_share = (stubs / total_live) if total_live else 0
-    checks.append(_check(
-        "R6", "Title-only grounding", "TESTED", thin_share > 0.10,
-        f"{stubs}/{total_live} live memories are stubs (<40 chars); "
-        "battery tests Thinness+Grounding cover retrieval"))
+    # R6 title-only grounding — a memory whose title is all there is.
+    #
+    # Rewritten 2026-08-14, after a 13-fixture sweep caught it firing in both
+    # wrong directions on a stranger's first run. Two defects, one line each:
+    #
+    #   length(content) < 40  called "Format with black, line length 100." a
+    #   stub. That is a complete rule, and the tool reported a first-time
+    #   reader's own correct instruction to them as rot.
+    #
+    #   (stubs / total_live) if total_live else 0  scored a CLAUDE.md of four
+    #   empty headings as CLEAN, because it stored no memories at all and an
+    #   empty denominator fell through to 0. Emptiness read as health.
+    #
+    # Title-only is a shape, not a length: the body is missing, or it only
+    # repeats the heading. Short and complete is not a stub. The 10% threshold
+    # is unchanged and now says so out loud, because a share with a hidden
+    # cutoff is a number nobody can check.
+    rows = conn.execute(
+        "SELECT title, content FROM helicon_cubes "
+        "WHERE review_status IN ('pending', 'revised') AND merged_into IS NULL"
+    ).fetchall()
+    total_live = len(rows)
+    stubs = sum(1 for title, content in rows if _title_only(title, content))
+    if not total_live:
+        checks.append(_check(
+            "R6", "Title-only grounding", "TESTED", None,
+            "no live memories to grade: nothing was stored from this repo's "
+            "instruction files, so this class is unmeasured, not clean"))
+    else:
+        checks.append(_check(
+            "R6", "Title-only grounding", "TESTED",
+            (stubs / total_live) > 0.10,
+            f"{stubs}/{total_live} live memories are title-only "
+            f"(no body, or a body that only repeats the heading); "
+            f"fires above 10%; battery tests Thinness+Grounding cover retrieval"))
 
     # R7 wrong eviction — the regret ledger.
     try:
