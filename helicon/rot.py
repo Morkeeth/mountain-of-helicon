@@ -61,6 +61,23 @@ def _title_only(title: str | None, content: str | None) -> bool:
     return bool(head) and body.lstrip("#").strip().rstrip(".") == head.rstrip(".")
 
 
+def _nothing_to_grade(rid: str, name: str, why: str) -> dict:
+    """A class whose population is empty has not passed, it has not run.
+
+    Five classes reported CLEAN on a stranger's first run because their
+    populations were empty: no retired memories to regret, no reviews to leak,
+    no memory old enough to expire. Zero-of-nothing landed on the healthy end of
+    the scale and a reader counted it as a check. R4 and R8 already answered the
+    same emptiness with UNMEASURED, so the exam gave two different answers to
+    one situation and only one of them was true.
+
+    The rule, stated once here and applied at five call sites: any metric over a
+    set needs an explicit answer for the empty set, and that answer is never
+    CLEAN.
+    """
+    return _check(rid, name, "PARTIAL", None, f"nothing to grade: {why}")
+
+
 def _check(rid, name, coverage, found, receipt):
     return {
         "id": rid, "name": name, "coverage": coverage,
@@ -155,10 +172,33 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
             "AND COALESCE(NULLIF(last_reinforced, ''), created_at) < datetime(?, ?)",
             (ctype, now, f"-{eta} days"),
         ).fetchone()[0]
-    checks.append(_check(
-        "R3", "Staleness / expiry", "TESTED", expired > 0,
-        f"{expired} live memories past their type's half-life without reinforcement "
-        "(decay runs on every scan; battery test 'Expiry' covers retrieval)"))
+    # Nothing in the store is old enough for a half-life to have passed, so
+    # "0 expired" is the question being unaskable, not an answer. On a first run
+    # every memory is seconds old and this class cannot fire by construction.
+    # The denominator has to be the same set as the numerator. The loop above
+    # only counts types that HAVE a half-life, so counting every live memory
+    # here would grade rules and agent-instruction sections — types with no
+    # half-life defined — as permanently fresh. Found by the guard test: a
+    # memory of type 'rule' aged to 2020 still reported CLEAN.
+    shortest = min(DEFAULT_STABILITY.values())
+    typed = ",".join("?" * len(DEFAULT_STABILITY))
+    gradeable = conn.execute(
+        f"SELECT COUNT(*) FROM helicon_cubes WHERE type IN ({typed}) "
+        "AND review_status IN ('pending', 'revised') AND merged_into IS NULL "
+        "AND COALESCE(NULLIF(last_reinforced, ''), created_at) < datetime(?, ?)",
+        (*DEFAULT_STABILITY, now, f"-{shortest} days"),
+    ).fetchone()[0]
+    if not gradeable:
+        checks.append(_nothing_to_grade(
+            "R3", "Staleness / expiry",
+            f"no live memory of a type that has a half-life is older than the "
+            f"shortest one ({shortest} days), so none could have expired yet"))
+    else:
+        checks.append(_check(
+            "R3", "Staleness / expiry", "TESTED", expired > 0,
+            f"{expired}/{gradeable} live memories old enough to expire are past "
+            "their type's half-life without reinforcement "
+            "(decay runs on every scan; battery test 'Expiry' covers retrieval)"))
 
     # R4 supersession — declared aliases triage every dead-name reference:
     # pre-rename history is kept, post-rename current-claims are the rot,
@@ -214,9 +254,40 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
         "WHERE review_status IN ('pending', 'revised', 'approved') AND merged_into IS NULL "
         "GROUP BY content_hash HAVING COUNT(*) > 1)"
     ).fetchone()[0]
-    checks.append(_check(
-        "R5", "Duplicate / echo memory", "TESTED", dupes > 0,
-        f"{dupes} content hash(es) stored more than once among live memories"))
+    # A duplicate needs two memories. With fewer than two live, the count is
+    # zero for arithmetic reasons and says nothing about the repo.
+    live_for_dupes = conn.execute(
+        "SELECT COUNT(*) FROM helicon_cubes WHERE review_status IN "
+        "('pending', 'revised', 'approved') AND merged_into IS NULL"
+    ).fetchone()[0]
+    # And a harder limit, found on 2026-08-14 while writing the guard test that
+    # R5 must still be able to fire: it cannot. helicon_cubes declares
+    # UNIQUE(content_hash) (db.py), so two rows can never share a hash and this
+    # query's HAVING COUNT(*) > 1 can never match — on any repo, ever. R5 has
+    # been reporting CLEAN for a check the schema makes unfailable. Identical
+    # content is already prevented at write time; the rot the class NAMES, an
+    # echo that is the same memory in different words, needs a near-duplicate
+    # test that does not exist yet. Until it does, this says so.
+    hash_is_unique = any(
+        row[2] and any(c[2] == "content_hash"
+                       for c in conn.execute(f"PRAGMA index_info({row[1]!r})"))
+        for row in conn.execute("PRAGMA index_list(helicon_cubes)"))
+    if hash_is_unique and not dupes:
+        checks.append(_nothing_to_grade(
+            "R5", "Duplicate / echo memory",
+            "helicon_cubes declares UNIQUE(content_hash), so two live memories "
+            "cannot share a hash and this class cannot fire. Byte-identical "
+            "duplicates are blocked at write time; near-duplicate echo is "
+            "untested"))
+    elif live_for_dupes < 2:
+        checks.append(_nothing_to_grade(
+            "R5", "Duplicate / echo memory",
+            f"{live_for_dupes} live memory(s) stored; a duplicate needs two"))
+    else:
+        checks.append(_check(
+            "R5", "Duplicate / echo memory", "TESTED", dupes > 0,
+            f"{dupes} content hash(es) stored more than once among "
+            f"{live_for_dupes} live memories"))
 
     # R6 title-only grounding — a memory whose title is all there is.
     #
@@ -257,11 +328,23 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
     # R7 wrong eviction — the regret ledger.
     try:
         from helicon.regret import get_regrets
-        regrets = get_regrets(conn, limit=100)
-        checks.append(_check(
-            "R7", "Wrong eviction (regret)", "TESTED", len(regrets) > 0,
-            f"{len(regrets)} retired memories retrieval has wanted back "
-            "(time-decayed, blame on the kill decision)"))
+        # Regret is measured over memories this store has retired. A store that
+        # has never killed anything cannot have regretted it.
+        retired = conn.execute(
+            "SELECT COUNT(*) FROM helicon_cubes "
+            "WHERE review_status IN ('killed', 'superseded')"
+        ).fetchone()[0]
+        if not retired:
+            checks.append(_nothing_to_grade(
+                "R7", "Wrong eviction (regret)",
+                "no memory has been retired here, so none can have been "
+                "retired wrongly"))
+        else:
+            regrets = get_regrets(conn, limit=100)
+            checks.append(_check(
+                "R7", "Wrong eviction (regret)", "TESTED", len(regrets) > 0,
+                f"{len(regrets)} of {retired} retired memories retrieval has "
+                "wanted back (time-decayed, blame on the kill decision)"))
     except Exception as e:
         checks.append(_check("R7", "Wrong eviction (regret)", "TESTED", None, f"unmeasured: {e}"))
 
@@ -307,10 +390,19 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
     non_human = conn.execute(
         f"SELECT COUNT(*) FROM reviews WHERE NOT ({human_evidence_sql()})"
     ).fetchone()[0]
-    checks.append(_check(
-        "R9", "Self-evidence loops", "TESTED", leaked > 0,
-        f"{non_human} automated review(s) correctly quarantined from rule learning; "
-        f"{leaked} leaked past the guard"))
+    # The guard can only be audited against reviews that exist. A store with no
+    # review history has not held the line, it has never been asked to.
+    reviews_total = conn.execute("SELECT COUNT(*) FROM reviews").fetchone()[0]
+    if not reviews_total:
+        checks.append(_nothing_to_grade(
+            "R9", "Self-evidence loops",
+            "no reviews recorded here, so the human-evidence guard has never "
+            "been exercised"))
+    else:
+        checks.append(_check(
+            "R9", "Self-evidence loops", "TESTED", leaked > 0,
+            f"{non_human} of {reviews_total} review(s) are automated and correctly "
+            f"quarantined from rule learning; {leaked} leaked past the guard"))
 
     # R10 instruction-file drift — agent-rules/skills memories retired or duplicated.
     rules_retired = conn.execute(
@@ -330,28 +422,57 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
     # name, incompatible genera). R1 is blind: no scalar slot to compare. Deterministic.
     try:
         from helicon.identity import find_identity_forks
-        # Semantic-confirmed forks = exactly what `resolve --list` lets you rule.
-        # The exam must count the SAME set the loop can act on; the fast
-        # genus-only pass over-reports the false positives the semantic gate
-        # (local embeddings, no LLM) exists to kill. Candidates it drops are
-        # reported as an unconfirmed sub-signal, never as ROT.
-        forks = find_identity_forks(conn, semantic=True, judge_client=judge_client,
-                                    judge_model=judge_model)
-        candidates = find_identity_forks(conn, semantic=False)
-        unconfirmed = max(0, len(candidates) - len(forks))
-        # Name the gate that produced the number. Cosine cannot separate a fork
-        # from a rephrasing (real 0.354 vs artifact 0.367 on the live store), so
-        # a cosine-only R11 is over-reporting and must say so rather than sell
-        # its candidates as confirmed rot.
-        gate = "qwen-judged" if judge_client else "cosine-only, unjudged"
-        note = (f" (+{unconfirmed} genus candidate(s) dropped by the {gate} gate)"
-                if unconfirmed else f" [{gate}]")
-        checks.append(_check(
-            "R11", "Identity coherence", "TESTED", len(forks) > 0,
-            (f"{len(forks)} entity definition(s) forked across sources: "
-             + ", ".join(f"{x['name']} ({x['genus_a']}/{x['genus_b']})" for x in forks[:3])
-             + note)
-            if forks else f"no confirmed entity definition forks{note}"))
+        # Same empty-set rule as R3/R5/R7/R9/R12, and R11 hid best of the six:
+        # it fires correctly whenever definitions exist, so its own sweep
+        # fixture passed. On openai/codex it printed CLEAN over a corpus that
+        # defines nothing — a definition cannot fork when no name has been
+        # defined once.
+        #
+        # The population is names glossed in the LIVE CUBES, not rows in the
+        # entities table. My first version gated on entities and a test caught
+        # it: find_identity_forks reads cubes and never consults that table, so
+        # the gate would have silenced a class that was working. Wrong object,
+        # again, and the suite is what found it.
+        from helicon.identity import extract_glosses
+        glossed = {g["name"] for (title, content) in conn.execute(
+            "SELECT title, content FROM helicon_cubes WHERE review_status IN "
+            "('pending', 'revised', 'approved') AND merged_into IS NULL")
+            for g in extract_glosses(content or "", title or "")}
+        # One name defined twice is a fork; two distinct names are not. The
+        # threshold is "any definition at all", and I had it at two until the
+        # suite failed on a fixture where both cubes define the same name.
+        entity_count = len(glossed)
+        if not entity_count:
+            checks.append(_nothing_to_grade(
+                "R11", "Identity coherence",
+                "no name is defined anywhere in this repo's instruction files, "
+                "so no definition can fork"))
+        else:
+            # Semantic-confirmed forks = exactly what `resolve --list` lets you
+            # rule. The exam must count the SAME set the loop can act on; the
+            # fast genus-only pass over-reports the false positives the semantic
+            # gate (local embeddings, no LLM) exists to kill. Candidates it
+            # drops are reported as an unconfirmed sub-signal, never as ROT.
+            forks = find_identity_forks(conn, semantic=True, judge_client=judge_client,
+                                        judge_model=judge_model)
+            candidates = find_identity_forks(conn, semantic=False)
+            unconfirmed = max(0, len(candidates) - len(forks))
+            # Name the gate that produced the number. Cosine cannot separate a
+            # fork from a rephrasing (real 0.354 vs artifact 0.367 on the live
+            # store), so a cosine-only R11 is over-reporting and must say so
+            # rather than sell its candidates as confirmed rot.
+            gate = "qwen-judged" if judge_client else "cosine-only, unjudged"
+            note = (f" (+{unconfirmed} genus candidate(s) dropped by the {gate} gate)"
+                    if unconfirmed else f" [{gate}]")
+            checks.append(_check(
+                "R11", "Identity coherence", "TESTED", len(forks) > 0,
+                (f"{len(forks)} entity definition(s) forked across sources: "
+                 + ", ".join(f"{x['name']} ({x['genus_a']}/{x['genus_b']})"
+                             for x in forks[:3])
+                 + note)
+                if forks else
+                f"no confirmed entity definition forks among {entity_count} "
+                f"entities{note}"))
     except Exception as e:
         checks.append(_check("R11", "Identity coherence", "TESTED", None, f"unmeasured: {e}"))
 
@@ -359,12 +480,21 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
     # that nothing else grounds. R1/R11 blind: no scalar slot, no definition fork.
     try:
         from helicon.relations import find_phantom_relations
-        phantoms = find_phantom_relations(conn)
-        checks.append(_check(
-            "R12", "Phantom association", "TESTED", len(phantoms) > 0,
-            (f"{len(phantoms)} ungrounded relation(s): "
-             + ", ".join(f"{x['subj']}->{x['obj']}" for x in phantoms[:3]))
-            if phantoms else "no ungrounded single-source relations between entities"))
+        # A relation BETWEEN entities needs two entities to sit between.
+        entities = conn.execute("SELECT COUNT(*) FROM entities").fetchone()[0]
+        if entities < 2:
+            checks.append(_nothing_to_grade(
+                "R12", "Phantom association",
+                f"{entities} entity(s) extracted; a relation between entities "
+                "needs two"))
+        else:
+            phantoms = find_phantom_relations(conn)
+            checks.append(_check(
+                "R12", "Phantom association", "TESTED", len(phantoms) > 0,
+                (f"{len(phantoms)} ungrounded relation(s): "
+                 + ", ".join(f"{x['subj']}->{x['obj']}" for x in phantoms[:3]))
+                if phantoms else
+                f"no ungrounded single-source relations among {entities} entities"))
     except Exception as e:
         checks.append(_check("R12", "Phantom association", "TESTED", None, f"unmeasured: {e}"))
 
