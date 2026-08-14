@@ -3,10 +3,12 @@
 From the 13-fixture sweep of 2026-08-14. On a stranger's first run the exam
 reported nine CLEAN, and five of those were arithmetic rather than evidence:
 
+  R1  no dated fact and no scalar claim existed, so nothing was comparable
   R3  no memory was old enough for a half-life to have passed
   R5  a duplicate needs two memories and there were fewer than two
   R7  nothing had ever been retired, so nothing could be retired wrongly
   R9  no reviews existed, so the human-evidence guard was never asked
+  R10 nothing had been retired as drifted, and drift needs a previous scan
   R12 no entities existed, so no relation could sit between two of them
 
 R11 was found the same way one step later, and it hid best of the six: it fires
@@ -29,7 +31,7 @@ import pytest
 from helicon.db import init_db
 from helicon.rot import run_rot_exam
 
-EMPTY_POPULATION = ["R3", "R5", "R7", "R9", "R11", "R12"]
+EMPTY_POPULATION = ["R1", "R3", "R5", "R7", "R9", "R10", "R11", "R12"]
 
 _seq = itertools.count()
 
@@ -78,7 +80,7 @@ def test_a_first_run_on_ordinary_rules_still_cannot_claim_these(conn):
     _add(conn, "[r] CLAUDE.md — Rules", "Format with black, line length 100.")
     _add(conn, "[r] AGENTS.md — Rules", "Run the full suite before pushing.")
     checks = _verdicts(conn)
-    for rid in ("R3", "R5", "R7", "R9", "R11", "R12"):
+    for rid in ("R1", "R3", "R5", "R7", "R9", "R10", "R11", "R12"):
         assert checks[rid]["verdict"] == "UNMEASURED", checks[rid]
 
 

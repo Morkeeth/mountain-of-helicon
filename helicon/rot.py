@@ -121,13 +121,37 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
             + [f"{c['metric']}[{c['subject']}]: {' vs '.join(c['values'])}"
                for c in claim_conflicts[:2]])
         total = len(conflicts) + len(claim_conflicts)
-        checks.append(_check(
-            "R1", "Cross-source contradiction", "TESTED",
-            total > 0 or open_pairing > 0,
-            f"{total} live cross-source conflict(s) "
-            f"({len(conflicts)} dated-fact, {len(claim_conflicts)} claim)"
-            + (f" ({sample})" if sample else "")
-            + f"; {open_pairing} unresolved pairing finding(s)"))
+        # The empty-set rule, call site seven. R1 compares dated facts and
+        # scalar claims; it has no opinion about two prose rules disagreeing.
+        # A repo whose instruction files contain neither gives R1 nothing to
+        # compare, and "0 conflicts" then describes the extractor's reach, not
+        # the repo. Measured 2026-08-14: the sweep's R1 fixture plants two files
+        # naming different release managers and opposite deploy rules, and R1
+        # said CLEAN — true, and read by a stranger as "no contradictions here".
+        from helicon.pairing import extract_assertions
+        from helicon.claims import extract_metric_claims
+        comparable = 0
+        for title, content in conn.execute(
+                "SELECT title, content FROM helicon_cubes WHERE review_status IN "
+                "('pending', 'revised', 'approved') AND merged_into IS NULL"):
+            comparable += len(extract_assertions(content or "", title or ""))
+            comparable += len(extract_metric_claims(content or "", title or ""))
+        if not comparable and not open_pairing:
+            checks.append(_nothing_to_grade(
+                "R1", "Cross-source contradiction",
+                "no dated fact and no scalar claim was extracted from this "
+                "repo's instruction files, so there is nothing to compare "
+                "across sources. Two prose rules disagreeing is not yet "
+                "detected by any class"))
+        else:
+            checks.append(_check(
+                "R1", "Cross-source contradiction", "TESTED",
+                total > 0 or open_pairing > 0,
+                f"{total} live cross-source conflict(s) among {comparable} "
+                f"comparable assertion(s) "
+                f"({len(conflicts)} dated-fact, {len(claim_conflicts)} claim)"
+                + (f" ({sample})" if sample else "")
+                + f"; {open_pairing} unresolved pairing finding(s)"))
     except Exception as e:
         checks.append(_check("R1", "Cross-source contradiction", "TESTED", None,
                              f"unmeasured: {e}"))
@@ -413,10 +437,25 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
         "SELECT COUNT(*) FROM helicon_cubes WHERE source IN ('agent-rules', 'skills') "
         "AND review_status NOT IN ('killed', 'superseded')"
     ).fetchone()[0]
-    checks.append(_check(
-        "R10", "Instruction-file drift", "TESTED", rules_retired > 0,
-        f"{rules_retired} rules/skills section(s) retired as drifted; {rules_live} live "
-        "(section-level memories, covered by reconcile + snapshots)"))
+    # The empty-set rule, call site eight, and the last one in the exam. R10
+    # counts sections this store has RETIRED as drifted, which is history. A
+    # first run has retired nothing, so "0 retired" is the store's age, not the
+    # repo's health. The sweep's R10 fixture plants CLAUDE.md saying black/100
+    # against .cursorrules saying ruff/79 — the exact rot the class is named
+    # for — and R10 answered CLEAN. Detecting that disagreement live, rather
+    # than noticing it was retired later, is not built.
+    prior_scans = conn.execute("SELECT COUNT(*) FROM scan_log").fetchone()[0]
+    if not rules_retired and prior_scans < 2:
+        checks.append(_nothing_to_grade(
+            "R10", "Instruction-file drift",
+            f"{rules_live} rules/skills section(s) live and none retired yet; "
+            "drift is measured against a previous scan, so a first run has no "
+            "baseline to drift from"))
+    else:
+        checks.append(_check(
+            "R10", "Instruction-file drift", "TESTED", rules_retired > 0,
+            f"{rules_retired} rules/skills section(s) retired as drifted; {rules_live} live "
+            "(section-level memories, covered by reconcile + snapshots)"))
 
     # R11 identity coherence — one entity's DEFINITION forks across sources (same
     # name, incompatible genera). R1 is blind: no scalar slot to compare. Deterministic.
