@@ -214,9 +214,16 @@ def test_rot_exam_runs_all_thirteen_classes(conn):
     assert res["classes"] == 13
     assert {c["id"] for c in res["checks"]} == {f"R{i}" for i in range(1, 14)}
     assert all(c["verdict"] in ("CLEAN", "ROT FOUND", "UNMEASURED") for c in res["checks"])
-    # fixture has a killed cube with a regret event? no — but R5 dupes must be CLEAN
+    # R5 was asserted CLEAN here until 2026-08-14. It was never CLEAN in any
+    # meaningful sense: helicon_cubes declares UNIQUE(content_hash), so R5's
+    # HAVING COUNT(*) > 1 cannot match on any store, and this assertion was
+    # pinning a check that could not fail. It now reports UNMEASURED and names
+    # the constraint. See tests/test_rot_empty_population.py for the watched
+    # IntegrityError. Changed deliberately, not relaxed.
     r5 = next(c for c in res["checks"] if c["id"] == "R5")
-    assert r5["verdict"] == "CLEAN"
-    # R9 guard: fixture reviews are human sessions only until we add automated ones
+    assert r5["verdict"] == "UNMEASURED"
+    assert "UNIQUE(content_hash)" in r5["receipt"]
+    # R9 guard: fixture reviews are human sessions only until we add automated
+    # ones. With no reviews at all the class abstains instead of claiming CLEAN.
     r9 = next(c for c in res["checks"] if c["id"] == "R9")
-    assert "leaked" in r9["receipt"]
+    assert "leaked" in r9["receipt"] or "never been exercised" in r9["receipt"]
