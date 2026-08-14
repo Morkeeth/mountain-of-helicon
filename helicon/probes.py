@@ -673,7 +673,33 @@ def _git_index_usable(repo: str) -> bool:
     return _INDEX_OK[repo]
 
 
-def _probe_path(repo: str, path: str, git: bool, strict: bool = False) -> dict:
+_BASE_DECL = re.compile(
+    r"\b(?:appl(?:y|ies) to|relative to|under|within|inside|live[s]? in|"
+    r"lives? under|are in|is in|in)\b[^`\n]{0,40}`([A-Za-z0-9._\-][A-Za-z0-9._\-/]*)`")
+
+
+def _declared_base(repo: str, sentence: str) -> str | None:
+    """A section that says where its paths start.
+
+    openai/codex writes "These guidelines apply to app-server protocol work in
+    `codex-rs`, especially:" and then lists three routes relative to it. Read
+    from the repo root those routes are dead; read as the doc wrote them they
+    are correct. On 2026-08-14 this cost us three false CONTRADICTED out of four
+    findings on that file, in the one artifact about to go to a stranger.
+
+    A sentence cannot invent a base: the token is trusted only when it names a
+    directory that is really there. Returns None otherwise, which leaves the
+    existing root-relative reading untouched.
+    """
+    for m in _BASE_DECL.finditer(sentence):
+        cand = m.group(1).strip("/")
+        if cand and os.path.isdir(os.path.join(repo, cand)):
+            return cand
+    return None
+
+
+def _probe_path(repo: str, path: str, git: bool, strict: bool = False,
+                base: str | None = None) -> dict:
     """`strict` is the SWEEP profile. The moved-subtree verdict below is right
     for the GATE — cline really did move `src/` under `apps/vscode/`, and a doc
     still routing to `src/shared/api.ts` is stale. It is wrong to PUBLISH,
@@ -711,6 +737,19 @@ def _probe_path(repo: str, path: str, git: bool, strict: bool = False) -> dict:
         # route survives as the TAIL of exactly one tracked path. cline's
         # `src/shared/api.ts` -> `apps/vscode/src/shared/api.ts` is that shape.
         # More than one candidate, or a mere basename collision, names nothing.
+        # Before calling a route dead, honour a base the section declared for
+        # itself. This is checked first because it is the only branch that can
+        # say UPHELD here: everything below assumes the doc meant the repo root,
+        # and that assumption is what produced the codex false positives.
+        if base:
+            joined = f"{base.rstrip('/')}/{path}"
+            rcb, outb = _run(["git", "ls-files", "--error-unmatch", "--", joined], repo)
+            if rcb == 0 and outb.strip():
+                return {"verdict": UPHELD, "probe": f"git ls-files -- {joined}",
+                        "output": outb.strip().splitlines()[0][:200],
+                        "why": f"the section declares its base as {base}/, and "
+                               f"{joined} is tracked — the route is written "
+                               f"relative to that base, not broken"}
         if "/" in path:
             rcs, outs = _run(["git", "ls-files", "--", f"*/{path}"], repo)
             cands = [l for l in outs.splitlines() if l.strip()] if rcs == 0 else []
@@ -907,10 +946,16 @@ def split_assertions(text: str) -> list[dict]:
     used to tell every agent the escrow was live."""
     blocks, buf, fenced, heading = [], [], False, ""
     buf_heading = ""
+    # Depth, so a caller can tell a subsection from a sibling. "### Core Rules"
+    # sits INSIDE "## App-server API Development Best Practices" and inherits
+    # what that section established; a second "##" does not. Additive: existing
+    # consumers read "heading" and are unaffected.
+    level, buf_level = 0, 0
 
     def flush():
         if buf:
-            blocks.append({"text": " ".join(buf), "heading": buf_heading})
+            blocks.append({"text": " ".join(buf), "heading": buf_heading,
+                           "heading_level": buf_level})
 
     for raw in (text or "").splitlines():
         line = raw.rstrip()
@@ -920,21 +965,21 @@ def split_assertions(text: str) -> list[dict]:
         if fenced:
             continue
         stripped = line.strip()
-        m = re.match(r"^#{1,6}\s+(.*)", line)
+        m = re.match(r"^(#{1,6})\s+(.*)", line)
         if m:
             flush()
-            buf, buf_heading = [], ""
-            heading = m.group(1).strip()
+            buf, buf_heading, buf_level = [], "", 0
+            heading, level = m.group(2).strip(), len(m.group(1))
             continue
         starts = bool(re.match(r"^(?:[-*+]\s|\d+[.)]\s|>\s)", stripped))
         if not stripped or starts:
             flush()
-            buf, buf_heading = [], heading
+            buf, buf_heading, buf_level = [], heading, level
             if starts:
                 buf = [re.sub(r"^(?:[-*+]\s|\d+[.)]\s|>\s)", "", stripped)]
             continue
         if not buf:
-            buf_heading = heading
+            buf_heading, buf_level = heading, level
         buf.append(stripped)
     flush()
 
@@ -946,7 +991,8 @@ def split_assertions(text: str) -> list[dict]:
         for part in re.split(r"(?<=[.!?])\s+(?=[A-Z*`\-])", body):
             part = part.strip()
             if len(part) >= 12:
-                out.append({"text": part, "heading": block["heading"]})
+                out.append({"text": part, "heading": block["heading"],
+                            "heading_level": block["heading_level"]})
     return out
 
 
@@ -1099,19 +1145,39 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
         # The contract a section is about, carried forward within one doc: the
         # sentence that names owner() often does not repeat the address the
         # paragraph above it just introduced.
-        context_addr, section = None, None
+        # context_base is the same idea as context_addr, one level down: a
+        # section that declares where its paths start ("...work in `codex-rs`,
+        # especially:") governs the bullets under it until the next heading.
+        context_addr, section, context_base = None, None, None
+        base_level = 0
         for block in split_assertions(text):
             assertion, heading = block["text"], block["heading"]
+            level = block.get("heading_level", 0)
             cube = _cube_for(cubes, repo_name, rel, assertion)
             line = _line_of(text, assertion)
             base = {"file": rel, "line": line, "sentence": assertion,
                     "heading": heading, "cube_id": (cube or {}).get("id"),
                     "claim_age": (cube or {}).get("created_at"),
                     "stored": cube is not None}
+            # A base survives into subsections and dies at a sibling or a
+            # shallower heading. codex declares its base under "## App-server API
+            # Development Best Practices" and routes to it again under "### Core
+            # Rules" 38 lines later; clearing on every heading left that bullet
+            # reading as broken while its two identical neighbours were fixed —
+            # a rule inconsistent inside one document, which is what made the
+            # original finding wrong.
+            #
+            # This runs BEFORE the probes, unlike the address bookkeeping below.
+            # Clearing after meant the first sentence of the new section was
+            # still probed against the old base — one block late, which is
+            # invisible in a fixture where the stale base happens to resolve.
+            if (context_base is not None and heading != section
+                    and level and level <= base_level):
+                context_base = None
             for res in _derive_and_run(repo, git, assertion, heading, switches,
                                        evidence, rpc_url, allow_network,
                                        saturated, corpus, context_addr,
-                                       strict=strict):
+                                       strict=strict, context_base=context_base):
                 results.append({**base, **res})
             # First address under this heading wins, and the next heading
             # clears it. Nearest-preceding is the wrong rule: the sentence
@@ -1120,6 +1186,13 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
             # address you must NOT dial for a proxy's owner.
             if heading != section:
                 section, context_addr = heading, None
+            # A base declared in this sentence governs the sentences after it,
+            # not this one: the declaring sentence names the directory, it does
+            # not route into it. Same nearest-preceding discipline as addresses.
+            if context_base is None:
+                found = _declared_base(repo, assertion)
+                if found:
+                    context_base, base_level = found, level
             if context_addr is None and not _AUTHORITY.search(assertion):
                 seen = [m.group(0) for m in _ADDRESS.finditer(assertion)]
                 if seen:
@@ -1130,7 +1203,7 @@ def probe_docs(conn, repo_path: str, config: dict | None = None,
 def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                     rpc_url, allow_network, saturated=frozenset(),
                     corpus=frozenset(), context_addr=None,
-                    strict: bool = False) -> list[dict]:
+                    strict: bool = False, context_base: str | None = None) -> list[dict]:
     """Sentence -> the probes its own shape earns. Order matters: an on-chain
     authority claim is answered by the chain, not by a grep that would happen
     to agree with it."""
@@ -1231,7 +1304,8 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                         "why": f"{m.group(1)}: {why_named} — the repo was never "
                                f"meant to contain it, so its absence proves nothing"})
             continue
-        out.append({"kind": "path", **_probe_path(repo, m.group(1), git, strict)})
+        out.append({"kind": "path",
+                    **_probe_path(repo, m.group(1), git, strict, base=context_base)})
 
     return out
 
