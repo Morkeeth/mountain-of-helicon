@@ -31,3 +31,6 @@ data/helicon-demo.db
 # Deliberately ignored, not "not committed yet". Nothing in README references it
 # (checked 2026-08-13: zero `launch/` links, zero images).
 launch/
+
+# Internal product vision and build plan — never publish
+PRODUCT.md
