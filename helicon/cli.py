@@ -2331,6 +2331,17 @@ def cmd_ci(args):
 
     repo = os.path.abspath(getattr(args, "path", None) or os.getcwd())
     fail_on = getattr(args, "fail_on", "rot")
+
+    # A --path that is not there used to scan nothing, grade nothing, and print
+    # a green PASS — so a typo absolved the repo the user meant to check. This
+    # is an invocation error, not a verdict, so it precedes the exam and ignores
+    # --fail-on: report-only means report on something.
+    if not os.path.isdir(repo):
+        what = "is not a directory" if os.path.exists(repo) else "does not exist"
+        print(f"helicon ci: nothing to examine — {repo} {what}.")
+        print("No exam was run, so there is no verdict. Check --path.")
+        sys.exit(2)
+
     db = os.path.join(tempfile.gettempdir(), "helicon-ci.db")
     try:
         if os.path.exists(db):
@@ -2380,7 +2391,29 @@ def cmd_ci(args):
         print(f"\n✗ CI FAIL: {len(rot)} rot class(es) firing. "
               f"Rule on them, or set --fail-on none for report-only.")
         sys.exit(1)
-    print(f"\n✓ CI PASS ({res['rot_found']}/{res['classes']} classes firing; fail-on={fail_on})")
+
+    # The exam already refuses to call an ungraded class clean — R2 and R13 say
+    # UNMEASURED, not CLEAN. The summary line was the one place that rule was
+    # not applied: "0/13 firing" over 0/13 graded printed as a pass. Nothing
+    # graded is not a repo in good health; it is a repo nobody examined.
+    graded = res["classes"] - res["unmeasured"]
+    if graded == 0:
+        print(f"\n⚠ CI UNMEASURED: 0 of {res['classes']} classes could be graded here, "
+              f"so 0 firing is not a pass.")
+        print("  Nothing in this path was examined. This is not evidence of health.")
+        if fail_on == "none":
+            sys.exit(0)
+        sys.exit(2)
+
+    if rot:
+        # --fail-on none is report-only, which means it does not fail the build.
+        # It never meant the rot was not there, so it does not get a green tick.
+        print(f"\n⚠ report-only: {len(rot)} rot class(es) firing; "
+              f"not failing the build because --fail-on none.")
+        return
+
+    print(f"\n✓ CI PASS ({graded}/{res['classes']} classes graded, 0 firing; "
+          f"{res['unmeasured']} unmeasured — not clean, unexamined; fail-on={fail_on})")
 
 
 def cmd_gold(args):
