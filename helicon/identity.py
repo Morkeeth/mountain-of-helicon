@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 
 from helicon.db import insert_audit
 from helicon.models import AuditResult
-from helicon.pairing import _cube_scope
+from helicon.pairing import _cube_scope, format_pair_evidence
 
 # A defining clause: <Name> <copula> <predicate>. Name is a proper noun (capitalized,
 # >=3 chars, may carry digits/dot/hyphen for product names). Predicate is a lowercase
@@ -420,3 +420,82 @@ def identity_scan(conn, semantic: bool = True, judge_client=None,
     conn.commit()
     return {"forks_found": len(filed) + len(skipped),
             "filed": filed, "already_filed": skipped}
+
+
+def _quotes_for_fork(conn, name: str, genera: dict) -> dict:
+    """(genus, scope) -> the defining clause, re-read from the cubes at DISPLAY
+    time. `details` stores only two glosses (line_a/line_b), so a three-genus fork
+    renders its third definition as a bare source path — unrulable. The clause for
+    every genus was computed during the scan and then discarded, so this recovers
+    it by re-running the same extractor over the same scopes. Read-only: it does
+    not touch what R11 finds, and it works on findings already in the table."""
+    wanted = {(g, s) for g, scopes in genera.items() for s in scopes}
+    sources = {s.split(":", 1)[0] for _, s in wanted}
+    if not sources:
+        return {}
+    rows = conn.execute(
+        "SELECT title, content, source, source_ref FROM helicon_cubes "
+        "WHERE review_status IN ('pending', 'revised', 'approved') "
+        "AND merged_into IS NULL "
+        f"AND source IN ({','.join('?' * len(sources))}) "
+        "AND (content LIKE ? OR title LIKE ?)",
+        (*sorted(sources), f"%{name}%", f"%{name}%")).fetchall()
+    out: dict = {}
+    for row in rows:
+        scope = _cube_scope(row)
+        for g in extract_glosses(row["content"] or "", row["title"] or ""):
+            key = (g["genus"], scope)
+            if g["name"].lower() == name.lower() and key in wanted:
+                out.setdefault(key, g["gloss"])
+    return out
+
+
+def _one_line(text: str, limit: int = 160) -> str:
+    """A stored gloss can carry a raw newline ("ZUP is the\\nexit"), which splits
+    one definition across two lines and reads as a truncation. Collapse for
+    display only — the stored text is the evidence and stays untouched."""
+    return " ".join((text or "").split())[:limit]
+
+
+def format_identity_evidence(conn, details: dict, read_at: str = "",
+                             command: str = "") -> str:
+    """The rulable card for an identity fork: EVERY genus, its real source count,
+    its exact clause, and where each clause lives.
+
+    The pair renderer this replaces is pair-shaped — two values, two lines, two
+    scopes — and an identity fork is N-way. On a three-genus fork it showed two
+    genera and paired `value_b` with `scopes[-1]`, which are independently ordered:
+    finding #542 rendered the genus "exit" against the Obsidian file that actually
+    says "owned", and hid the third definition entirely. A human ruling from that
+    card rules on a source that does not say what the card claims."""
+    genera = details.get("genera") or {}
+    name = details.get("name") or "?"
+    if not genera:
+        return format_pair_evidence(details)
+    quotes = _quotes_for_fork(conn, name, genera)
+    fallback = {details.get("value_a"): details.get("line_a"),
+                details.get("value_b"): details.get("line_b")}
+    out = []
+    ordered = sorted(genera.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    for label, (genus, scopes) in zip("ABCDEFGH", ordered):
+        n = len(scopes)
+        out.append(f"{label}  {genus:<14} {n} source{'' if n == 1 else 's'}")
+        for scope in scopes:
+            quote = _one_line(quotes.get((genus, scope)) or "")
+            if quote:
+                out.append(f'     "{quote}"')
+            else:
+                # No clause recovered for this scope: say so. A blank line under a
+                # source reads as "the source is silent", which is a different claim.
+                alt = _one_line(fallback.get(genus) or "")
+                out.append(f'     "{alt}"  [clause matched elsewhere in this genus]'
+                           if alt else "     (clause not recovered from this source)")
+            out.append(f"     {scope}")
+    if details.get("resurfaced"):
+        out.append(f"   RE-ALARM: '{name}' was ruled and a divergent definition returned")
+    if read_at or command:
+        # The brief's constraint: a finding without the command that produced it
+        # and the moment it was read is a claim, not a number.
+        out.append(f"\n   read {read_at}  ·  {command}" if read_at and command
+                   else f"\n   {read_at or command}")
+    return "\n".join(out)
