@@ -165,6 +165,29 @@ struct SentryPanel: View {
             // Added beside Review, not instead of it (Oscar's ruling, 2026-08-10).
             // Secondary styling on purpose: the queue keeps the primary slot until
             // recorded usage says otherwise.
+            // Measurement: the only surface that answers whether any of the
+            // others are improving. Secondary styling for the same reason Fleet
+            // is secondary — the queue keeps the primary slot.
+            Button {
+                NSApp.setActivationPolicy(.regular)
+                MeasureWindow.shared.show()
+            } label: {
+                HStack(spacing: 6) {
+                    Text("Measurement")
+                        .font(.iface(12, .medium))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 9, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(Wash.ink)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                    .fill(Wash.bone))
+            }
+            .buttonStyle(.plain)
+
             Button {
                 NSApp.setActivationPolicy(.regular)
                 FleetWindow.shared.show()

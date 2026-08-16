@@ -108,6 +108,7 @@ def create_app() -> FastAPI:
     from helicon.api.log import router as log_router
     from helicon.api.focus import router as focus_router
     from helicon.api.intelligence import router as intelligence_router
+    from helicon.api.measure import router as measure_router
     from helicon.api.rot import router as rot_router
     from helicon.api.brief import router as brief_router
     from helicon.api.cockpit import router as cockpit_router
@@ -138,6 +139,7 @@ def create_app() -> FastAPI:
     app.include_router(focus_router, prefix="/api")
     app.include_router(intelligence_router, prefix="/api")
     app.include_router(rot_router, prefix="/api")
+    app.include_router(measure_router, prefix="/api")
     app.include_router(brief_router, prefix="/api")
     app.include_router(cockpit_router, prefix="/api")
     app.include_router(runs2_router, prefix="/api")

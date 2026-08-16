@@ -513,3 +513,56 @@ struct FleetPayload: Decodable {
         case observedCount = "observed_count"
     }
 }
+
+// MARK: - Measurement series
+
+/// One week's reading of one metric. `value` is nullable and that is load-bearing:
+/// a detector whose source is not configured stores null, never 0, so the surface
+/// can draw "unmeasured" instead of a healthy-looking zero.
+struct MeasurePoint: Decodable {
+    let week: String
+    let value: Int?
+    let population: Int?
+    let unmeasured: String
+    let readAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case week, value, population, unmeasured
+        case readAt = "read_at"
+    }
+}
+
+struct MeasureMetric: Decodable {
+    let metric: String
+    let label: String
+    let unit: String
+    /// The command that reproduces this number. Stored beside the value rather
+    /// than derived at render time, so the two can never disagree.
+    let command: String
+    let latest: Int?
+    /// nil on a first reading and across an unmeasured week. Never 0 for "no
+    /// history" — 0 is a real delta and means unchanged.
+    let delta: Int?
+    let readings: Int
+    let population: Int?
+    let unmeasured: String
+    let direction: String?
+    let points: [MeasurePoint]
+}
+
+struct MeasurePayload: Decodable {
+    let metrics: [MeasureMetric]
+    let weeks: [String]
+    let recorded: Bool
+}
+
+struct MeasureRecordResult: Decodable {
+    let week: String
+    let recordedAt: String
+    let metrics: Int
+
+    enum CodingKeys: String, CodingKey {
+        case week, metrics
+        case recordedAt = "recorded_at"
+    }
+}
