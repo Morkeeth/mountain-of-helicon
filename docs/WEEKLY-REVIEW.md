@@ -89,6 +89,39 @@ hook:**
 5. If a quote cannot be recovered for a source, say so. A blank line under a source path reads as
    "this source is silent", which is a different claim.
 
+### The trap every new detector falls into
+
+**A detector built to replace the pile will rebuild the pile inside itself, and it will look like
+it is working while it does.**
+
+This has now happened three times, once per detector, and it was caught each time only by running
+the thing against real data and reading the output:
+
+- **The scatter detector** grouped documents by basename and reported `SUBMISSION.md` across seven
+  hackathon repos. Every row was true. Seven projects each writing their own submission doc is how
+  projects work, and there was no ruling to make on any of it — the 449-finding pile, rebuilt
+  inside the detector meant to replace it, on its first run.
+- **The scattered-homes detector** reported `fleet` matching eight directories, four of which are
+  deliberately separate experiments. True, and a candidate at best, rendered as confidently as a
+  near-certain finding.
+- **The learning ledger** graded fourteen learnings as having an artifact behind them, and nearly
+  every hit was one file: the script that *backfilled the catch log*. It contained the checks
+  because it had written them down. The log vouching for itself — R9, self-generated evidence,
+  reproduced inside the detector built to catch unenacted rules.
+
+The pattern is the same each time: **the detector found the thing it was searching for, and the
+thing it was searching for was not the defect.** A shared basename is not a shared document. A
+shared word is not a shared object. Containing a rule is not enacting it.
+
+So the standing requirement for any detector added here:
+
+- Run it on the real population and READ the output before believing the count. A detector is not
+  finished when its tests pass; its tests only encode what its author already thought of.
+- Keep a noise fixture next to every signal fixture, and assert both. The precision test is the
+  one that earns the detector its place.
+- When output is dominated by one source, one name, or one shape, that is the tell. Ask what the
+  detector is actually matching on before tuning the threshold.
+
 ---
 
 ## The five features
@@ -111,9 +144,21 @@ See `helicon.overboard` and `helicon overboard`.
 
 *The week's line: "you moved every terminal three times and nobody noticed until you did."*
 
-### B · The learning ledger — NOT BUILT
-Every learning from the week, and whether anything acted on it. One measured day produced roughly
-ten rules and exactly one had an executable behind it; the rest were prose.
+### B · The learning ledger — BUILT
+Every learning from the week, and whether anything can act on it. Four tiers: PROSE (no command),
+STATED (a command in the log and nowhere else), STAGED (an artifact exists, no live config reaches
+it), WIRED (a live config names the artifact — execution still unverified).
+
+Measured on the real log: 37 learnings, 30 carrying a check, **0 WIRED**. The week's single best
+learning had a real script *and* a prepared settings diff, and the live config referenced neither.
+A diff is a proposal; a proposal is not an installation.
+
+**Not R14.** `helicon.inert` (R14) grades rules stated in *instruction files*, reading enactment as
+the rule's tokens appearing in repo code. B grades lessons recorded in the *catch log*, reading
+enactment as the prescribed check being reachable from something that runs. Same question, one
+level up.
+
+See `helicon.ledger` and `helicon ledger`.
 
 *The week's line: "you wrote three process documents. Zero of them ran."*
 
@@ -126,6 +171,35 @@ Overlaps B deliberately: B asks whether words became actions, E asks whether the
 run.
 
 *The week's line: "your coordinator reported three numbers wrong this week. Here they are."*
+
+### F · Restated assertion — THE KNOWN GAP, NOT BUILT
+**A number restated away from the object that grounds it.** The third shape of scatter, and the one
+the other two detectors cannot see.
+
+A ships as *drifted duplicates* (one document, several homes) and *scattered homes* (one object,
+several directories). Neither catches this: the document exists once and the object has one home.
+What is duplicated is the **assertion**.
+
+The grounding instance is a false claim made in this project's own brief. It said "six drifted
+copies of one prize ledger". The ledger exists exactly once — `helicon overboard` scanned 2124
+files and found no duplicate, and that refutation is what exposed the real defect. What existed six
+times was the ledger's *numbers, restated*: in `cv-forge/context/bullets.md`, in
+`GROKBOT-CV-SOURCE.md`, in `claude/mistral-pm-studio.html`, in the eval run JSONs, and — worst —
+in a build-time guard in `paris-portfolio`'s `data.ts` whose error message asserted "canonical team
+total is 41.7", a third value, inside code written to prevent exactly this drift.
+
+The measured spread: 8 vs 9 categories, 17 vs 20 vs 22 prizes, 39.05 vs 41 vs 41.7, and $176K in
+nine render sites.
+
+**The detector:** a distinctive number appearing in N files where only one is the source. Harder
+than the other four and worth more. It is named here rather than built so that the gap is a known
+gap, not a silent one.
+
+Note on populations, since this gap was found by disagreeing about one: the scattered-homes
+detector scans `code_root` only. On `~/CODE` the SLASK object has 2 homes; across `$HOME` it has 4
+(`~/SLASK™️`, `~/SLASK-phone`, `~/CODE/slask-eval`, `~/CODE/cursor-slask`). Both numbers are
+correct on their own population and neither is correct without it. **Print the population with the
+count.**
 
 ### D · Cost per outcome — NOT BUILT, AND BLOCKED ON HONESTY
 Tokens against what reached a person. **Blocked on a receipt, not on code.** Every token count

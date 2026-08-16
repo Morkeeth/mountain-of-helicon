@@ -2691,6 +2691,39 @@ def cmd_overboard(args):
         print(render_overboard(report, top=args.top))
 
 
+def cmd_ledger(args):
+    """B — the learning ledger. Every learning, and whether anything can act on
+    it. Same path discipline as overboard: config or flags, never a hardcoded
+    home, and an unread week is named as unread rather than reported clean."""
+    from helicon.config import load_config
+    from helicon.ledger import (gate_inventory, learning_ledger, render_ledger)
+    from helicon.overboard import _now
+
+    config = load_config()
+    ob = config.get("overboard", {}) if isinstance(config.get("overboard"), dict) else {}
+    catches = os.path.expanduser(args.catches or ob.get("catches_path", "") or "")
+    roots = [os.path.expanduser(r) for r in (args.repo or ob.get("repo_roots", []) or [])]
+    lives = [os.path.expanduser(c) for c in (args.live or ob.get("live_configs", []) or [])]
+
+    if not catches:
+        print("ledger has nothing to read.\n\n"
+              "  Add \"catches_path\" to the \"overboard\" block in "
+              "~/.helicon/config.json, or pass --catches.\n"
+              "  Optional but the point of the tool: --repo <dir> (repeatable) "
+              "for the artifacts,\n  and --live <config> (repeatable) for the "
+              "configs that would actually run them.\n\n"
+              "  Without --live nothing can be graded WIRED, so the report says "
+              "so instead of\n  reading every staged artifact as an installed gate.")
+        return
+
+    report = learning_ledger(catches, roots, lives)
+    inventory = gate_inventory(roots, lives) if roots else None
+    if args.json:
+        print(json.dumps({"ledger": report, "gates": inventory}, indent=2))
+    else:
+        print(render_ledger(report, inventory, read_at=_now(), top=args.top))
+
+
 def cmd_resolve(args):
     """Close a cross-source contradiction with the truth. Files the human
     decision, writes a correction cube (approved, full provenance) so
@@ -3942,6 +3975,13 @@ def main():
     overboard_p.add_argument("--top", type=int, default=6, help="rows shown per section")
     overboard_p.add_argument("--json", action="store_true", help="emit the report as JSON")
 
+    ledger_p = sub.add_parser("ledger", help="Weekly review B: every learning from the week, and whether anything can act on it (prose / stated / staged / wired)")
+    ledger_p.add_argument("--catches", help="path to the catch log jsonl (default: config overboard.catches_path)")
+    ledger_p.add_argument("--repo", action="append", help="repo root to search for runnable artifacts (repeatable)")
+    ledger_p.add_argument("--live", action="append", help="a live config that would actually run them, e.g. ~/.claude/settings.json (repeatable)")
+    ledger_p.add_argument("--top", type=int, default=8, help="rows shown per tier")
+    ledger_p.add_argument("--json", action="store_true", help="emit the report as JSON")
+
     resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction memory + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
     resolve_p.add_argument("--truth", help="the true value, one of the asserted dates/values")
@@ -4124,6 +4164,7 @@ def main():
         "hook": cmd_hook,
         "receipt": cmd_receipt,
         "overboard": cmd_overboard,
+        "ledger": cmd_ledger,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads
