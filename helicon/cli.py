@@ -2652,6 +2652,45 @@ def cmd_lift(args):
         print(render_skill_lift(report))
 
 
+def cmd_overboard(args):
+    """A — the overboard detector. Defects that were locally defensible every
+    single time they happened and are only wrong across a window.
+
+    Paths come from config or flags, never from a hardcoded home directory: this
+    ships on PyPI and the fleet layout it was measured on is one user's, not a
+    convention. With nothing configured it says which key is missing rather than
+    reporting an empty week as a clean one — an unmeasured population is not a
+    pass, and a detector that silently grades nothing is the false-green this
+    whole product exists to catch."""
+    from helicon.config import load_config
+    from helicon.overboard import overboard_report, render_overboard
+
+    config = load_config()
+    ob = config.get("overboard", {}) if isinstance(config.get("overboard"), dict) else {}
+    catches = os.path.expanduser(args.catches or ob.get("catches_path", "") or "")
+    runs = os.path.expanduser(args.runs or ob.get("runs_dir", "") or "")
+    root = os.path.expanduser(args.code_root or ob.get("code_root", "") or "")
+
+    if not any((catches, runs, root)):
+        print("overboard has nothing to read.\n\n"
+              "  Add an \"overboard\" block to ~/.helicon/config.json:\n"
+              "    \"overboard\": {\n"
+              "      \"catches_path\": \"<dir>/catches.jsonl\",\n"
+              "      \"runs_dir\":     \"<dir>/runs\",\n"
+              "      \"code_root\":    \"~/CODE\"\n"
+              "    }\n"
+              "  or pass --catches / --runs / --code-root.\n\n"
+              "  Reporting an unread week as a clean one is the false-green this "
+              "detector exists to catch, so it reports nothing instead.")
+        return
+
+    report = overboard_report(catches, runs, root, min_locations=args.min_locations)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(render_overboard(report, top=args.top))
+
+
 def cmd_resolve(args):
     """Close a cross-source contradiction with the truth. Files the human
     decision, writes a correction cube (approved, full provenance) so
@@ -3895,6 +3934,14 @@ def main():
     lift_p.add_argument("skill", help="skill name or version prefix, e.g. stranger or stranger@2")
     lift_p.add_argument("--json", action="store_true", help="machine-readable report")
 
+    overboard_p = sub.add_parser("overboard", help="Weekly review A: aggregate-only defects (churn, drifted duplicates, self-catch blindness) that no single day shows")
+    overboard_p.add_argument("--catches", help="path to the catch log jsonl (default: config overboard.catches_path)")
+    overboard_p.add_argument("--runs", help="directory of *-lanes.jsonl run files (default: config overboard.runs_dir)")
+    overboard_p.add_argument("--code-root", help="root to scan for drifted duplicates (default: config overboard.code_root)")
+    overboard_p.add_argument("--min-locations", type=int, default=3, help="copies of one document before it counts as scattered (default 3)")
+    overboard_p.add_argument("--top", type=int, default=6, help="rows shown per section")
+    overboard_p.add_argument("--json", action="store_true", help="emit the report as JSON")
+
     resolve_p = sub.add_parser("resolve", help="Close a cross-source contradiction with the truth (correction memory + never-twice guard)")
     resolve_p.add_argument("id", nargs="?", type=int, help="audit finding id (omit to list open ones)")
     resolve_p.add_argument("--truth", help="the true value, one of the asserted dates/values")
@@ -4076,6 +4123,7 @@ def main():
         "run": cmd_run,
         "hook": cmd_hook,
         "receipt": cmd_receipt,
+        "overboard": cmd_overboard,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads
