@@ -136,6 +136,21 @@ struct HeliconAPI {
         try await get("/api/fleet")
     }
 
+    /// GET /api/measure -> the stored weekly series. Read-only by construction:
+    /// this never records, so opening the screen cannot fake a trend.
+    func measure(weeks: Int = 12) async throws -> MeasurePayload {
+        try await get("/api/measure", [URLQueryItem(name: "weeks", value: String(weeks))])
+    }
+
+    /// POST /api/measure -> take and store this week's reading. Explicit, and
+    /// separate from the read path on purpose.
+    func takeReading() async throws -> MeasureRecordResult {
+        var req = URLRequest(url: base.appendingPathComponent("/api/measure"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        return try await run(req, as: MeasureRecordResult.self)
+    }
+
     /// POST /api/surfaces/open — records that a surface was shown, so removing an
     /// unused surface later is decided on usage rather than taste.
     func recordSurfaceOpen(_ surface: String) async throws {

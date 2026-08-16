@@ -2733,6 +2733,46 @@ def cmd_ledger(args):
         print(render_ledger(report, inventory, read_at=_now(), top=args.top))
 
 
+def cmd_measure(args):
+    """The weekly review, recorded so it becomes a series.
+
+    Reading without --record prints what is already stored; --record takes
+    today's reading first. The difference matters: a surface that silently
+    measured every time it was opened would write a new row on every glance and
+    turn one week into a trend."""
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon.measure import collect, record, render_series, series
+    from helicon.overboard import _now
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    ob = config.get("overboard", {}) if isinstance(config.get("overboard"), dict) else {}
+    catches = os.path.expanduser(args.catches or ob.get("catches_path", "") or "")
+    root = os.path.expanduser(args.code_root or ob.get("code_root", "") or "")
+    repo = os.path.expanduser(args.repo or ob.get("repo", "") or "")
+    runs = os.path.expanduser(args.runs or ob.get("runs_dir", "") or "")
+    vault = os.path.expanduser(args.vault or ob.get("vault", "") or "")
+    bridge = os.path.expanduser(args.bridge or ob.get("bridge", "") or "")
+
+    if args.retire:
+        from helicon.measure import retire
+        gone = retire(conn)
+        print(f"retired {sum(gone.values())} stored rows across "
+              f"{len(gone)} withdrawn metrics: {', '.join(sorted(gone)) or 'none'}\n")
+
+    if args.record:
+        res = record(conn, collect(conn, catches, runs, root, repo, vault, bridge))
+        print(f"recorded {res['metrics']} metrics for {res['week']} "
+              f"at {res['recorded_at']}\n")
+
+    data = series(conn, weeks=args.weeks)
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        print(render_series(data, read_at=_now()))
+
+
 def cmd_resolve(args):
     """Close a cross-source contradiction with the truth. Files the human
     decision, writes a correction cube (approved, full provenance) so
@@ -3984,6 +4024,18 @@ def main():
     overboard_p.add_argument("--top", type=int, default=6, help="rows shown per section")
     overboard_p.add_argument("--json", action="store_true", help="emit the report as JSON")
 
+    measure_p = sub.add_parser("measure", help="Weekly review as a SERIES: record today's reading of every detector and show the trend")
+    measure_p.add_argument("--record", action="store_true", help="take a reading now and store it for this week (re-running in one week replaces that week's rows)")
+    measure_p.add_argument("--code-root", help="root to measure git churn and scattered homes over")
+    measure_p.add_argument("--repo", help="repo whose stated rules get graded")
+    measure_p.add_argument("--catches", help="catch log for the learnings metric")
+    measure_p.add_argument("--runs", help="lane ledger dir, for the outward KPI")
+    measure_p.add_argument("--vault", help="the source-of-truth vault (L0)")
+    measure_p.add_argument("--bridge", help="the bridge repo, e.g. bagelHQ (L3)")
+    measure_p.add_argument("--retire", action="store_true", help="delete stored rows for metrics that are no longer shipped")
+    measure_p.add_argument("--weeks", type=int, default=12, help="how many weeks of history to show")
+    measure_p.add_argument("--json", action="store_true", help="emit the series as JSON")
+
     ledger_p = sub.add_parser("ledger", help="Weekly review B: every learning from the week, and whether anything can act on it (prose / stated / staged / wired)")
     ledger_p.add_argument("--catches", help="path to the catch log jsonl (default: config overboard.catches_path)")
     ledger_p.add_argument("--repo", action="append", help="repo root to search for runnable artifacts (repeatable)")
@@ -4175,6 +4227,7 @@ def main():
         "receipt": cmd_receipt,
         "overboard": cmd_overboard,
         "ledger": cmd_ledger,
+        "measure": cmd_measure,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads

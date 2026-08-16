@@ -109,10 +109,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandLine.arguments.contains("--brief")
     }
 
+    /// `--measure` opens the measurement series straight away (demo + headless
+    /// shot), same convention as `--brief` and `--queue`.
+    static var opensMeasureAtLaunch: Bool {
+        CommandLine.arguments.contains("--measure")
+    }
+
     // Menu-bar-first: no Dock icon until a window is opened. Set in code because
     // a SwiftPM executable has no Info.plist to carry LSUIElement.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if Self.opensBriefAtLaunch {
+        if Self.opensMeasureAtLaunch {
+            NSApp.setActivationPolicy(.regular)
+            MeasureWindow.shared.show()
+        } else if Self.opensBriefAtLaunch {
             NSApp.setActivationPolicy(.regular)
             BriefWindow.shared.show()
         } else if Self.opensQueueAtLaunch {
@@ -234,6 +243,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// in the future". Both surfaces record their opens (`POST /api/surfaces/open`),
 /// so whichever one goes is decided on usage rather than taste.
 @MainActor
+/// The measurement window. Same shape as Fleet, added beside the others rather
+/// than in place of any: which surfaces survive is decided on recorded usage,
+/// not on taste (Oscar's ruling, 2026-08-10).
+final class MeasureWindow {
+    static let shared = MeasureWindow()
+    private var window: NSWindow?
+
+    func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let host = NSHostingController(rootView: MeasureView())
+        let w = NSWindow(contentViewController: host)
+        w.title = "Measurement"
+        w.setContentSize(NSSize(width: 780, height: 820))
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.isReleasedWhenClosed = false
+        w.center()
+        window = w
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
 final class FleetWindow {
     static let shared = FleetWindow()
     private var window: NSWindow?
