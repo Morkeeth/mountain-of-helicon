@@ -248,6 +248,190 @@ def gate_inventory(repo_roots: list = (), live_configs: list = ()) -> dict:
             "orphaned": sorted(set(hooks) - reachable)}
 
 
+# --- the same question, from a source every stranger has -------------------
+
+# Surfaces that ACTUALLY STOP THINGS. A script sitting in a repo is not one; a
+# workflow, an installed git hook, a package script and a pre-commit config all
+# run without anyone remembering to run them. Every one of these is a file a
+# stranger already has, which is the whole point of re-pointing here.
+ENFORCEMENT_GLOBS = (
+    ".github/workflows", ".gitlab-ci.yml", ".git/hooks", ".pre-commit-config.yaml",
+    "package.json", "Makefile", "justfile", "noxfile.py", "tox.ini",
+    ".circleci", "pyproject.toml", ".husky",
+)
+
+
+def enforcement_surfaces(repo: str) -> dict:
+    """path -> text for the things in this repo that can refuse a change.
+
+    `.git/hooks` is filtered to installed hooks: git ships a directory of
+    `.sample` files in every clone, and counting those would grade every repo on
+    earth as having eleven gates it does not have."""
+    out = {}
+    for rel in ENFORCEMENT_GLOBS:
+        path = os.path.join(repo, rel)
+        if os.path.isfile(path):
+            out.update(_read_text(path))
+        elif os.path.isdir(path):
+            for dirpath, _dirnames, filenames in os.walk(path):
+                for fn in filenames:
+                    if fn.endswith(".sample"):
+                        continue
+                    out.update(_read_text(os.path.join(dirpath, fn)))
+    return out
+
+
+def _read_text(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return {path: f.read()}
+    except OSError:
+        return {}
+
+
+def rule_ledger(repo: str, live_configs: list = ()) -> dict:
+    """Every rule this repo states, and whether anything would stop its violation.
+
+    SAME POPULATION AS R14, DIFFERENT QUESTION. `helicon.inert` reads these exact
+    files and asks whether anything ever MENTIONED the rule — its verdict is that
+    a rule nothing references is dead, and the ruling is to delete it. This asks
+    whether anything would STOP the rule being broken. A rule can be mentioned
+    all over the codebase and still have no gate, and then it is alive, obeyed by
+    hand, and one tired afternoon from being broken silently.
+
+    Because the population is identical, the rule extraction is IMPORTED from
+    `helicon.inert` rather than rewritten. Two extractors over one population is
+    an identity fork (R11) with this module as its author, and shipping one
+    inside the tool that detects them would be the joke writing itself.
+
+    Tiers, using the enforcement surfaces every repo has:
+      PROSE   the rule names nothing searchable, so no gate could check it. Not
+              a failure — judgement does not compile — but counted apart.
+      STATED  it names things, and nothing in the repo references them.
+      STAGED  a runnable file references them, but nothing that runs by itself.
+      WIRED   an enforcement surface references them: a workflow, an installed
+              git hook, a package script, a pre-commit config. Execution stays
+              unverified — reachable is not the same as ran."""
+    from helicon.inert import _rule_lines, _tokens
+
+    rules = _rule_lines(repo)
+    gates = enforcement_surfaces(repo)
+    for cfg in live_configs:
+        cfg = os.path.expanduser(cfg or "")
+        if cfg and os.path.isfile(cfg):
+            gates.update(_read_text(cfg))
+    staged = runnable_index([repo], max_depth=3)
+
+    # A token that is everywhere carries no information about any ONE rule. The
+    # repo is called helicon, so `helicon` appears in every workflow file, and a
+    # naive any-token match graded 13 rules WIRED on that word alone — including
+    # "~3,800 live memories of ~6,900 total", which is a statistic, not a rule
+    # anything could enforce. Same defect as basename-scatter and the backfill
+    # script: the detector found what it searched for, and what it searched for
+    # was not the thing. So a token must be DISTINCTIVE within the corpus it is
+    # searched against.
+    corpus = dict(gates)
+    corpus.update(staged)
+    repo_name = os.path.basename(repo.rstrip(os.sep)).lower()
+    common = _too_common(corpus, repo_name)
+
+    entries = []
+    for r in rules:
+        tokens = [t for t in _tokens(r["rule"])
+                  if len(t) >= 4 and t.lower() not in common]
+        if not tokens:
+            entries.append({**r, "tier": "PROSE", "tokens": [], "gates": []})
+            continue
+        hit_gates = sorted({p for p, text in gates.items()
+                            if any(t in text for t in tokens)})
+        hit_runnable = sorted({p for p, text in staged.items()
+                               if p not in gates
+                               and any(t in text for t in tokens)})
+        if hit_gates:
+            tier, where = "WIRED", hit_gates
+        elif hit_runnable:
+            tier, where = "STAGED", hit_runnable
+        else:
+            tier, where = "STATED", []
+        entries.append({**r, "tier": tier, "tokens": tokens[:4],
+                        "gates": where[:3]})
+
+    counts = collections.Counter(e["tier"] for e in entries)
+    return {"repo": repo, "population": len(rules), "entries": entries,
+            "counts": dict(counts), "surfaces": sorted(gates),
+            "runnables_scanned": len(staged)}
+
+
+def _too_common(corpus: dict, repo_name: str, ceiling: float = 0.25) -> set:
+    """Tokens too widespread in this corpus to be evidence about one rule.
+
+    Document frequency, computed over the files actually being searched rather
+    than a hand-written stoplist — a stoplist only ever lags the next project's
+    vocabulary, and the token that broke this was the repo's own name."""
+    if not corpus:
+        return {repo_name} if repo_name else set()
+    df: collections.Counter = collections.Counter()
+    for text in corpus.values():
+        for word in set(re.findall(r"[A-Za-z][\w.\-/]{3,}", text)):
+            df[word.lower()] += 1
+    limit = max(2, int(len(corpus) * ceiling))
+    common = {w for w, n in df.items() if n > limit}
+    if repo_name:
+        common.add(repo_name)
+        common |= set(repo_name.split("-"))
+    return common
+
+
+def render_rule_ledger(report: dict, read_at: str = "", top: int = 8) -> str:
+    if not report.get("population"):
+        return (f"RULE LEDGER — {report.get('repo', '?')} states no rules "
+                f"(no CLAUDE.md / AGENTS.md / .cursorrules found).\n"
+                f"  Nothing stated is not the same as nothing to check.")
+    c = report["counts"]
+    n = report["population"]
+    out = [
+        f"RULE LEDGER — {os.path.basename(report['repo'].rstrip('/'))}: "
+        f"every rule stated, and whether anything would stop it being broken",
+        "",
+        f"  {n} rules stated · graded against {len(report['surfaces'])} "
+        f"enforcement surfaces and {report['runnables_scanned']} runnable files",
+        "",
+        f"  PROSE   {c.get('PROSE', 0):>3}   names nothing a gate could check",
+        f"  STATED  {c.get('STATED', 0):>3}   names things; nothing in the repo "
+        f"references them",
+        f"  STAGED  {c.get('STAGED', 0):>3}   a runnable references them; nothing "
+        f"that runs by itself",
+        f"  WIRED   {c.get('WIRED', 0):>3}   an enforcement surface references "
+        f"them (execution unverified)",
+        "",
+    ]
+    wired = [e for e in report["entries"] if e["tier"] == "WIRED"]
+    if wired:
+        out.append("  WIRED:")
+        for e in wired[:top]:
+            out.append(f"     {e['file']}:{e['line']}  {e['rule'][:76]}")
+            for g in e["gates"]:
+                out.append(f"        -> {g}")
+        out.append("")
+    if report["surfaces"]:
+        out.append("  enforcement surfaces found:")
+        for s in report["surfaces"][:top]:
+            out.append(f"     {s}")
+    else:
+        out.append("  NO enforcement surface in this repo: no workflow, no "
+                   "installed git hook, no package script.")
+        out.append("  Every rule above is held by memory alone.")
+    out += [
+        "",
+        "  rule: PROSE -> leave it, judgement does not compile. STATED -> write "
+        "the gate or drop the rule.",
+        "        STAGED -> a script nothing runs is a document with a shebang.",
+        "",
+        f"read {read_at}  ·  helicon ledger --rules <repo>",
+    ]
+    return "\n".join(out)
+
+
 def _read_jsonl(path: str) -> list:
     if not path or not os.path.isfile(path):
         return []

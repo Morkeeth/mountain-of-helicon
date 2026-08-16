@@ -15,9 +15,9 @@ import os
 
 import pytest
 
-from helicon.overboard import (artifact_scatter, lane_churn, overboard_report,
-                               render_overboard, scattered_homes,
-                               self_catch_blindness)
+from helicon.overboard import (artifact_scatter, git_churn, lane_churn,
+                               overboard_report, render_overboard,
+                               scattered_homes, self_catch_blindness)
 
 
 def _jsonl(path, rows):
@@ -259,3 +259,81 @@ def test_a_malformed_row_is_skipped_never_guessed_at(tmp_path):
         f.write('{"author": "coordinator", "caught_by": "T3"}\n')
         f.write("not json at all\n")
     assert self_catch_blindness(str(p))["population"] == 1
+
+
+# --- D5: git churn, the version a stranger can run -------------------------
+
+def _repo(tmp_path, name):
+    """A real git repo. These tests shell out to git on purpose: the detector's
+    whole claim is that it reads a source every stranger already has, and a
+    mocked git would test the mock."""
+    import subprocess
+    root = tmp_path / name
+    root.mkdir(parents=True)
+    def run(*a):
+        subprocess.run(["git", "-C", str(root)] + list(a), check=True,
+                       capture_output=True)
+    run("init", "-q", "-b", "main")
+    run("config", "user.email", "t@t.t")
+    run("config", "user.name", "t")
+    _write(str(root / "f.txt"), "one\n")
+    run("add", "f.txt")
+    run("commit", "-qm", "first")
+    return root, run
+
+
+def test_a_branch_already_merged_and_still_there_is_the_finding(tmp_path):
+    """Leaving it was free every single time. In aggregate the repo has a set of
+    addresses that all look live and mostly are not."""
+    root, run = _repo(tmp_path, "r")
+    run("checkout", "-q", "-b", "done")
+    _write(str(root / "g.txt"), "two\n")
+    run("add", "g.txt")
+    run("commit", "-qm", "second")
+    run("checkout", "-q", "main")
+    run("merge", "-q", "--ff-only", "done")
+    r = git_churn([str(root)])
+    repo = r["repos"][0]
+    assert repo["default_branch"] == "main"
+    assert [m["branch"] for m in repo["merged_not_deleted"]] == ["done"]
+    assert repo["abandoned"] == []
+
+
+def test_the_default_branch_is_read_not_assumed(tmp_path):
+    """A repo whose default is `master` would otherwise report every branch as
+    unmerged."""
+    import subprocess
+    root, run = _repo(tmp_path, "r")
+    run("branch", "-m", "main", "master")
+    assert git_churn([str(root)])["repos"][0]["default_branch"] == "master"
+
+
+def test_the_default_branch_is_never_its_own_finding(tmp_path):
+    root, run = _repo(tmp_path, "r")
+    r = git_churn([str(root)])["repos"][0]
+    assert r["merged_not_deleted"] == [] and r["abandoned"] == []
+
+
+def test_a_repo_touched_on_one_day_is_flagged_and_a_sustained_one_is_not(tmp_path):
+    root, _ = _repo(tmp_path, "solo")
+    r = git_churn([str(root)], days=7)
+    assert r["one_day_repos"] == ["solo"]
+    assert r["touched"]["solo"]
+
+
+def test_a_directory_that_is_not_a_repo_is_skipped_not_guessed_at(tmp_path):
+    (tmp_path / "plain").mkdir()
+    assert git_churn([str(tmp_path / "plain")])["repos_scanned"] == 0
+
+
+def test_the_git_section_names_local_branches_as_its_population(tmp_path):
+    """A hand-run of this probe reported 15 branches for a repo that has 8 — it
+    had counted remote refs. A branch count without its population is not a
+    measurement."""
+    root, run = _repo(tmp_path, "r")
+    run("checkout", "-q", "-b", "done")
+    run("checkout", "-q", "main")
+    run("merge", "-q", "--ff-only", "done")
+    card = render_overboard({"read_at": "t", "git": git_churn([str(root)])})
+    assert "LOCAL branches" in card
+    assert "1 of 2 local branches" in card
