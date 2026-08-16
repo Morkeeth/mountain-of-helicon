@@ -69,6 +69,29 @@ def _words(text: str) -> set:
     return {w for w in _WORD.findall((text or "").lower()) if w not in _STOP}
 
 
+def _mentions(text: str, terms: tuple) -> bool:
+    """Does this text actually NAME one of these terms?
+
+    Word-boundary matching, not substring. A plain `term in text` scored "tune a
+    guitar by ear" as a DESIGN skill, because "ui" sits inside "g-ui-tar" — and
+    "build", "quick" and "require" carry it too. Short capability terms make
+    substring matching a false-positive generator, and a false positive here is
+    worse than a miss: it puts an unrelated skill in a shortlist whose entire
+    value is that you can trust its five entries.
+
+    Multi-word terms ("stack trace") are still matched as a phrase, since a
+    phrase cannot collide the way a two-letter token can."""
+    words = _words(text)
+    low = (text or "").lower()
+    for t in terms:
+        if " " in t:
+            if t in low:
+                return True
+        elif any(w == t or w.startswith(t) and len(t) >= 5 for w in words):
+            return True
+    return False
+
+
 # --- inventory -------------------------------------------------------------
 
 def inventory(claude_dir: str = "~/.claude") -> dict:
@@ -174,8 +197,9 @@ def gaps(inv: dict) -> dict:
     for s in SURFACES:
         for item in inv.get(s) or []:
             owned |= _words(item.get("name", "")) | _words(item.get("description", ""))
+    owned_blob = " ".join(sorted(owned))
     uncovered = sorted(cap for cap, terms in CAPABILITIES.items()
-                       if not any(any(t in w for w in owned) for t in terms))
+                       if not _mentions(owned_blob, terms))
     return {"empty_surfaces": empty, "uncovered": uncovered,
             "not_enumerable": unseen, "owned_terms": len(owned),
             "counts": {s: len(inv.get(s) or []) for s in SURFACES}}
@@ -234,7 +258,7 @@ def rank(candidates: list, inv: dict, g: dict, top: int = 10) -> list:
         low = text.lower()
 
         fills = [cap for cap in g["uncovered"]
-                 if any(t in low for t in CAPABILITIES[cap])]
+                 if _mentions(text, CAPABILITIES[cap])]
         score = 3 * len(fills)
 
         surface = (c.get("surface") or "").lower()
@@ -258,8 +282,23 @@ def rank(candidates: list, inv: dict, g: dict, top: int = 10) -> list:
                     "duplicates": dupes[:2],
                     "description": (c.get("description") or "")[:160],
                     "source": c.get("source", "")})
-    out.sort(key=lambda r: (-r["score"], r["name"]))
-    return out[:top]
+    # An item with no positive signal is UNRANKED, not last. Sorting ties by
+    # name smuggles the alphabet into a ranking that claims to be about fit:
+    # EXP-MAGNET-01 scored three synonym candidates at 0 — identical to all 990
+    # noise items — and two of them still landed at rank 5 and 6, because
+    # "code-surgeon" and "fault-localiser" sort before "noise-000". That read as
+    # 87.5% recall. The real signal-based recall was 62.5%. A tie-break is not a
+    # finding, and a ranking that cannot say "no evidence" will always invent one.
+    scored = [r for r in out if r["score"] > 0]
+    unranked = [r for r in out if r["score"] <= 0]
+    scored.sort(key=lambda r: (-r["score"], r["name"]))
+    demoted = sorted([r for r in unranked if r["score"] < 0],
+                     key=lambda r: (r["score"], r["name"]))
+    no_signal = [r for r in unranked if r["score"] == 0]
+    for r in no_signal:
+        r["no_signal"] = True
+    return {"ranked": scored[:top], "demoted": demoted[:top],
+            "no_signal": len(no_signal), "considered": len(out)}
 
 
 def magnet_report(claude_dir: str = "~/.claude", candidates_path: str = "",
@@ -270,7 +309,8 @@ def magnet_report(claude_dir: str = "~/.claude", candidates_path: str = "",
     return {"inventory": inv, "gaps": g,
             "candidates_read": len(cands),
             "candidates_path": candidates_path,
-            "ranked": rank(cands, inv, g, top) if cands else []}
+            **({"ranked": [], "demoted": [], "no_signal": 0, "considered": 0}
+               if not cands else rank(cands, inv, g, top))}
 
 
 def render_magnet(report: dict, read_at: str = "") -> str:
@@ -313,8 +353,11 @@ def render_magnet(report: dict, read_at: str = "") -> str:
         out += [f"  FEED READ 0 ROWS from {report['candidates_path']}",
                 "  an empty feed is not an empty result — nothing was ranked", ""]
     else:
-        out.append(f"  RANKED   {report['candidates_read']} candidates read, "
-                   f"top {len(report['ranked'])} shown")
+        out.append(f"  RANKED   {report['candidates_read']} read · "
+                   f"{len(report['ranked'])} showed positive signal · "
+                   f"{report['no_signal']} showed NONE and are not ranked at all")
+        if not report["ranked"]:
+            out.append("     nothing in this feed names a gap you have")
         for r in report["ranked"]:
             out.append(f"     {r['score']:>3}  {r['name']}")
             if r["fills"]:
@@ -326,6 +369,13 @@ def render_magnet(report: dict, read_at: str = "") -> str:
                            f"{d['name']} ({int(d['overlap']*100)}% of its words)")
             if r["description"]:
                 out.append(f"          {r['description']}")
+        if report["demoted"]:
+            out.append("")
+            out.append("  DEMOTED — you already have something like these:")
+            for r in report["demoted"][:5]:
+                d = r["duplicates"][0] if r["duplicates"] else {"name": "?", "overlap": 0}
+                out.append(f"     {r['score']:>3}  {r['name']}  ->  {d['name']} "
+                           f"({int(d['overlap']*100)}%)")
         out += ["", "  These are CANDIDATES. Matching is lexical and has no model "
                 "in it, which is why the",
                 "  ranking is reproducible and why it cannot judge quality. "
