@@ -1,0 +1,184 @@
+"""MAGNET — ranking a flood against the gaps in one stack.
+
+The tests that matter here are the NEGATIVE ones. A ranker that surfaces good
+skills is easy; the flood's actual cost is the popular thing you already own and
+the invented gap that sends you shopping for a hole you do not have.
+"""
+import json
+import os
+
+import pytest
+
+from helicon.magnet import (CAPABILITIES, gaps, inventory, load_candidates,
+                            magnet_report, rank, render_magnet)
+
+
+def _stack(tmp_path, skills=None, commands=None, agents=None, settings=None):
+    root = tmp_path / ".claude"
+    for name, desc in (skills or {}).items():
+        d = root / "skills" / name
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {desc}\n---\n")
+    for name, desc in (commands or {}).items():
+        d = root / "commands"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{name}.md").write_text(f'---\ndescription: "{desc}"\n---\n')
+    for name, desc in (agents or {}).items():
+        d = root / "agents"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{name}.md").write_text(f"---\ndescription: {desc}\n---\n")
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "settings.json").write_text(json.dumps(settings if settings is not None else {}))
+    return str(root)
+
+
+# --- inventory -------------------------------------------------------------
+
+def test_a_backup_file_is_not_a_live_command(tmp_path):
+    """Counting a .bak inflates coverage, and an inventory must never err in the
+    direction of claiming you have more than you do."""
+    root = _stack(tmp_path, commands={"bagel": "operator"})
+    (tmp_path / ".claude" / "commands" / "bagel.md.bak-keyswap").write_text("x")
+    inv = inventory(root)
+    assert [c["name"] for c in inv["commands"]] == ["bagel"]
+
+
+def test_the_inventory_carries_no_values(tmp_path):
+    """An inventory is something you might paste into a report."""
+    root = _stack(tmp_path, settings={"env": {"MY_API_KEY": "sk-secret-value"},
+                                      "hooks": {}})
+    blob = json.dumps(inventory(root))
+    assert "sk-secret-value" not in blob
+
+
+# --- the false-gap guard ---------------------------------------------------
+
+def test_a_surface_that_cannot_be_enumerated_is_never_called_empty(tmp_path):
+    """MCP servers arrive from project .mcp.json, `claude mcp add` and cloud
+    connectors — none of which are in settings.json. Reporting the surface as
+    empty invents a gap, and a fabricated gap is worse than a missed one: it
+    sends the ranker hunting for a hole that is already filled. This fired on the
+    real stack on the first run."""
+    root = _stack(tmp_path, settings={"hooks": {}})       # no mcpServers key
+    g = gaps(inventory(root))
+    assert "mcp" not in g["empty_surfaces"]
+    assert "mcp" in g["not_enumerable"]
+
+
+def test_an_mcp_key_that_is_present_and_empty_IS_a_gap(tmp_path):
+    """Absent is not zero — but zero is zero."""
+    root = _stack(tmp_path, settings={"mcpServers": {}, "hooks": {}})
+    g = gaps(inventory(root))
+    assert "mcp" in g["empty_surfaces"] and "mcp" not in g["not_enumerable"]
+
+
+def test_an_empty_surface_needs_no_judgement(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    assert "agents" in gaps(inventory(root))["empty_surfaces"]
+
+
+def test_a_capability_you_cover_is_not_reported_uncovered(tmp_path):
+    root = _stack(tmp_path, skills={"eval": "define the verifiable check that "
+                                            "proves a task is right, a probe "
+                                            "with real evidence"})
+    assert "verification" not in gaps(inventory(root))["uncovered"]
+
+
+# --- ranking ---------------------------------------------------------------
+
+def _rank(root, rows, top=10):
+    inv = inventory(root)
+    return rank(rows, inv, gaps(inv), top=top)
+
+
+def test_a_candidate_you_already_own_is_demoted_below_everything(tmp_path):
+    """The flood's real cost. A directory sorted by stars puts the popular
+    duplicate first; this is the one thing the stack knows that stars cannot."""
+    root = _stack(tmp_path, skills={
+        "writing": "Oscar's writing rules for anything with a reader: draft an "
+                   "email, reply, DM, LinkedIn note, cover letter, bio or post"})
+    out = _rank(root, [
+        {"name": "writing-coach", "description":
+            "Oscar's writing rules for anything with a reader. Draft an email, "
+            "reply, DM, LinkedIn note, cover letter, bio or post"},
+        {"name": "pdb-navigator", "description":
+            "Debug a failing test with pdb, breakpoints and a bisect of the trace"},
+    ])
+    assert out[0]["name"] == "pdb-navigator"
+    assert out[-1]["name"] == "writing-coach"
+    assert out[-1]["duplicates"] and out[-1]["duplicates"][0]["name"] == "writing"
+
+
+def test_marketing_copy_with_no_signal_scores_zero(tmp_path):
+    """It must not be possible to rank by enthusiasm."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    out = _rank(root, [{"name": "star-magnet-9000", "description":
+                        "An awesome productivity booster that supercharges your "
+                        "workflow effortlessly"}])
+    assert out[0]["score"] == 0 and out[0]["fills"] == []
+
+
+def test_a_candidate_filling_a_real_gap_outranks_one_that_does_not(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture and eviction"})
+    out = _rank(root, [
+        {"name": "unrelated", "description": "task capture and eviction helper"},
+        {"name": "pdb-navigator", "description":
+            "Debug a failing test, set breakpoints, bisect the stack trace"},
+    ])
+    assert out[0]["name"] == "pdb-navigator" and "debug" in out[0]["fills"]
+
+
+def test_targeting_an_empty_surface_scores_but_scores_less_than_a_gap(tmp_path):
+    """An empty surface is a weaker signal than a named missing capability, and
+    the scores have to say so rather than being tuned until the demo looks good."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    out = _rank(root, [
+        {"name": "fanout", "surface": "agents", "description":
+            "define reusable subagents that report structured findings"},
+        {"name": "pdb", "description":
+            "Debug a failing test, set breakpoints, bisect the stack trace"},
+    ])
+    scores = {r["name"]: r["score"] for r in out}
+    assert scores["pdb"] > scores["fanout"] > 0
+
+
+# --- the feed --------------------------------------------------------------
+
+def test_the_feed_is_read_never_crawled(tmp_path):
+    """Rebuilding a directory is a coverage race that several projects have
+    already won. The feed is an input."""
+    p = tmp_path / "feed.jsonl"
+    p.write_text('{"name":"a","description":"debug a trace"}\n'
+                 'not json\n'
+                 '{"name":"b","description":"refactor and rename"}\n')
+    rows = load_candidates(str(p))
+    assert [r["name"] for r in rows] == ["a", "b"], "a bad row is skipped, not guessed"
+
+
+def test_no_feed_says_so_instead_of_showing_an_empty_ranking(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    card = render_magnet(magnet_report(root, ""), read_at="t")
+    assert "NO FEED CONFIGURED" in card
+    assert "does not crawl" in card
+
+
+def test_an_empty_feed_is_different_from_no_feed(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    p = tmp_path / "empty.jsonl"
+    p.write_text("")
+    card = render_magnet(magnet_report(root, str(p)), read_at="t")
+    assert "FEED READ 0 ROWS" in card
+    assert "an empty feed is not an empty result" in card
+
+
+def test_the_card_says_these_are_candidates_not_verdicts(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    p = tmp_path / "feed.jsonl"
+    p.write_text('{"name":"pdb","description":"debug a failing trace"}\n')
+    card = render_magnet(magnet_report(root, str(p)), read_at="t")
+    assert "CANDIDATES" in card and "The ruling is yours" in card
+
+
+def test_a_missing_stack_is_reported_not_invented(tmp_path):
+    card = render_magnet(magnet_report(str(tmp_path / "nope"), ""), read_at="t")
+    assert "no stack found" in card

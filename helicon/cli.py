@@ -2773,6 +2773,23 @@ def cmd_measure(args):
         print(render_series(data, read_at=_now()))
 
 
+def cmd_magnet(args):
+    """MAGNET — rank a flood of candidate skills against the gaps in YOUR stack.
+
+    Self-configuring: the inventory reads ~/.claude, which every Claude Code user
+    already has, so this runs on a fresh machine with no helicon config at all."""
+    from helicon.magnet import magnet_report, render_magnet
+    from helicon.overboard import _now
+
+    report = magnet_report(args.claude_dir or "~/.claude",
+                           os.path.expanduser(args.candidates or ""),
+                           top=args.top)
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(render_magnet(report, read_at=_now()))
+
+
 def cmd_resolve(args):
     """Close a cross-source contradiction with the truth. Files the human
     decision, writes a correction cube (approved, full provenance) so
@@ -4024,6 +4041,12 @@ def main():
     overboard_p.add_argument("--top", type=int, default=6, help="rows shown per section")
     overboard_p.add_argument("--json", action="store_true", help="emit the report as JSON")
 
+    magnet_p = sub.add_parser("magnet", help="Rank candidate skills by which gap in YOUR stack they fill (not by stars)")
+    magnet_p.add_argument("--claude-dir", help="the stack to inventory (default ~/.claude)")
+    magnet_p.add_argument("--candidates", help="the feed's output: JSON list or JSONL of {name, description, surface, source}")
+    magnet_p.add_argument("--top", type=int, default=10, help="candidates shown")
+    magnet_p.add_argument("--json", action="store_true", help="emit the report as JSON")
+
     measure_p = sub.add_parser("measure", help="Weekly review as a SERIES: record today's reading of every detector and show the trend")
     measure_p.add_argument("--record", action="store_true", help="take a reading now and store it for this week (re-running in one week replaces that week's rows)")
     measure_p.add_argument("--code-root", help="root to measure git churn and scattered homes over")
@@ -4228,6 +4251,7 @@ def main():
         "overboard": cmd_overboard,
         "ledger": cmd_ledger,
         "measure": cmd_measure,
+        "magnet": cmd_magnet,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads
@@ -4244,7 +4268,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
 
     from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING:
