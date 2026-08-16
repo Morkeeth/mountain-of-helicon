@@ -87,6 +87,14 @@ def test_a_capability_you_cover_is_not_reported_uncovered(tmp_path):
 # --- ranking ---------------------------------------------------------------
 
 def _rank(root, rows, top=10):
+    """The scored shortlist only. rank() returns a dict now: items with no
+    positive signal are UNRANKED rather than ordered, which is the whole point of
+    the EXP-MAGNET-01 fix."""
+    inv = inventory(root)
+    return rank(rows, inv, gaps(inv), top=top)
+
+
+def _all(root, rows, top=10):
     inv = inventory(root)
     return rank(rows, inv, gaps(inv), top=top)
 
@@ -97,48 +105,50 @@ def test_a_candidate_you_already_own_is_demoted_below_everything(tmp_path):
     root = _stack(tmp_path, skills={
         "writing": "Oscar's writing rules for anything with a reader: draft an "
                    "email, reply, DM, LinkedIn note, cover letter, bio or post"})
-    out = _rank(root, [
+    res = _all(root, [
         {"name": "writing-coach", "description":
             "Oscar's writing rules for anything with a reader. Draft an email, "
             "reply, DM, LinkedIn note, cover letter, bio or post"},
         {"name": "pdb-navigator", "description":
             "Debug a failing test with pdb, breakpoints and a bisect of the trace"},
     ])
-    assert out[0]["name"] == "pdb-navigator"
-    assert out[-1]["name"] == "writing-coach"
-    assert out[-1]["duplicates"] and out[-1]["duplicates"][0]["name"] == "writing"
+    assert [r["name"] for r in res["ranked"]] == ["pdb-navigator"]
+    assert [r["name"] for r in res["demoted"]] == ["writing-coach"]
+    assert res["demoted"][0]["duplicates"][0]["name"] == "writing"
 
 
 def test_marketing_copy_with_no_signal_scores_zero(tmp_path):
     """It must not be possible to rank by enthusiasm."""
     root = _stack(tmp_path, skills={"zup": "task capture"})
-    out = _rank(root, [{"name": "star-magnet-9000", "description":
-                        "An awesome productivity booster that supercharges your "
-                        "workflow effortlessly"}])
-    assert out[0]["score"] == 0 and out[0]["fills"] == []
+    res = _all(root, [{"name": "star-magnet-9000", "description":
+                       "An awesome productivity booster that supercharges your "
+                       "workflow effortlessly"}])
+    assert res["ranked"] == [] and res["demoted"] == []
+    assert res["no_signal"] == 1
 
 
 def test_a_candidate_filling_a_real_gap_outranks_one_that_does_not(tmp_path):
     root = _stack(tmp_path, skills={"zup": "task capture and eviction"})
-    out = _rank(root, [
+    res = _all(root, [
         {"name": "unrelated", "description": "task capture and eviction helper"},
         {"name": "pdb-navigator", "description":
             "Debug a failing test, set breakpoints, bisect the stack trace"},
     ])
-    assert out[0]["name"] == "pdb-navigator" and "debug" in out[0]["fills"]
+    assert res["ranked"][0]["name"] == "pdb-navigator"
+    assert "debug" in res["ranked"][0]["fills"]
 
 
 def test_targeting_an_empty_surface_scores_but_scores_less_than_a_gap(tmp_path):
     """An empty surface is a weaker signal than a named missing capability, and
     the scores have to say so rather than being tuned until the demo looks good."""
     root = _stack(tmp_path, skills={"zup": "task capture"})
-    out = _rank(root, [
+    res = _all(root, [
         {"name": "fanout", "surface": "agents", "description":
             "define reusable subagents that report structured findings"},
         {"name": "pdb", "description":
             "Debug a failing test, set breakpoints, bisect the stack trace"},
     ])
-    scores = {r["name"]: r["score"] for r in out}
+    scores = {r["name"]: r["score"] for r in res["ranked"]}
     assert scores["pdb"] > scores["fanout"] > 0
 
 
@@ -182,3 +192,28 @@ def test_the_card_says_these_are_candidates_not_verdicts(tmp_path):
 def test_a_missing_stack_is_reported_not_invented(tmp_path):
     card = render_magnet(magnet_report(str(tmp_path / "nope"), ""), read_at="t")
     assert "no stack found" in card
+
+
+# --- the EXP-MAGNET-01 finding, locked in ----------------------------------
+
+def test_no_signal_is_unranked_never_ordered_by_name(tmp_path):
+    """EXP-MAGNET-01's real finding. Three synonym candidates scored 0 —
+    identical to 990 noise items — and two still landed at rank 5 and 6 because
+    'code-surgeon' and 'fault-localiser' sort before 'noise-000'. That read as
+    87.5% recall; the true signal-based recall was 62.5%. A tie-break is not a
+    finding, and a ranker that cannot say 'no evidence' will always invent one."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    rows = [{"name": "aaa-first-alphabetically", "description": "wine pairing"},
+            {"name": "zzz-last-alphabetically", "description": "guitar tuning"},
+            {"name": "noise-000", "description": "flashcards"}]
+    res = _all(root, rows)
+    assert res["ranked"] == [], "nothing here names a gap; nothing may be ranked"
+    assert res["no_signal"] == 3
+    assert res["considered"] == 3
+
+
+def test_a_zero_score_never_outranks_another_zero_score(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    res = _all(root, [{"name": f"cand-{i}", "description": "wine pairing"}
+                      for i in range(50)])
+    assert res["no_signal"] == 50 and not res["ranked"]
