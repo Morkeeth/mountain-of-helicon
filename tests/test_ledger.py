@@ -197,3 +197,95 @@ def test_rows_with_no_check_are_counted_separately(tmp_path):
                           {"day": "d", "check": "grep -n foo bar.ts"}])
     r = learning_ledger(log, [], [])
     assert r["population"] == 3 and r["no_check"] == 2 and r["with_check"] == 1
+
+
+# --- the rule ledger: the same question, from a source every repo has ------
+
+from helicon.ledger import enforcement_surfaces, render_rule_ledger, rule_ledger
+
+
+def _repo_with_rule(tmp_path, rule, gate=None, script=None):
+    repo = tmp_path / "repo"
+    _write(str(repo / "CLAUDE.md"), f"# Rules\n\n- {rule}\n")
+    if gate:
+        _write(str(repo / ".github" / "workflows" / "ci.yml"), gate)
+    if script:
+        _write(str(repo / "tools" / "helper.sh"), script)
+    return str(repo)
+
+
+def test_a_rule_a_workflow_checks_is_wired(tmp_path):
+    repo = _repo_with_rule(tmp_path,
+                           "Never call `legacyPayoutHandler` from new code.",
+                           gate="run: grep -r legacyPayoutHandler && exit 1\n")
+    r = rule_ledger(repo)
+    assert r["counts"]["WIRED"] == 1
+
+
+def test_a_rule_only_a_loose_script_mentions_is_staged_not_wired(tmp_path):
+    """A script sitting in a repo does not stop anything. That distinction is the
+    whole module."""
+    repo = _repo_with_rule(tmp_path,
+                           "Never call `legacyPayoutHandler` from new code.",
+                           script="grep legacyPayoutHandler .\n")
+    r = rule_ledger(repo)
+    assert r["counts"]["STAGED"] == 1 and r["counts"].get("WIRED", 0) == 0
+
+
+def test_a_rule_nothing_references_is_stated(tmp_path):
+    repo = _repo_with_rule(tmp_path, "Never call `legacyPayoutHandler` from new code.")
+    assert rule_ledger(repo)["counts"]["STATED"] == 1
+
+
+def test_a_rule_naming_nothing_searchable_is_prose_not_a_failure(tmp_path):
+    """Judgement does not compile. Counting it as an ungated rule would grade
+    every thoughtful instruction file as broken."""
+    repo = _repo_with_rule(tmp_path, "Be careful when you are tired.")
+    assert rule_ledger(repo)["counts"]["PROSE"] == 1
+
+
+def test_a_token_that_is_everywhere_is_not_evidence_about_one_rule(tmp_path):
+    """The repo is called helicon, so `helicon` is in every workflow. A naive
+    any-token match graded 13 rules WIRED on that word alone, including a line
+    that was a statistic rather than a rule."""
+    repo = tmp_path / "helicon"
+    _write(str(repo / "CLAUDE.md"),
+           "# Rules\n\n- The `helicon` store holds ~3,800 live memories.\n")
+    for i in range(6):
+        _write(str(repo / ".github" / "workflows" / f"w{i}.yml"),
+               "run: helicon audit\n")
+    r = rule_ledger(str(repo))
+    assert r["counts"].get("WIRED", 0) == 0, "matched on the repo's own name"
+
+
+def test_git_sample_hooks_are_not_gates(tmp_path):
+    """Git ships eleven .sample hooks in every clone. Counting them would grade
+    every repo on earth as having gates it does not have."""
+    repo = tmp_path / "repo"
+    _write(str(repo / ".git" / "hooks" / "pre-commit.sample"), "echo sample\n")
+    assert enforcement_surfaces(str(repo)) == {}
+    _write(str(repo / ".git" / "hooks" / "pre-commit"), "echo real\n")
+    assert len(enforcement_surfaces(str(repo))) == 1
+
+
+def test_a_repo_with_no_enforcement_surface_says_so_plainly(tmp_path):
+    repo = _repo_with_rule(tmp_path, "Never call `legacyPayoutHandler` from new code.")
+    card = render_rule_ledger(rule_ledger(repo), read_at="t")
+    assert "NO enforcement surface in this repo" in card
+    assert "held by memory alone" in card
+
+
+def test_the_rule_extractor_is_r14s_not_a_second_one():
+    """Two extractors over one population is an identity fork with this module as
+    its author. The import is the guarantee."""
+    import inspect
+    from helicon import ledger
+    src = inspect.getsource(ledger.rule_ledger)
+    assert "from helicon.inert import _rule_lines, _tokens" in src
+
+
+def test_a_repo_that_states_no_rules_is_not_graded_clean(tmp_path):
+    repo = tmp_path / "empty"
+    repo.mkdir()
+    card = render_rule_ledger(rule_ledger(str(repo)))
+    assert "states no rules" in card

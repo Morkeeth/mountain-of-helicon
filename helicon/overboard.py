@@ -392,6 +392,106 @@ def _split_name(name: str) -> list:
     return out
 
 
+# --- D5: git churn — the same class, from a source every stranger has -------
+
+def _git(repo: str, args: list) -> str:
+    import subprocess
+    try:
+        r = subprocess.run(["git", "-C", repo] + args, capture_output=True,
+                           text=True, timeout=20)
+        return r.stdout if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def _default_branch(repo: str) -> str:
+    """The branch to measure against. Reads the remote's HEAD rather than
+    assuming `main`: a repo whose default is `master` or `develop` would
+    otherwise report every branch as unmerged."""
+    head = _git(repo, ["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"]).strip()
+    if head:
+        return head.rsplit("/", 1)[-1]
+    for guess in ("main", "master", "develop", "trunk"):
+        if _git(repo, ["rev-parse", "--verify", "--quiet", guess]).strip():
+            return guess
+    return ""
+
+
+def git_churn(repos: list, days: int = 7, stale_days: int = 14) -> dict:
+    """The overboard class, read from git — which every stranger already has.
+
+    D1 and D2 read files that exist in one person's ops repo. These read the same
+    class of defect out of history that every git user carries:
+
+    - MERGED, NOT DELETED: a branch whose work is already in the default branch
+      and which is still sitting there. Leaving it was free every single time.
+      In aggregate the repo has a set of addresses that all look live and mostly
+      are not, so "which branch is this work on" stops having an answer.
+    - ABANDONED: unmerged and untouched for stale_days. Each was a real
+      exploration someone meant to come back to.
+    - SPREAD: how many repos were touched in the window, and how many of those
+      were touched on exactly ONE day. A one-day repo is the git-visible form of
+      a seat moving object: work started, and nothing came back to it.
+
+    Every count names the population it was taken over, because the first probe
+    that produced these numbers by hand reported 15 branches when the repo has 8
+    — it had counted remote refs. A branch count without "local, including the
+    default branch" attached is not a measurement."""
+    out = []
+    spread: dict = collections.defaultdict(set)
+    for repo in repos:
+        repo = os.path.expanduser(repo or "")
+        if not os.path.isdir(os.path.join(repo, ".git")):
+            continue
+        name = os.path.basename(repo.rstrip(os.sep))
+        base = _default_branch(repo)
+        locals_ = [b for b in _git(repo, ["branch", "--format=%(refname:short)"]
+                                   ).split() if b]
+        merged, abandoned = [], []
+        if base:
+            unmerged = {b for b in _git(
+                repo, ["branch", "--no-merged", base,
+                       "--format=%(refname:short)"]).split() if b}
+            for line in _git(repo, ["for-each-ref", "refs/heads",
+                                    "--format=%(committerdate:short) %(refname:short)"
+                                    ]).splitlines():
+                parts = line.split(None, 1)
+                if len(parts) != 2:
+                    continue
+                when, branch = parts[0], parts[1].strip()
+                if branch == base:
+                    continue
+                if branch in unmerged:
+                    if _age_days(when) >= stale_days:
+                        abandoned.append({"branch": branch, "last": when})
+                else:
+                    merged.append({"branch": branch, "last": when})
+        for line in _git(repo, ["log", f"--since={days}.days",
+                                "--format=%ad", "--date=short"]).splitlines():
+            if line.strip():
+                spread[name].add(line.strip())
+        out.append({"repo": name, "default_branch": base,
+                    "local_branches": len(locals_),
+                    "merged_not_deleted": sorted(merged, key=lambda m: m["last"]),
+                    "abandoned": sorted(abandoned, key=lambda a: a["last"])})
+
+    touched = {r: sorted(d) for r, d in spread.items() if d}
+    one_day = sorted(r for r, d in touched.items() if len(d) == 1)
+    return {"repos_scanned": len(out), "window_days": days,
+            "stale_days": stale_days, "repos": out,
+            "touched": touched, "one_day_repos": one_day,
+            "days_active": sorted({d for ds in touched.values() for d in ds})}
+
+
+def _age_days(yyyy_mm_dd: str) -> int:
+    from datetime import date
+    try:
+        y, m, d = (int(x) for x in yyyy_mm_dd.split("-"))
+    except ValueError:
+        return 0
+    return (datetime.now(timezone.utc).date() - date(y, m, d)).days
+
+
 # --- the report ------------------------------------------------------------
 
 def _read_jsonl(path: str) -> list:
@@ -410,14 +510,34 @@ def _read_jsonl(path: str) -> list:
     return out
 
 
+def repos_under(code_root: str, limit: int = 200) -> list:
+    """Every git repo directly under the code root. The stranger's default
+    population: no configuration, no file format, just the directories they
+    already have."""
+    if not code_root or not os.path.isdir(code_root):
+        return []
+    out = []
+    for d in sorted(os.listdir(code_root)):
+        path = os.path.join(code_root, d)
+        if os.path.isdir(os.path.join(path, ".git")):
+            out.append(path)
+    return out[:limit]
+
+
 def overboard_report(catches_path: str = "", runs_dir: str = "",
-                     code_root: str = "", min_locations: int = 3) -> dict:
+                     code_root: str = "", min_locations: int = 3,
+                     repos: list = None, days: int = 7) -> dict:
+    # The git half needs no configuration at all: given a code root, the repos
+    # under it ARE the population. That is the difference between a detector a
+    # stranger can run on day one and one that reads a file only its author has.
+    git_repos = list(repos) if repos else repos_under(code_root)
     return {
         "read_at": _now(),
         "blindness": self_catch_blindness(catches_path) if catches_path else None,
         "churn": lane_churn(runs_dir) if runs_dir else None,
         "scatter": artifact_scatter(code_root, min_locations) if code_root else None,
         "homes": scattered_homes(code_root) if code_root else None,
+        "git": git_churn(git_repos, days=days) if git_repos else None,
     }
 
 
@@ -521,6 +641,39 @@ def render_overboard(report: dict, top: int = 6) -> str:
             out.append("     every object has exactly one home")
         out += ["   rule: name the canonical home, then retire or rename the "
                 "others", ""]
+
+    g = report.get("git")
+    if g is None:
+        out += ["5. GIT CHURN — no git repos found", ""]
+    else:
+        stale, dead = [], []
+        for r in g["repos"]:
+            for a in r["abandoned"]:
+                stale.append((r["repo"], a["branch"], a["last"]))
+            if r["merged_not_deleted"]:
+                dead.append((r["repo"], len(r["merged_not_deleted"]),
+                             r["local_branches"], r["default_branch"]))
+        out.append(f"5. GIT CHURN   {g['repos_scanned']} repos, "
+                   f"{len(g['touched'])} touched in the last {g['window_days']} days "
+                   f"over {len(g['days_active'])} active day(s)")
+        if dead:
+            out.append("   merged into the default branch and never deleted "
+                       "(counts are LOCAL branches, default branch included):")
+        for repo, n, total, base in sorted(dead, key=lambda d: -d[1])[:top]:
+            out.append(f"     {repo:<28} {n} of {total} local branches, "
+                       f"vs {base}")
+        if stale:
+            out.append(f"   unmerged and untouched for {g['stale_days']}+ days:")
+        for repo, branch, last in sorted(stale, key=lambda s: s[2])[:top]:
+            out.append(f"     {repo:<28} {branch:<34} last {last}")
+        if g["one_day_repos"]:
+            out.append(f"   touched on exactly ONE day in the window "
+                       f"({len(g['one_day_repos'])} of {len(g['touched'])}): "
+                       f"{', '.join(g['one_day_repos'][:10])}")
+        if not dead and not stale and not g["one_day_repos"]:
+            out.append("     no dead branches, no abandoned work, no one-day repos")
+        out += ["   rule: delete the merged branches; merge or delete the "
+                "abandoned ones; for a one-day repo, finish it or archive it", ""]
 
     out.append(f"read {read_at}  ·  helicon overboard")
     return "\n".join(out)

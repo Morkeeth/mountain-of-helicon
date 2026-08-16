@@ -2705,6 +2705,15 @@ def cmd_ledger(args):
     roots = [os.path.expanduser(r) for r in (args.repo or ob.get("repo_roots", []) or [])]
     lives = [os.path.expanduser(c) for c in (args.live or ob.get("live_configs", []) or [])]
 
+    if args.rules:
+        from helicon.ledger import render_rule_ledger, rule_ledger
+        rep = rule_ledger(os.path.expanduser(args.rules), lives)
+        if args.json:
+            print(json.dumps(rep, indent=2))
+        else:
+            print(render_rule_ledger(rep, read_at=_now(), top=args.top))
+        return
+
     if not catches:
         print("ledger has nothing to read.\n\n"
               "  Add \"catches_path\" to the \"overboard\" block in "
@@ -3979,6 +3988,7 @@ def main():
     ledger_p.add_argument("--catches", help="path to the catch log jsonl (default: config overboard.catches_path)")
     ledger_p.add_argument("--repo", action="append", help="repo root to search for runnable artifacts (repeatable)")
     ledger_p.add_argument("--live", action="append", help="a live config that would actually run them, e.g. ~/.claude/settings.json (repeatable)")
+    ledger_p.add_argument("--rules", metavar="REPO", help="grade the rules a REPO states (CLAUDE.md/AGENTS.md/.cursorrules) against the enforcement surfaces it has -- needs no catch log, works on any repo")
     ledger_p.add_argument("--top", type=int, default=8, help="rows shown per tier")
     ledger_p.add_argument("--json", action="store_true", help="emit the report as JSON")
 

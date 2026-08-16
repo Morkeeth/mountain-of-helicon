@@ -94,7 +94,7 @@ hook:**
 **A detector built to replace the pile will rebuild the pile inside itself, and it will look like
 it is working while it does.**
 
-This has now happened three times, once per detector, and it was caught each time only by running
+This has now happened four times, once per detector, and it was caught each time only by running
 the thing against real data and reading the output:
 
 - **The scatter detector** grouped documents by basename and reported `SUBMISSION.md` across seven
@@ -108,6 +108,11 @@ the thing against real data and reading the output:
   every hit was one file: the script that *backfilled the catch log*. It contained the checks
   because it had written them down. The log vouching for itself — R9, self-generated evidence,
   reproduced inside the detector built to catch unenacted rules.
+- **The rule ledger** graded thirteen rules WIRED on the token `helicon` — the repo's own name,
+  which appears in every workflow file. Among them: "~3,800 live memories of ~6,900 total", a
+  statistic that no gate could enforce, presented as a governed rule. Fixed with a document-frequency
+  filter computed over the corpus being searched, because the hand-written stoplist that would have
+  been the obvious fix could never have contained the project's own name in advance.
 
 The pattern is the same each time: **the detector found the thing it was searching for, and the
 thing it was searching for was not the defect.** A shared basename is not a shared document. A
@@ -140,6 +145,26 @@ Aggregate-only defects: the ones that are invisible on the day and obvious acros
 reassignment, rename and duplicate was locally defensible when it happened. The defect exists only
 in aggregate, which is exactly what a weekly window sees and a daily surface cannot.
 
+**Five detectors, and the split between them is who can run them.**
+
+| Detector | Source | A stranger has it |
+|---|---|---|
+| Git churn | `git log`, `git branch` across a repo set | **yes, day one, no config** |
+| Drifted duplicates | files under the code root | **yes** |
+| Scattered homes | directory names under the code root | **yes** |
+| Lane churn | `*-lanes.jsonl` | no — one operator's format |
+| Self-catch blindness | `catches.jsonl` | no — see below |
+
+Git churn asks the same question as lane churn from a source everyone carries: branches merged into
+the default branch and never deleted, unmerged work untouched for two weeks, and repos touched on
+exactly one day in the window. Each was defensible when it happened; in aggregate the repo has a set
+of addresses that all look live and mostly are not.
+
+**Self-catch blindness stays operator-only, and that is a finding about the data, not a gap in the
+build.** It needs a log of errors *with authors*. Git records work, not caught mistakes, so there is
+no stranger-side equivalent to re-point it at. Forcing one would mean inventing an error log from
+commit messages, which is a number with an author wearing a measurement's clothes.
+
 See `helicon.overboard` and `helicon overboard`.
 
 *The week's line: "you moved every terminal three times and nobody noticed until you did."*
@@ -153,12 +178,31 @@ Measured on the real log: 37 learnings, 30 carrying a check, **0 WIRED**. The we
 learning had a real script *and* a prepared settings diff, and the live config referenced neither.
 A diff is a proposal; a proposal is not an installation.
 
-**Not R14.** `helicon.inert` (R14) grades rules stated in *instruction files*, reading enactment as
-the rule's tokens appearing in repo code. B grades lessons recorded in the *catch log*, reading
-enactment as the prescribed check being reachable from something that runs. Same question, one
-level up.
+**`helicon ledger --rules <repo>` needs no catch log and no configuration.** It reads the rules a
+repo already states (CLAUDE.md / AGENTS.md / .cursorrules) and grades them against the enforcement
+surfaces the repo already has: GitHub workflows, installed git hooks, package scripts, pre-commit
+configs, Makefiles. Every one of those is a file a stranger has on day one.
 
-See `helicon.ledger` and `helicon ledger`.
+**On R14 — the boundary as first written was wrong, and re-pointing is what made it wrong.** The
+original note here said "different populations, no collision." Once `--rules` reads CLAUDE.md and
+AGENTS.md, the population is *identical* to R14's. The honest statement is:
+
+> **Same population, different question.** `helicon.inert` (R14) asks whether anything ever
+> *mentioned* this rule — a rule nothing references is dead, and the ruling is to delete it. The
+> ledger asks whether anything would *stop the rule being broken*. A rule can be mentioned all over
+> a codebase and still have no gate, and then it is alive, obeyed by hand, and one tired afternoon
+> from being broken silently.
+
+Because the population is identical, the rule extraction is **imported** from `helicon.inert`, not
+rewritten. Two extractors over one population drifting apart is an R11 identity fork with this
+module as its author, and shipping one inside the tool that detects them would be the joke writing
+itself. A test asserts the import.
+
+Known limit, inherited deliberately: `_rule_lines` treats every stated line in an instruction file
+as a rule, so a statistic (`Composite: ~67`) is graded alongside a real rule. Fixing that here would
+fork from R14. It belongs in R14 or in neither.
+
+See `helicon.ledger`, `helicon ledger` (catch log) and `helicon ledger --rules` (any repo).
 
 *The week's line: "you wrote three process documents. Zero of them ran."*
 
