@@ -240,3 +240,68 @@ def test_the_judge_is_greedy_by_default():
 def test_cache_key_separates_greedy_from_sampled():
     from helicon.qwen import _cache_key
     assert _cache_key("s", "u", "m", 0.0) != _cache_key("s", "u", "m", None)
+
+
+# --- the card: what a human actually rules on -----------------------------
+
+def _three_genus_fork(conn):
+    """Three sources, three genera — the shape the pair renderer could not show."""
+    _cube(conn, "ZUP is the phone-side inbox for decisions.", "a.md")
+    _cube(conn, "ZUP is the\nexit.", "b.md")
+    _cube(conn, "ZUP is a desktop app owned by Oscar.", "c.md")
+    identity_scan(conn, semantic=False)
+    row = conn.execute(
+        "SELECT id, details FROM audit_log WHERE audit_type = 'identity'").fetchone()
+    import json
+    return row["id"], json.loads(row["details"])
+
+
+def test_card_shows_every_genus_not_just_two(conn):
+    """The pair renderer showed A and B; a three-genus fork ruled from it is ruled
+    on two thirds of the evidence."""
+    from helicon.identity import format_identity_evidence
+    _, details = _three_genus_fork(conn)
+    assert len(details["genera"]) == 3
+    card = format_identity_evidence(conn, details)
+    for genus in details["genera"]:
+        assert genus in card, f"{genus} missing from the card"
+
+
+def test_card_pairs_each_genus_with_the_source_that_asserts_it(conn):
+    """value_b and scopes[-1] are ordered independently, so the pair renderer
+    printed one genus against another genus's file. Every quote must sit under
+    the scope it came from."""
+    from helicon.identity import format_identity_evidence
+    _, details = _three_genus_fork(conn)
+    card = format_identity_evidence(conn, details)
+    lines = [l.strip() for l in card.splitlines()]
+    owned_quote = next(i for i, l in enumerate(lines) if "desktop app owned" in l)
+    assert lines[owned_quote + 1].endswith("c.md")
+
+
+def test_card_collapses_a_gloss_that_carries_a_newline(conn):
+    """A stored gloss can hold a raw newline; split across two lines it reads as
+    a truncated definition. Display collapses it, the stored evidence does not."""
+    from helicon.identity import format_identity_evidence
+    _, details = _three_genus_fork(conn)
+    card = format_identity_evidence(conn, details)
+    assert "ZUP is the exit" in card
+    assert "ZUP is the\nexit" not in card
+
+
+def test_card_names_the_command_and_the_moment(conn):
+    """A finding without the command that produced it and when it was read is a
+    claim, not a number."""
+    from helicon.identity import format_identity_evidence
+    fid, details = _three_genus_fork(conn)
+    card = format_identity_evidence(conn, details, read_at="2026-08-16T14:38",
+                                    command=f"helicon resolve {fid}")
+    assert "2026-08-16T14:38" in card and f"helicon resolve {fid}" in card
+
+
+def test_card_never_reports_a_source_count_it_does_not_have(conn):
+    """The pair renderer printed '(? memories)' — a placeholder where the number
+    goes is worse than no number."""
+    from helicon.identity import format_identity_evidence
+    _, details = _three_genus_fork(conn)
+    assert "?" not in format_identity_evidence(conn, details)

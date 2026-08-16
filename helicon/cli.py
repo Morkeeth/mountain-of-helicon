@@ -45,6 +45,7 @@ import os
 import platform
 import shutil
 import subprocess
+import textwrap
 
 
 def _detect_sources() -> dict:
@@ -2707,8 +2708,27 @@ def cmd_resolve(args):
         if forks:
             print("Identity forks (R11) — same name, incompatible definitions:\n")
             for r in forks:
-                print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
-            print("  rule:  helicon resolve <id> --truth \"<the canonical definition>\"\n")
+                if getattr(args, "cards", False):
+                    # One page, read once a week: the evidence inline, so ruling
+                    # six forks is one command instead of six.
+                    import json as _json
+                    from datetime import datetime as _dt
+                    from helicon.identity import format_identity_evidence
+                    try:
+                        d = _json.loads(r["details"])
+                    except (ValueError, TypeError):
+                        d = {}
+                    print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
+                    print(textwrap.indent(format_identity_evidence(
+                        conn, d, read_at=_dt.now().isoformat(timespec="minutes"),
+                        command="helicon resolve --list --cards"), "     "))
+                    print()
+                else:
+                    print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
+            print("  rule:  helicon resolve <id> --truth \"<the canonical definition>\"")
+            if not getattr(args, "cards", False):
+                print("  read the evidence for all of them:  helicon resolve --list --cards")
+            print()
         if phantoms:
             print("Phantom associations (R12) — a relation no source grounds:\n")
             for r in phantoms:
@@ -2749,8 +2769,17 @@ def cmd_resolve(args):
         print(f"#{row['id']}  [{row['severity']}]  filed {row['audited_at'][:16]}"
               + (f"  decided: {row['human_decision']}" if row["human_decision"] else ""))
         print(f"{row['finding']}\n")
-        print(format_pair_evidence(d) if d.get("pair_key")
-              else (row["finding"]))
+        if row["audit_type"] == "identity":
+            # An identity fork is N-way; the pair renderer shows two sides and
+            # pairs value_b with scopes[-1], which are ordered independently.
+            from datetime import datetime as _dt
+            from helicon.identity import format_identity_evidence
+            print(format_identity_evidence(
+                conn, d, read_at=_dt.now().isoformat(timespec="minutes"),
+                command=f"helicon resolve {row['id']}"))
+        else:
+            print(format_pair_evidence(d) if d.get("pair_key")
+                  else (row["finding"]))
         if d.get("cube_count"):
             print(f"\n   {d['cube_count']} memories involved across "
                   f"{len(d.get('scopes', []))} source file(s)")
@@ -3872,6 +3901,7 @@ def main():
     resolve_p.add_argument("--note", help="optional context recorded on the correction memory")
     resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
+    resolve_p.add_argument("--cards", action="store_true", help="with --list: print each identity fork's full evidence inline (the one-page weekly read)")
     resolve_p.add_argument("--retire", metavar="MEMORY_ID", help="with an output-review ruling: retire the memory that caused the bad output (from `helicon attribute`)")
 
     fleet_p = sub.add_parser("fleet", help="One screen for the whole fleet: running · spend · needs-you · efficiency")
