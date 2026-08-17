@@ -258,7 +258,90 @@ export type JudgeRun =
       rows: Record<string, JudgeRow>;
     };
 
+// The weekly knowledge-palace read (/api/thisweek). Every section carries its
+// own `source`; anything unprobeable is `wired: false` with a reason, never a
+// faked zero. The rot exam is NOT in here — the client composes it from
+// /api/rot (already cached) so this page is not a 20s load.
+export interface ThisWeek {
+  week: string;
+  ran_at: string;
+  took_s: number;
+  cached: boolean;
+  verdict: string;
+  setup_health: {
+    identity_forks: { count: number; names: string[]; source: string };
+    contradictions: { count: number; source: string };
+    log_fragments: { count: number; note: string; source: string };
+  };
+  overboard: {
+    wired: boolean;
+    reason?: string;
+    code_root?: string;
+    repos_scanned?: number;
+    repos_touched?: number;
+    one_day_repos?: string[];
+    merged_not_deleted?: number;
+    abandoned_branches?: number;
+    window_days?: number;
+    source?: string;
+    not_wired?: string[];
+  };
+  learning_ledger: {
+    wired: boolean;
+    window?: string;
+    distilled_this_week?: number;
+    files?: string[];
+    total_lessons?: number;
+    source?: string;
+    not_wired?: string[];
+  };
+  transcript_review: {
+    wired: boolean;
+    window?: string;
+    files_scanned?: number;
+    sessions?: number;
+    human_prompts?: number;
+    assistant_turns?: number;
+    tool_calls?: number;
+    tool_success_pct?: number | null;
+    tool_errors?: number;
+    top_tools?: { name: string; count: number }[];
+    errors_by_tool?: { name: string; count: number }[];
+    repos_touched?: { name: string; turns: number }[];
+    did?: string[];
+    worked?: string[];
+    improve?: string[];
+    source?: string;
+  };
+  recommendations: { text: string; basis: string }[];
+}
+
+// One metric of the recorded weekly series (/api/measure). Unmeasured stays
+// null and says why; delta is null on a first reading, never 0.
+export interface MeasureMetric {
+  metric: string;
+  label?: string;
+  direction?: string | null;
+  unit: string;
+  command: string;
+  latest: number | null;
+  delta: number | null;      // null on a first reading — never rendered as 0
+  readings: number;
+  read_at: string;
+  unmeasured: string;
+  points: { week: string; value: number | null; population: number | null; unmeasured: string; read_at: string }[];
+}
+
+export interface MeasureSeries {
+  metrics: MeasureMetric[];
+  weeks: string[];
+  recorded: boolean;
+}
+
 export const api = {
+  getThisWeek: () => get<ThisWeek>('/thisweek'),
+  getMeasure: (weeks = 12) => get<MeasureSeries>(`/measure?weeks=${weeks}`),
+  takeReading: () => post<{ week: string; recorded_at: string; metrics: number; configured: Record<string, boolean> }>('/measure'),
   getWorkCards: () => get<{ cards: WorkCard[]; measurement: WorkgraphMeasurement }>('/workgraph/cards'),
   getWorkCardTrace: (id: string) => get<Record<string, unknown>>(`/workgraph/cards/${encodeURIComponent(id)}`),
   getWorkgraphAttention: () => get<{ attention: WorkgraphAttention[] }>('/workgraph/attention'),

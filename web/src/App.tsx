@@ -16,6 +16,7 @@ import FindingsView from './components/FindingsView';
    bundle for a tab nobody opens on a phone, and Graph3D's three.js (1MB) was
    already split this way for the same reason. The rule is simple — if it is not
    the queue, it is lazy. */
+const ThisWeek = lazy(() => import('./components/ThisWeek'));
 const Board = lazy(() => import('./components/Board'));
 const Cockpit = lazy(() => import('./components/Cockpit'));
 const CausalLens = lazy(() => import('./components/CausalLens'));
@@ -45,7 +46,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
 
 // SUBTRACTION (Jul 22): 19 tabs -> 5, and the More sheet is gone. The nav is
 // now exactly the loop from the vision: agent output arrives (Cockpit), the
@@ -69,7 +70,11 @@ type Tab = 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' 
 // the one screen an agent-operator opens first — every repo and what it loads.
 // Everything else (the whole loop + the detail views) survives behind one Lab
 // entry: routed, never deleted. Nav shrinks, code survives.
+// This Week is the door Helicon opens to (the SHIP): the one-read weekly
+// knowledge-palace. The Doorway (every repo + what it loads) stays one seat
+// over; the Lab holds the rest.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
+  { key: 'week', label: 'This Week' },
   { key: 'board', label: 'The Doorway' },
   { key: 'lab', label: 'Lab' },
 ];
@@ -106,7 +111,7 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 // Navigation is intentionally five items, but old receipts and bookmarks remain
 // valid. Hidden routes are explicit compatibility entry points, not a second menu.
 const ROUTABLE_TABS: Tab[] = [
-  'board', 'lab',
+  'week', 'board', 'lab',
   'cockpit', 'start', 'brief', 'reading', 'tour', 'focus', 'health', 'findings',
   'exam', 'judge', 'gold', 'log', 'graph', 'projects', 'routines', 'evals',
   'lens', 'runs', 'route',
@@ -129,7 +134,7 @@ const ROUTABLE_TABS: Tab[] = [
    this is the phone's primary action. Rulings returns as the center destination
    with its live needs-you badge; every lower-frequency surface stays in Lab. */
 const BAR_TABS: { key: Tab; short: string }[] = [
-  { key: 'board', short: 'Doorway' },
+  { key: 'week', short: 'This Week' },
   { key: 'findings', short: 'Rulings' },
   { key: 'lab', short: 'Lab' },
 ];
@@ -226,7 +231,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ROUTABLE_TABS.includes(h) ? h : 'board';
+    return ROUTABLE_TABS.includes(h) ? h : 'week';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -518,6 +523,7 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'week' && <ThisWeek />}
         {tab === 'board' && <Board />}
         {tab === 'lab' && <LabIndex onPick={setTab} />}
         {tab === 'cockpit' && <Cockpit />}
