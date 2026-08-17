@@ -138,7 +138,8 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
               busy={busy} onCancel={() => { setReasoning(false); setReasonText(''); }} />
           ) : sa === 'rule_truth' && f.options && f.options.length >= 2 ? (
             <div>
-              <p className="text-[12px] mb-2.5" style={{ color: MUTED }}>Which is current? One tap rules it and enforces it.</p>
+              <p className="text-[13px] mb-1" style={{ color: INK, fontWeight: 600 }}>Which is true?</p>
+              <p className="text-[12px] mb-2.5" style={{ color: MUTED }}>One tap rules it and enforces it.</p>
               <div className="flex flex-wrap gap-2.5">
                 {f.options.map(opt => (
                   <Primary key={opt} disabled={busy} onClick={() => applyNow('rule_truth', { truth: opt })}>It&apos;s: {opt}</Primary>
@@ -148,6 +149,17 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
             </div>
           ) : sa === 'rule_truth' ? (
             <TruthStage busy={busy} onApply={(t) => applyNow('rule_truth', { truth: t })} onSkip={skip} />
+          ) : sa === 'resolve_identity' && f.options && f.options.length >= 2 ? (
+            <div>
+              <p className="text-[13px] mb-1" style={{ color: INK, fontWeight: 600 }}>Which is the real name?</p>
+              <p className="text-[12px] mb-2.5" style={{ color: MUTED }}>One tap writes the canonical definition, retires the other.</p>
+              <div className="flex flex-wrap gap-2.5">
+                {f.options.map(opt => (
+                  <Primary key={opt} disabled={busy} onClick={() => applyNow('rule_identity', { canonical: opt })}>It&apos;s: {opt}</Primary>
+                ))}
+                <Later onClick={skip} />
+              </div>
+            </div>
           ) : sa === 'resolve_identity' ? (
             <IdentityStage busy={busy} onApply={(c) => applyNow('rule_identity', { canonical: c })} onSkip={skip} />
           ) : sa === 'resolve_relation' ? (

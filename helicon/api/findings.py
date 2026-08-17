@@ -105,6 +105,18 @@ def _preview(text: str | None) -> str:
     return text[:PREVIEW_CHARS]
 
 
+def _identity_options(details: dict) -> list[str] | None:
+    """The candidate definitions a human picks between to rule an identity fork.
+    A fork can be N-way (finding #542): rendering only value_a/value_b re-creates
+    the pair-shaped bug at the ruling layer, hiding a third definition. So build
+    from every genus, most-sourced first, and fall back to the two stored values
+    only when the older detail shape has no `genera`."""
+    genera = details.get("genera") or {}
+    if genera:
+        return [g for g, scopes in sorted(genera.items(), key=lambda kv: (-len(kv[1]), kv[0]))]
+    return [v for v in (details.get("value_a"), details.get("value_b")) if v] or None
+
+
 def _audit_findings(conn) -> list[dict]:
     """Pending audit_log rows as findings, joined to their cube for evidence."""
     rows = conn.execute(
@@ -149,7 +161,9 @@ def _audit_findings(conn) -> list[dict]:
             "suggested_action": _AUDIT_ACTION.get(kind, "review"),
             # The competing values, so a contradiction is ruled in one tap (which is
             # current?) instead of typed. Only the two answers a human chooses between.
-            "options": [v for v in (details.get("value_a"), details.get("value_b")) if v] if kind == "factual" else None,
+            "options": ([v for v in (details.get("value_a"), details.get("value_b")) if v] if kind == "factual"
+                        else _identity_options(details) if kind == "identity"
+                        else None),
             "question": details.get("question") if kind == "factual" else None,
             "consequence": details.get("consequence") if kind == "factual" else None,
             "created_at": r["audited_at"],
