@@ -17,11 +17,15 @@ struct Finding: Decodable, Identifiable, Hashable {
     let sourceRef: String?
     let memoryID: String?
     let suggestedAction: String
+    /// The competing values a finding is ruled between, in one tap: the two (or
+    /// more) forked definitions for an identity fork, the conflicting values for
+    /// a contradiction. Absent/null on most findings — decoded defensively.
+    let options: [String]?
     let createdAt: String?
     let lane: String            // decision | ambient
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, severity, title, why, source, lane
+        case id, kind, severity, title, why, source, lane, options
         case evidencePreview  = "evidence_preview"
         case sourceRef        = "source_ref"
         case memoryID         = "memory_id"
@@ -41,9 +45,23 @@ struct Finding: Decodable, Identifiable, Hashable {
         sourceRef       = try c.decodeIfPresent(String.self, forKey: .sourceRef)
         memoryID        = try c.decodeIfPresent(String.self, forKey: .memoryID)
         suggestedAction = try c.decodeIfPresent(String.self, forKey: .suggestedAction) ?? "review"
+        options         = try c.decodeIfPresent([String].self, forKey: .options)
         createdAt       = try c.decodeIfPresent(String.self, forKey: .createdAt)
         lane            = try c.decodeIfPresent(String.self, forKey: .lane) ?? "decision"
     }
+
+    /// Two-plus competing values → the finding can be ruled in one tap. Gate on
+    /// this before showing pickable options, so a fork with a malformed payload
+    /// falls through to the reason-composer rather than a dead question.
+    var pickable: [String] { (options ?? []).filter { !$0.isEmpty } }
+
+    /// An identity fork: same name, forked definition. One tap writes the
+    /// canonical definition and retires the other(s).
+    var isIdentityFork: Bool { suggestedAction == "resolve_identity" && pickable.count >= 2 }
+
+    /// A live contradiction: one decision recorded two ways. One tap names the
+    /// current truth and the competing value becomes ruled-wrong.
+    var isContradiction: Bool { suggestedAction == "rule_truth" && pickable.count >= 2 }
 
     /// Only audit_log-backed findings carry an integer id the write path can
     /// address. `regret-*` and `skill-*` are computed at request time and have
@@ -564,5 +582,195 @@ struct MeasureRecordResult: Decodable {
     enum CodingKeys: String, CodingKey {
         case week, metrics
         case recordedAt = "recorded_at"
+    }
+}
+
+// MARK: - govern-batch (POST /api/govern/apply-batch)
+
+/// One ruling in a batch: the finding, the verb that resolves it, and the
+/// verb's payload. Same shape the web sends — the identity/contradiction
+/// resolvers already exist server-side; this just addresses them.
+///   rule_identity  {canonical: <name>}   — the real name; the other retires
+///   rule_truth     {truth: <value>}      — the current truth; the other is wrong
+struct GovernRuling: Encodable {
+    let finding_id: Int
+    let verb: String
+    let payload: [String: String]
+}
+
+struct GovernBatchRequest: Encodable {
+    let rulings: [GovernRuling]
+}
+
+/// The receipt: each ruling's real effect, proved against post-apply state. A
+/// bad ruling ISOLATES (applied:false + error), never aborts the batch, so the
+/// app removes only the rows the server confirms settled.
+struct GovernReceiptItem: Decodable {
+    let findingID: Int
+    let verb: String
+    let applied: Bool
+    let error: String?
+    let effect: String
+    let protection: String
+    let verify: Verify
+
+    struct Verify: Decodable {
+        let recordedInAuditLog: Bool
+        let compiledIntoLaw: Bool
+        /// Present only on a ruled contradiction: proof the guard now blocks a
+        /// write asserting the ruled-wrong value.
+        let guardBlocksTheWrongClaim: Bool?
+        enum CodingKeys: String, CodingKey {
+            case recordedInAuditLog = "recorded_in_audit_log"
+            case compiledIntoLaw = "compiled_into_law"
+            case guardBlocksTheWrongClaim = "guard_blocks_the_wrong_claim"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case verb, applied, error, effect, protection, verify
+        case findingID = "finding_id"
+    }
+}
+
+struct GovernReceipt: Decodable {
+    let batchID: String
+    let undoToken: String
+    let applied: Int
+    let failed: Int
+    let rulesCompiled: Int
+    let findingsSettled: Int
+    let receipt: [GovernReceiptItem]
+
+    enum CodingKeys: String, CodingKey {
+        case applied, failed, receipt
+        case batchID = "batch_id"
+        case undoToken = "undo_token"
+        case rulesCompiled = "rules_compiled"
+        case findingsSettled = "findings_settled"
+    }
+}
+
+// MARK: - the weekly knowledge-palace read (GET /api/thisweek)
+
+/// Modelled 1:1 from helicon/api/thisweek.py. Every section carries its own
+/// `source`; a section that cannot be probed is `wired: false` with a reason,
+/// never a faked zero — the same bar the detectors it surfaces were built to
+/// hold. Nearly every field past `wired` is optional because the server genuinely
+/// omits them when a section is unwired.
+struct ThisWeek: Decodable {
+    let week: String
+    let verdict: String
+    let ranAt: String?
+    let cached: Bool
+    let setupHealth: SetupHealth
+    let overboard: Overboard
+    let learningLedger: LearningLedger
+    let transcriptReview: TranscriptReview
+    let recommendations: [Recommendation]
+
+    enum CodingKeys: String, CodingKey {
+        case week, verdict, cached, overboard, recommendations
+        case ranAt = "ran_at"
+        case setupHealth = "setup_health"
+        case learningLedger = "learning_ledger"
+        case transcriptReview = "transcript_review"
+    }
+
+    struct SetupHealth: Decodable {
+        let identityForks: ForkGroup
+        let contradictions: Counted
+        let logFragments: Counted
+        enum CodingKeys: String, CodingKey {
+            case identityForks = "identity_forks"
+            case contradictions
+            case logFragments = "log_fragments"
+        }
+        struct ForkGroup: Decodable {
+            let count: Int
+            let names: [String]
+            let source: String
+        }
+        struct Counted: Decodable {
+            let count: Int
+            let source: String
+        }
+    }
+
+    struct Overboard: Decodable {
+        let wired: Bool
+        let reason: String?
+        let codeRoot: String?
+        let reposScanned: Int?
+        let reposTouched: Int?
+        let oneDayRepos: [String]?
+        let mergedNotDeleted: Int?
+        let abandonedBranches: Int?
+        let windowDays: Int?
+        let source: String?
+        let notWired: [String]?
+        enum CodingKeys: String, CodingKey {
+            case wired, reason, source
+            case codeRoot = "code_root"
+            case reposScanned = "repos_scanned"
+            case reposTouched = "repos_touched"
+            case oneDayRepos = "one_day_repos"
+            case mergedNotDeleted = "merged_not_deleted"
+            case abandonedBranches = "abandoned_branches"
+            case windowDays = "window_days"
+            case notWired = "not_wired"
+        }
+    }
+
+    struct LearningLedger: Decodable {
+        let wired: Bool
+        let window: String?
+        let distilledThisWeek: Int?
+        let files: [String]?
+        let totalLessons: Int?
+        let source: String?
+        let notWired: [String]?
+        enum CodingKeys: String, CodingKey {
+            case wired, window, files, source
+            case distilledThisWeek = "distilled_this_week"
+            case totalLessons = "total_lessons"
+            case notWired = "not_wired"
+        }
+    }
+
+    struct NamedCount: Decodable { let name: String; let count: Int }
+    struct RepoTurns: Decodable { let name: String; let turns: Int }
+
+    struct TranscriptReview: Decodable {
+        let wired: Bool
+        let window: String?
+        let sessions: Int?
+        let humanPrompts: Int?
+        let toolCalls: Int?
+        let toolSuccessPct: Int?
+        let toolErrors: Int?
+        let topTools: [NamedCount]?
+        let errorsByTool: [NamedCount]?
+        let reposTouched: [RepoTurns]?
+        let did: [String]?
+        let worked: [String]?
+        let improve: [String]?
+        let source: String?
+        enum CodingKeys: String, CodingKey {
+            case wired, window, sessions, did, worked, improve, source
+            case humanPrompts = "human_prompts"
+            case toolCalls = "tool_calls"
+            case toolSuccessPct = "tool_success_pct"
+            case toolErrors = "tool_errors"
+            case topTools = "top_tools"
+            case errorsByTool = "errors_by_tool"
+            case reposTouched = "repos_touched"
+        }
+    }
+
+    struct Recommendation: Decodable, Identifiable {
+        let text: String
+        let basis: String
+        var id: String { text }
     }
 }

@@ -5,19 +5,20 @@ import CoreText
 /// Alpine Wash — the locked visual identity, ported 1:1 from web/helicon-tokens.css.
 /// The six named brand colors and nothing else; no new color is invented here.
 enum Wash {
-    // ground & surfaces
-    static let paper      = Color(hex: 0xECE4D8)   // PAPER — app ground
-    static let paperDeep  = Color(hex: 0xE2D8C8)   // recessed
-    static let bone       = Color(hex: 0xF4EFE7)   // BONE — card
-    static let boneRaised = Color(hex: 0xFAF7F0)   // raised card
+    // ground & surfaces — cool, light, watercolor-blue. No beige/cream/tan: the
+    // ground is a light alpine wash, not paper (Oscar, 2026-08-18).
+    static let paper      = Color(hex: 0xE8EDF2)   // PAPER — light cool ground
+    static let paperDeep  = Color(hex: 0xDCE4EC)   // recessed, one step deeper cool
+    static let bone       = Color(hex: 0xF5F8FB)   // BONE — card, near-white cool
+    static let boneRaised = Color(hex: 0xFCFDFE)   // raised card, coolest white
 
     // ink — one navy hue at varying weight
-    static let ink        = Color(hex: 0x17283A)   // INK NAVY — primary text
-    static let ink70      = Color(hex: 0x17283A).opacity(0.68)
+    static let ink        = Color(hex: 0x1D2B3A)   // INK NAVY — primary text
+    static let ink70      = Color(hex: 0x1D2B3A).opacity(0.68)
     static let muted      = Color(hex: 0x4E6173)   // labels
-    static let faint      = Color(hex: 0x17283A).opacity(0.34)
-    static let slate      = Color(hex: 0x465B6F)   // SLATE BLUE
-    static let mist       = Color(hex: 0xAEBFCC)   // MIST BLUE
+    static let faint      = Color(hex: 0x1D2B3A).opacity(0.34)
+    static let slate      = Color(hex: 0x33475B)   // SLATE BLUE
+    static let mist       = Color(hex: 0x9DAEBC)   // MIST BLUE
 
     // semantic signals — the world is blue; orange is improvement ONLY;
     // judgment red is a whisper, reserved for genuine critical alarms.
@@ -29,8 +30,8 @@ enum Wash {
     static let good       = Color(hex: 0x3F627D)   // connected — calm slate-blue
 
     // hairlines
-    static let line       = Color(hex: 0x17283A).opacity(0.10)
-    static let line2      = Color(hex: 0x17283A).opacity(0.16)
+    static let line       = Color(hex: 0x1D2B3A).opacity(0.10)
+    static let line2      = Color(hex: 0x1D2B3A).opacity(0.16)
 
     // shape
     static let radius: CGFloat   = 18

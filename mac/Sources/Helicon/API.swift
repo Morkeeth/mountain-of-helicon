@@ -110,6 +110,27 @@ struct HeliconAPI {
         return try await run(req, as: ConfirmResponse.self)
     }
 
+    /// POST /api/govern/apply-batch — the resolve path for a fork or a
+    /// contradiction. This composes the SAME per-finding resolvers the web calls
+    /// (identity / rule_truth), so ruling "which is the real name" or "which is
+    /// true" writes the canonical/correction cube and settles the finding in one
+    /// tap. Returns a receipt whose `applied` is proved against post-apply state.
+    func applyBatch(_ rulings: [GovernRuling]) async throws -> GovernReceipt {
+        var req = URLRequest(url: base.appendingPathComponent("/api/govern/apply-batch"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(GovernBatchRequest(rulings: rulings))
+        return try await run(req, as: GovernReceipt.self)
+    }
+
+    /// GET /api/thisweek — the weekly knowledge-palace read. Same object the web
+    /// opens to: setup health, overboard, learning ledger, transcript review,
+    /// recommendations. The rot exam is NOT composed here (the web fetches
+    /// /api/rot separately); this is the cheap, cached weekly payload.
+    func thisWeek() async throws -> ThisWeek {
+        try await get("/api/thisweek")
+    }
+
     // Workgraph fetchers, salvaged with WorkGraphView.swift.
     func workCards() async throws -> WorkCardsResponse {
         try await get("/api/workgraph/cards")

@@ -29,11 +29,17 @@ struct QueueView: View {
         .onKeyPress(.init("k")) { store.move(-1); return .handled }
         .onKeyPress(.downArrow) { store.move(1);  return .handled }
         .onKeyPress(.upArrow)   { store.move(-1); return .handled }
-        .onKeyPress(.init("a")) { verdict("acted"); return .handled }
-        // D no longer fires a blind dismissal — it opens the ruling composer, so
-        // the reason that turns "not rot" into law is written before the row
-        // clears. A dismissal with no reason compiled to nothing.
-        .onKeyPress(.init("d")) { beginDismiss(); return .handled }
+        // A/D are the FALLBACK verdicts only. On an identity fork or a
+        // contradiction the visible question is "which one" — number keys pick an
+        // option (1,2,3…). Leaving A/D global would let the keyboard close a fork
+        // as "acted" without ruling the name, contradicting the visible UI.
+        .onKeyPress(.init("a")) { fallbackKey { verdict("acted") } }
+        .onKeyPress(.init("d")) { fallbackKey { beginDismiss() } }
+        .onKeyPress(.init("1")) { pickOption(0) }
+        .onKeyPress(.init("2")) { pickOption(1) }
+        .onKeyPress(.init("3")) { pickOption(2) }
+        .onKeyPress(.init("4")) { pickOption(3) }
+        .onKeyPress(.init("5")) { pickOption(4) }
         .onKeyPress(.init("r")) { Task { await store.refresh() }; return .handled }
         // The ruling composer: name why it is not rot, watch it compile into the
         // law. Presented over the cockpit so the queue stays in view behind it.
@@ -50,6 +56,32 @@ struct QueueView: View {
     private func beginDismiss() {
         guard let f = store.selected else { return }
         store.beginDismiss(f)
+    }
+
+    /// Run a fallback verdict only when the selected finding is NOT one the
+    /// question flow rules (a fork or a contradiction). On those, A/D do nothing
+    /// so the key can never contradict the visible "which one" question.
+    private func fallbackKey(_ action: () -> Void) -> KeyPress.Result {
+        guard let f = store.selected, !f.isIdentityFork, !f.isContradiction else { return .ignored }
+        action()
+        return .handled
+    }
+
+    /// Pick the nth competing value on a fork or a contradiction: rule_identity
+    /// names it canonical, rule_truth names it the current truth.
+    private func pickOption(_ index: Int) -> KeyPress.Result {
+        guard let f = store.selected else { return .ignored }
+        let opts = f.pickable
+        guard opts.indices.contains(index) else { return .ignored }
+        if f.isIdentityFork {
+            Task { await store.applyRuling(f, verb: "rule_identity", payload: ["canonical": opts[index]]) }
+            return .handled
+        }
+        if f.isContradiction {
+            Task { await store.applyRuling(f, verb: "rule_truth", payload: ["truth": opts[index]]) }
+            return .handled
+        }
+        return .ignored
     }
 
     @ViewBuilder
@@ -529,11 +561,29 @@ private struct VerdictBar: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Verdict(key: "A", label: "Acted", tone: Wash.accent, enabled: canAct) {
-                act("acted")
-            }
-            Verdict(key: "D", label: "Not rot · rule", tone: Wash.slate, enabled: canAct) {
-                if let f = store.selected { store.beginDismiss(f) }
+            // The verdict area is the finding's own question. A fork asks which
+            // name is real; a contradiction asks which value is true; everything
+            // else keeps the plain keep/retire pair. No "A Acted / D Not rot"
+            // jargon — the operator reads a question, not a rot-class verb.
+            if let f = store.selected, f.isIdentityFork {
+                QuestionBar(prompt: "Which is the real name?",
+                            hint: "One tap writes the canonical definition, retires the other.",
+                            options: f.pickable, enabled: canAct) { opt in
+                    Task { await store.applyRuling(f, verb: "rule_identity", payload: ["canonical": opt]) }
+                }
+            } else if let f = store.selected, f.isContradiction {
+                QuestionBar(prompt: "Which is true?",
+                            hint: "One tap rules it and enforces it — the competing value becomes wrong.",
+                            options: f.pickable, enabled: canAct) { opt in
+                    Task { await store.applyRuling(f, verb: "rule_truth", payload: ["truth": opt]) }
+                }
+            } else {
+                Verdict(key: "K", label: "Keep · rule why", tone: Wash.slate, enabled: canAct) {
+                    if let f = store.selected { store.beginDismiss(f) }
+                }
+                Verdict(key: "A", label: "Retire", tone: Wash.accent, enabled: canAct) {
+                    act("acted")
+                }
             }
 
             Divider().frame(height: 15).overlay(Wash.line)
@@ -563,6 +613,50 @@ private struct VerdictBar: View {
     private func act(_ decision: String) {
         guard let f = store.selected else { return }
         Task { await store.confirm(f, decision: decision) }
+    }
+
+    /// The finding's question, with a pickable button per competing value. Each
+    /// carries its number key (1,2,3…) — every action shows its key, this app's law.
+    private struct QuestionBar: View {
+        let prompt: String
+        let hint: String
+        let options: [String]
+        let enabled: Bool
+        let pick: (String) -> Void
+
+        var body: some View {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(prompt)
+                        .font(.iface(11.5, .semibold))
+                        .foregroundStyle(Wash.ink)
+                    Text(hint)
+                        .font(.iface(9.5))
+                        .foregroundStyle(Wash.faint)
+                        .lineLimit(1)
+                }
+                HStack(spacing: 7) {
+                    ForEach(Array(options.prefix(5).enumerated()), id: \.offset) { i, opt in
+                        Button { pick(opt) } label: {
+                            HStack(spacing: 5) {
+                                KeyCap(key: "\(i + 1)")
+                                Text(opt)
+                                    .font(.iface(11, .medium))
+                                    .foregroundStyle(enabled ? Wash.bone : Wash.faint)
+                                    .lineLimit(1)
+                            }
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(enabled ? Wash.accent : Wash.accentDim))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!enabled)
+                        .opacity(enabled ? 1 : 0.5)
+                    }
+                }
+            }
+        }
     }
 
     private struct Verdict: View {

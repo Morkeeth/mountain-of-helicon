@@ -59,7 +59,37 @@ final class Cockpit {
         w.setContentSize(NSSize(width: 1180, height: 740))
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
+        w.isReleasedWhenClosed = false
+        w.center()
+        window = w
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+/// The weekly knowledge-palace window — the app's opening view. Owned by AppKit
+/// so the launch flow, the sentry, or the Dock icon can all open it through one
+/// path, same pattern as Cockpit.
+@MainActor
+final class ThisWeekWindow {
+    static let shared = ThisWeekWindow()
+    private var window: NSWindow?
+
+    func show() {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        Task { try? await HeliconAPI().recordSurfaceOpen("thisweek") }
+        let host = NSHostingController(rootView: ThisWeekView().environmentObject(Store.shared))
+        let w = NSWindow(contentViewController: host)
+        w.title = "This Week"
+        w.setContentSize(NSSize(width: 860, height: 900))
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
         w.isReleasedWhenClosed = false
         w.center()
         window = w
@@ -87,7 +117,7 @@ final class BriefWindow {
         w.setContentSize(NSSize(width: 780, height: 720))
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
         w.isReleasedWhenClosed = false
         w.center()
         window = w
@@ -115,6 +145,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandLine.arguments.contains("--measure")
     }
 
+    /// `--thisweek` opens the weekly knowledge-palace explicitly. It is also the
+    /// DEFAULT opening view (see below), so this flag is for parity with the
+    /// other headless-shot flags rather than the only way in.
+    static var opensThisWeekAtLaunch: Bool {
+        CommandLine.arguments.contains("--thisweek")
+    }
+
+    /// The queue used to be the everyday shape (menu-bar-only until opened). The
+    /// opening view is now This Week — the one-read "is my setup any good this
+    /// week" page — so a plain launch shows it. The sentry still polls for the
+    /// life of the process (Store.shared), so the menu bar stays live behind it.
     // Menu-bar-first: no Dock icon until a window is opened. Set in code because
     // a SwiftPM executable has no Info.plist to carry LSUIElement.
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -128,7 +169,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.regular)
             Cockpit.shared.show()
         } else {
-            NSApp.setActivationPolicy(.accessory)
+            // Default: open This Week (--thisweek is the explicit alias).
+            NSApp.setActivationPolicy(.regular)
+            ThisWeekWindow.shared.show()
         }
         scheduleDiagnostics()
     }
@@ -262,7 +305,7 @@ final class MeasureWindow {
         w.setContentSize(NSSize(width: 780, height: 820))
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
         w.isReleasedWhenClosed = false
         w.center()
         window = w
@@ -287,7 +330,7 @@ final class FleetWindow {
         w.setContentSize(NSSize(width: 1020, height: 760))
         w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(srgbRed: 0xEC/255.0, green: 0xE4/255.0, blue: 0xD8/255.0, alpha: 1) // PAPER
+        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
         w.isReleasedWhenClosed = false
         w.center()
         window = w

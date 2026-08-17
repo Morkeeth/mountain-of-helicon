@@ -162,6 +162,28 @@ struct SentryPanel: View {
             }
             .buttonStyle(.plain)
 
+            // This Week: the opening view — the one-read "is my setup any good
+            // this week" page. Re-openable here after its window is closed.
+            Button {
+                NSApp.setActivationPolicy(.regular)
+                ThisWeekWindow.shared.show()
+            } label: {
+                HStack(spacing: 6) {
+                    Text("This Week")
+                        .font(.iface(12, .medium))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 9, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(Wash.ink)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: Wash.radiusSm, style: .continuous)
+                    .fill(Wash.bone))
+            }
+            .buttonStyle(.plain)
+
             // Added beside Review, not instead of it (Oscar's ruling, 2026-08-10).
             // Secondary styling on purpose: the queue keeps the primary slot until
             // recorded usage says otherwise.
