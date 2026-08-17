@@ -164,6 +164,66 @@ final class Store: ObservableObject {
 
     func cancelDismiss() { composing = nil }
 
+    // MARK: - the resolve path (fork / contradiction, one tap)
+
+    /// Rule a finding through the govern-batch resolver: `rule_identity` names
+    /// the canonical definition, `rule_truth` names the current truth. The row
+    /// leaves the queue ONLY if the server's receipt says the ruling was applied
+    /// (govern isolates a bad ruling as applied:false rather than throwing), so
+    /// the count never decrements on a ruling that did not land.
+    @discardableResult
+    func applyRuling(_ finding: Finding, verb: String, payload: [String: String]) async -> GovernReceiptItem? {
+        guard let auditID = finding.auditID else {
+            actionError = finding.notConfirmableReason
+            return nil
+        }
+        guard !busy.contains(finding.id) else { return nil }
+        busy.insert(finding.id)
+        defer { busy.remove(finding.id) }
+        actionError = nil
+
+        let idx = selectedIndex
+        do {
+            let receipt = try await api.applyBatch(
+                [GovernRuling(finding_id: auditID, verb: verb, payload: payload)])
+            guard let item = receipt.receipt.first else {
+                actionError = "The server returned an empty receipt — nothing was ruled."
+                return nil
+            }
+            guard item.applied else {
+                // A ruling that did not land: say why, keep the row in the queue.
+                actionError = item.error ?? "The ruling was not applied."
+                return item
+            }
+            findings.removeAll { $0.id == finding.id }
+            summary = FindingsSummary(
+                total: max(summary.total - 1, 0),
+                needsYou: max(summary.needsYou - 1, 0),
+                ambient: summary.ambient,
+                byKind: summary.byKind,
+                bySeverity: summary.bySeverity.merging(
+                    [finding.severity: max((summary.bySeverity[finding.severity] ?? 1) - 1, 0)]
+                ) { _, new in new }
+            )
+            if let idx {
+                selection = findings.indices.contains(idx)
+                    ? findings[idx].id
+                    : findings.last?.id
+            }
+            // The aftermath, truthfully: enforcement when the guard now blocks the
+            // wrong claim, otherwise the receipt's plain effect line.
+            let enforced = item.verify.guardBlocksTheWrongClaim == true
+            lawFlash = LawFlash(rule: enforced ? "ruled and enforced" : item.effect,
+                                why: item.protection)
+            await refresh()
+            return item
+        } catch {
+            actionError = "Ruling failed: "
+                + ((error as? APIError)?.errorDescription ?? error.localizedDescription)
+            return nil
+        }
+    }
+
     // MARK: - the real triage write
 
     /// POST /api/audit/confirm. On success the row leaves the pending queue, so
