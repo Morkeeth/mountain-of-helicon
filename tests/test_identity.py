@@ -305,3 +305,75 @@ def test_card_never_reports_a_source_count_it_does_not_have(conn):
     from helicon.identity import format_identity_evidence
     _, details = _three_genus_fork(conn)
     assert "?" not in format_identity_evidence(conn, details)
+
+
+# --- surfacing gate: which forks reach a HUMAN (Oscar: the queue is noise) -----
+
+from helicon.identity import fork_worth_surfacing, partition_identity_findings
+
+
+def _fork(name, genera, resurfaced=False):
+    """A fork in the shape both find_identity_forks and audit_log details carry."""
+    return {"name": name, "genera": genera, "resurfaced": resurfaced}
+
+
+def test_corroborated_real_fork_surfaces():
+    # a real entity, one side said by >=2 distinct sources -> a decision worth making
+    f = _fork("yieldbound", {"treasury": ["obsidian:a", "obsidian:b"],
+                             "tracker": ["claude-code:s1"]})
+    surface, reason = fork_worth_surfacing(f)
+    assert surface is True and reason == "corroborated"
+
+
+def test_single_source_each_is_suppressed():
+    # nullspace/relay: 1 source vs 1 source -> a passing-phrase clash, not a fork
+    surface, reason = fork_worth_surfacing(
+        _fork("nullspace", {"submission": ["claude-code:s1"], "wrapper": ["claude-code:s2"]}))
+    assert surface is False and reason == "weak-corroboration"
+
+
+def test_three_way_single_source_each_is_suppressed():
+    # zup: exit/inbox/owned, one source each -> still weak, still suppressed
+    surface, reason = fork_worth_surfacing(
+        _fork("zup", {"exit": ["a"], "inbox": ["b"], "owned": ["c"]}))
+    assert surface is False and reason == "weak-corroboration"
+
+
+def test_generic_doc_name_is_suppressed_even_when_corroborated():
+    # cursor is corroborated (crush x2) but names a tool, not an entity to rule
+    surface, reason = fork_worth_surfacing(
+        _fork("cursor", {"crush": ["mem:x", "claude-code:s1"], "operator": ["claude-code:s2"]}))
+    assert surface is False and reason == "generic-name"
+    # readme too
+    assert fork_worth_surfacing(_fork("readme", {"page": ["a"], "stranger": ["b"]}))[1] == "generic-name"
+
+
+def test_duplicate_gloss_across_scopes_still_needs_two_distinct_sources():
+    # same source scope listed twice is not corroboration
+    surface, _ = fork_worth_surfacing(_fork("aurora", {"engine": ["s1", "s1"], "toy": ["s2"]}))
+    assert surface is False
+
+
+def test_resurfaced_always_surfaces():
+    # a name a human already ruled, whose divergent definition returned -> never-twice
+    surface, reason = fork_worth_surfacing(
+        _fork("readme", {"page": ["a"]}, resurfaced=True))  # generic + weak, but ruled
+    assert surface is True and reason == "resurfaced"
+
+
+def test_missing_genera_fails_open():
+    # a pre-genera finding shape cannot be assessed -> surface, never silently drop
+    surface, reason = fork_worth_surfacing({"name": "aurora"})
+    assert surface is True and reason == "unassessable-shape"
+
+
+def test_partition_splits_surfaced_from_suppressed():
+    findings = [
+        {"d": _fork("yieldbound", {"treasury": ["a", "b"], "tracker": ["c"]})},  # surface
+        {"d": _fork("nullspace", {"submission": ["s1"], "wrapper": ["s2"]})},    # weak
+        {"d": _fork("readme", {"page": ["a"], "stranger": ["b"]})},              # generic
+    ]
+    surfaced, suppressed = partition_identity_findings(findings, lambda f: f["d"])
+    assert len(surfaced) == 1 and len(suppressed) == 2
+    assert surfaced[0]["d"]["name"] == "yieldbound"
+    assert {s["_suppressed_reason"] for s in suppressed} == {"weak-corroboration", "generic-name"}
