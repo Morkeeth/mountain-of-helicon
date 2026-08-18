@@ -10,6 +10,7 @@ Usage:
   helicon triage        Run auto-triage (autonomous decisions)
   helicon doctor        Health check: PATH, config, Qwen key, DB, last scan
   helicon mcp           Run the MCP server on stdio (for agent clients)
+  helicon science       Grade your live store against published agent-research thresholds
   helicon score         Show current Helicon Score
   helicon stack         Audit your AI stack setup
   helicon optimize      LLM-powered optimization suggestions
@@ -3453,6 +3454,15 @@ def cmd_report(args):
     print(format_report(rep))
 
 
+def cmd_science(args):
+    """Grade the live store against published agent-research thresholds."""
+    from helicon.config import load_config
+    from helicon.science import run
+
+    config = load_config()
+    print(run(config))
+
+
 def cmd_score(args):
     """Show current Helicon Score."""
     from helicon.config import load_config
@@ -4158,6 +4168,7 @@ def main():
 
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
+    sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
@@ -4236,6 +4247,7 @@ def main():
         "rule": cmd_rule,
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,
+        "science": cmd_science,
         "score": cmd_score,
         "stack": cmd_stack,
         "optimize": cmd_optimize,
