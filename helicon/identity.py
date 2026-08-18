@@ -111,6 +111,100 @@ def extract_glosses(content: str, title: str = "") -> list[dict]:
 SEMANTIC_FORK_THRESHOLD = 0.45
 
 
+# ---------------------------------------------------------------------------
+# Surfacing gate — which forks reach a HUMAN, separate from which forks EXIST.
+#
+# Detection (find_identity_forks) stays as sensitive as ever: it still finds
+# every cross-source genus clash, still files each one to audit_log, and the rot
+# exam still counts them. That is the LOG. This gate decides what is worth a
+# human's queue slot on top of the log. Oscar's complaint: the queue floods with
+# name-clashes like "readme is a page vs the stranger" — a generic doc word,
+# one weak source on each side, no real disagreement to settle. Those are noise,
+# not decisions. A fork earns a queue slot only if BOTH hold:
+#
+#   1. REAL ENTITY, not a generic doc/tool word. "readme", "cursor", "page" name
+#      files and tools, not entities whose definition is worth ruling.
+#   2. CORROBORATED, not single-weak-source-each. A real fork has at least one
+#      side asserted by >=2 distinct sources — someone said it more than once.
+#      A definition dropped in exactly one place and brushed by another in
+#      exactly one other place is a passing phrase, not a settled contradiction.
+#
+# A resurfaced fork (never-twice guard: a name a human already RULED, whose
+# ruled-out definition came back in newer memory) always surfaces — a human
+# decided it once, its return is high-signal by construction.
+#
+# Fail OPEN: a finding whose stored shape predates `genera` (or is unparseable)
+# cannot be assessed, so it surfaces — the house convention (embedding failure ->
+# keep, judge unreachable -> keep): never silently drop rot a human never saw.
+#
+# The gate changes only what is SURFACED and its ranking; `resolve <id>` still
+# rules any filed finding, surfaced or not, and `--all` shows the suppressed.
+# ---------------------------------------------------------------------------
+
+# Generic doc/tool words that name a file or a UI affordance, not an entity whose
+# identity is worth ruling. Matched lowercased (names are stored lower).
+_GENERIC_FORK_NAME = {
+    "readme", "cursor", "page", "index", "home", "about", "changelog", "license",
+    "config", "settings", "setup", "install", "usage", "faq", "contributing",
+    "notes", "note", "todo", "doc", "docs", "file", "files", "wiki", "main",
+    "readme.md", "demo", "test", "tests", "example", "readme-", "draft", "app",
+}
+
+# A genus needs at least this many DISTINCT sources on one side to count as a real,
+# corroborated fork rather than a single-weak-source-each name-clash.
+FORK_CORROBORATION_MIN = 2
+
+
+def fork_worth_surfacing(fork: dict) -> tuple[bool, str]:
+    """Should this identity fork reach the human review queue?
+
+    `fork` is either a candidate from find_identity_forks or an audit_log finding's
+    parsed `details` — both carry {name, genera, resurfaced}. Returns
+    (surface, reason); reason names the gate that fired (for the suppressed log).
+
+    Fail-open contract: anything we cannot assess surfaces. Suppression requires a
+    positive reason (generic-name / weak-corroboration), never missing data.
+    """
+    name = (fork.get("name") or "").strip().lower()
+    if fork.get("resurfaced"):
+        return True, "resurfaced"            # a ruled name returned — never-twice
+    if name in _GENERIC_FORK_NAME:
+        return False, "generic-name"         # names a file/tool, not an entity
+    genera = fork.get("genera")
+    if not isinstance(genera, dict) or not genera:
+        return True, "unassessable-shape"    # old/broken shape -> fail open, surface
+    # Corroboration: the strongest side must be attested by >=2 DISTINCT sources.
+    max_sources = max((len(set(scopes)) for scopes in genera.values()), default=0)
+    if max_sources < FORK_CORROBORATION_MIN:
+        return False, "weak-corroboration"   # single-weak-source-each name-clash
+    return True, "corroborated"
+
+
+def partition_identity_findings(findings: list, get_details) -> tuple[list, list]:
+    """Split filed identity findings into (surfaced, suppressed) by the gate.
+
+    `get_details(f)` returns the parsed `details` dict for one finding, so this
+    works on audit_log rows, API finding dicts, or raw fork candidates. Each
+    suppressed item is annotated in-place with `_suppressed_reason` for the log.
+    Non-identity findings are the caller's concern; pass only identity ones.
+    """
+    surfaced, suppressed = [], []
+    for f in findings:
+        try:
+            surface, reason = fork_worth_surfacing(get_details(f) or {})
+        except Exception:
+            surface, reason = True, "unassessable-shape"   # fail open
+        if surface:
+            surfaced.append(f)
+        else:
+            try:
+                f["_suppressed_reason"] = reason
+            except Exception:
+                pass
+            suppressed.append(f)
+    return surfaced, suppressed
+
+
 def _definition_only(gloss: str, name: str) -> str:
     """Strip the entity subject + copula lead-in so the semantic gate scores the
     DEFINITION, not the shared "<Name> is a ..." frame. "Yieldbound is a wallet

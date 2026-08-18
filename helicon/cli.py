@@ -2824,12 +2824,37 @@ def cmd_resolve(args):
             "identity": "R11 identity coherence",
             "provenance": "R12 phantom association",
         }
+        # Split identity findings by the surfacing gate BEFORE anything prints, so
+        # the distribution header agrees with the list below it. Suppressed forks
+        # stay filed (rulable by id, shown with --all); they just don't flood the
+        # queue. --all disables the gate entirely for an audit of what was hidden.
+        import json as _json_g
+        from helicon.identity import partition_identity_findings
+        show_all = getattr(args, "all", False)
+
+        def _details_of(row):
+            try:
+                return _json_g.loads(row["details"]) if row["details"] else {}
+            except (ValueError, TypeError):
+                return {}
+        identity_rows = [r for r in open_rows if r["audit_type"] == "identity"]
+        forks, suppressed_forks = partition_identity_findings(identity_rows, _details_of)
+        if show_all:
+            forks, suppressed_forks = identity_rows, []
+
         distribution = {}
         for row in open_rows:
             label = class_labels.get(row["audit_type"], row["audit_type"])
             distribution[label] = distribution.get(label, 0) + 1
         print(f"Open findings: {len(open_rows)}\n")
         for label, count in sorted(distribution.items()):
+            if label == class_labels["identity"] and suppressed_forks:
+                # Header must not argue with the list: show the surfaced count and
+                # name the suppressed ones as logged, not gone.
+                shown = count - len(suppressed_forks)
+                print(f"  {label:<36} {shown:>5}  "
+                      f"({len(suppressed_forks)} low-signal suppressed)")
+                continue
             print(f"  {label:<36} {count:>5}")
         print()
 
@@ -2837,7 +2862,6 @@ def cmd_resolve(args):
             row for row in open_rows
             if row["audit_type"] == "factual" and "pair_key" in (row["details"] or "")
         ]
-        forks = [row for row in open_rows if row["audit_type"] == "identity"]
         phantoms = [row for row in open_rows if row["audit_type"] == "provenance"]
         if contradictions:
             print("Cross-source contradictions (R1):\n")
@@ -2868,12 +2892,21 @@ def cmd_resolve(args):
             if not getattr(args, "cards", False):
                 print("  read the evidence for all of them:  helicon resolve --list --cards")
             print()
+        if suppressed_forks:
+            from helicon.identity import fork_worth_surfacing
+            reasons = {}
+            for r in suppressed_forks:
+                _, why = fork_worth_surfacing(_details_of(r))
+                reasons[why] = reasons.get(why, 0) + 1
+            rs = ", ".join(f"{n} {why}" for why, n in sorted(reasons.items()))
+            print(f"  ({len(suppressed_forks)} low-signal identity fork(s) suppressed "
+                  f"— {rs}). Still filed; audit them:  helicon resolve --list --all\n")
         if phantoms:
             print("Phantom associations (R12) — a relation no source grounds:\n")
             for r in phantoms:
                 print(f"  #{r['id']}  [{r['severity']}]  {r['finding']}")
             print("  rule:  helicon resolve <id> --truth phantom   (or: --truth real)\n")
-        handled = {row["id"] for row in contradictions + forks + phantoms}
+        handled = {row["id"] for row in contradictions + forks + phantoms + suppressed_forks}
         other = [row for row in open_rows if row["id"] not in handled]
         if other:
             print("Other open findings:\n")
@@ -4084,6 +4117,7 @@ def main():
     resolve_p.add_argument("--dismiss", nargs="?", const="", metavar="WHY", help="close as not-rot, reason recorded")
     resolve_p.add_argument("--list", action="store_true", help="list open cross-source contradictions")
     resolve_p.add_argument("--cards", action="store_true", help="with --list: print each identity fork's full evidence inline (the one-page weekly read)")
+    resolve_p.add_argument("--all", action="store_true", help="with --list: also show low-signal identity forks the queue suppresses (generic-name / weak-corroboration)")
     resolve_p.add_argument("--retire", metavar="MEMORY_ID", help="with an output-review ruling: retire the memory that caused the bad output (from `helicon attribute`)")
 
     fleet_p = sub.add_parser("fleet", help="One screen for the whole fleet: running · spend · needs-you · efficiency")

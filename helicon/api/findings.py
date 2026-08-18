@@ -147,6 +147,16 @@ def _audit_findings(conn) -> list[dict]:
         if details.get("pair_key"):
             from helicon.pairing import format_pair_evidence
             evidence = format_pair_evidence(details)
+        # Surfacing gate: an identity fork reaches the queue only if it is a real
+        # entity, corroborated by >=2 sources on one side (or a resurfaced ruling).
+        # Low-signal name-clashes ("readme is a page vs the stranger") stay filed
+        # in audit_log (the log) but never flood the human queue. Both web and mac
+        # read this endpoint, so the fix lands on both surfaces at once.
+        if kind == "identity":
+            from helicon.identity import fork_worth_surfacing
+            surface, _reason = fork_worth_surfacing(details)
+            if not surface:
+                continue
         findings.append({
             "id": f"audit-{r['id']}",
             "kind": kind,
