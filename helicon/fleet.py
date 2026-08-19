@@ -376,7 +376,7 @@ def capabilities(conn) -> list[str]:
     lines = [
         "ListAgents + SendMessage reach every peer session on this machine "
         "directly — you do not need a human to carry a prompt between terminals.",
-        "`helicon complaints` is the only eval here the machine cannot fake; "
+        "`helicon brief complaints` is the only eval here the machine cannot fake; "
         "read it before deciding what to do next.",
         "`helicon run open` is the ONLY door into the Work Graph. Work closed "
         "any other way leaves no card.",
@@ -489,7 +489,7 @@ _STEP_RULES = (
                   f"`helicon unreviewed` then rule them"),
     (lambda p, g: bool(p["complaints"]),
      lambda p, g: f"you pushed back {sum(n for _, n in p['complaints'])}× here — "
-                  f"`helicon complaints --label {p['complaints'][0][0]}` before deciding"),
+                  f"`helicon brief complaints --label {p['complaints'][0][0]}` before deciding"),
     (lambda p, g: g.get("commits_24h", 0) == 0 and p["sessions"] > 0,
      lambda p, g: "a terminal is open here and nothing has landed in 24h — "
                   "the session is stuck or the work is unscoped"),
@@ -573,7 +573,7 @@ def format_projects(rows: list, idle: dict, caps: list,
         L.append(f"    needs you  {' · '.join(needs) if needs else 'nothing'}")
         if p["complaints"]:
             friction = ", ".join(f"{n}× {k}" for k, n in p["complaints"])
-            L.append(f"    friction   {friction}   (helicon complaints --label ...)")
+            L.append(f"    friction   {friction}   (helicon brief complaints --label ...)")
         for i, step in enumerate(p.get("steps") or []):
             L.append(f"    {'steps' if i == 0 else '':<10} {'·' if i else '1.'} {step}"
                      if i == 0 else f"               · {step}")

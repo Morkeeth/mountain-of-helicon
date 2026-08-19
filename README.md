@@ -356,11 +356,13 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (65 commands)
+## CLI (60 top-level commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `overboard` `ledger` `measure`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
+
+`helicon brief` is the mandatory diagnostic front door. Its overview points to five drill-downs that keep related verdicts in one hierarchy: `helicon brief science`, `helicon brief magnet`, `helicon brief complaints`, `helicon brief stack`, and `helicon brief score`.
 
 `helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
 
@@ -388,7 +390,7 @@ It opens with IDLE, because that is the only line that costs money while you rea
 
 It ends with **YOU CAN**, which is the section that is not about state. On the day this was built, eight terminals sat idle for two hours while prompts were hand-written for a human to carry between them, because no agent instance remembered that `ListAgents` and `SendMessage` address every peer session directly. A capability nobody recalls is not a capability, so the screen states it: an agent should leave this screen holding an ability it walked in without.
 
-`helicon complaints` is **the complaint log**: every time you pushed back on an agent, recovered from your own transcripts and grouped by kind. Every other signal in this repo is the machine grading itself — battery verdicts, judge runs, self-scored retrieval. A correction is a human saying *no, that is wrong* with nothing to gain by lying, and it is destroyed the moment the terminal closes.
+`helicon brief complaints` is **the complaint log**: every time you pushed back on an agent, recovered from your own transcripts and grouped by kind. Every other signal in this repo is the machine grading itself — battery verdicts, judge runs, self-scored retrieval. A correction is a human saying *no, that is wrong* with nothing to gain by lying, and it is destroyed the moment the terminal closes.
 
 It rests on two authorship gates, both measured before they were written. A `type: user` entry is **not** necessarily the human: across ~600 local transcripts, 46% of non-tool user turns were programmatic judge runs, task notifications, messages from *other* agent sessions, or injected skill files. Count those as feedback and an agent is grading itself on its own prose. And even a turn you typed is not always your writing — pasted lane prompts are long and any correction-shaped phrase inside them sits deep in the body, so position separates them. Raw user turns score 28% precision; both gates ~81% (self-graded, the author read all 46). Storage is a cube of `type='complaint'`, so it inherits FTS, decay and the review loop — no new table.
 

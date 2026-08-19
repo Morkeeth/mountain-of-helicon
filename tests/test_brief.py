@@ -5,6 +5,7 @@ human's judgment, degrades honestly on a store with no signal (never a fabricate
 number), and is read-only.
 """
 import sqlite3
+import sys
 
 import pytest
 
@@ -66,3 +67,61 @@ def test_brief_is_read_only(demo_db):
     after = _conn(demo_db).execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
     after_cubes = _conn(demo_db).execute("SELECT COUNT(*) FROM helicon_cubes").fetchone()[0]
     assert (before, before_cubes) == (after, after_cubes)
+
+
+def test_formatted_brief_is_the_front_door_to_every_drilldown(demo_db):
+    from helicon.brief import build_brief, format_brief
+
+    out = format_brief(build_brief(_conn(demo_db)))
+    for verb in ("science", "magnet", "complaints", "stack", "score"):
+        assert f"helicon brief {verb}" in out
+
+
+@pytest.mark.parametrize(
+    ("verb", "extra", "expected"),
+    [
+        ("science", [], {}),
+        ("magnet", ["--top", "3"], {"top": 3}),
+        ("complaints", ["--label", "wrong-plan"], {"label": "wrong-plan"}),
+        ("stack", [], {}),
+        ("score", [], {}),
+    ],
+)
+def test_brief_routes_each_drilldown(monkeypatch, verb, extra, expected):
+    from helicon import cli, config
+
+    called = []
+    monkeypatch.setattr(config, "load_config", lambda: {"db_path": "unused.db"})
+    monkeypatch.setattr(cli, f"cmd_{verb}", lambda args: called.append(args))
+    monkeypatch.setattr(sys, "argv", ["helicon", "brief", verb, *extra])
+
+    cli.main()
+
+    assert len(called) == 1
+    assert called[0].command == "brief"
+    assert called[0].brief_command == verb
+    for name, value in expected.items():
+        assert getattr(called[0], name) == value
+
+
+def test_brief_magnet_remains_config_free(monkeypatch):
+    from helicon import cli, config
+
+    monkeypatch.setattr(
+        config, "load_config",
+        lambda: (_ for _ in ()).throw(AssertionError("magnet must not load config")),
+    )
+    monkeypatch.setattr(cli, "cmd_magnet", lambda args: None)
+    monkeypatch.setattr(sys, "argv", ["helicon", "brief", "magnet"])
+
+    cli.main()
+
+
+@pytest.mark.parametrize("verb", ["science", "magnet", "complaints", "stack", "score"])
+def test_drilldowns_are_not_orphaned_top_level_commands(monkeypatch, verb):
+    from helicon import cli
+
+    monkeypatch.setattr(sys, "argv", ["helicon", verb])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    assert exc.value.code == 2

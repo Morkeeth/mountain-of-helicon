@@ -10,9 +10,10 @@ Usage:
   helicon triage        Run auto-triage (autonomous decisions)
   helicon doctor        Health check: PATH, config, Qwen key, DB, last scan
   helicon mcp           Run the MCP server on stdio (for agent clients)
-  helicon science       Grade your live store against published agent-research thresholds
-  helicon score         Show current Helicon Score
-  helicon stack         Audit your AI stack setup
+  helicon brief         Open the morning brief and its diagnostic drill-downs
+  helicon brief science Grade your live store against published agent-research thresholds
+  helicon brief score   Show current Helicon Score
+  helicon brief stack   Audit your AI stack setup
   helicon optimize      LLM-powered optimization suggestions
 """
 
@@ -3990,15 +3991,6 @@ def main():
     report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
-    complaints_p = sub.add_parser(
-        "complaints",
-        help="The complaint log: every pushback you typed, recovered from your transcripts and grouped by kind")
-    complaints_p.add_argument("--scan", action="store_true",
-                              help="re-read the transcripts and store any new corrections (idempotent)")
-    complaints_p.add_argument("--label", help="show only one kind (staleness, fabrication, scope, ...)")
-    complaints_p.add_argument("--limit", type=int, default=15, help="how many recent complaints to print")
-    complaints_p.add_argument("--json", action="store_true", help="machine-readable result")
-
     rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 13 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
     rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
@@ -4084,12 +4076,6 @@ def main():
     overboard_p.add_argument("--top", type=int, default=6, help="rows shown per section")
     overboard_p.add_argument("--json", action="store_true", help="emit the report as JSON")
 
-    magnet_p = sub.add_parser("magnet", help="Rank candidate skills by which gap in YOUR stack they fill (not by stars)")
-    magnet_p.add_argument("--claude-dir", help="the stack to inventory (default ~/.claude)")
-    magnet_p.add_argument("--candidates", help="the feed's output: JSON list or JSONL of {name, description, surface, source}")
-    magnet_p.add_argument("--top", type=int, default=10, help="candidates shown")
-    magnet_p.add_argument("--json", action="store_true", help="emit the report as JSON")
-
     measure_p = sub.add_parser("measure", help="Weekly review as a SERIES: record today's reading of every detector and show the trend")
     measure_p.add_argument("--record", action="store_true", help="take a reading now and store it for this week (re-running in one week replaces that week's rows)")
     measure_p.add_argument("--code-root", help="root to measure git churn and scattered homes over")
@@ -4137,8 +4123,34 @@ def main():
     bench_p.add_argument("--corpus", help="corpus dir of repos to score (default: bench/repos)")
     bench_p.add_argument("--json", action="store_true", help="emit the structured scorecard")
 
-    brief_p = sub.add_parser("brief", help="The morning brief: all five pillars in one screen (Truth/Continuity/Direction/Reflection/Calm)")
+    brief_p = sub.add_parser(
+        "brief",
+        help="The mandatory front door: five-pillar overview plus diagnostic drill-downs")
     brief_p.add_argument("--json", action="store_true", help="emit the structured brief for another surface")
+    brief_sub = brief_p.add_subparsers(dest="brief_command", metavar="DRILL_DOWN")
+
+    brief_sub.add_parser(
+        "science",
+        help="Grade the live store against published agent-research thresholds")
+    brief_sub.add_parser("score", help="Show current Helicon Score")
+    brief_sub.add_parser("stack", help="Audit your AI stack setup")
+
+    complaints_p = brief_sub.add_parser(
+        "complaints",
+        help="Read human pushback recovered from transcripts and grouped by kind")
+    complaints_p.add_argument("--scan", action="store_true",
+                              help="re-read the transcripts and store any new corrections (idempotent)")
+    complaints_p.add_argument("--label", help="show only one kind (staleness, fabrication, scope, ...)")
+    complaints_p.add_argument("--limit", type=int, default=15, help="how many recent complaints to print")
+    complaints_p.add_argument("--json", action="store_true", help="machine-readable result")
+
+    magnet_p = brief_sub.add_parser(
+        "magnet",
+        help="Rank candidate skills by which gap in YOUR stack they fill (not by stars)")
+    magnet_p.add_argument("--claude-dir", help="the stack to inventory (default ~/.claude)")
+    magnet_p.add_argument("--candidates", help="the feed's output: JSON list or JSONL of {name, description, surface, source}")
+    magnet_p.add_argument("--top", type=int, default=10, help="candidates shown")
+    magnet_p.add_argument("--json", action="store_true", help="emit the report as JSON")
 
     doorway_p = sub.add_parser("doorway", help="Install the doorway gate as a Claude Code hook (safely), remove it, print it, or run it (gate)")
     doorway_p.add_argument("action", nargs="?", default="install", choices=["install", "gate"],
@@ -4202,9 +4214,6 @@ def main():
 
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
-    sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
-    sub.add_parser("score", help="Show current Helicon Score")
-    sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
     sub.add_parser("eval", help="Run evaluation benchmarks (retrieval, forgetting, audit)")
 
@@ -4260,7 +4269,6 @@ def main():
         "check": cmd_battery,
         "battery": cmd_battery,
         "report": cmd_report,
-        "complaints": cmd_complaints,
         "audit": cmd_rot,
         "rot": cmd_rot,
         "repair": cmd_heal,
@@ -4281,9 +4289,6 @@ def main():
         "rule": cmd_rule,
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,
-        "science": cmd_science,
-        "score": cmd_score,
-        "stack": cmd_stack,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
@@ -4297,7 +4302,13 @@ def main():
         "overboard": cmd_overboard,
         "ledger": cmd_ledger,
         "measure": cmd_measure,
+    }
+    brief_drilldowns = {
+        "science": cmd_science,
         "magnet": cmd_magnet,
+        "complaints": cmd_complaints,
+        "stack": cmd_stack,
+        "score": cmd_score,
     }
 
     # One gate instead of 36 tracebacks. Every command below reads
@@ -4316,8 +4327,10 @@ def main():
     # stranger hitting a traceback broke the one caller that was already right.
     SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
 
+    selected_command = getattr(args, "brief_command", None) or args.command
+
     from helicon.config import config_file, load_config as _load
-    if args.command not in SELF_CONFIGURING:
+    if selected_command not in SELF_CONFIGURING:
         try:
             _cfg = _load()
         except FileNotFoundError as e:
@@ -4331,7 +4344,10 @@ def main():
                 f"cp config.example.json ~/.helicon/config.json\n"
                 f"  what's wrong:        helicon doctor")
 
-    cmds[args.command](args)
+    if args.command == "brief" and args.brief_command:
+        brief_drilldowns[args.brief_command](args)
+    else:
+        cmds[args.command](args)
 
 
 if __name__ == "__main__":

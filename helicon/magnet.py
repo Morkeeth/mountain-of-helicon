@@ -6,7 +6,7 @@ about whether it belongs in YOUR setup. So the noise is not a discovery problem 
 the feed is already solved, several times over — it is a RANKING problem, and the
 ranker has to be your own stack.
 
-Not the same question as `helicon stack`, which lists what you have, and not the
+Not the same question as `helicon brief stack`, which lists what you have, and not the
 same as the audit skills that compare your config against the official docs. Those
 answer "are you using the documented features correctly". This answers "of the
 flood, which three address something you are actually missing".
@@ -348,7 +348,7 @@ def render_magnet(report: dict, read_at: str = "") -> str:
                 "directories already index",
                 "  this corpus and rebuilding one is a race they have won. "
                 "Point it at the feed's",
-                "  output:  helicon magnet --candidates <file.jsonl>", ""]
+                "  output:  helicon brief magnet --candidates <file.jsonl>", ""]
     elif not report["candidates_read"]:
         out += [f"  FEED READ 0 ROWS from {report['candidates_path']}",
                 "  an empty feed is not an empty result — nothing was ranked", ""]
@@ -381,5 +381,5 @@ def render_magnet(report: dict, read_at: str = "") -> str:
                 "  ranking is reproducible and why it cannot judge quality. "
                 "The ruling is yours.", ""]
 
-    out.append(f"read {read_at}  ·  helicon magnet")
+    out.append(f"read {read_at}  ·  helicon brief magnet")
     return "\n".join(out)

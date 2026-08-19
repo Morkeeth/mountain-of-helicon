@@ -76,7 +76,7 @@ class Threshold:
     source_is_vendor: bool
     source_note: str
     probe: Callable  # (conn, config) -> ProbeResult
-    reproduce: str = "helicon science"
+    reproduce: str = "helicon brief science"
 
 
 # --- verdict logic: the wedge, made executable ------------------------------

@@ -159,7 +159,7 @@ def test_the_empty_state_does_not_name_the_author(conn):
 
 def test_the_empty_state_does_not_tell_you_to_rerun_what_you_just_ran(conn):
     """Also from the cold clone: `--scan` finished, found nothing, and answered
-    "run: helicon complaints --scan". Telling someone to run the command they
+    "run: helicon brief complaints --scan". Telling someone to run the command they
     just ran is how a tool teaches you it is not listening."""
     fresh = complaints.format_log([], [], scanned={"turns_scanned": 0})
     assert "--scan" not in fresh
