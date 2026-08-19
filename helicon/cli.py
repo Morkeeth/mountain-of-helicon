@@ -11,6 +11,7 @@ Usage:
   helicon doctor        Health check: PATH, config, Qwen key, DB, last scan
   helicon mcp           Run the MCP server on stdio (for agent clients)
   helicon science       Grade your live store against published agent-research thresholds
+  helicon measurement-bench  Science + weekly series + store truth (one pass)
   helicon score         Show current Helicon Score
   helicon stack         Audit your AI stack setup
   helicon optimize      LLM-powered optimization suggestions
@@ -3496,6 +3497,20 @@ def cmd_science(args):
     print(run(config))
 
 
+def cmd_measurement_bench(args):
+    """The measurement bench — science, adoption ledger series, and store truth."""
+    from helicon.config import load_config
+    from helicon.measurement_bench import run, run_json_text
+
+    config = load_config()
+    if getattr(args, "db", None):
+        config = {**config, "db_path": args.db}
+    if args.json:
+        print(run_json_text(config, weeks=args.weeks))
+    else:
+        print(run(config, weeks=args.weeks))
+
+
 def cmd_score(args):
     """Show current Helicon Score."""
     from helicon.config import load_config
@@ -4203,6 +4218,10 @@ def main():
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
+    mb_p = sub.add_parser("measurement-bench", help="The measurement bench: science + weekly series + store truth in one pass")
+    mb_p.add_argument("--weeks", type=int, default=12, help="weeks of measurement history to show")
+    mb_p.add_argument("--json", action="store_true", help="emit structured JSON witness (for Firestore / ADK)")
+    mb_p.add_argument("--db", help="override store path (demo SQLite in cloud)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
@@ -4282,6 +4301,7 @@ def main():
         "doctor": cmd_doctor,
         "mcp": cmd_mcp,
         "science": cmd_science,
+        "measurement-bench": cmd_measurement_bench,
         "score": cmd_score,
         "stack": cmd_stack,
         "optimize": cmd_optimize,

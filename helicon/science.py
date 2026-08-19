@@ -306,3 +306,50 @@ def run(config: dict) -> str:
     db_path = config["db_path"]
     conn = init_db(db_path)
     return render(conn, config, db_path)
+
+
+def collect(conn, config: dict, db_path: str) -> dict:
+    """Structured probe results for Firestore / JSON witnesses."""
+    verdicts = []
+    counts = {INSIDE: 0, CLEAR: 0, UNMEASURABLE: 0}
+    for t in REGISTRY:
+        res = t.probe(conn, config)
+        counts[res.verdict] = counts.get(res.verdict, 0) + 1
+        readings = [
+            {
+                "name": r.name,
+                "value": r.value,
+                "sql": r.sql,
+                "repro": _repro_sql(db_path, r.sql),
+                "past_scale": r.value >= t.scale_it_bites_at,
+            }
+            for r in res.readings
+        ]
+        span = None
+        if len(readings) > 1:
+            vals = [r["value"] for r in readings]
+            lo, hi = min(vals), max(vals)
+            span = (hi / lo) if lo > 0 else None
+        verdicts.append({
+            "id": t.id,
+            "verdict": res.verdict,
+            "claim": t.claim,
+            "scale": t.scale_it_bites_at,
+            "scale_unit": t.scale_unit,
+            "mitigation": t.mitigation,
+            "source": t.source,
+            "source_date": t.source_date,
+            "source_is_vendor": t.source_is_vendor,
+            "readings": readings,
+            "reading_span": span,
+            "mitigation_present": res.mitigation_present,
+            "mitigation_note": res.mitigation_note,
+            "unit_note": res.unit_note,
+            "repro_command": t.reproduce,
+        })
+    return {
+        "verdicts": verdicts,
+        "inside_count": counts[INSIDE],
+        "clear_count": counts[CLEAR],
+        "unmeasurable_count": counts[UNMEASURABLE],
+    }
