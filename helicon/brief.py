@@ -231,5 +231,10 @@ def format_brief(b: dict) -> str:
         L.append(f"                · run {r['run_id']}: {r['model']} score {r['score']} (${r['cost']})")
 
     L.append(f"\n  CONTINUITY  {b['continuity']['headline']}")
+    L.append("\n  DRILL DOWN  helicon brief science      published thresholds")
+    L.append("              helicon brief magnet       gaps in your agent stack")
+    L.append("              helicon brief complaints   human pushback")
+    L.append("              helicon brief stack        installed tools")
+    L.append("              helicon brief score        memory health")
     L.append("\n  ──────────────────────────────────────────────────────────────\n")
     return "\n".join(L)

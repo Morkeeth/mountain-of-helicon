@@ -269,7 +269,7 @@ def format_log(counts: list[tuple[str, int]], rows: list[dict], scanned=None) ->
             out.append(f"  read {scanned['turns_scanned']} of your turns and found no "
                        f"corrections in them.")
         else:
-            out.append("  no complaints stored yet. run: helicon complaints --scan")
+            out.append("  no complaints stored yet. run: helicon brief complaints --scan")
         return "\n".join(out)
     total = sum(c for _, c in counts)
     out.append(f"  {total} correction(s), by kind:")

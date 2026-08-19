@@ -38,8 +38,8 @@ helicon scan                 # extract memory items from your sources
 helicon serve                # start web UI on :8420
 helicon triage               # run auto-triage from learned patterns
 helicon triage --dry-run     # preview what would be triaged
-helicon score                # show Helicon Score + decay by type
-helicon stack                # audit your AI tool setup
+helicon brief score          # show Helicon Score + decay by type
+helicon brief stack          # audit your AI tool setup
 helicon optimize             # LLM-powered optimization suggestions
 helicon battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding); every verdict prints last-scan age
 helicon doctor               # health check: PATH, config, Qwen key, DB, last scan

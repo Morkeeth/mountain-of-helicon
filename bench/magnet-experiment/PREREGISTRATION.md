@@ -27,7 +27,7 @@ that was never shortlisted.
 
 1. Take a real stack and compute its inventory and gaps.
 2. Build a flood of 1000 candidates: **990 noise + 10 planted**.
-3. Run `helicon magnet` over the flood. Zero model calls.
+3. Run `helicon brief magnet` over the flood. Zero model calls.
 4. Score recall@20 and precision@3 against the planted set.
 
 ## The planted set — designed to include cases that should FAIL
