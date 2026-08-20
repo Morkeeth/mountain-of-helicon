@@ -75,42 +75,32 @@ def test_agent_run_subprocess_witness(tmp_path):
     client = TestClient(agent.app)
     health = client.get("/healthz")
     assert health.status_code == 200
-    assert health.json() == {"ok": True, "firestore": False}
+    assert health.json() == {"ok": True}
 
-    with patch.object(agent, "write_run") as mock_write:
-        resp = client.post("/run", headers={"X-Trigger": "manual"})
+    resp = client.post("/run")
     assert resp.status_code == 200
     body = resp.json()
     assert body["science"]["unmeasurable_count"] >= 1
-    assert body["run_id"]
-    mock_write.assert_called_once()
-    doc = mock_write.call_args[0][1]
-    assert doc["trigger"] == "manual"
-    assert doc["science"]["unmeasurable_count"] >= 1
-    assert doc["repro_command"] == (
-        "helicon measurement-bench --json "
-        "--db hackathon/adk/demo/helicon.db"
-    )
-    for key in ("science", "measure", "store_truth", "store_path", "recorded_at"):
-        assert doc[key] == body[key]
     assert any(v["verdict"] == "UNMEASURABLE" for v in body["science"]["verdicts"])
 
 
-def test_agent_returns_stderr_without_inventing_verdict_on_failure():
+def test_agent_returns_stdout_unchanged_and_stderr_on_failure():
     agent = _load_agent_module()
 
     from fastapi.testclient import TestClient
 
     client = TestClient(agent.app)
-    with (
-        patch.object(agent, "_run_bench", return_value=(7, "", "bench failed\n")),
-        patch.object(agent, "write_run") as mock_write,
-    ):
+    stdout = '{"science":{"unmeasurable_count":1}}\n'
+    with patch.object(agent, "_run_bench", return_value=(0, stdout, "")):
+        success = client.post("/run")
+    assert success.status_code == 200
+    assert success.text == stdout
+
+    with patch.object(agent, "_run_bench", return_value=(7, "", "bench failed\n")):
         failure = client.post("/run")
     assert failure.status_code == 500
     assert failure.text == "bench failed\n"
     assert "verdict" not in failure.text
-    assert mock_write.call_args[0][1]["status"] == "error"
 
 
 def test_brief_api_local_run_json(tmp_path, monkeypatch):
