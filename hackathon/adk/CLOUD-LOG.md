@@ -60,4 +60,35 @@ for v in d['science']['verdicts']:
 
 **Probe reimplementation count:** 0 (subprocess only).
 
-**Not built yet (slice 2):** Firestore write, Pub/Sub trigger, Cloud Run deploy, brief UI, Gemini narrator.
+## [Cursor Agent 2026-08-20] Slice 2 — GCP deploy wiring
+
+**Objective:** After subprocess witness, write `runs/{uuid}` to Firestore; add Cloud Run deploy scripts, Pub/Sub topic, static brief UI (no Gemini v1).
+
+**Added:**
+- `hackathon/adk/agent/firestore_store.py` — optional Firestore write/read via `GOOGLE_CLOUD_PROJECT`
+- `hackathon/adk/agent/main.py` — Firestore doc on `POST /run`, `GET /runs/latest`, `X-Trigger` header
+- `hackathon/adk/deploy/` — `Dockerfile`, `Dockerfile.brief`, `cloudbuild.*.yaml`, `deploy.sh`, `trigger.sh`
+- `hackathon/adk/brief/index.html` + `serve.py` — UNMEASURABLE headline, repro command, `/api/run`
+- `hackathon/adk/spin-up.md` — exact deploy steps + IAM table
+
+**pytest:** `tests/test_hackathon_adk.py` — **4 passed**.
+
+**Local verify (no GCP):**
+```bash
+python3 hackathon/adk/run_local.py -o /tmp/run.json
+python3 hackathon/adk/brief/serve.py &
+curl -s localhost:8080/api/run | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['science']['unmeasurable_count'])"
+# 1
+```
+
+**Deploy:** `bash hackathon/adk/deploy/deploy.sh` — **not executed in this VM** (`gcloud` not installed). Oscar runs once with `GOOGLE_CLOUD_PROJECT` set; append URLs here:
+
+```
+Agent URL:  (run deploy.sh)
+Brief URL:  (run deploy.sh)
+```
+
+**IAM:** Cloud Run SAs → `roles/datastore.user` (automated in deploy.sh).
+
+**Not built yet (slice 3):** Gemini narrator, Pub/Sub push → Cloud Run Eventarc, scheduled tick.
+
