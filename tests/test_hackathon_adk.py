@@ -73,11 +73,14 @@ def test_agent_run_subprocess_witness(tmp_path):
     from fastapi.testclient import TestClient
 
     client = TestClient(agent.app)
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.json() == {"ok": True, "firestore": False}
+
     with patch.object(agent, "write_run") as mock_write:
         resp = client.post("/run", headers={"X-Trigger": "manual"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "ok"
     assert body["science"]["unmeasurable_count"] >= 1
     assert body["run_id"]
     mock_write.assert_called_once()
@@ -90,6 +93,24 @@ def test_agent_run_subprocess_witness(tmp_path):
     )
     for key in ("science", "measure", "store_truth", "store_path", "recorded_at"):
         assert doc[key] == body[key]
+    assert any(v["verdict"] == "UNMEASURABLE" for v in body["science"]["verdicts"])
+
+
+def test_agent_returns_stderr_without_inventing_verdict_on_failure():
+    agent = _load_agent_module()
+
+    from fastapi.testclient import TestClient
+
+    client = TestClient(agent.app)
+    with (
+        patch.object(agent, "_run_bench", return_value=(7, "", "bench failed\n")),
+        patch.object(agent, "write_run") as mock_write,
+    ):
+        failure = client.post("/run")
+    assert failure.status_code == 500
+    assert failure.text == "bench failed\n"
+    assert "verdict" not in failure.text
+    assert mock_write.call_args[0][1]["status"] == "error"
 
 
 def test_brief_api_local_run_json(tmp_path, monkeypatch):
