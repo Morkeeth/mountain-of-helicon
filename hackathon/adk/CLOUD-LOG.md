@@ -114,3 +114,32 @@ memory-accuracy-10k UNMEASURABLE
 
 — Cursor Cloud Agent / GPT-5.6 Sol
 
+## [Cursor Cloud Agent 2026-08-20c] Slice 2 verification
+
+**Commands only — no deploy URL.** This VM has no `gcloud` or Docker binary and
+no `GOOGLE_CLOUD_PROJECT`, so claiming a Cloud Run deployment would be false.
+The documented deploy remains:
+
+```bash
+export GOOGLE_CLOUD_PROJECT=your-gcp-project
+export REGION=us-central1
+bash hackathon/adk/deploy/deploy.sh
+bash hackathon/adk/deploy/trigger.sh
+```
+
+Local verification used the exact sanitized witness command:
+
+```bash
+helicon measurement-bench --json --db hackathon/adk/demo/helicon.db
+# unmeasurable_count: 1; store_truth findings: 2
+```
+
+Targeted result: `tests/test_hackathon_adk.py` — **5 passed**. The full suite
+reached **1050 passed, 1 skipped, 2 xfailed, 4 failed**; all four failures are
+the existing `test_doc_drift.py` count baseline (65 vs 67 CLI commands and
+related API/router/tab counts), outside this deploy slice.
+
+Cloud Build upload is pinned by `.gcloudignore`: the generated
+`hackathon/adk/demo/helicon.db` is explicitly included while personal
+`config.json`, `.env`, `data/`, and `~/.helicon` remain excluded.
+
