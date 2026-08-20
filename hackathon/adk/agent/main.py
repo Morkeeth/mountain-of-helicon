@@ -32,7 +32,8 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _run_bench(db_path: Path = DEFAULT_DB) -> tuple[int, str, str]:
+def _run_bench(db_path: Path | None = None) -> tuple[int, str, str]:
+    db_path = db_path or DEFAULT_DB
     proc = subprocess.run(
         [
             sys.executable,
