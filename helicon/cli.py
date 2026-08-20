@@ -4337,7 +4337,13 @@ def main():
     SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
 
     from helicon.config import config_file, load_config as _load
-    if args.command not in SELF_CONFIGURING:
+    # An explicit measurement-bench database is the complete store selection.
+    # Requiring an unrelated user config here breaks the sanitized cloud/demo
+    # witness path and tempts callers to point at a live ~/.helicon store.
+    has_explicit_bench_db = (
+        args.command == "measurement-bench" and bool(getattr(args, "db", None))
+    )
+    if args.command not in SELF_CONFIGURING and not has_explicit_bench_db:
         try:
             _cfg = _load()
         except FileNotFoundError as e:
