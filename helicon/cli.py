@@ -3902,6 +3902,31 @@ def cmd_setup(args):
           "(github.com/Morkeeth/mountain-of-helicon)")
 
 
+def cmd_witness(args):
+    """Claim-witness ledger: what the agent SAID vs what the trace SHOWS.
+    Reads local ~/.claude transcripts directly; deterministic; keyless."""
+    from helicon.witness import run_ledger
+
+    path = args.transcript
+    if not path:
+        # --latest: the most recently modified real session transcript.
+        root = os.path.expanduser("~/.claude/projects")
+        newest, newest_m = None, 0
+        for dirpath, _, files in os.walk(root):
+            for fn in files:
+                if fn.endswith(".jsonl"):
+                    p = os.path.join(dirpath, fn)
+                    m = os.path.getmtime(p)
+                    if m > newest_m and os.path.getsize(p) > 20_000:
+                        newest, newest_m = p, m
+        if not newest:
+            print("No transcript found under ~/.claude/projects. "
+                  "Pass a path: helicon witness <session.jsonl>")
+            return
+        path = newest
+    print(run_ledger(os.path.expanduser(path)))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
@@ -4279,6 +4304,10 @@ def main():
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
+    witness_p = sub.add_parser("witness", help="Claim-witness ledger: agent claims in prose vs the tool evidence in the trace (keyless, local)")
+    witness_p.add_argument("transcript", nargs="?", default=None,
+                           help="Path to a session .jsonl (default: newest under ~/.claude/projects)")
+
     setup_p = sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
     setup_p.add_argument("--record", action="store_true",
                          help="Also write today's axis-1 snapshot row (replaces same-day; needs a store)")
@@ -4362,6 +4391,7 @@ def main():
         "score": cmd_score,
         "stack": cmd_stack,
         "setup": cmd_setup,
+        "witness": cmd_witness,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
@@ -4392,7 +4422,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "setup")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "setup", "witness")
 
     from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING:
