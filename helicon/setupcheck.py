@@ -271,3 +271,37 @@ def axis2(conn, cen: dict, cfg: dict) -> list[dict]:
                            "UNMEASURED", "no always-loaded context files found",
                            "Manus KV-cache lessons"))
     return chips
+
+
+SNAP_DDL = """CREATE TABLE IF NOT EXISTS setup_snapshots (
+    day TEXT PRIMARY KEY,
+    taken_at TEXT NOT NULL,
+    skills INTEGER, routines INTEGER,
+    memories_live INTEGER, memories_retired INTEGER,
+    sessions INTEGER, context_bytes INTEGER,
+    chips_pass INTEGER, chips_fail INTEGER, chips_unmeasured INTEGER
+)"""
+
+
+def record_snapshot(conn, cen: dict, chips: list[dict]) -> str:
+    """Write today's axis-1 reading. Re-recording inside one day REPLACES that
+    day's row — a day recorded four times is still one day (measure.py
+    doctrine). Unmeasured cells store NULL, never a fake zero."""
+    conn.execute(SNAP_DDL)
+
+    def _v(c):
+        return c.get("value") if c.get("measured") else None
+
+    always = sum(f["bytes"] for f in cen["context_files"] if f.get("exists"))
+    verdicts = [c["verdict"] for c in chips]
+    now = datetime.now(timezone.utc)
+    conn.execute(
+        "INSERT OR REPLACE INTO setup_snapshots VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (now.date().isoformat(), now.isoformat(timespec="seconds"),
+         _v(cen["skills"]), _v(cen["routines"]),
+         _v(cen["memories"]["live"]), _v(cen["memories"]["retired"]),
+         _v(cen["sessions"]), always,
+         verdicts.count("PASS"), verdicts.count("FAIL"),
+         verdicts.count("UNMEASURED")))
+    conn.commit()
+    return now.date().isoformat()

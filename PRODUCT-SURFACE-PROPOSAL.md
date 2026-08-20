@@ -54,6 +54,7 @@ The review page of the agentic operation, one screen:
 The frontier research + this proposal go into the repo's status/context docs so the project's state is shareable with others: `docs/memory-context-frontier-2026-08.md` (landing tonight) + this file. The README stays the stranger's door.
 
 ## Rulings log
+- **Two flows, one spine (Oscar, late 20 Aug, RELAYED via coordinator — overrides the earlier "converge on one surface" idea): Helicon = PAST** (review, score, what happened, catches and reversals); **ZUP = FUTURE** (what to do next). They share ONLY the data spine (traces/ledger); the UIs are never merged. Helicon stays its own surface.
 - ~~SETUP score reference~~ — **RULED 20 Aug (relayed via coordinator): own-past PRIMARY, field reference SECONDARY.** Encoded above. Stranger mode still works day one: a new user's first scan becomes their baseline, and axis 2 gives them a sourced read immediately while axis 1 accrues.
 
 ## Open question for Oscar (one)
