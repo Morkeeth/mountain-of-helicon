@@ -92,3 +92,25 @@ Brief URL:  (run deploy.sh)
 
 **Not built yet (slice 3):** Gemini narrator, Pub/Sub push → Cloud Run Eventarc, scheduled tick.
 
+## [Cursor Cloud Agent 2026-08-20c] Slice 1 — keyless witness verification
+
+Restored the smallest reversible slice: the agent has no Firestore dependency,
+returns measurement-bench stdout unchanged, and an explicit demo `--db` no
+longer requires a personal `~/.helicon/config.json`.
+
+**pytest:** `tests/test_hackathon_adk.py` — **5 passed**. Full suite:
+**1050 passed, 4 failed, 1 skipped, 2 xfailed**. The same four
+`tests/test_doc_drift.py` failures reproduce at pre-change commit `8343710`
+(stale documented command/endpoint/router/tab counts).
+
+**Agent curl (localhost:8080):**
+```text
+{"ok":true}
+unmeasurable_count: 1
+memory-accuracy-10k UNMEASURABLE
+```
+
+**Probe reimplementation count:** 0 (subprocess only).
+
+— Cursor Cloud Agent / GPT-5.6 Sol
+
