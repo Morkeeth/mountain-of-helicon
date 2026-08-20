@@ -1,6 +1,6 @@
-# Mountain of Helicon — product surface proposal v2
+# Mountain of Helicon — product surface proposal v3
 
-> **v2, 2026-08-20, rewritten to Oscar's direct rulings tonight.** v1 (the Ruling-Queue-as-spine take) is superseded — his words: *"Not sure we need RULING in here actually, only on HARD core drifts, it should be data."* v1 lives in git history (df40c96). Next-Prompt→ZUP was confirmed and stands.
+> **v3, 2026-08-20 (late).** Adds the SETUP-score design per Oscar's ruling (RELAYED via coordinator): **own-past PRIMARY, field reference SECONDARY** — "is my stack getting better over time" is the main axis; comparison to the frontier is the second lens. v2 rulings all stand: data over rulings, no TODAY tab, self-improvement feel, second product in SETUP, Next-Prompt→ZUP. v1 (Ruling-Queue-as-spine) superseded at df40c96.
 
 ## The rulings this version encodes (his, tonight)
 
@@ -26,7 +26,10 @@ A self-improvement tool. The loop is *look → understand → tweak the stack �
 The review page of the agentic operation, one screen:
 
 - **The census**: N skills (which fired this month, which never fire) · N routines/crons (last run, health) · N memories live / retired · N context files and **where context lives** (CLAUDE.md, rules files, vault, memory dir — with sizes and last-touched) · connectors and what they feed.
-- **The score**: how good is this setup, judged against a reference of what good looks like (the frontier doc keeps the reference honest). Subscores: skills hygiene · memory health · context weight · routine liveness. Data first — every subscore expands to the rows behind it.
+- **The score — two axes, ruled 20 Aug (relayed):**
+  - **Axis 1, PRIMARY — you vs you.** Longitudinal: every scan writes a dated snapshot (the `weekly_measurements` / `score_history` tables already in the store are the seed); the score is the TREND, never a lone number. Subscores tracked over time: memory health (live/stale/contradiction counts) · skills hygiene (fired vs dead) · context weight (always-loaded tokens; index-vs-bodies discipline) · routine liveness · rules freshness. Deterministic rules compute it — no LLM judging its own store (arXiv 2606.01435). The hero rendering is a trend line: *your stack, month over month.*
+  - **Axis 2, SECONDARY — you vs the frontier.** Each check cites a real source, so the reference is a bibliography, not taste: rules file under ~200 lines (Anthropic guidance) · rules file measurably obeyed (arXiv 2601.20404 method: before/after task deltas) · validity windows on superseded facts (Zep pattern) · consolidation cadence exists (Dreams/Letta pattern) · transcript-loop closed — repeated instructions become rule edits (/insights, vibe-log pattern) · stable prefixes, index-in-context/bodies-on-disk (Manus/Skills). Rendered as quiet "vs the frontier" chips under each subscore; `docs/memory-context-frontier-2026-08.md` is the living reference corpus and updates as the field moves.
+  - Data first — every subscore, on either axis, expands to the rows behind it.
 - **Golden rules relevance**: each GOLDEN_RULES entry with evidence of when it last mattered — *is this still relevant?* shown as data (last-cited date, still-true check), not as a ruling demand.
 - **Same page, stranger mode**: a new user runs it on their machine and gets the identical census + score on day one. That is the doorway product; Oscar's own page IS the demo.
 
@@ -49,6 +52,8 @@ The review page of the agentic operation, one screen:
 ## Sharing progress (his ask tonight)
 The frontier research + this proposal go into the repo's status/context docs so the project's state is shareable with others: `docs/memory-context-frontier-2026-08.md` (landing tonight) + this file. The README stays the stranger's door.
 
-## Open questions for Oscar (queued, one at a time)
-1. SETUP score: judged against WHOSE reference — his own past (self-improvement) first, or the "ultimate truth" reference (stranger scoring) first? Sequencing decision, changes build order.
-2. Desktop-native shell vs the existing web app at `:8420` — the CLI-vs-suite question (PRODUCT.md:81) still stands and now has two concrete versions to rule between.
+## Rulings log
+- ~~SETUP score reference~~ — **RULED 20 Aug (relayed via coordinator): own-past PRIMARY, field reference SECONDARY.** Encoded above. Stranger mode still works day one: a new user's first scan becomes their baseline, and axis 2 gives them a sourced read immediately while axis 1 accrues.
+
+## Open question for Oscar (one)
+- Desktop-native shell vs the existing web app at `:8420` — the CLI-vs-suite question (PRODUCT.md:81) still stands and now has two concrete versions to rule between.
