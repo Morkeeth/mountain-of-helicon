@@ -88,6 +88,39 @@ def test_agent_run_subprocess_witness(tmp_path):
     assert doc["science"]["unmeasurable_count"] >= 1
 
 
+def test_measurement_bench_db_flag_needs_no_user_config(tmp_path, monkeypatch):
+    """Cloud/demo path: --db alone must not require ~/.helicon/config.json."""
+    db = tmp_path / "demo.db"
+    sys.path.insert(0, str(REPO))
+    mod_spec = importlib.util.spec_from_file_location(
+        "seed_demo_db", ADK / "seed_demo_db.py")
+    mod = importlib.util.module_from_spec(mod_spec)
+    mod_spec.loader.exec_module(mod)
+    mod.seed(str(db))
+
+    home = tmp_path / "empty-home"
+    home.mkdir()
+    env = {
+        **dict(**{k: v for k, v in __import__("os").environ.items()
+                  if k not in ("HELICON_CONFIG", "HELICON_HOME")}),
+        "HOME": str(home),
+        "HELICON_HOME": str(home / ".helicon"),
+    }
+    env.pop("HELICON_CONFIG", None)
+    proc = subprocess.run(
+        [sys.executable, "-m", "helicon", "measurement-bench",
+         "--json", "--db", str(db)],
+        cwd=str(REPO),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stderr + proc.stdout
+    assert "No config at" not in proc.stderr
+    payload = json.loads(proc.stdout)
+    assert payload["science"]["unmeasurable_count"] >= 1
+
+
 def test_brief_api_local_run_json(tmp_path, monkeypatch):
     run_path = tmp_path / "run.json"
     payload = {
