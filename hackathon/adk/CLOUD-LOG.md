@@ -92,3 +92,50 @@ Brief URL:  (run deploy.sh)
 
 **Not built yet (slice 3):** Gemini narrator, Pub/Sub push → Cloud Run Eventarc, scheduled tick.
 
+## [Cursor Cloud Agent 2026-08-20] Slice 1 re-verify — `--db` without user config
+
+**Arm:** A (hosted Cloud VM). Oscar away. Slice 1 only (no new GCP).
+
+**Objective:** Prove the ADK wrapper subprocesses `helicon measurement-bench --json` on the seeded demo store and returns UNMEASURABLE without inventing interaction counts.
+
+**Blocker found:** On a bare VM (`~/.helicon` absent), `measurement-bench --db …` hit the CLI config gate (`No config at …/config.json`) before the `--db` override could apply. Prior CLOUD-LOG entries assumed a config that this environment does not have.
+
+**Fix (helicon/, not hackathon/adk probes):**
+- `helicon/cli.py` — bypass config gate when `measurement-bench --db` is set; build `{db_path}` (optionally merged with present config)
+- `tests/test_hackathon_adk.py` — regression: empty HOME + `--db` still emits UNMEASURABLE
+
+**Agent surface (already on branch):** `hackathon/adk/agent/main.py` POST `/run`, GET `/healthz`, Dockerfile stub, README curl example. Probe reimplementation count: **0**.
+
+**Verified:**
+```bash
+python3 hackathon/adk/seed_demo_db.py
+python3 hackathon/adk/run_local.py --seed -o /tmp/run.json
+# science.unmeasurable_count >= 1 ✓  (no ~/.helicon)
+
+python3 hackathon/adk/agent/main.py   # :8080
+curl -s -X POST localhost:8080/run | python3 -m json.tool
+```
+
+**curl stdout snippet (UNMEASURABLE):**
+```json
+{
+  "status": "ok",
+  "science": {
+    "unmeasurable_count": 1,
+    "clear_count": 2,
+    "inside_count": 0,
+    "verdicts": [
+      {"id": "rag-precision-500k", "verdict": "CLEAR"},
+      {"id": "memory-accuracy-10k", "verdict": "UNMEASURABLE"},
+      {"id": "hybrid-1m", "verdict": "CLEAR"}
+    ]
+  },
+  "store_path": "/workspace/hackathon/adk/demo/helicon.db",
+  "repro_command": "helicon measurement-bench --json"
+}
+```
+
+`memory-accuracy-10k` keeps five straddling readings (28 … 15001); no single “interactions” count invented.
+
+**pytest:** `tests/test_hackathon_adk.py` — **5 passed**. Full suite: **1050 passed**, 1 skipped, 2 xfailed, **4 failed** (`tests/test_doc_drift.py` — pre-existing README/CLAUDE count drift, unrelated to slice 1).
+
