@@ -4,9 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 ADK = REPO / "hackathon" / "adk"
@@ -75,17 +73,34 @@ def test_agent_run_subprocess_witness(tmp_path):
     from fastapi.testclient import TestClient
 
     client = TestClient(agent.app)
-    with patch.object(agent, "write_run") as mock_write:
-        resp = client.post("/run", headers={"X-Trigger": "manual"})
+    health = client.get("/healthz")
+    assert health.status_code == 200
+    assert health.json() == {"ok": True}
+
+    resp = client.post("/run")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "ok"
     assert body["science"]["unmeasurable_count"] >= 1
-    assert body["run_id"]
-    mock_write.assert_called_once()
-    doc = mock_write.call_args[0][1]
-    assert doc["trigger"] == "manual"
-    assert doc["science"]["unmeasurable_count"] >= 1
+    assert any(v["verdict"] == "UNMEASURABLE" for v in body["science"]["verdicts"])
+
+
+def test_agent_returns_stdout_unchanged_and_stderr_on_failure():
+    agent = _load_agent_module()
+
+    from fastapi.testclient import TestClient
+
+    client = TestClient(agent.app)
+    stdout = '{"science":{"unmeasurable_count":1}}\n'
+    with patch.object(agent, "_run_bench", return_value=(0, stdout, "")):
+        success = client.post("/run")
+    assert success.status_code == 200
+    assert success.text == stdout
+
+    with patch.object(agent, "_run_bench", return_value=(7, "", "bench failed\n")):
+        failure = client.post("/run")
+    assert failure.status_code == 500
+    assert failure.text == "bench failed\n"
+    assert "verdict" not in failure.text
 
 
 def test_brief_api_local_run_json(tmp_path, monkeypatch):
