@@ -52,13 +52,15 @@ python3 hackathon/adk/agent/main.py &   # optional HTTP demo
 
 ---
 
-## Agent URLs (fill after launch)
+## Agent URLs (launched 2026-08-20 ~10:10 CEST)
 
 ```
-Slice 1 hosted: 
-Slice 2 hosted: 
+Slice 1 hosted: https://cursor.com/agents/bc-0425f5b2-4f00-4e91-8621-57e72185d1bc
+Slice 2 hosted: https://cursor.com/agents/bc-5943f7de-9e93-46a1-ba3a-9e58ce033a9b
 Slice 2 overnight local log: /tmp/hackathon-slice2-agent.log
 ```
+
+Both ACTIVE on branch `hackathon/adk-cloud`, workOnCurrentBranch=true. Laptop can shut down — they run on Cursor VMs.
 
 ---
 
