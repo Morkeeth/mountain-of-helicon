@@ -8,12 +8,12 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 - **Layer 2:** Learns review patterns (velocity, shipping rates, spin detection, kill prediction)
 - **Layer 3:** Audits its own stored patterns. Flags stale memories, contradictions, low-confidence patterns. Proposes prunes. Human reviews the memory review (meta-loop).
 
-## Hackathon
+## History
 
-- **Track:** Qwen Cloud Global AI Hackathon - MemoryAgent
-- **Deadline:** Jul 20, 2026, 2pm PDT (verified at devpost source Jul 13; the old "Jul 9" was stale)
-- **Prize:** $10K ($7K cash + $3K Alibaba Cloud credits)
-- **Requirements:** Qwen Cloud API, Alibaba Cloud deployment, open source, 3-min demo video
+Born as a Qwen Cloud hackathon entry (Jul 2026, MemoryAgent track); the frozen
+submission lives on as Mount Helicon (separate repo, never touched). This repo
+is the PRODUCT — a real OSS tool launched Aug 2026. Submission-era files are
+archived under `docs/archive/hackathon-2026/`, history intact.
 
 ## Stack
 
