@@ -1,0 +1,53 @@
+SKILLS REVIEW — 31 installed · 2427 local transcripts scanned, last 30 days
+(window truth: 'quiet' means not seen fired in THESE transcripts — older sessions, other machines and cloud runs are invisible from here; dates are session-file dates)
+
+FIRED IN WINDOW (15):
+  design-taste                   33×  last 2026-08-21
+  sesh                           30×  last 2026-08-21
+  writing                        21×  last 2026-08-21
+  frame                          19×  last 2026-08-21
+  hack-scan                      16×  last 2026-08-16
+  fleet                          15×  last 2026-08-21
+  job-hunt                       12×  last 2026-08-21
+  zup                            10×  last 2026-08-20
+  plan                            9×  last 2026-08-21
+  eval                            7×  last 2026-08-16
+  stranger                        5×  last 2026-08-16
+  grilling                        2×  last 2026-08-20
+  okx-ai                          2×  last 2026-08-15  · THIN DESCRIPTION
+  rekt                            2×  last 2026-08-10
+  writing-for-agents              2×  last 2026-08-18
+
+NOT SEEN IN WINDOW (16):
+  board
+  codebase-design
+  domain-modeling
+  okx-agent-payments-protocol
+  okx-agentic-wallet
+  okx-dapp-discovery  · THIN DESCRIPTION
+  okx-defi
+  okx-dex-market
+  okx-growth-competition
+  okx-guide
+  prototype
+  recon  · THIN DESCRIPTION
+  research
+  skill-creator
+  wayfinder
+  weekend-name
+
+INVOKED BUT NOT AN INSTALLED SKILL (22, built-ins/plugins/typos): advisor, artifact-capabilities, artifact-design, bonjour, bonsoir, claude-api, clear, dataviz, deep-research, dictate, dig, effort, full-board-audit, login, loop, loupe, megafon, model, night-run, schedule
+
+---
+THE REVIEW (2026-08-21, from the data above):
+1. HALF THE LIBRARY IS QUIET: 16 of 31 skills not seen fired in 30 days of local
+   transcripts. The OKX cluster (7 skills) is entirely quiet — either event-driven
+   (they wait for wallet/payment intents that never came) or eviction candidates.
+   A skill that cannot fire from this machine should say so in its description.
+2. THE WORKHORSES ARE CLEAR: design-taste (33x), sesh (30x), writing (21x),
+   frame (19x) — the top 4 carry the operation. All have healthy descriptions.
+3. THREE THIN DESCRIPTIONS (under 40 chars): okx-ai, okx-dapp-discovery, recon —
+   thin descriptions are mis-trigger risk (the model picks skills BY description).
+4. KNOWN LIMIT, stated: plugin/built-in commands (bonjour, dictate, loupe, dig...)
+   live outside ~/.claude/skills and show as "invoked but not installed" — the
+   census counts skill DIRS; a fuller roots config would fold them in.

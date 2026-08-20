@@ -1,5 +1,22 @@
 # Mountain of Helicon
 
+```bash
+pip install mountain-of-helicon
+helicon witness          # your last agent session: every claim vs its evidence
+helicon setup            # your whole stack, graded, zero config
+```
+
+One real catch, from a real transcript, in under a minute:
+
+```
+[NO-EVIDENCE ] L1127: "I ran the full pytest suite and all tests pass."
+               → no tool call in this run could support it
+```
+
+Your agent said it. The trace doesn't back it. Now you know before you merge.
+
+---
+
 **Your CLAUDE.md is lying to your agent, and nothing tells you.**
 
 It says "see `docs/architecture.md`" after that file moved. It routes to a
@@ -356,9 +373,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (67 commands)
+## CLI (69 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `setup` `science` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `setup` `witness` `skills-review` `science` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
