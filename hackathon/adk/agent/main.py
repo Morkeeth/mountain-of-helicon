@@ -107,6 +107,7 @@ def run(request: Request):
         )
 
     doc = {
+        **payload,
         "run_id": run_id,
         "started_at": started_at,
         "finished_at": finished_at,
@@ -114,7 +115,10 @@ def run(request: Request):
         "status": "ok",
         "error": None,
         "brief_text": None,
-        **payload,
+        "repro_command": (
+            "helicon measurement-bench --json "
+            "--db hackathon/adk/demo/helicon.db"
+        ),
     }
     try:
         write_run(run_id, doc)
