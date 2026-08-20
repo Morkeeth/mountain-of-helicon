@@ -3828,6 +3828,69 @@ def cmd_consolidation_eval(args):
         print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
+def cmd_setup(args):
+    """Zero-config census + two-axis score. No key, no init, no config needed:
+    missing pieces render as UNMEASURED with the reason, never as a crash and
+    never as a zero pretending to be a grade."""
+    import sqlite3 as _sqlite3
+    from helicon.setupcheck import axis2, census
+
+    try:
+        from helicon.config import load_config
+        cfg = load_config() or {}
+    except Exception:
+        cfg = {}
+    db = os.path.expanduser(cfg.get("db_path") or "~/.helicon/helicon.db")
+    conn = None
+    if os.path.isfile(db):
+        conn = _sqlite3.connect(db)
+        conn.row_factory = _sqlite3.Row
+
+    cen = census(conn, cfg)
+    chips = axis2(conn, cen, cfg)
+
+    print("THE SETUP — your agent stack, measured\n")
+
+    def row(label, c):
+        if c.get("measured"):
+            v = c["value"]
+            print(f"  {label:<22} {v:>7,}   {c['how']}")
+        else:
+            print(f"  {label:<22} {'—':>7}   UNMEASURED: {c['how']}")
+
+    print("CENSUS")
+    row("skills", cen["skills"])
+    row("routines", cen["routines"])
+    row("memories, live", cen["memories"]["live"])
+    row("memories, retired", cen["memories"]["retired"])
+    if cen["memories"].get("files"):
+        row("memory files", cen["memories"]["files"])
+    row("sessions", cen["sessions"])
+
+    print("\nWHERE CONTEXT LIVES")
+    for f in cen["context_files"]:
+        if f.get("exists"):
+            print(f"  {f['label']:<34} {f['lines']:>6} lines  "
+                  f"{f['bytes']/1024:>7.1f}KB  touched {f['age_days']}d ago")
+        else:
+            print(f"  {f['label']:<34} not found")
+
+    passing = sum(1 for c in chips if c["verdict"] == "PASS")
+    measurable = sum(1 for c in chips if c["verdict"] != "UNMEASURED")
+    print(f"\nYOU VS THE FRONTIER — {passing}/{measurable} measurable checks pass")
+    for c in chips:
+        print(f"  [{c['verdict']:<10}] {c['claim']}")
+        print(f"               {c['probe']}")
+        print(f"               source: {c['source']}")
+
+    if conn is None:
+        print("\nNo helicon store on this machine yet — store-backed cells are"
+              " UNMEASURED, which is honest, not empty."
+              "\nBuild one: helicon init && helicon scan")
+    print("\nReference corpus: docs/memory-context-frontier-2026-08.md "
+          "(github.com/Morkeeth/mountain-of-helicon)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
@@ -4205,6 +4268,7 @@ def main():
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
+    sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
     sub.add_parser("eval", help="Run evaluation benchmarks (retrieval, forgetting, audit)")
 
@@ -4284,6 +4348,7 @@ def main():
         "science": cmd_science,
         "score": cmd_score,
         "stack": cmd_stack,
+        "setup": cmd_setup,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
@@ -4314,7 +4379,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "setup")
 
     from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING:
