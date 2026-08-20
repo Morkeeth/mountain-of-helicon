@@ -50,7 +50,7 @@ flowchart TD
   subgraph SURF["Surfaces"]
     CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
     MCP["MCP server<br/>23 tools · JSON-RPC 2.0 / stdio"]
-    WEB["Web UI · 21 tabs<br/>The Doorway · Lab · The Cockpit · Start Here · Morning Brief · Findings · Health · Gold · Exam · Judge · Log · Graph · …"]
+    WEB["Web UI · 22 tabs<br/>The Doorway · Lab · The Cockpit · Start Here · Morning Brief · Findings · Health · Gold · Exam · Judge · Log · Graph · …"]
   end
 ```
 

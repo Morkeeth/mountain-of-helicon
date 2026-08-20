@@ -59,7 +59,11 @@ def count_mcp_tools() -> int:
 
 def count_cli_commands() -> int:
     src = open(os.path.join(PKG_DIR, "cli.py")).read()
-    return len(set(re.findall(r'sub\.add_parser\(\s*"([a-z-]+)"', src)))
+    # Count only the root parser named `sub`. A substring match also catches
+    # `brief_sub.add_parser(...)`, incorrectly promoting drill-downs back into
+    # the top-level command count that this check is meant to protect.
+    return len(set(re.findall(
+        r'(?<![A-Za-z0-9_])sub\.add_parser\(\s*"([a-z-]+)"', src)))
 
 
 def count_tables() -> int:
