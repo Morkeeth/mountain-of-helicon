@@ -156,8 +156,8 @@ $ `}<CMD c="helicon doctor" />{`
 
       {/* QWEN STACK */}
       <section>
-        <div className="text-[11px] uppercase tracking-[0.24em] mb-2" style={{ color: 'var(--helicon-muted)' }}>Built on Qwen Cloud · Alibaba Model Studio</div>
-        <h2 className="text-[clamp(24px,3.2vw,32px)] m-0 mb-5" style={{ ...SERIF, color: 'var(--helicon-ink)', fontWeight: 500 }}>The whole stack runs on Qwen, direct on Alibaba.</h2>
+        <div className="text-[11px] uppercase tracking-[0.24em] mb-2" style={{ color: 'var(--helicon-muted)' }}>Local-first · bring your own model</div>
+        <h2 className="text-[clamp(24px,3.2vw,32px)] m-0 mb-5" style={{ ...SERIF, color: 'var(--helicon-ink)', fontWeight: 500 }}>Deterministic checks run keyless; an LLM judge is optional.</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           {STACK.map(([tag, h, p]) => (
             <div key={tag} className="rounded-xl border border-zinc-800/40 px-5 py-4 bg-white">

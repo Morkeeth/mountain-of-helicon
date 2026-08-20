@@ -93,7 +93,7 @@ const LAB_ENTRIES: { key: Tab; label: string; group: string }[] = [
   { key: 'route', label: 'Route', group: 'Detail' },
   { key: 'lens', label: 'Causal Lens', group: 'Detail' },
   { key: 'evals', label: 'Evals', group: 'Detail' },
-  { key: 'judge', label: 'Qwen as Judge', group: 'Detail' },
+  { key: 'judge', label: 'Judge Bench', group: 'Detail' },
   { key: 'exam', label: 'The Exam', group: 'Detail' },
   { key: 'graph', label: 'Graph', group: 'Detail' },
   { key: 'projects', label: 'Projects', group: 'Detail' },
@@ -471,13 +471,7 @@ function App() {
               </h1>
               {/* tagline + badge are desktop furniture: on a phone they pushed the
                   header 169px past the viewport and shore the score clean off */}
-              <span className="hidden lg:inline text-[10px] text-zinc-500 tracking-widest uppercase font-medium">Court of record for agent memory</span>
-              <span
-                className="hidden lg:inline text-[9px] px-2 py-0.5 rounded-full font-medium tracking-wide border"
-                style={{ background: 'var(--helicon-accent-dim)', color: 'var(--helicon-accent)', borderColor: 'rgba(34,58,78, 0.25)' }}
-              >
-                Powered by Qwen
-              </span>
+              <span className="hidden lg:inline text-[10px] text-zinc-500 tracking-widest uppercase font-medium">The mirror of your agent operation</span>
             </div>
             <div className="flex items-center gap-2 md:gap-3 shrink-0">
               {/* Attention bar: live findings severity split, click-through to FINDINGS */}
