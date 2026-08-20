@@ -4,9 +4,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 ADK = REPO / "hackathon" / "adk"
@@ -86,6 +84,12 @@ def test_agent_run_subprocess_witness(tmp_path):
     doc = mock_write.call_args[0][1]
     assert doc["trigger"] == "manual"
     assert doc["science"]["unmeasurable_count"] >= 1
+    assert doc["repro_command"] == (
+        "helicon measurement-bench --json "
+        "--db hackathon/adk/demo/helicon.db"
+    )
+    for key in ("science", "measure", "store_truth", "store_path", "recorded_at"):
+        assert doc[key] == body[key]
 
 
 def test_brief_api_local_run_json(tmp_path, monkeypatch):

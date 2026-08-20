@@ -3502,9 +3502,13 @@ def cmd_measurement_bench(args):
     from helicon.config import load_config
     from helicon.measurement_bench import run, run_json_text
 
-    config = load_config()
     if getattr(args, "db", None):
-        config = {**config, "db_path": args.db}
+        # An explicit store is a complete configuration for this deterministic
+        # command. This keeps the demo witness isolated from ~/.helicon and lets
+        # the Cloud Run image operate without a personal config file.
+        config = {"db_path": args.db}
+    else:
+        config = load_config()
     if args.json:
         print(run_json_text(config, weeks=args.weeks))
     else:
@@ -4335,9 +4339,12 @@ def main():
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
     SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
+    has_explicit_bench_db = (
+        args.command == "measurement-bench" and bool(getattr(args, "db", None))
+    )
 
     from helicon.config import config_file, load_config as _load
-    if args.command not in SELF_CONFIGURING:
+    if args.command not in SELF_CONFIGURING and not has_explicit_bench_db:
         try:
             _cfg = _load()
         except FileNotFoundError as e:
