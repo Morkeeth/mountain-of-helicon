@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Helicon Measurement Brief</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e8eef5;
+      --muted: #8b9cb3;
+      --warn: #f0a030;
+      --ok: #5ecf8a;
+      --border: #2d3a4d;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f4f6f9;
+        --panel: #ffffff;
+        --text: #1a2332;
+        --muted: #5a6b82;
+        --border: #d8dee8;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    main {
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.25rem;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.75rem;
+    }
+    .headline {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--warn);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .headline .verdict {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--warn);
+      text-transform: uppercase;
+    }
+    .headline h2 {
+      margin: 0.35rem 0 0.5rem;
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    .headline p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    section h3 {
+      margin: 0 0 0.75rem;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    code, pre {
+      font-family: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+      font-size: 0.85rem;
+    }
+    pre {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      background: rgba(0,0,0,0.25);
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    @media (prefers-color-scheme: light) {
+      pre { background: #eef2f7; }
+    }
+    ul.verdicts {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    ul.verdicts li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    ul.verdicts li:last-child { border-bottom: none; }
+    .tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      margin-right: 0.5rem;
+    }
+    .tag.unmeasurable { background: rgba(240,160,48,0.2); color: var(--warn); }
+    .tag.clear { background: rgba(94,207,138,0.15); color: var(--ok); }
+    .tag.inside { background: rgba(139,156,179,0.2); color: var(--muted); }
+    .meta { font-size: 0.8rem; color: var(--muted); }
+    .error {
+      color: #e85d5d;
+      padding: 1rem;
+      border: 1px solid #e85d5d;
+      border-radius: 8px;
+    }
+    .loading { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Measurement Brief</h1>
+    <p class="sub">Witness from <code>helicon measurement-bench</code> — verdicts are frozen JSON, not narrated.</p>
+    <div id="root" class="loading">Loading latest run…</div>
+  </main>
+  <script>
+    const LOCAL_FALLBACK = "/tmp/run.json";
+
+    function tagClass(verdict) {
+      const v = (verdict || "").toUpperCase();
+      if (v === "UNMEASURABLE") return "unmeasurable";
+      if (v === "CLEAR") return "clear";
+      return "inside";
+    }
+
+    function firstUnmeasurable(science) {
+      const verdicts = (science && science.verdicts) || [];
+      return verdicts.find(v => (v.verdict || "").toUpperCase() === "UNMEASURABLE") || verdicts[0];
+    }
+
+    function renderRun(run) {
+      const headline = firstUnmeasurable(run.science);
+      const repro = run.repro_command || "helicon measurement-bench --json --db hackathon/adk/demo/helicon.db";
+      const recorded = run.finished_at || run.recorded_at || "—";
+      const runId = run.run_id || "local";
+
+      const verdictRows = ((run.science && run.science.verdicts) || [])
+        .map(v => `
+          <li>
+            <span class="tag ${tagClass(v.verdict)}">${v.verdict}</span>
+            <strong>${v.id}</strong> — ${v.claim || ""}
+          </li>`).join("");
+
+      document.getElementById("root").innerHTML = `
+        <div class="headline">
+          <div class="verdict">${headline ? headline.verdict : "NO VERDICT"}</div>
+          <h2>${headline ? headline.claim : "No science verdicts in witness JSON"}</h2>
+          <p>${headline && headline.id ? headline.id : ""} · unmeasurable_count: ${(run.science && run.science.unmeasurable_count) ?? "?"}</p>
+        </div>
+        <section>
+          <h3>Reproduce</h3>
+          <pre>${repro}</pre>
+          <p class="meta">run_id: ${runId} · recorded: ${recorded}</p>
+        </section>
+        <section>
+          <h3>All verdicts</h3>
+          <ul class="verdicts">${verdictRows || "<li>No verdicts</li>"}</ul>
+        </section>
+      `;
+    }
+
+    function renderError(msg) {
+      document.getElementById("root").innerHTML = `<div class="error">${msg}</div>`;
+    }
+
+    async function loadRun() {
+      const sources = [
+        "/api/run",
+        LOCAL_FALLBACK,
+      ];
+      for (const url of sources) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const run = await res.json();
+          if (run.error) continue;
+          renderRun(run);
+          return;
+        } catch (_) { /* try next */ }
+      }
+      renderError(
+        "No run found. Cloud: POST agent /run then refresh. Local: " +
+        "<code>python3 hackathon/adk/run_local.py -o /tmp/run.json</code> then serve brief."
+      );
+    }
+
+    loadRun();
+  </script>
+</body>
+</html>

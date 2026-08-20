@@ -1,0 +1,14 @@
+# Cloud Run brief UI — build from repo root:
+#   docker build -f hackathon/adk/deploy/Dockerfile.brief -t helicon-brief .
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir fastapi uvicorn google-cloud-firestore
+
+COPY hackathon/adk/brief/index.html /app/brief/index.html
+COPY hackathon/adk/brief/serve.py /app/brief/serve.py
+
+EXPOSE 8080
+WORKDIR /app/brief
+CMD ["python3", "serve.py"]

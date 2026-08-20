@@ -1,5 +1,5 @@
-# Stub — use hackathon/adk/deploy/Dockerfile for Cloud Run.
-# Local: python3 hackathon/adk/agent/main.py
+# Cloud Run agent — build from repo root:
+#   docker build -f hackathon/adk/deploy/Dockerfile -t helicon-agent .
 FROM python:3.12-slim
 
 WORKDIR /app
