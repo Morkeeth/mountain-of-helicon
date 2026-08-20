@@ -3902,6 +3902,12 @@ def cmd_setup(args):
           "(github.com/Morkeeth/mountain-of-helicon)")
 
 
+def cmd_skills_review(args):
+    """Skills reviewed from USE: which installed skills fired in the window."""
+    from helicon.skillsuse import render_review, review
+    print(render_review(review(days=args.days)))
+
+
 def cmd_witness(args):
     """Claim-witness ledger: what the agent SAID vs what the trace SHOWS.
     Reads local ~/.claude transcripts directly; deterministic; keyless."""
@@ -3924,7 +3930,8 @@ def cmd_witness(args):
                   "Pass a path: helicon witness <session.jsonl>")
             return
         path = newest
-    print(run_ledger(os.path.expanduser(path)))
+    print(run_ledger(os.path.expanduser(path),
+                     judge_flag=getattr(args, "judge", False)))
 
 
 def main():
@@ -4304,9 +4311,14 @@ def main():
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
+    sr_p = sub.add_parser("skills-review", help="Which installed skills actually fire (local transcripts, honest window)")
+    sr_p.add_argument("--days", type=int, default=30, help="Window in days (default 30)")
+
     witness_p = sub.add_parser("witness", help="Claim-witness ledger: agent claims in prose vs the tool evidence in the trace (keyless, local)")
     witness_p.add_argument("transcript", nargs="?", default=None,
                            help="Path to a session .jsonl (default: newest under ~/.claude/projects)")
+    witness_p.add_argument("--judge", action="store_true",
+                           help="Also judge unchecked prose claims via YOUR OWN claude CLI (one bounded call, local)")
 
     setup_p = sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
     setup_p.add_argument("--record", action="store_true",
@@ -4392,6 +4404,7 @@ def main():
         "stack": cmd_stack,
         "setup": cmd_setup,
         "witness": cmd_witness,
+        "skills-review": cmd_skills_review,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
@@ -4422,7 +4435,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "setup", "witness")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "setup", "witness", "skills-review")
 
     from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING:
