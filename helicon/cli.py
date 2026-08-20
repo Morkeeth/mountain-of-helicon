@@ -3498,13 +3498,24 @@ def cmd_science(args):
 
 
 def cmd_measurement_bench(args):
-    """The measurement bench — science, adoption ledger series, and store truth."""
+    """The measurement bench — science, adoption ledger series, and store truth.
+
+    `--db` is the cloud/demo path: a store path is enough; no ~/.helicon config
+    required. Without `--db`, the usual config gate still applies.
+    """
     from helicon.config import load_config
     from helicon.measurement_bench import run, run_json_text
 
-    config = load_config()
     if getattr(args, "db", None):
-        config = {**config, "db_path": args.db}
+        # Prefer merging a real config when present (embeddings notes, etc.),
+        # but never require one — demo/Cloud Run only ships a SQLite path.
+        try:
+            base = load_config() or {}
+        except FileNotFoundError:
+            base = {}
+        config = {**base, "db_path": args.db}
+    else:
+        config = load_config()
     if args.json:
         print(run_json_text(config, weeks=args.weeks))
     else:
@@ -4336,8 +4347,15 @@ def main():
     # stranger hitting a traceback broke the one caller that was already right.
     SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
 
+    # measurement-bench --db is self-contained: probes read the given SQLite
+    # path only. Cloud Run / hackathon demo seed must not invent a ~/.helicon
+    # config just to pass this gate.
+    db_only_bench = (
+        args.command == "measurement-bench" and getattr(args, "db", None)
+    )
+
     from helicon.config import config_file, load_config as _load
-    if args.command not in SELF_CONFIGURING:
+    if args.command not in SELF_CONFIGURING and not db_only_bench:
         try:
             _cfg = _load()
         except FileNotFoundError as e:
