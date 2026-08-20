@@ -36,6 +36,7 @@ const ConflictMap = lazy(() => import('./components/ConflictMap'));
 const Focus = lazy(() => import('./components/Focus'));
 const Landing = lazy(() => import('./components/Landing'));
 const SetupReportCard = lazy(() => import('./components/SetupReportCard'));
+const SetupView = lazy(() => import('./components/SetupView'));
 const StoreAudit = lazy(() => import('./components/StoreAudit'));
 const Reading = lazy(() => import('./components/Reading'));
 const MemoryHealthTrend = lazy(() => import('./components/MemoryHealthTrend'));
@@ -46,7 +47,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route';
+type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route' | 'setup';
 
 // SUBTRACTION (Jul 22): 19 tabs -> 5, and the More sheet is gone. The nav is
 // now exactly the loop from the vision: agent output arrives (Cockpit), the
@@ -82,6 +83,7 @@ const PRIMARY_TABS: { key: Tab; label: string }[] = [
 // Everything the Lab routes to. These are the surfaces that used to sit in the
 // rail — none removed, all one click away through the Lab index.
 const LAB_ENTRIES: { key: Tab; label: string; group: string }[] = [
+  { key: 'setup', label: 'The Setup', group: 'The loop' },
   { key: 'cockpit', label: 'The Cockpit', group: 'The loop' },
   { key: 'findings', label: 'Needs Ruling', group: 'The loop' },
   { key: 'gold', label: 'Golden Rules', group: 'The loop' },
@@ -111,7 +113,7 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 // Navigation is intentionally five items, but old receipts and bookmarks remain
 // valid. Hidden routes are explicit compatibility entry points, not a second menu.
 const ROUTABLE_TABS: Tab[] = [
-  'week', 'board', 'lab',
+  'week', 'board', 'lab', 'setup',
   'cockpit', 'start', 'brief', 'reading', 'tour', 'focus', 'health', 'findings',
   'exam', 'judge', 'gold', 'log', 'graph', 'projects', 'routines', 'evals',
   'lens', 'runs', 'route',
@@ -526,6 +528,7 @@ function App() {
         {tab === 'week' && <ThisWeek />}
         {tab === 'board' && <Board />}
         {tab === 'lab' && <LabIndex onPick={setTab} />}
+        {tab === 'setup' && <SetupView />}
         {tab === 'cockpit' && <Cockpit />}
         {tab === 'start' && <StartHere onExplore={() => setTab('brief')} />}
         {tab === 'brief' && <BriefView />}

@@ -115,7 +115,9 @@ def create_app() -> FastAPI:
     from helicon.api.runs2 import router as runs2_router
     from helicon.api.doorway import router as doorway_router
     from helicon.api.thisweek import router as thisweek_router
+    from helicon.api.setup import router as setup_router
 
+    app.include_router(setup_router, prefix="/api")
     app.include_router(cubes_router, prefix="/api")
     app.include_router(review_router, prefix="/api")
     app.include_router(score_router, prefix="/api")
