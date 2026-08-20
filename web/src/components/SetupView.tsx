@@ -86,6 +86,12 @@ function Trend({ snaps }: { snaps: Snapshot[] }) {
           <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: MUTED }}>{d}</span>
         </div>
       ))}
+      {/* Goodhart gate: auto-triage moves the live count, so a delta here is
+          data about the store, not proof the human's stack improved. */}
+      <p className="text-[10.5px] mt-2 leading-snug" style={{ color: FAINT }}>
+        memories-live can be moved by the tool's own auto-triage — deltas are store data,
+        not self-improvement, until reviewer provenance is a typed column (Goodhart gate).
+      </p>
     </div>
   );
 }
