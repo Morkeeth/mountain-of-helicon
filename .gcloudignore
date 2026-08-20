@@ -1,0 +1,8 @@
+.gcloudignore
+.git
+.gitignore
+#!include:.gitignore
+
+# Generated immediately before Cloud Build by hackathon/adk/deploy/deploy.sh.
+# It is the sanitized demo witness store, never the user's ~/.helicon database.
+!hackathon/adk/demo/helicon.db
