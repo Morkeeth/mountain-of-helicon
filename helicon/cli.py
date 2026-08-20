@@ -3887,6 +3887,17 @@ def cmd_setup(args):
         print("\nNo helicon store on this machine yet — store-backed cells are"
               " UNMEASURED, which is honest, not empty."
               "\nBuild one: helicon init && helicon scan")
+
+    if getattr(args, "record", False):
+        if conn is not None:
+            from helicon.setupcheck import record_snapshot
+            day = record_snapshot(conn, cen, chips)
+            print(f"\nRecorded today's reading ({day}) into setup_snapshots "
+                  "(same-day re-runs replace, never duplicate).")
+        else:
+            print("\n--record skipped: recording needs a store "
+                  "(no helicon.db on this machine).")
+
     print("\nReference corpus: docs/memory-context-frontier-2026-08.md "
           "(github.com/Morkeeth/mountain-of-helicon)")
 
@@ -4268,7 +4279,9 @@ def main():
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
-    sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
+    setup_p = sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
+    setup_p.add_argument("--record", action="store_true",
+                         help="Also write today's axis-1 snapshot row (replaces same-day; needs a store)")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
     sub.add_parser("eval", help="Run evaluation benchmarks (retrieval, forgetting, audit)")
 

@@ -71,6 +71,12 @@ rc=$?
 # Never leave a half-written baseline behind for the next run to trip over.
 rm -f "$STORE/eval-latest.json.tmp"
 
+# The Setup's axis-1 reading — deliberately OUTSIDE the && chain: a failed
+# triage must not skip the day's census snapshot (roadmap H1.4, the trend
+# needs unattended readings more than it needs them gated on a green night).
+# Same-day re-runs replace, never duplicate, so this is idempotent per day.
+$PY -m helicon.cli setup --record >> "$LOG" 2>&1 || true
+
 # The run record: written by this script and by nothing else, carrying its own
 # UTC timestamp and the real exit code. stackwatch.nightly_status() reads THIS
 # rather than a file mtime, because an mtime is a claim the filesystem makes and
