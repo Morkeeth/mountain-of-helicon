@@ -45,6 +45,17 @@ def _silent_success(rtxt: str) -> bool:
     return not s or bool(re.search(r"exit(?:=| code )0\b", s))
 
 
+_QUOTED_RX = re.compile(
+    r"^\[?(CONFIRMED|NO-EVIDENCE|CONTRADICTED|UNDER-CLAIMED|ILLUSION-OF-DONE)\b"
+    r"|witness L\d|^\[.{1,16}\]\s*L\d")
+
+
+def _quoted_audit(s: str) -> bool:
+    """Witness's own output pasted into chat must not be re-detected as fresh
+    claims — the 08-21 fleet audit re-flagged its own quoted rows twice."""
+    return bool(_QUOTED_RX.search(s))
+
+
 def _result_text(content) -> str:
     """tool_result content is polymorphic: plain string or list of blocks."""
     if isinstance(content, str):
@@ -116,8 +127,11 @@ def parse_transcript(path: str):
 
 # Each claim type: (id, claim regex on assistant prose, witness matcher on a
 # tool_use, contradiction rule on its result). Only these get verdicts.
-_TEST_CMD = re.compile(r"pytest|npm test|yarn test|vitest|jest|go test|"
-                       r"cargo test|unittest|rspec|phpunit|\btest\b", re.I)
+# No bare \btest\b: on the 08-21 fleet audit it matched a path fragment inside
+# an unrelated compound command and produced 3 false CONTRADICTED. Explicit
+# runners only; a runner not listed is a NO-EVIDENCE, which is honest.
+_TEST_CMD = re.compile(r"pytest|npm (?:run )?test|yarn test|vitest|jest|go test|"
+                       r"cargo test|unittest|rspec|phpunit|python3? -m pytest", re.I)
 _BUILD_CMD = re.compile(r"\bbuild\b|tsc|eslint|ruff|vite|webpack|lint", re.I)
 _COMMIT_CMD = re.compile(r"git commit", re.I)
 _INSTALL_CMD = re.compile(r"(pip3?|npm|yarn|pnpm|brew|cargo|uv) .*install|"
@@ -158,6 +172,8 @@ def extract_claims(events):
                 continue
             # future/intent prose is not a claim about what happened
             if re.match(r"(i'?ll|i will|let me|now i|going to|about to)\b", s, re.I):
+                continue
+            if _quoted_audit(s):
                 continue
             for cid, rx, wmatch in CLAIM_TYPES:
                 m = rx.search(s)
@@ -233,6 +249,8 @@ def render(rows, meta, path, unchecked_prose=0):
            + (f" · {meta['sidechain_skipped']} sidechain lines excluded" if meta["sidechain_skipped"] else "")
            + ("" if meta["marker_seen"] or not rows else
               " · no sidechain marker in this file: subagent turns, if any, are merged"),
+           "NO-EVIDENCE means: no supporting tool call IN THIS TRANSCRIPT — "
+           "evidence in another session or terminal is invisible here.",
            ""]
     for r in rows:
         v = r["verdict"]
@@ -291,6 +309,8 @@ def extract_prose_claims(events, checked_lines):
             if not (15 <= len(s) <= 300):
                 continue
             if s.endswith("?") or (e["line"], s[:60]) in checked_lines:
+                continue
+            if _quoted_audit(s):
                 continue
             if _ASSERTIVE_RX.search(s):
                 if len(out) >= _JUDGE_CAP:
@@ -469,7 +489,7 @@ def extra_checks(events):
             continue
         for sent in re.split(r"(?<=[.!?])\s+|\n", e["text"]):
             s = sent.strip().strip("-*# ")
-            if not (10 <= len(s) <= 300):
+            if not (10 <= len(s) <= 300) or _quoted_audit(s):
                 continue
             m = _CANT_RX.search(s)
             if m:
