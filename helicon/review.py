@@ -5,14 +5,16 @@
 
 No key, no LLM, no torch. It reads the repo's instruction files (CLAUDE.md / AGENTS.md /
 .cursorrules / …) and answers the one question a coding agent can't ask for itself: does
-this setup LIE to me? Three checks that work on a repo Helicon has never seen:
+this setup LIE to me? Four checks that work on a repo Helicon has never seen:
 
   1. POINTERS   — does the file point at files that exist?      (helicon.pointers)
   2. COMMANDS   — does it name commands the repo actually has?   (helicon.commands)
-  3. EXECUTION  — when the file claims a command PASSES, does it? (helicon.execute)
+  3. VERSIONS   — do its "React 18 / Python 3.11" claims match the manifest? (helicon.versions)
+  4. EXECUTION  — when the file claims a command PASSES, does it? (helicon.execute)
 
-(1) and (2) are the existence tier — commoditized (ctxlint, agents-lint). (3) is the
-wedge: it RUNS the documented test/build command and grades the claim against the real
+(1) and (2) are the existence tier — commoditized (ctxlint, agents-lint). (3) is a
+deterministic version-vs-manifest check. (4) is the wedge: it RUNS the documented
+test/build command and grades the claim against the real
 exit code. It is OFF by default (running a stranger's code is opt-in) — set
 HELICON_EXECUTE=1 to turn it on. Only allowlisted test/build/lint verbs ever run.
 
@@ -25,6 +27,7 @@ from __future__ import annotations
 from helicon.pointers import check_pointers
 from helicon.commands import check_commands
 from helicon.execute import check_execution
+from helicon.versions import check_versions
 
 _BASIS = (
     "Based on: Helicon's ROT catalogue (instruction-vs-repo drift classes) · "
@@ -50,6 +53,7 @@ def review(repo_root: str, execute: bool | None = None) -> dict:
     return {
         "pointers": check_pointers(repo_root),
         "commands": check_commands(repo_root),
+        "versions": check_versions(repo_root),
         "execution": check_execution(repo_root, execute=execute),
     }
 
@@ -82,11 +86,13 @@ def _grade(broken: int, checked: int) -> tuple[str, str]:
 
 def format_review(repo_root: str, res: dict) -> str:
     p, c = res["pointers"], res["commands"]
+    v = res.get("versions", {"broken": 0, "checked": 0, "receipts": []})
     e = res.get("execution", {"broken": 0, "checked": 0, "receipts": [], "executed": False})
     # A CONTRADICTED test — "the doc says this passes, it fails" — is a lie in exactly
-    # the sense the headline means, so it counts. UNVERIFIABLE claims (not run) do not.
-    broken = p["broken"] + c["broken"] + e.get("broken", 0)
-    checked = p["checked"] + c["checked"] + e.get("checked", 0)
+    # the sense the headline means, so it counts. So is a version claim the manifest
+    # refutes. UNVERIFIABLE claims (not run / no manifest) do not.
+    broken = p["broken"] + c["broken"] + v.get("broken", 0) + e.get("broken", 0)
+    checked = p["checked"] + c["checked"] + v.get("checked", 0) + e.get("checked", 0)
     name = _os.path.basename(repo_root.rstrip("/")) or repo_root
     L = [""]
     L.append("  " + _p("❄ HELICON", "b", "cyan") + _p(f"  reviewing {name}", "dim"))
@@ -117,6 +123,13 @@ def format_review(repo_root: str, res: dict) -> str:
         rows(p, "points at")
     if c["broken"]:
         rows(c, "runs")
+    # version contradictions read best with the manifest fact spelled out in full.
+    for r in v.get("receipts", []):
+        if r["verdict"] == "CONTRADICTED":
+            where, _, fact = r["receipt"].partition(" — ")
+            L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
+                     + "  " + _p("declares ", "b") + _p(r["raw"], "b", "red")
+                     + _p(f"  — {fact.strip()}", "dim"))
     if broken:
         L.append("")
 
@@ -178,7 +191,7 @@ def main(argv=None) -> int:
     res = review(repo)
     print(format_review(repo, res))
     broken = (res["pointers"]["broken"] + res["commands"]["broken"]
-              + res["execution"]["broken"])
+              + res["versions"]["broken"] + res["execution"]["broken"])
     return 1 if broken else 0
 
 
