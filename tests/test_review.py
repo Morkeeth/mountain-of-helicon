@@ -19,11 +19,11 @@ def test_review_passes_a_clean_setup():
     d=_repo({"package.json":json.dumps({"scripts":{"test":"vitest"}}),"run.py":"x",
              "CLAUDE.md":"Entry `run.py`. Test with `npm run test`.\n"})
     out=format_review(d, review(d))
-    assert "does not lie" in out
+    assert "tells its agent the truth" in out
 
 def test_no_instruction_file_says_so():
     d=_repo({"main.py":"x"})
-    assert "no instruction file found" in format_review(d, review(d))
+    assert "No instruction file to review" in format_review(d, review(d))
 
 if __name__=="__main__":
     import sys as s
