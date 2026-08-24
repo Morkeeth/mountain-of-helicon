@@ -31,37 +31,86 @@ def review(repo_root: str) -> dict:
     return {"pointers": check_pointers(repo_root), "commands": check_commands(repo_root)}
 
 
+import os as _os
+import sys as _sys
+
+_ANSI = {"red": "31", "grn": "32", "ylw": "33", "dim": "2", "b": "1", "cyan": "36"}
+
+
+def _color_on() -> bool:
+    return _sys.stdout.isatty() and not _os.environ.get("NO_COLOR")
+
+
+def _p(text: str, *styles: str) -> str:
+    if not _color_on() or not styles:
+        return text
+    codes = ";".join(_ANSI[s] for s in styles if s in _ANSI)
+    return f"\033[{codes}m{text}\033[0m"
+
+
+def _grade(broken: int, checked: int) -> tuple[str, str]:
+    if checked == 0:
+        return "–", "dim"
+    ratio = broken / checked
+    if broken == 0:
+        return "A", "grn"
+    if ratio <= 0.15:
+        return "B", "ylw"
+    if ratio <= 0.4:
+        return "C", "ylw"
+    return "D" if ratio <= 0.7 else "F", "red"
+
+
 def format_review(repo_root: str, res: dict) -> str:
     p, c = res["pointers"], res["commands"]
     broken = p["broken"] + c["broken"]
-    lines = [f"HELICON REVIEW — {repo_root}", ""]
+    checked = p["checked"] + c["checked"]
+    name = _os.path.basename(repo_root.rstrip("/")) or repo_root
+    L = [""]
+    L.append("  " + _p("❄ HELICON", "b", "cyan") + _p(f"  reviewing {name}", "dim"))
+    L.append("")
 
-    if p["verdict"] == "ROT FOUND":
-        lines.append(f"✗ {p['broken']} instruction pointer(s) point at files not in the repo:")
-        lines += [f"    {r['receipt']}" for r in p["receipts"]]
-    elif p["verdict"] == "CLEAN":
-        lines.append(f"✓ pointers: {p['checked']} file reference(s) all resolve")
-    else:
-        lines.append("· pointers: no instruction file with checkable references")
-
-    if c["verdict"] == "ROT FOUND":
-        lines.append(f"✗ {c['broken']} command(s) the repo does not have:")
-        lines += [f"    {r['receipt']}" for r in c["receipts"]]
-    elif c["verdict"] == "CLEAN":
-        lines.append(f"✓ commands: {c['checked']} documented command(s) all exist")
-    else:
-        lines.append("· commands: no instruction file names a resolvable command")
-
-    lines.append("")
+    # headline — the pitch line, worst case first.
     if broken:
-        lines.append(f"VERDICT: {broken} way(s) this setup lies to its agent. Fix the lines above.")
-    elif p["verdict"] == "UNMEASURED" and c["verdict"] == "UNMEASURED":
-        lines.append("VERDICT: no instruction file found to review "
-                     "(no CLAUDE.md / AGENTS.md / .cursorrules).")
+        L.append("  " + _p(f"✗ Your setup lies to its agent in {broken} place"
+                           f"{'' if broken == 1 else 's'}.", "b", "red"))
+    elif checked:
+        L.append("  " + _p("✓ This setup tells its agent the truth.", "b", "grn"))
     else:
-        lines.append("VERDICT: this setup does not lie to its agent — every reference checks out.")
-    lines += ["", _BASIS]
-    return "\n".join(lines)
+        L.append("  " + _p("· No instruction file to review "
+                           "(no CLAUDE.md / AGENTS.md / .cursorrules).", "dim"))
+    L.append("")
+
+    # ranked findings — broken first, each a clean one-liner.
+    def rows(res_block, verb):
+        for r in res_block["receipts"]:
+            where, _, fact = r["receipt"].partition(" — ")
+            # fact reads "<kind desc>: <thing>" — show just the <thing> + "not here".
+            thing = fact.rsplit(": ", 1)[-1].strip() if ": " in fact else fact.strip()
+            L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
+                     + "  " + _p(f"{verb} ", "b") + _p(thing, "b", "red")
+                     + _p("  — not in this repo", "dim"))
+
+    if p["broken"]:
+        rows(p, "points at")
+    if c["broken"]:
+        rows(c, "runs")
+    if broken:
+        L.append("")
+
+    # the grade + the narrative punch.
+    if checked:
+        g, gc = _grade(broken, checked)
+        L.append("  " + _p(f"GRADE {g}", "b", gc)
+                 + _p(f"   ·   {checked} reference{'' if checked == 1 else 's'} checked, "
+                      f"{broken} broken", "dim"))
+        if broken:
+            L.append("  " + _p(f"An agent that trusts this file walks into {broken} dead "
+                               f"end{'' if broken == 1 else 's'}.", "dim"))
+        else:
+            L.append("  " + _p("Every path and command an agent is told to use is real.", "dim"))
+    L += ["", "  " + _p(_BASIS, "dim"), ""]
+    return "\n".join(L)
 
 
 def main(argv=None) -> int:
