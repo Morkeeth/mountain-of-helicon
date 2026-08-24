@@ -3535,6 +3535,16 @@ def cmd_score(args):
         print(f"  {t:15s} {bar:30s} {d['avg_confidence']:.0%} ({d['count']})")
 
 
+def cmd_review(args):
+    """Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?"""
+    import os
+    from helicon.review import review, format_review
+    repo = os.path.abspath(getattr(args, "repo", ".") or ".")
+    res = review(repo)
+    print(format_review(repo, res))
+    return 1 if (res["pointers"]["broken"] + res["commands"]["broken"]) else 0
+
+
 def cmd_stack(args):
     """Audit your AI agent stack."""
     print("Mountain of Helicon stack audit\n")
@@ -4258,7 +4268,6 @@ def main():
         "serve": cmd_serve,
         "demo": cmd_demo,
         "triage": cmd_triage,
-        "review": cmd_review,
         "route": cmd_route,
         "score-runs": cmd_score_runs,
         "runs": cmd_runs,
@@ -4308,6 +4317,7 @@ def main():
         "measurement-bench": cmd_measurement_bench,
         "score": cmd_score,
         "stack": cmd_stack,
+        "review": cmd_review,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
