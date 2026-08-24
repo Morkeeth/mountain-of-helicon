@@ -51,6 +51,9 @@ test = [
 
 [project.scripts]
 helicon = "helicon.cli:main"
+# One-line stranger entry: `uvx --from mountain-of-helicon helicon-review <repo>`
+# (or `pipx run --spec mountain-of-helicon helicon-review <repo>`). No key, no LLM.
+helicon-review = "helicon.review:main"
 
 [project.urls]
 Homepage = "https://github.com/Morkeeth/mountain-of-helicon"

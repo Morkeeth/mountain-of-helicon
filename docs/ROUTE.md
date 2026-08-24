@@ -2,14 +2,14 @@
 
 ## The thesis (why this falls out of Helicon, not bolted on)
 
-Sriram Krishnan publicly asked for the app that picks the right model/harness for a given task. The usual instinct is to build a new benchmark. Helicon already has the harder half: it **verifies agent output against reality** (`helicon review --terminals` — is the "tests green" real, is the endpoint grounded, did the branch actually ship). Once you have verified outcomes attributed to the model that produced them, *"which model should I route this task to"* is not a new capability. **It is a ranked read of outcomes you already trust.**
+Sriram Krishnan publicly asked for the app that picks the right model/harness for a given task. The usual instinct is to build a new benchmark. Helicon already has the harder half: it **verifies agent output against reality** (`helicon review-queue --terminals` — is the "tests green" real, is the endpoint grounded, did the branch actually ship). Once you have verified outcomes attributed to the model that produced them, *"which model should I route this task to"* is not a new capability. **It is a ranked read of outcomes you already trust.**
 
 That is the whole idea: routing is a *query over the eval store*, not a new oracle. A memory system that evaluates its agents' output by reality can answer "who is good at what" without ever running a synthetic benchmark, because every real task already left a verified receipt.
 
 ## How it works
 
 ```
-review --terminals          route --record                    route
+review-queue --terminals    route --record                    route
  (verify output vs      →    tag each verdict with       →     rank models by
   reality: tests,            model + harness + task-class      Wilson-scored
   endpoints, ship)           into route_evidence               verified-rate / class
