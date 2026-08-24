@@ -607,7 +607,7 @@ def _record_cli_review(conn, row, decision, session):
             pass  # learning side-effects are best-effort; never block a review
 
 
-def cmd_review(args):
+def cmd_review_queue(args):
     """Fast, keyboard-driven review. Surfaces the highest-leverage pending items
     (biggest similar-clusters first); one decision can be taught to all similar
     items at once, so the backlog shrinks fast."""
@@ -715,7 +715,7 @@ def cmd_review(args):
 def cmd_route(args):
     """Routing recommendation as a read of the eval store: which model has the best
     verified track record per task-class. --record first builds the evidence from
-    `review --terminals` (add --run to verify test counts too)."""
+    `review-queue --terminals` (add --run to verify test counts too)."""
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon.route import record_evidence, route, format_route
@@ -3536,13 +3536,14 @@ def cmd_score(args):
 
 
 def cmd_review(args):
-    """Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?"""
-    import os
-    from helicon.review import review, format_review
-    repo = os.path.abspath(getattr(args, "repo", ".") or ".")
-    res = review(repo)
-    print(format_review(repo, res))
-    return 1 if (res["pointers"]["broken"] + res["commands"]["broken"]) else 0
+    """Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?
+
+    One source of truth: delegates to helicon.review.main, so the exit code and the
+    broken-count (pointers + commands + versions + execution) match `python3 -m
+    helicon.review` and the `helicon-review` console entry point exactly."""
+    from helicon.review import main as review_main
+    repo = getattr(args, "repo", None) or "."
+    raise SystemExit(review_main([repo]))
 
 
 def cmd_stack(args):
@@ -3887,7 +3888,15 @@ def main():
     triage_p = sub.add_parser("triage", help="Run auto-triage")
     triage_p.add_argument("--dry-run", action="store_true", help="Preview without acting")
 
-    review_p = sub.add_parser("review", help="Fast teach-once review of pending items")
+    # FRONT DOOR: review a repo's agent setup on evidence — does its CLAUDE.md /
+    # AGENTS.md lie to the agent? No key, no LLM. Same engine as the `helicon-review`
+    # console entry point and `python3 -m helicon.review`.
+    reporeview_p = sub.add_parser(
+        "review", help="Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?")
+    reporeview_p.add_argument("repo", nargs="?", default=".",
+                              help="Path to the repo to review (default: current directory)")
+
+    review_p = sub.add_parser("review-queue", help="Fast teach-once review of pending memory items")
     review_p.add_argument("--batch", "-n", type=int, default=5, help="How many to surface (default 5)")
     review_p.add_argument("--threshold", "-t", type=float, default=0.80,
                           help="Similarity for teach-once grouping (default 0.80)")
@@ -3904,7 +3913,7 @@ def main():
 
     route_p = sub.add_parser("route", help="Routing recommendation: which model has the best verified track record per task-class (a read of the eval store)")
     route_p.add_argument("--record", action="store_true",
-                         help="Build/refresh evidence from `review --terminals` before ranking")
+                         help="Build/refresh evidence from `review-queue --terminals` before ranking")
     route_p.add_argument("--run", action="store_true",
                          help="with --record: actually run test suites to verify test-count claims")
     route_p.add_argument("--only", nargs="+", metavar="NAME",
@@ -4204,7 +4213,7 @@ def main():
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
 
     attr_p = sub.add_parser("attribute", help="Trace a contradicted output finding back to the memory that caused it")
-    attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review --terminals --file`)")
+    attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review-queue --terminals --file`)")
     attr_p.add_argument("--limit", type=int, default=5, help="max candidate memories (default 5)")
 
     watch_p = sub.add_parser("watch", help="Ambient mode: scan + exam on a timer, notify only on NEW drift")
@@ -4318,6 +4327,7 @@ def main():
         "score": cmd_score,
         "stack": cmd_stack,
         "review": cmd_review,
+        "review-queue": cmd_review_queue,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
@@ -4348,7 +4358,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet")
+    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "review")
     has_explicit_bench_db = (
         args.command == "measurement-bench" and bool(getattr(args, "db", None))
     )
