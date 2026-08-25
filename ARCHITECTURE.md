@@ -23,7 +23,7 @@ flowchart TD
 
   subgraph INGEST["② Ingestion"]
     GATE["SAGE novelty gate<br/>ADD / NOOP / MERGE"]
-    CUBES[("HeliconCubes<br/>versioned memory units, decayed per type<br/>SQLite · 40 tables + FTS5 + embeddings")]
+    CUBES[("HeliconCubes<br/>versioned memory units, decayed per type<br/>SQLite · 41 tables + FTS5 + embeddings")]
     GATE --> CUBES
   end
 
@@ -50,7 +50,7 @@ flowchart TD
   subgraph SURF["Surfaces"]
     CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
     MCP["MCP server<br/>23 tools · JSON-RPC 2.0 / stdio"]
-    WEB["Web UI · 21 tabs<br/>The Doorway · Lab · The Cockpit · Start Here · Morning Brief · Findings · Health · Gold · Exam · Judge · Log · Graph · …"]
+    WEB["Web UI · 23 tabs<br/>The Doorway · Lab · The Cockpit · Start Here · Morning Brief · Findings · Health · Gold · Exam · Judge · Log · Graph · …"]
   end
 ```
 
@@ -112,11 +112,11 @@ agent output (any platform)
   → the exam re-runs nightly; a returning rot re-alarms
 ```
 
-## Storage (40 core tables + FTS5)
+## Storage (41 core tables + FTS5)
 
-`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards` · `judge_runs` · `govern_batches` · `task_runs` · `context_packets` · `context_packet_items` · `run_captures` · `run_events` · `prompt_library` · `doorway_cold` · `doorway_gate_cache` · `work_wagers` · `work_evidence` · `work_skill_reviews` · `next_moves` · `surface_opens` · `weekly_measurements`
+`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards` · `judge_runs` · `govern_batches` · `task_runs` · `context_packets` · `context_packet_items` · `run_captures` · `run_events` · `prompt_library` · `doorway_cold` · `doorway_gate_cache` · `work_wagers` · `work_evidence` · `work_skill_reviews` · `next_moves` · `surface_opens` · `weekly_measurements` · `setup_snapshots`
 
-Plus `cubes_fts`, the FTS5 full-text index. It is an index rather than a table the count claims, which is why 34 is the number checked against `CREATE TABLE` in source.
+Plus `cubes_fts`, the FTS5 full-text index. It is an index rather than a table the count claims, which is why 41 is the number checked against `CREATE TABLE` in source.
 
 ## Research the design draws on
 
