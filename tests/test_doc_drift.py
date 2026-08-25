@@ -160,7 +160,7 @@ def test_claude_md_table_list_drift_is_caught(repo):
     """CLAUDE.md declared 18 tables and listed 18, while source had 24."""
     _mutate(repo, "CLAUDE.md",
             ", work_wagers, work_evidence, work_skill_reviews, next_moves, surface_opens, weekly_measurements)", ")")
-    _mutate(repo, "CLAUDE.md", "(40 tables:", "(23 tables:")
+    _mutate(repo, "CLAUDE.md", "(41 tables:", "(23 tables:")
     assert _fails(check_lists(str(repo)), "tables list", "CLAUDE.md")
 
 
@@ -219,7 +219,7 @@ def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
 
 def test_deleting_a_claim_is_not_a_way_to_pass(repo):
     """The cheapest fake fix is removing the number. It must fail, not pass."""
-    _mutate(repo, "CLAUDE.md", "- 33 routers (127 endpoints), 23 MCP tools", "- routers, MCP tools")
+    _mutate(repo, "CLAUDE.md", "- 35 routers (130 endpoints), 23 MCP tools", "- routers, MCP tools")
     drift = _fails(check_counts(str(repo)), "API routers", "CLAUDE.md")
     assert drift and "not found" in drift[0]["why"]
 
