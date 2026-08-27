@@ -2144,7 +2144,19 @@ def cmd_consistency(args):
     print(f"  dir     {res['dir']}")
     ext = res.get("external", [])
     ext_note = f" · {len(ext)} external (cross-vault, not checked)" if ext else ""
-    print(f"  {res['pointers']} pointers · {res['on_disk']} files on disk{ext_note}\n")
+    # The denominator is always printed, and the archive line prints even at zero.
+    # A number that appears only when it is non-zero teaches the reader nothing
+    # about whether the check ran — and "did it read the whole directory" is the
+    # first question this gate has to be able to answer about itself.
+    print(f"  {res['pointers']} pointers · {res['on_disk']} live files"
+          f" · {res.get('archived', 0)} archived · "
+          f"{res.get('scanned', res['on_disk'])} scanned{ext_note}\n")
+    arch_unlisted = res.get("archived_unlisted") or []
+    if arch_unlisted:
+        print(f"  {len(arch_unlisted)} archived files are not named by the index. "
+              f"Counted, not flagged:\n  a directory that declares itself archival is "
+              f"doing its job, and crying wolf on it is the drift-fatigue this gate "
+              f"exists to avoid.\n")
     if res["consistent"]:
         print("  index and directory agree. Nothing points at a ghost, nothing hides.")
         return
