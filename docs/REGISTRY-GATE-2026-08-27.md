@@ -48,10 +48,17 @@ four distinct hashes**, and the count conflates three different problems:
  385  4fbf4013  mountain-of-helicon-main/build/lib/helicon/magnet.py
 ```
 
-1. **A diverged second checkout.** `mountain-of-helicon` and `mountain-of-helicon-main` are the same
-   repo, 499 lines against 385. **This is the finding.** Two working copies of one project drifting
-   apart is how work gets done twice and lost once — and it is invisible to the registry gate,
-   because both directories map to the same row.
+1. ~~**A diverged second checkout.** `mountain-of-helicon` and `mountain-of-helicon-main` are the
+   same repo, 499 lines against 385. **This is the finding.**~~ **WRONG, corrected when the check
+   was built.** `mountain-of-helicon-main` is a git **worktree** of `mountain-of-helicon` —
+   `git rev-parse --git-dir` there returns
+   `…/mountain-of-helicon/.git/worktrees/mountain-of-helicon-main`. A worktree at another commit is
+   the fleet's intended workflow, not drift. Same for `zup-swiftui-glass`. I inferred "two checkouts"
+   from a line count and a shared name without asking git what the directory was.
+
+   **The real finding, measured:** `Morkeeth/Loop` has **three independent clones** — `Loop`,
+   `loop-labs`, `loop-labs-main` — all on `main`, at three different commits, one with uncommitted
+   changes. That is the case the check exists for, and no filename comparison would have surfaced it.
 2. **A build artifact.** `build/lib/...` is byte-identical to its source. Reporting it is noise.
 3. **Two unrelated files that share a name.** 66 and 86 lines, different projects. Not duplication
    at all — a name collision.
@@ -67,7 +74,10 @@ helicon checkouts     # for each git remote, every working copy on this disk,
 
 Cheap and deterministic: walk `~/CODE` one level, read `git remote get-url origin` and
 `git rev-parse HEAD` per directory, group by remote, flag any group with more than one distinct
-HEAD. No content hashing, no heuristics, no model. It answers "am I about to edit the stale copy",
+HEAD. No content hashing, no heuristics, no model. **Built 2026-08-27.** Two things the design
+above missed, both found by running it: a repo with no remote must never be grouped (21 of them
+would collapse under one `(none)` key — the loudest available false positive), and a git worktree
+must be told apart from a clone via `--git-common-dir`, because it is a second checkout on purpose. It answers "am I about to edit the stale copy",
 which is the question the filename count was reaching for.
 
 **Do not build the filename version.** It produces a wall with a 25% hit rate, which is the exact
