@@ -2188,6 +2188,42 @@ def cmd_registry(args):
     print(f"\n  A thing you have to remember to check is not covered.\n")
 
 
+def cmd_checkouts(args):
+    """One repo, two working copies, different commits — which one are you editing?
+
+    Runs beside the registry gate every morning, so silence is one line that still
+    carries its denominator.
+    """
+    from helicon.checkouts import audit_checkouts
+
+    res = audit_checkouts(args.code_root)
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return
+
+    wt = sum(len(g["names"]) for g in res["worktree_groups"])
+    tail = (f"{len(res['no_remote'])} local-only · {wt} worktrees · "
+            f"{len(res['in_sync'])} duplicated-in-sync")
+    if res["clean"]:
+        print(f"checkouts clean — {res['checkouts']} working copies across "
+              f"{res['remotes']} remotes, no repo checked out twice at different "
+              f"commits ({tail})")
+        return
+
+    print(f"\nThe checkouts gate — is one repo checked out twice, at two commits?\n")
+    print(f"  {res['checkouts']} working copies · {res['remotes']} remotes · {tail}\n")
+    for g in res["diverged"]:
+        name = g["remote"].rstrip("/").split("/")[-1]
+        print(f"  DIVERGED  {name}  ({len(g['checkouts'])} clones, different commits)")
+        for c in g["checkouts"]:
+            print(f"    {c['head']}  {c['branch']:<24} {c['name']}"
+                  f"{'  *uncommitted changes' if c['dirty'] else ''}")
+    if res["unreadable"]:
+        print(f"\n  {len(res['unreadable'])} repos have no HEAD to compare "
+              f"(empty clone): {', '.join(res['unreadable'])}")
+    print(f"\n  Edit the stale copy and the work lands in a tree nobody pushes.\n")
+
+
 def cmd_consistency(args):
     """The consistency gate: does your memory INDEX still match its directory?
     Deterministic, no key. Catches the drift that hides in plain sight, a
@@ -4147,6 +4183,10 @@ def main():
     reg_p.add_argument("--all", action="store_true", help="Print every gap instead of the top slice")
     reg_p.add_argument("--json", action="store_true", help="Emit JSON")
 
+    ck_p = sub.add_parser("checkouts", help="The checkouts gate: one repo with two working copies at different commits (deterministic)")
+    ck_p.add_argument("--code-root", dest="code_root", default="~/CODE", help="Projects directory (default: ~/CODE)")
+    ck_p.add_argument("--json", action="store_true", help="Emit JSON")
+
     vol_p = sub.add_parser("volatility", help="The volatility gate: flag fast facts stored as durable memory (truth = fact + timestamp + decay)")
     vol_p.add_argument("--json", action="store_true", help="Emit JSON")
 
@@ -4399,6 +4439,7 @@ def main():
         "read": cmd_read,
         "consistency": cmd_consistency,
         "registry": cmd_registry,
+        "checkouts": cmd_checkouts,
         "volatility": cmd_volatility,
         "ci": cmd_ci,
         "policy": cmd_gold,
