@@ -2117,6 +2117,77 @@ def _render_portrait(res: dict):
         print()
 
 
+def default_registry() -> str | None:
+    """The registry lives in the vault. Found, never guessed at."""
+    base = os.path.expanduser(
+        "~/Library/Mobile Documents/iCloud~md~obsidian/Documents")
+    if not os.path.isdir(base):
+        return None
+    for vault in sorted(os.listdir(base)):
+        cand = os.path.join(base, vault, "00 Dashboard", "registry.md")
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+def cmd_registry(args):
+    """The registry gate: every project you own should have a row.
+
+    This runs every morning, so the output is ranked and capped. A wall of text
+    every day gets ignored inside a week — which is how the last version of this
+    idea died — and a check nobody opens is a check that does not exist.
+    """
+    from helicon.registry import audit_registry
+
+    path = os.path.expanduser(args.registry or "") or default_registry()
+    if not path:
+        print("Usage: helicon registry <path/to/registry.md>")
+        return
+    res = audit_registry(path, args.code_root)
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return
+    if not res.get("ok"):
+        print(res.get("reason", "registry unreadable"))
+        return
+
+    gaps = res["unlisted"]
+    ghosts = res["rows_without_project"]
+
+    # Silence has to mean something, so the clean case is ONE line that still
+    # carries its denominator: "checked nothing" and "checked everything and
+    # found nothing" must never look the same.
+    if res["clean"]:
+        print(f"registry clean — {res['rows']} rows cover {res['repos_live']} live repos "
+              f"({res['excluded_archived']} archived, {res['excluded_forks']} forks excluded)")
+        return
+
+    print(f"\nThe registry gate — does every project you own have a row?\n")
+    print(f"  registry  {res['registry']}")
+    print(f"  {res['rows']} rows · {res['repos_live']} live repos · {res['code_dirs']} dirs in "
+          f"{args.code_root} · {res['excluded_archived']} archived + {res['excluded_forks']} "
+          f"forks excluded\n")
+
+    if gaps:
+        shown = gaps if args.all else gaps[: args.top]
+        print(f"  NO ROW ({len(gaps)}) — you own these and the registry does not name them, "
+              f"newest first:")
+        for e in shown:
+            here = "" if e["local"] else "  (not cloned locally)"
+            print(f"    {e['updated']}  {e['name']}{here}")
+        if len(gaps) > len(shown):
+            print(f"    … and {len(gaps) - len(shown)} older. `--all` to see them.")
+    if ghosts:
+        print(f"\n  ROW POINTS AT NOTHING ({len(ghosts)}) — the row names a repo that is not there:")
+        for g in ghosts[:10]:
+            print(f"    #{g['num']} {' / '.join(g['names'])} → {', '.join(g['ghosts'])}")
+    if res["prose_only"]:
+        print(f"\n  {len(res['prose_only'])} repos are mentioned in the table but own no row. "
+              f"Counted, not flagged:")
+        print(f"    {', '.join(e['name'] for e in res['prose_only'])}")
+    print(f"\n  A thing you have to remember to check is not covered.\n")
+
+
 def cmd_consistency(args):
     """The consistency gate: does your memory INDEX still match its directory?
     Deterministic, no key. Catches the drift that hides in plain sight, a
@@ -4069,6 +4140,13 @@ def main():
     cons_p.add_argument("--dir", dest="dir", help="Directory the index indexes (default: the index's own folder)")
     cons_p.add_argument("--json", action="store_true", help="Emit JSON")
 
+    reg_p = sub.add_parser("registry", help="The registry gate: does every project you own have a row? (deterministic)")
+    reg_p.add_argument("registry", nargs="?", help="Path to the registry markdown (default: the vault's 00 Dashboard/registry.md)")
+    reg_p.add_argument("--code-root", dest="code_root", default="~/CODE", help="Local projects directory (default: ~/CODE)")
+    reg_p.add_argument("--top", type=int, default=8, help="How many gaps to print (default: 8). The rest are counted.")
+    reg_p.add_argument("--all", action="store_true", help="Print every gap instead of the top slice")
+    reg_p.add_argument("--json", action="store_true", help="Emit JSON")
+
     vol_p = sub.add_parser("volatility", help="The volatility gate: flag fast facts stored as durable memory (truth = fact + timestamp + decay)")
     vol_p.add_argument("--json", action="store_true", help="Emit JSON")
 
@@ -4320,6 +4398,7 @@ def main():
         "heal": cmd_heal,
         "read": cmd_read,
         "consistency": cmd_consistency,
+        "registry": cmd_registry,
         "volatility": cmd_volatility,
         "ci": cmd_ci,
         "policy": cmd_gold,
