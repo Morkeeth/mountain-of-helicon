@@ -83,6 +83,26 @@ which is the question the filename count was reaching for.
 **Do not build the filename version.** It produces a wall with a 25% hit rate, which is the exact
 failure mode this lane just spent its effort avoiding.
 
+### The first design would have gotten this exactly backwards
+
+Worth stating plainly, because it is the sharpest argument for the tool that got built and it only
+exists because the wrong version was proposed first:
+
+| | filename check (proposed) | `helicon checkouts` (built) |
+|---|---|---|
+| `mountain-of-helicon-main` | **FLAGGED** as a diverged copy | correctly a **worktree**, counted, not flagged |
+| `zup-swiftui-glass` | **FLAGGED** | correctly a worktree |
+| `build/lib/helicon/magnet.py` | **FLAGGED** (or hash-excluded by luck) | never seen — excluded by path |
+| two unrelated `magnet.py` files | **FLAGGED** as duplication | never seen — different repos, no shared remote |
+| **`Loop` / `loop-labs` / `loop-labs-main`** | **MISSED** — three clones, no shared filename to notice | **FOUND**: 3 clones, 3 commits, one dirty |
+
+The filename version would have reported four findings, every one of them wrong, and stayed silent
+on the only real one. It was not merely noisier. **It was inverted** — it flags the intended
+workflow and misses the accident.
+
+The reason is that a filename is a coincidence and a git remote is an identity. The check had to be
+keyed on what makes two directories the same project, not on what makes two files look alike.
+
 ---
 
 *Local commits only. `~/CODE/mountain-of-helicon` is public and on PyPI; nothing pushed.*
