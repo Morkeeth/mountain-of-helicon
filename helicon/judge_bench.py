@@ -29,7 +29,7 @@ TIERS = ["fast", "default", "deep"]      # qwen3.6-flash / qwen3.6-plus / qwen3.
 # Human-ruled contradictions, from GOLDEN_RULES.md (the rulings + renames the
 # operator settled). (subject, true_value, ruled_wrong_value). Stable facts.
 RULED_CONTRADICTIONS = [
-    ("the number of hackathon wins", "9 wins", "4 wins"),
+    ("the number of hackathon wins", "10 wins", "4 wins"),
     ("Lea's birthday", "July 18", "July 13"),
     ("the podcast episode this recording is", "episode 29", "episode 25"),
     ("what Yieldbound is", "a yield treasury", "a wallet tracker"),
@@ -81,8 +81,8 @@ HARD_PROBES = [
      "FAVOUR is live with real money.",
      "FAVOUR's new points-sink feature is still in review."),
     ("same-value-paraphrase", False,
-     "Nine hackathon wins so far.",
-     "Won nine hackathons to date."),
+     "Ten hackathon wins so far.",
+     "Won ten hackathons to date."),
 ]
 
 
