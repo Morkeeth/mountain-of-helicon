@@ -217,3 +217,85 @@ def test_a_zero_score_never_outranks_another_zero_score(tmp_path):
     res = _all(root, [{"name": f"cand-{i}", "description": "wine pairing"}
                       for i in range(50)])
     assert res["no_signal"] == 50 and not res["ranked"]
+
+
+# --- S1: declared-and-verified tags, and the gaming hole they opened --------
+
+from helicon.magnet import verify_declaration
+
+
+def test_a_declared_tag_the_text_supports_is_verified():
+    v = verify_declaration(["debug"], "debug a failing test and bisect the trace")
+    assert v["debug"] == "verified"
+
+
+def test_a_declared_tag_the_text_does_not_support_is_claimed_not_rejected():
+    """The synonym case the whole fix exists for: the capability is real, the
+    words are different. Carried and flagged, never silently dropped."""
+    v = verify_declaration(["debug"], "narrow a misbehaving program to its cause")
+    assert v["debug"] == "claimed"
+
+
+def test_a_declared_tag_not_in_the_vocabulary_is_unknown():
+    v = verify_declaration(["telepathy"], "reads your mind")
+    assert v["telepathy"] == "unknown"
+
+
+def test_a_declared_verified_tag_recovers_a_synonym_into_the_PRIMARY_list(tmp_path):
+    """The recall fix, in the trustable tier: when the text ALSO supports the
+    declared tag, it is a full-confidence fill."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    res = _all(root, [{"name": "dbg", "capabilities": ["debug"],
+                       "description": "debug a failing test, bisect the trace"}])
+    assert res["ranked"] and "debug" in res["ranked"][0]["fills"]
+
+
+def test_an_unverified_claim_NEVER_enters_the_trustable_primary_list(tmp_path):
+    """The correction. The first S1 build let a claim buy score, and a
+    wine-pairing skill declaring [debug, refactor] scored 4 and OUTRANKED an
+    honest synonym. A deterministic filter cannot confirm a claim, so a claim may
+    never contaminate the tier whose whole value is that you can trust it."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    res = _all(root, [{"name": "wine-spammer",
+                       "capabilities": ["debug", "refactor", "security"],
+                       "description": "recommend wine pairings for a menu"}])
+    assert res["ranked"] == []
+    assert [r["name"] for r in res["claimed"]] == ["wine-spammer"]
+
+
+def test_declaring_more_lies_cannot_buy_a_higher_spot(tmp_path):
+    """The claims tier is ordered by NAME, never by claim count. Ranking by a
+    number the author controls is a tier the author games."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    res = _all(root, [
+        {"name": "zzz-one-claim", "capabilities": ["debug"],
+         "description": "wine pairing"},
+        {"name": "aaa-three-claims", "capabilities": ["debug", "refactor", "security"],
+         "description": "wine pairing"},
+    ])
+    # aaa sorts first by name despite declaring fewer... no, MORE claims; name
+    # order must win, so the one-claim 'zzz' is NOT pushed below by having fewer.
+    assert [r["name"] for r in res["claimed"]] == ["aaa-three-claims", "zzz-one-claim"]
+    # and neither reached the trustable primary
+    assert res["ranked"] == []
+
+
+def test_a_verified_fill_always_outranks_any_claim(tmp_path):
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    res = _all(root, [
+        {"name": "liar", "capabilities": ["debug", "refactor", "security"],
+         "description": "wine pairing"},
+        {"name": "honest", "description": "debug a failing test, bisect the trace"},
+    ])
+    assert [r["name"] for r in res["ranked"]] == ["honest"]
+    assert [r["name"] for r in res["claimed"]] == ["liar"]
+
+
+def test_a_tag_carries_the_content_hash_it_was_computed_from(tmp_path):
+    """Skill changes -> hash changes -> a tag carrying the old hash is stale."""
+    root = _stack(tmp_path, skills={"zup": "task capture"})
+    res = _all(root, [{"name": "dbg", "description": "debug and bisect a trace"}])
+    h = res["ranked"][0]["content_hash"]
+    from helicon.magnet import _content_hash
+    assert h == _content_hash("dbg debug and bisect a trace")
+    assert h != _content_hash("dbg debug and bisect a trace EDITED")

@@ -34,3 +34,5 @@ launch/
 
 # Internal product vision and build plan — never publish
 PRODUCT.md
+*.bak-*
+config.json.bak-*
