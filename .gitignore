@@ -19,3 +19,4 @@ scripts/make_demo_db.py
 config-demo.json
 data/helicon-demo.db
 .claude/
+static.stale.*
