@@ -3977,6 +3977,33 @@ def cmd_consolidation_eval(args):
         print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
+def cmd_truth(args):
+    """helicon truth <path> — point it at ANY agent memory/notes store and get a
+    ranked, evidence-cited staleness+rot report in one command. No config, no DB,
+    no key, no LLM. Works cold on a stranger's Claude Code / Cursor / Cline memory
+    dir, a shared AGENTS.md pile, or an Obsidian vault dashboard — any directory
+    of markdown and/or jsonl files. This is the product surface of the DIAGNOSIS
+    finding that Helicon's own decay score measures days-since-ingest, not
+    staleness; truth measures real staleness off the file system instead."""
+    from helicon.truth import scan_store, format_report
+
+    path = getattr(args, "path", None)
+    if not path:
+        sys.exit("usage: helicon truth <path-to-memory-or-notes-dir>\n"
+                 "  e.g. helicon truth ~/.claude/projects/<you>/memory\n"
+                 "       helicon truth ./docs")
+    res = scan_store(path,
+                     include_archive=getattr(args, "archive", False),
+                     recursive=getattr(args, "recursive", False))
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+    print(format_report(res, top=getattr(args, "top", None),
+                        min_score=getattr(args, "min_score", 1),
+                        redact=not getattr(args, "no_redact", False)))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
@@ -4369,6 +4396,14 @@ def main():
     rule_p.add_argument("--apply", action="store_true", help="with --run: actually write decisions")
 
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
+    truth_p = sub.add_parser("truth", help="Point it at ANY agent memory/notes store (Claude Code / Cursor / Cline / an Obsidian vault) -> ranked, evidence-cited staleness+rot report. No config, no DB, no key, no LLM.")
+    truth_p.add_argument("path", nargs="?", help="Directory (or single file) of *.md / *.jsonl memory or notes")
+    truth_p.add_argument("--top", type=int, help="Show only the top N most-rotten")
+    truth_p.add_argument("--min-score", dest="min_score", type=int, default=1)
+    truth_p.add_argument("--recursive", action="store_true")
+    truth_p.add_argument("--archive", action="store_true")
+    truth_p.add_argument("--json", action="store_true")
+    truth_p.add_argument("--no-redact", dest="no_redact", action="store_true")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     mb_p = sub.add_parser("measurement-bench", help="The measurement bench: science + weekly series + store truth in one pass")
@@ -4453,6 +4488,7 @@ def main():
         "alias": cmd_alias,
         "rule": cmd_rule,
         "doctor": cmd_doctor,
+        "truth": cmd_truth,
         "mcp": cmd_mcp,
         "science": cmd_science,
         "measurement-bench": cmd_measurement_bench,
@@ -4490,7 +4526,7 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "review")
+    SELF_CONFIGURING = ("init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "review")
     has_explicit_bench_db = (
         args.command == "measurement-bench" and bool(getattr(args, "db", None))
     )
