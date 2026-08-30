@@ -22,7 +22,7 @@ archived under `docs/archive/hackathon-2026/`, history intact.
 - Distribution: BYOK + local-first. v0.1 advertises no hosted personal-store
   service; container/Function Compute files are deployment starting points, not
   a production availability claim.
-- SQLite + FTS5 + numpy embeddings (41 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards, judge_runs, govern_batches, task_runs, context_packets, context_packet_items, run_captures, run_events, prompt_library, doorway_cold, doorway_gate_cache, work_wagers, work_evidence, work_skill_reviews, next_moves, surface_opens, weekly_measurements, setup_snapshots), plus the cubes_fts FTS5 index. The LIVE store carries 47 (runtime/experiment tables accrete beyond the declared schema) — measured 2026-08-20
+- SQLite + FTS5 + numpy embeddings (41 tables: helicon_cubes, reviews, patterns, audit_log, retrieval_log, scan_log, entities, edges, entity_aliases, consolidations, qwen_cache, session_summaries, triage_log, eval_runs, score_history, battery_history, playbooks, memory_utility, cube_embeddings, context_snapshots, regret_events, rules, route_evidence, run_cards, judge_runs, govern_batches, task_runs, context_packets, context_packet_items, run_captures, run_events, prompt_library, doorway_cold, doorway_gate_cache, setup_snapshots, work_wagers, work_evidence, work_skill_reviews, next_moves, surface_opens, weekly_measurements), plus the cubes_fts FTS5 index. The live store held 47 tables on 2026-08-20 (`SELECT COUNT(*) FROM sqlite_master WHERE type='table'`) and grows on every scan, so the source CREATE TABLE count of 41 is what this check grades
 - React/Vite (findings-first dashboard: HEALTH / FINDINGS / LOG primary, Graph + Projects secondary)
 - Web Speech API (voice input for reviews)
 - MCP Server (23 tools for agent self-audit + context injection)
@@ -72,7 +72,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - ~3,800 live memories of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live memories come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor memories exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 memories
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
-- 35 routers (130 endpoints), 23 MCP tools, 69 CLI commands (+4 aliases)
+- 35 routers (130 endpoints), 23 MCP tools, 75 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)

@@ -69,6 +69,59 @@ def _words(text: str) -> set:
     return {w for w in _WORD.findall((text or "").lower()) if w not in _STOP}
 
 
+# The published tag vocabulary. A skill DECLARES against these names; the keys of
+# CAPABILITIES are the canonical set, so declaration and inference speak the same
+# language. Versioned, because EXP-MAGNET-01 proved the vocabulary is the thing
+# that has to evolve, not the score.
+TAG_VOCABULARY = tuple(sorted(CAPABILITIES))
+TAG_VOCAB_VERSION = "1.0"
+
+
+def verify_declaration(declared: list, text: str) -> dict:
+    """Grade each declared capability against the skill's own text.
+
+    This is the answer to EXP-MAGNET-01's finding. The experiment showed a
+    keyword matcher is DEAF: `fault-localiser` is a debugging skill whose text
+    never says "debug", so inference scored it 0. The fix is to let the skill
+    DECLARE `capabilities: [debug]` — the author knows what their skill does —
+    and then VERIFY the declaration rather than trust it blind.
+
+    Three verdicts, and the middle one is the point:
+
+      verified   declared AND the text keyword-supports it. Cheap, deterministic,
+                 an author telling the truth.
+      claimed    declared but the text does not keyword-support it. NOT rejected:
+                 this is exactly the synonym case the whole fix exists for, where
+                 the capability is real and the words are different. Carried, and
+                 flagged, so a human sees it is the author's word not the text's.
+      unknown    declared, but not a name in the vocabulary. A tag nobody can
+                 match against is noise; it is dropped and named.
+
+    What this deliberately does NOT do is confirm a `claimed` tag is true — that
+    needs a judge, and a deterministic module must not pretend to be one. It
+    makes the author's claim VISIBLE and checkable, which is the honest half."""
+    out = {}
+    for raw in declared or []:
+        tag = str(raw).strip().lower()
+        if tag not in CAPABILITIES:
+            out[tag] = "unknown"
+        elif _mentions(text, CAPABILITIES[tag]):
+            out[tag] = "verified"
+        else:
+            out[tag] = "claimed"
+    return out
+
+
+def _content_hash(text: str) -> str:
+    """A short digest of the skill's own text. A tag is computed against a
+    specific version of a skill; when the skill changes, the hash changes, and a
+    tag carrying the old hash is stale and must be recomputed. Without this a tag
+    silently describes a version nobody runs — the R2 doc-drift defect, one layer
+    out."""
+    import hashlib
+    return hashlib.sha256((text or "").encode("utf-8")).hexdigest()[:12]
+
+
 def _mentions(text: str, terms: tuple) -> bool:
     """Does this text actually NAME one of these terms?
 
@@ -257,9 +310,37 @@ def rank(candidates: list, inv: dict, g: dict, top: int = 10) -> list:
         words = _words(text)
         low = text.lower()
 
-        fills = [cap for cap in g["uncovered"]
-                 if _mentions(text, CAPABILITIES[cap])]
+        # A gap is filled by the text (inference) OR by a declared capability
+        # (declaration), and the declaration is what recovers the synonym case
+        # inference is deaf to. Each fill records HOW it was matched, so a
+        # human can tell a keyword-confirmed fill from an author's unverified
+        # claim — the two are not equally trustworthy and the card must not
+        # render them as if they were.
+        declared_verdicts = verify_declaration(c.get("capabilities"), text)
+        fills, claims = [], []
+        for cap in g["uncovered"]:
+            if _mentions(text, CAPABILITIES[cap]):
+                fills.append({"cap": cap, "by": "text"})
+            elif declared_verdicts.get(cap) == "verified":
+                # Declared and the text also supports it — same confidence as an
+                # inferred fill, so it counts the same.
+                fills.append({"cap": cap, "by": "declared+verified"})
+            elif declared_verdicts.get(cap) == "claimed":
+                # Declared, text does NOT support it — the synonym case. This does
+                # NOT add to the score, and that is the whole correction. The
+                # first S1 build let a claim buy rank, and a wine-pairing skill
+                # that declared [debug, refactor] scored 4 and OUTRANKED an
+                # honest synonym scoring 2. Declaring more lies scored higher.
+                # A deterministic module cannot confirm a claim, so a claim may
+                # never contaminate the trustable list or outrank a verified
+                # fill. It surfaces a candidate into a SEPARATE "author claims"
+                # tier, capped below, and never into the primary ranking.
+                claims.append({"cap": cap, "by": "claimed-unverified"})
+        # Score is text-verified evidence ONLY. Claims are a second signal, not a
+        # score input — so the primary shortlist is exactly as trustable as it
+        # was before declarations existed.
         score = 3 * len(fills)
+        unknown_tags = [t for t, v in declared_verdicts.items() if v == "unknown"]
 
         surface = (c.get("surface") or "").lower()
         empty_hit = surface in g["empty_surfaces"]
@@ -277,7 +358,11 @@ def rank(candidates: list, inv: dict, g: dict, top: int = 10) -> list:
         if dupes:
             score -= 4
 
-        out.append({"name": c.get("name"), "score": score, "fills": fills,
+        out.append({"name": c.get("name"), "score": score,
+                    "fills": [f["cap"] for f in fills],
+                    "fills_detail": fills, "claims": claims,
+                    "unknown_tags": unknown_tags,
+                    "content_hash": _content_hash(text),
                     "empty_surface": surface if empty_hit else "",
                     "duplicates": dupes[:2],
                     "description": (c.get("description") or "")[:160],
@@ -294,10 +379,24 @@ def rank(candidates: list, inv: dict, g: dict, top: int = 10) -> list:
     scored.sort(key=lambda r: (-r["score"], r["name"]))
     demoted = sorted([r for r in unranked if r["score"] < 0],
                      key=lambda r: (r["score"], r["name"]))
-    no_signal = [r for r in unranked if r["score"] == 0]
+
+    # The author-claims tier. A candidate with no text-verified score but a
+    # capability its author DECLARED for an uncovered gap lands here — the synonym
+    # recovery, honestly labelled as unverified. Ordered by name, NEVER by claim
+    # count: ranking by how many capabilities were declared is exactly the hole
+    # the first S1 build had, where declaring more lies bought a higher rank. A
+    # tier ordered by a number the author controls is a tier the author games.
+    claimed = sorted([r for r in unranked
+                      if r["score"] == 0 and r["claims"] and not r["duplicates"]],
+                     key=lambda r: r["name"])
+    claimed_names = {r["name"] for r in claimed}
+    no_signal = [r for r in unranked
+                 if r["score"] == 0 and r["name"] not in claimed_names
+                 and r not in demoted]
     for r in no_signal:
         r["no_signal"] = True
     return {"ranked": scored[:top], "demoted": demoted[:top],
+            "claimed": claimed[:top], "claimed_total": len(claimed),
             "no_signal": len(no_signal), "considered": len(out)}
 
 
@@ -309,7 +408,9 @@ def magnet_report(claude_dir: str = "~/.claude", candidates_path: str = "",
     return {"inventory": inv, "gaps": g,
             "candidates_read": len(cands),
             "candidates_path": candidates_path,
-            **({"ranked": [], "demoted": [], "no_signal": 0, "considered": 0}
+            "tag_vocab_version": TAG_VOCAB_VERSION,
+            **({"ranked": [], "demoted": [], "claimed": [], "claimed_total": 0,
+                "no_signal": 0, "considered": 0}
                if not cands else rank(cands, inv, g, top))}
 
 
@@ -376,6 +477,19 @@ def render_magnet(report: dict, read_at: str = "") -> str:
                 d = r["duplicates"][0] if r["duplicates"] else {"name": "?", "overlap": 0}
                 out.append(f"     {r['score']:>3}  {r['name']}  ->  {d['name']} "
                            f"({int(d['overlap']*100)}%)")
+        if report.get("claimed"):
+            out.append("")
+            out.append(f"  AUTHOR CLAIMS — {report['claimed_total']} candidates "
+                       "declare a gap capability their text does not support.")
+            out.append("  Unverified: a deterministic filter cannot confirm a "
+                       "claim, only flag it. Lower confidence than above,")
+            out.append("  ordered by name so declaring more cannot buy a higher "
+                       "spot. A human confirms these.")
+            for r in report["claimed"][:top]:
+                caps = ", ".join(c["cap"] for c in r["claims"])
+                out.append(f"     claims [{caps}]  {r['name']}")
+                if r["description"]:
+                    out.append(f"          {r['description']}")
         out += ["", "  These are CANDIDATES. Matching is lexical and has no model "
                 "in it, which is why the",
                 "  ranking is reproducible and why it cannot judge quality. "

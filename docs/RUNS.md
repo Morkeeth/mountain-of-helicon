@@ -2,7 +2,7 @@
 
 ## The thesis (why this is the same loop, one level up)
 
-`review --terminals` verifies a terminal's output against reality. A **run** is that one level up and made cost-aware: a burst of agent work has a real **yield** (verified output) and a real **cost** (time + tokens), so it can be *scored* instead of vibed:
+`review-queue --terminals` verifies a terminal's output against reality. A **run** is that one level up and made cost-aware: a burst of agent work has a real **yield** (verified output) and a real **cost** (time + tokens), so it can be *scored* instead of vibed:
 
 ```
 score = verified yield / cost - damage
@@ -15,7 +15,7 @@ Every term traces to a real source. Nothing is invented, and where evidence is t
 | Term | Source | Honesty rule |
 |---|---|---|
 | **cost** | `~/.claude/projects/.../*.jsonl` transcript `usage` (output tokens) x wall-clock hours | Top-level usage only, not the double-counting `iterations`. A file with no assistant usage yields no record (never a fabricated zero-cost run). |
-| **yield** | `route_evidence` (the `review --terminals` verdicts): verified / (verified + contradicted) | `unverified` (uncheckable) is excluded from the ratio, never counted as a failure. |
+| **yield** | `route_evidence` (the `review-queue --terminals` verdicts): verified / (verified + contradicted) | `unverified` (uncheckable) is excluded from the ratio, never counted as a failure. |
 | **damage** | an incident flag (e.g. the Jul-14 RAM freeze) | A disclosed penalty term. The incident is real; the magnitude is a stated parameter. |
 
 ## Run identity

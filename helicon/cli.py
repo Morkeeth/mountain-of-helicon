@@ -11,6 +11,7 @@ Usage:
   helicon doctor        Health check: PATH, config, Qwen key, DB, last scan
   helicon mcp           Run the MCP server on stdio (for agent clients)
   helicon science       Grade your live store against published agent-research thresholds
+  helicon measurement-bench  Science + weekly series + store truth (one pass)
   helicon score         Show current Helicon Score
   helicon stack         Audit your AI stack setup
   helicon optimize      LLM-powered optimization suggestions
@@ -606,7 +607,7 @@ def _record_cli_review(conn, row, decision, session):
             pass  # learning side-effects are best-effort; never block a review
 
 
-def cmd_review(args):
+def cmd_review_queue(args):
     """Fast, keyboard-driven review. Surfaces the highest-leverage pending items
     (biggest similar-clusters first); one decision can be taught to all similar
     items at once, so the backlog shrinks fast."""
@@ -714,7 +715,7 @@ def cmd_review(args):
 def cmd_route(args):
     """Routing recommendation as a read of the eval store: which model has the best
     verified track record per task-class. --record first builds the evidence from
-    `review --terminals` (add --run to verify test counts too)."""
+    `review-queue --terminals` (add --run to verify test counts too)."""
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon.route import record_evidence, route, format_route
@@ -2116,6 +2117,113 @@ def _render_portrait(res: dict):
         print()
 
 
+def default_registry() -> str | None:
+    """The registry lives in the vault. Found, never guessed at."""
+    base = os.path.expanduser(
+        "~/Library/Mobile Documents/iCloud~md~obsidian/Documents")
+    if not os.path.isdir(base):
+        return None
+    for vault in sorted(os.listdir(base)):
+        cand = os.path.join(base, vault, "00 Dashboard", "registry.md")
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+def cmd_registry(args):
+    """The registry gate: every project you own should have a row.
+
+    This runs every morning, so the output is ranked and capped. A wall of text
+    every day gets ignored inside a week — which is how the last version of this
+    idea died — and a check nobody opens is a check that does not exist.
+    """
+    from helicon.registry import audit_registry
+
+    path = os.path.expanduser(args.registry or "") or default_registry()
+    if not path:
+        print("Usage: helicon registry <path/to/registry.md>")
+        return
+    res = audit_registry(path, args.code_root)
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return
+    if not res.get("ok"):
+        print(res.get("reason", "registry unreadable"))
+        return
+
+    gaps = res["unlisted"]
+    ghosts = res["rows_without_project"]
+
+    # Silence has to mean something, so the clean case is ONE line that still
+    # carries its denominator: "checked nothing" and "checked everything and
+    # found nothing" must never look the same.
+    if res["clean"]:
+        print(f"registry clean — {res['rows']} rows cover {res['repos_live']} live repos "
+              f"({res['excluded_archived']} archived, {res['excluded_forks']} forks excluded)")
+        return
+
+    print(f"\nThe registry gate — does every project you own have a row?\n")
+    print(f"  registry  {res['registry']}")
+    print(f"  {res['rows']} rows · {res['repos_live']} live repos · {res['code_dirs']} dirs in "
+          f"{args.code_root} · {res['excluded_archived']} archived + {res['excluded_forks']} "
+          f"forks excluded\n")
+
+    if gaps:
+        shown = gaps if args.all else gaps[: args.top]
+        print(f"  NO ROW ({len(gaps)}) — you own these and the registry does not name them, "
+              f"newest first:")
+        for e in shown:
+            here = "" if e["local"] else "  (not cloned locally)"
+            print(f"    {e['updated']}  {e['name']}{here}")
+        if len(gaps) > len(shown):
+            print(f"    … and {len(gaps) - len(shown)} older. `--all` to see them.")
+    if ghosts:
+        print(f"\n  ROW POINTS AT NOTHING ({len(ghosts)}) — the row names a repo that is not there:")
+        for g in ghosts[:10]:
+            print(f"    #{g['num']} {' / '.join(g['names'])} → {', '.join(g['ghosts'])}")
+    if res["prose_only"]:
+        print(f"\n  {len(res['prose_only'])} repos are mentioned in the table but own no row. "
+              f"Counted, not flagged:")
+        print(f"    {', '.join(e['name'] for e in res['prose_only'])}")
+    print(f"\n  A thing you have to remember to check is not covered.\n")
+
+
+def cmd_checkouts(args):
+    """One repo, two working copies, different commits — which one are you editing?
+
+    Runs beside the registry gate every morning, so silence is one line that still
+    carries its denominator.
+    """
+    from helicon.checkouts import audit_checkouts
+
+    res = audit_checkouts(args.code_root)
+    if args.json:
+        print(json.dumps(res, indent=2))
+        return
+
+    wt = sum(len(g["names"]) for g in res["worktree_groups"])
+    tail = (f"{len(res['no_remote'])} local-only · {wt} worktrees · "
+            f"{len(res['in_sync'])} duplicated-in-sync")
+    if res["clean"]:
+        print(f"checkouts clean — {res['checkouts']} working copies across "
+              f"{res['remotes']} remotes, no repo checked out twice at different "
+              f"commits ({tail})")
+        return
+
+    print(f"\nThe checkouts gate — is one repo checked out twice, at two commits?\n")
+    print(f"  {res['checkouts']} working copies · {res['remotes']} remotes · {tail}\n")
+    for g in res["diverged"]:
+        name = g["remote"].rstrip("/").split("/")[-1]
+        print(f"  DIVERGED  {name}  ({len(g['checkouts'])} clones, different commits)")
+        for c in g["checkouts"]:
+            print(f"    {c['head']}  {c['branch']:<24} {c['name']}"
+                  f"{'  *uncommitted changes' if c['dirty'] else ''}")
+    if res["unreadable"]:
+        print(f"\n  {len(res['unreadable'])} repos have no HEAD to compare "
+              f"(empty clone): {', '.join(res['unreadable'])}")
+    print(f"\n  Edit the stale copy and the work lands in a tree nobody pushes.\n")
+
+
 def cmd_consistency(args):
     """The consistency gate: does your memory INDEX still match its directory?
     Deterministic, no key. Catches the drift that hides in plain sight, a
@@ -2143,7 +2251,19 @@ def cmd_consistency(args):
     print(f"  dir     {res['dir']}")
     ext = res.get("external", [])
     ext_note = f" · {len(ext)} external (cross-vault, not checked)" if ext else ""
-    print(f"  {res['pointers']} pointers · {res['on_disk']} files on disk{ext_note}\n")
+    # The denominator is always printed, and the archive line prints even at zero.
+    # A number that appears only when it is non-zero teaches the reader nothing
+    # about whether the check ran — and "did it read the whole directory" is the
+    # first question this gate has to be able to answer about itself.
+    print(f"  {res['pointers']} pointers · {res['on_disk']} live files"
+          f" · {res.get('archived', 0)} archived · "
+          f"{res.get('scanned', res['on_disk'])} scanned{ext_note}\n")
+    arch_unlisted = res.get("archived_unlisted") or []
+    if arch_unlisted:
+        print(f"  {len(arch_unlisted)} archived files are not named by the index. "
+              f"Counted, not flagged:\n  a directory that declares itself archival is "
+              f"doing its job, and crying wolf on it is the drift-fatigue this gate "
+              f"exists to avoid.\n")
     if res["consistent"]:
         print("  index and directory agree. Nothing points at a ghost, nothing hides.")
         return
@@ -3496,6 +3616,24 @@ def cmd_science(args):
     print(run(config))
 
 
+def cmd_measurement_bench(args):
+    """The measurement bench — science, adoption ledger series, and store truth."""
+    from helicon.config import load_config
+    from helicon.measurement_bench import run, run_json_text
+
+    if getattr(args, "db", None):
+        # An explicit store is a complete configuration for this deterministic
+        # command. This keeps the demo witness isolated from ~/.helicon and lets
+        # the Cloud Run image operate without a personal config file.
+        config = {"db_path": args.db}
+    else:
+        config = load_config()
+    if args.json:
+        print(run_json_text(config, weeks=args.weeks))
+    else:
+        print(run(config, weeks=args.weeks))
+
+
 def cmd_score(args):
     """Show current Helicon Score."""
     from helicon.config import load_config
@@ -3514,6 +3652,17 @@ def cmd_score(args):
     for t, d in sorted(decay.items(), key=lambda x: x[1]["avg_confidence"]):
         bar = "=" * int(d["avg_confidence"] * 30)
         print(f"  {t:15s} {bar:30s} {d['avg_confidence']:.0%} ({d['count']})")
+
+
+def cmd_review(args):
+    """Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?
+
+    One source of truth: delegates to helicon.review.main, so the exit code and the
+    broken-count (pointers + commands + versions + execution) match `python3 -m
+    helicon.review` and the `helicon-review` console entry point exactly."""
+    from helicon.review import main as review_main
+    repo = getattr(args, "repo", None) or "."
+    raise SystemExit(review_main([repo]))
 
 
 def cmd_stack(args):
@@ -3934,6 +4083,63 @@ def cmd_witness(args):
                      judge_flag=getattr(args, "judge", False)))
 
 
+def cmd_export(args):
+    """Export a governed TaskRun as JSON: run row, events, packets, receipt."""
+    import json as _json
+
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import taskrun
+
+    run_id = (getattr(args, "run_id", None) or "").strip()
+    if not run_id:
+        sys.exit("usage: helicon export <task-run-id> [--output path.json]\n"
+                 "  e.g. helicon export tr_abc123def456")
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    try:
+        payload = taskrun.export_run(conn, run_id)
+    except taskrun.TaskRunError as e:
+        sys.exit(str(e))
+
+    text = _json.dumps(payload, indent=2, default=str) + "\n"
+    out_path = getattr(args, "output", None)
+    if out_path:
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"  exported {run_id} -> {out_path}")
+    else:
+        print(text, end="")
+
+
+def cmd_truth(args):
+    """helicon truth <path> — point it at ANY agent memory/notes store and get a
+    ranked, evidence-cited staleness+rot report in one command. No config, no DB,
+    no key, no LLM. Works cold on a stranger's Claude Code / Cursor / Cline memory
+    dir, a shared AGENTS.md pile, or an Obsidian vault dashboard — any directory
+    of markdown and/or jsonl files. This is the product surface of the DIAGNOSIS
+    finding that Helicon's own decay score measures days-since-ingest, not
+    staleness; truth measures real staleness off the file system instead."""
+    from helicon.truth import scan_store, format_report
+
+    path = getattr(args, "path", None)
+    if not path:
+        sys.exit("usage: helicon truth <path-to-memory-or-notes-dir>\n"
+                 "  e.g. helicon truth ~/.claude/projects/<you>/memory\n"
+                 "       helicon truth ./docs")
+    res = scan_store(path,
+                     include_archive=getattr(args, "archive", False),
+                     recursive=getattr(args, "recursive", False))
+    if getattr(args, "json", False):
+        import json as _json
+        print(_json.dumps(res, indent=2, default=str))
+        return
+    print(format_report(res, top=getattr(args, "top", None),
+                        min_score=getattr(args, "min_score", 1),
+                        redact=not getattr(args, "no_redact", False)))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
     sub = parser.add_subparsers(dest="command")
@@ -3964,7 +4170,15 @@ def main():
     triage_p = sub.add_parser("triage", help="Run auto-triage")
     triage_p.add_argument("--dry-run", action="store_true", help="Preview without acting")
 
-    review_p = sub.add_parser("review", help="Fast teach-once review of pending items")
+    # FRONT DOOR: review a repo's agent setup on evidence — does its CLAUDE.md /
+    # AGENTS.md lie to the agent? No key, no LLM. Same engine as the `helicon-review`
+    # console entry point and `python3 -m helicon.review`.
+    reporeview_p = sub.add_parser(
+        "review", help="Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?")
+    reporeview_p.add_argument("repo", nargs="?", default=".",
+                              help="Path to the repo to review (default: current directory)")
+
+    review_p = sub.add_parser("review-queue", help="Fast teach-once review of pending memory items")
     review_p.add_argument("--batch", "-n", type=int, default=5, help="How many to surface (default 5)")
     review_p.add_argument("--threshold", "-t", type=float, default=0.80,
                           help="Similarity for teach-once grouping (default 0.80)")
@@ -3981,7 +4195,7 @@ def main():
 
     route_p = sub.add_parser("route", help="Routing recommendation: which model has the best verified track record per task-class (a read of the eval store)")
     route_p.add_argument("--record", action="store_true",
-                         help="Build/refresh evidence from `review --terminals` before ranking")
+                         help="Build/refresh evidence from `review-queue --terminals` before ranking")
     route_p.add_argument("--run", action="store_true",
                          help="with --record: actually run test suites to verify test-count claims")
     route_p.add_argument("--only", nargs="+", metavar="NAME",
@@ -4124,6 +4338,17 @@ def main():
     cons_p.add_argument("index", nargs="?", help="Path to the index markdown (default: Claude Code auto-memory MEMORY.md)")
     cons_p.add_argument("--dir", dest="dir", help="Directory the index indexes (default: the index's own folder)")
     cons_p.add_argument("--json", action="store_true", help="Emit JSON")
+
+    reg_p = sub.add_parser("registry", help="The registry gate: does every project you own have a row? (deterministic)")
+    reg_p.add_argument("registry", nargs="?", help="Path to the registry markdown (default: the vault's 00 Dashboard/registry.md)")
+    reg_p.add_argument("--code-root", dest="code_root", default="~/CODE", help="Local projects directory (default: ~/CODE)")
+    reg_p.add_argument("--top", type=int, default=8, help="How many gaps to print (default: 8). The rest are counted.")
+    reg_p.add_argument("--all", action="store_true", help="Print every gap instead of the top slice")
+    reg_p.add_argument("--json", action="store_true", help="Emit JSON")
+
+    ck_p = sub.add_parser("checkouts", help="The checkouts gate: one repo with two working copies at different commits (deterministic)")
+    ck_p.add_argument("--code-root", dest="code_root", default="~/CODE", help="Projects directory (default: ~/CODE)")
+    ck_p.add_argument("--json", action="store_true", help="Emit JSON")
 
     vol_p = sub.add_parser("volatility", help="The volatility gate: flag fast facts stored as durable memory (truth = fact + timestamp + decay)")
     vol_p.add_argument("--json", action="store_true", help="Emit JSON")
@@ -4281,7 +4506,7 @@ def main():
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
 
     attr_p = sub.add_parser("attribute", help="Trace a contradicted output finding back to the memory that caused it")
-    attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review --terminals --file`)")
+    attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review-queue --terminals --file`)")
     attr_p.add_argument("--limit", type=int, default=5, help="max candidate memories (default 5)")
 
     watch_p = sub.add_parser("watch", help="Ambient mode: scan + exam on a timer, notify only on NEW drift")
@@ -4307,8 +4532,23 @@ def main():
     rule_p.add_argument("--apply", action="store_true", help="with --run: actually write decisions")
 
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
+    export_p = sub.add_parser("export", help="Export a governed TaskRun as JSON (run, events, packets, receipt)")
+    export_p.add_argument("run_id", help="Task run id, e.g. tr_abc123def456")
+    export_p.add_argument("-o", "--output", help="Write JSON to file instead of stdout")
+    truth_p = sub.add_parser("truth", help="Point it at ANY agent memory/notes store (Claude Code / Cursor / Cline / an Obsidian vault) -> ranked, evidence-cited staleness+rot report. No config, no DB, no key, no LLM.")
+    truth_p.add_argument("path", nargs="?", help="Directory (or single file) of *.md / *.jsonl memory or notes")
+    truth_p.add_argument("--top", type=int, help="Show only the top N most-rotten")
+    truth_p.add_argument("--min-score", dest="min_score", type=int, default=1)
+    truth_p.add_argument("--recursive", action="store_true")
+    truth_p.add_argument("--archive", action="store_true")
+    truth_p.add_argument("--json", action="store_true")
+    truth_p.add_argument("--no-redact", dest="no_redact", action="store_true")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
+    mb_p = sub.add_parser("measurement-bench", help="The measurement bench: science + weekly series + store truth in one pass")
+    mb_p.add_argument("--weeks", type=int, default=12, help="weeks of measurement history to show")
+    mb_p.add_argument("--json", action="store_true", help="emit structured JSON witness (for Firestore / ADK)")
+    mb_p.add_argument("--db", help="override store path (demo SQLite in cloud)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
     sr_p = sub.add_parser("skills-review", help="Which installed skills actually fire (local transcripts, honest window)")
@@ -4353,7 +4593,6 @@ def main():
         "serve": cmd_serve,
         "demo": cmd_demo,
         "triage": cmd_triage,
-        "review": cmd_review,
         "route": cmd_route,
         "score-runs": cmd_score_runs,
         "runs": cmd_runs,
@@ -4385,6 +4624,8 @@ def main():
         "heal": cmd_heal,
         "read": cmd_read,
         "consistency": cmd_consistency,
+        "registry": cmd_registry,
+        "checkouts": cmd_checkouts,
         "volatility": cmd_volatility,
         "ci": cmd_ci,
         "policy": cmd_gold,
@@ -4398,13 +4639,18 @@ def main():
         "alias": cmd_alias,
         "rule": cmd_rule,
         "doctor": cmd_doctor,
+        "export": cmd_export,
+        "truth": cmd_truth,
         "mcp": cmd_mcp,
         "science": cmd_science,
+        "measurement-bench": cmd_measurement_bench,
         "score": cmd_score,
         "stack": cmd_stack,
         "setup": cmd_setup,
         "witness": cmd_witness,
         "skills-review": cmd_skills_review,
+        "review": cmd_review,
+        "review-queue": cmd_review_queue,
         "optimize": cmd_optimize,
         "eval": cmd_eval,
         "embed": cmd_embed,
@@ -4435,10 +4681,17 @@ def main():
     # first version of this gate ran before dispatch for every other command and
     # killed `helicon ci --fail-on none` on every push. A gate meant to stop a
     # stranger hitting a traceback broke the one caller that was already right.
-    SELF_CONFIGURING = ("init", "doctor", "mcp", "ci", "board", "bench", "demo", "doorway", "sweep", "magnet", "setup", "witness", "skills-review")
+    SELF_CONFIGURING = (
+        "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
+        "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
+        "review",
+    )
+    has_explicit_bench_db = (
+        args.command == "measurement-bench" and bool(getattr(args, "db", None))
+    )
 
     from helicon.config import config_file, load_config as _load
-    if args.command not in SELF_CONFIGURING:
+    if args.command not in SELF_CONFIGURING and not has_explicit_bench_db:
         try:
             _cfg = _load()
         except FileNotFoundError as e:
