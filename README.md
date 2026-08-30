@@ -378,11 +378,13 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (70 commands)
+## CLI (72 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
+
+`helicon truth` is the **stranger-facing cold path**: point it at any agent memory directory (Claude Code, Cursor, Cline, Obsidian vault) and get a ranked, evidence-cited staleness+rot report — no Helicon DB, no API key, no LLM. Deterministic; every row cites the line it fired on.
 
 `helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review-queue --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
 

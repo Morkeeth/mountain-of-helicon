@@ -3977,6 +3977,36 @@ def cmd_consolidation_eval(args):
         print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
+def cmd_export(args):
+    """Export a governed TaskRun as JSON: run row, events, packets, receipt."""
+    import json as _json
+
+    from helicon.config import load_config
+    from helicon.db import init_db
+    from helicon import taskrun
+
+    run_id = (getattr(args, "run_id", None) or "").strip()
+    if not run_id:
+        sys.exit("usage: helicon export <task-run-id> [--output path.json]\n"
+                 "  e.g. helicon export tr_abc123def456")
+
+    config = load_config()
+    conn = init_db(config["db_path"])
+    try:
+        payload = taskrun.export_run(conn, run_id)
+    except taskrun.TaskRunError as e:
+        sys.exit(str(e))
+
+    text = _json.dumps(payload, indent=2, default=str) + "\n"
+    out_path = getattr(args, "output", None)
+    if out_path:
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"  exported {run_id} -> {out_path}")
+    else:
+        print(text, end="")
+
+
 def cmd_truth(args):
     """helicon truth <path> — point it at ANY agent memory/notes store and get a
     ranked, evidence-cited staleness+rot report in one command. No config, no DB,
@@ -4396,6 +4426,9 @@ def main():
     rule_p.add_argument("--apply", action="store_true", help="with --run: actually write decisions")
 
     sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
+    export_p = sub.add_parser("export", help="Export a governed TaskRun as JSON (run, events, packets, receipt)")
+    export_p.add_argument("run_id", help="Task run id, e.g. tr_abc123def456")
+    export_p.add_argument("-o", "--output", help="Write JSON to file instead of stdout")
     truth_p = sub.add_parser("truth", help="Point it at ANY agent memory/notes store (Claude Code / Cursor / Cline / an Obsidian vault) -> ranked, evidence-cited staleness+rot report. No config, no DB, no key, no LLM.")
     truth_p.add_argument("path", nargs="?", help="Directory (or single file) of *.md / *.jsonl memory or notes")
     truth_p.add_argument("--top", type=int, help="Show only the top N most-rotten")
@@ -4488,6 +4521,7 @@ def main():
         "alias": cmd_alias,
         "rule": cmd_rule,
         "doctor": cmd_doctor,
+        "export": cmd_export,
         "truth": cmd_truth,
         "mcp": cmd_mcp,
         "science": cmd_science,
