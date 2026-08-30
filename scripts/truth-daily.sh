@@ -35,3 +35,6 @@ EOF
 
 FLAGGED=$(grep -E '^[[:space:]]+[0-9]+[[:space:]]+[0-9]+' "$RECEIPT" | wc -l | tr -d ' ')
 echo "truth-daily: $FLAGGED flagged row(s) · receipt $RECEIPT"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+python3 "$SCRIPT_DIR/truth-daily-summary.py"
