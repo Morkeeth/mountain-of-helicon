@@ -489,3 +489,33 @@ def _delivery_line(conn, task_run_id) -> str:
         f"{'proven' if packet_delivered or delivered else 'unproven'} · "
         f"obeyed: unproven"
     )
+
+
+def export_run(conn, task_run_id) -> dict:
+    """JSON export of a governed run: row, events, packets, human receipt."""
+    run = _get_run(conn, task_run_id)
+    if run is None:
+        raise TaskRunError(f"no such task run: {task_run_id}")
+    events = [
+        dict(row)
+        for row in conn.execute(
+            "SELECT kind, actor, detail, ts FROM run_events "
+            "WHERE task_run_id=? ORDER BY ts",
+            (task_run_id,),
+        ).fetchall()
+    ]
+    packets = [
+        dict(row)
+        for row in conn.execute(
+            "SELECT id, token_estimate, policy_version, created_at FROM context_packets "
+            "WHERE task_run_id=? ORDER BY created_at",
+            (task_run_id,),
+        ).fetchall()
+    ]
+    return {
+        "task_run_id": task_run_id,
+        "run": dict(run),
+        "events": events,
+        "packets": packets,
+        "receipt": render_receipt(conn, task_run_id),
+    }
