@@ -10,6 +10,29 @@ verified.
 This gate is deterministic and free: parse the pointers the index makes, list
 the directory it indexes, and diff. No model, no embeddings. The check that
 would have caught the drift is twenty lines, not intelligence.
+
+IT USED TO LIST ONE LEVEL AND CALL THAT THE DIRECTORY.
+------------------------------------------------------
+`os.listdir` is not a corpus. Measured 2026-08-27 on Oscar's own memory
+directory: the gate read 273 of 352 files and printed `consistent: False` with
+16 unlisted — a confident verdict over a population it never opened. The 79 it
+could not see were all under `archive/`. This is the defect class the tool
+exists to find, in the tool.
+
+Recursion is DEFAULT-ON and not a flag. A scanner that silently skips a fifth of
+its corpus is making exactly the claim this gate refuses, and that does not go
+behind an opt-in.
+
+AN ARCHIVE IS NOT ROT.
+----------------------
+Recursing naively would have been worse than the bug: every one of those 79
+files is under a directory the index itself points at with "Older -> archive/",
+so a naive walk turns a 16-item finding into a ~95-item wall, most of it
+crying wolf against the operator's own stated convention. A directory that
+declares itself archival is SCANNED AND COUNTED, and its files are not required
+to be named by the index. They are reported separately so the number is visible
+rather than silently dropped — the point is that nothing is invisible, not that
+everything is a finding.
 """
 import os
 import re
@@ -18,6 +41,28 @@ import urllib.parse
 _LINK = re.compile(r"\[[^\]]+\]\(([^)]+?\.md)\)")   # [title](path/to/file.md)
 _WIKI = re.compile(r"\[\[([^\]]+?)\]\]")             # [[name]]
 _WORD = re.compile(r"[A-Za-z0-9_\-]+")
+
+# A directory that says it is archival, by name. Deliberately a small closed list
+# and not a heuristic: mis-classifying a live directory as archival would hide
+# real drift, which is the failure this whole module is about.
+_ARCHIVAL = {"archive", "archives", "archived", "_archive", ".archive", "old"}
+
+
+def _walk_md(root: str) -> list[str]:
+    """Every .md under root, as paths relative to root. Dotdirs are skipped."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        for fn in sorted(filenames):
+            if fn.endswith(".md"):
+                out.append(os.path.relpath(os.path.join(dirpath, fn), root))
+    return out
+
+
+def _is_archival(rel: str) -> bool:
+    """True when any directory on the path declares itself archival."""
+    parts = rel.split(os.sep)[:-1]
+    return any(p.lower() in _ARCHIVAL for p in parts)
 
 
 def _links(text: str) -> list[str]:
@@ -47,11 +92,19 @@ def audit_index(index_path: str, memory_dir: str | None = None) -> dict:
     # point OUTSIDE that directory (a cross-vault ../ path) are a different
     # concern, so they are counted, not flagged: crying wolf on an out-of-scope
     # link is exactly the drift-fatigue the gate exists to avoid.
+    every = [f for f in _walk_md(memory_dir) if f != index_name]
+    by_stem = {}
+    for rel in every:
+        by_stem.setdefault(os.path.basename(rel)[:-3], rel)
+
     in_dir_links = [link for link in raw_links if inside(resolve(link))]
     external = sorted({link for link in raw_links if not inside(resolve(link))})
     dangling = sorted({link for link in in_dir_links if not os.path.isfile(resolve(link))})
-    dangling_wiki = sorted(
-        w for w in wiki if not os.path.isfile(os.path.join(memory_dir, f"{w}.md")))
+    # A wikilink resolves anywhere in the tree, not only at the top level. Before
+    # the walk existed, [[a-note]] that had been moved into archive/ was reported
+    # DANGLING even though the file was right there — a false alarm produced by
+    # the same one-level read that hid the files in the first place.
+    dangling_wiki = sorted(w for w in wiki if w.strip() not in by_stem)
 
     # A file is "named" if the index (or a sub-index it links to, one hop) refers
     # to it by markdown link, wikilink, or bare stem. The grouped pattern names
@@ -76,16 +129,24 @@ def audit_index(index_path: str, memory_dir: str | None = None) -> dict:
             return True
         return "_" in stem and stem.split("_", 1)[1] in words
 
-    on_disk = {f for f in os.listdir(memory_dir)
-               if f.endswith(".md") and f != index_name}
-    unlisted = sorted(f for f in on_disk if not named(f))
+    archived = sorted(f for f in every if _is_archival(f))
+    live = [f for f in every if not _is_archival(f)]
+
+    # `named` matches on basename, so a file keeps its identity wherever it sits.
+    unlisted = sorted(f for f in live if not named(os.path.basename(f)))
+    # Reported, never flagged: an archived file the index does not name is the
+    # convention working, not drift.
+    archived_unlisted = sorted(f for f in archived if not named(os.path.basename(f)))
 
     return {
         "ok": True,
         "index": index_path,
         "dir": memory_dir,
         "pointers": len(raw_links) + len(wiki),
-        "on_disk": len(on_disk),
+        "scanned": len(every),
+        "on_disk": len(live),
+        "archived": len(archived),
+        "archived_unlisted": archived_unlisted,
         "external": external,
         "dangling": dangling,
         "dangling_wikilinks": dangling_wiki,

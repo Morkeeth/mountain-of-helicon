@@ -29,12 +29,34 @@ front of it, before the work starts. Every contradiction it reports carries the
 command and the stdout that proved it — so you are ruling on evidence, not on a
 model's opinion about your docs.
 
+### One line, no clone
+
+Review any repo's agent setup in one command — no clone, no key, no LLM:
+
+```bash
+uvx --from mountain-of-helicon helicon-review ~/your-repo
+# or:  pipx run --spec mountain-of-helicon helicon-review ~/your-repo
+```
+
+It reads that repo's `CLAUDE.md` / `AGENTS.md` / `.cursorrules`, checks every
+pointer, command, and version claim against the actual tree, and prints a graded
+verdict with the exact `file:line` of each broken reference. Exit code is non-zero
+when the setup lies to its agent, so it drops straight into CI.
+
+> Runs the existence + version tier by default. The execute-and-compare wedge — it
+> *runs* a documented test/build command and grades the doc's "this passes" claim
+> against the real exit code — is opt-in (`HELICON_EXECUTE=1`), because running a
+> stranger's code should be a choice.
+
+### From a clone (the full lab)
+
 ```bash
 git clone https://github.com/Morkeeth/mountain-of-helicon.git
 cd mountain-of-helicon
 python3 scripts/check_python.py     # not optional; see below
 python3 -m pip install -e .
 
+helicon review ~/your-repo          # the front door: graded, evidence-backed review
 helicon ci --path ~/your-repo       # your repo. no key, no config, no init.
 ```
 
@@ -373,15 +395,17 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (69 commands)
+## CLI (75 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `mcp` `score` `stack` `setup` `witness` `skills-review` `science` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
-`helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
+`helicon truth` is the **stranger-facing cold path**: point it at any agent memory directory (Claude Code, Cursor, Cline, Obsidian vault) and get a ranked, evidence-cited staleness+rot report — no Helicon DB, no API key, no LLM. Deterministic; every row cites the line it fired on.
 
-`helicon score-runs` and `helicon runs` score whole RUNS, the same output-verification one level up and made cost-aware: `score = verified yield / cost - damage`. Cost comes from the real transcript token usage, yield from the `review --terminals` verdicts, damage from an incident flag. Every term traces to a real source; nothing is vibed. `score-runs --card` cuts one run card, `runs` renders the scored history, `runs --suggest` reads what to run next off it. See [docs/RUNS.md](docs/RUNS.md).
+`helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review-queue --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
+
+`helicon score-runs` and `helicon runs` score whole RUNS, the same output-verification one level up and made cost-aware: `score = verified yield / cost - damage`. Cost comes from the real transcript token usage, yield from the `review-queue --terminals` verdicts, damage from an incident flag. Every term traces to a real source; nothing is vibed. `score-runs --card` cuts one run card, `runs` renders the scored history, `runs --suggest` reads what to run next off it. See [docs/RUNS.md](docs/RUNS.md).
 
 `helicon judge-bench` benchmarks Qwen as the memory-rot judge against the operator's own human rulings, and (with an OpenRouter key) against GPT/Claude on the same probes. Real result (run #2, 26 probes, 13 real contradictions + 13 controls, ground truth = the operator's own rulings): **qwen3.6-plus ties anthropic/claude-sonnet-5 at 0.962 accuracy and beats openai/gpt-5 (0.808)**, at $0.00444 per run and in 54s against Sonnet's 144s and GPT's 245s. qwen3.6-flash holds 0.923 for $0.00167, 8x cheaper than qwen3.7-max for the same specificity. And **every model, Qwen and Claude and GPT alike, missed `unit-drift`**: some rot is a domain ruling rather than a logical contradiction, and no judge at any price catches it. That is what the human-ruling layer exists for. Reproduce: `helicon judge-bench --set all --save` (needs `openrouter_api_key` for the competitors); the Judge tab reads the saved run, and renders an unrun bench as unrun. See [docs/ROUTE.md](docs/ROUTE.md).
 
