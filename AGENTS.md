@@ -71,3 +71,23 @@ cd web && npm ci && npm run build   # writes web/dist/ (untracked)
 ```
 
 The FastAPI backend serves `web/dist/` when present and otherwise falls back to the SPA route, so a missing `web/dist/` only means the prebuilt UI is not served — run `npm run dev` (Vite on :5173, proxies `/api`) for live frontend work. Deployment/CI is responsible for building `web/dist/`; a committed copy only drifts from source.
+
+
+## Governed run receipts (helicon export)
+
+<!-- HELICON-RUN-RECEIPT START -->
+### tr_4fdf504db330 · 2026-07-31 · reviewed
+
+**Objective:** wire the doorway gate into a live Claude Code session
+
+```
+TaskRun tr_4fdf504db330 — reviewed
+  objective:  wire the doorway gate into a live Claude Code session
+  context:    0 items in packet, 0 relevant excluded (privacy/scope), ~0 tokens · mode=compact
+  outcome:    unverified (source: —)
+  egress:     local-only
+  context:    packet delivery unproven · 0 ruling delivery record(s) linked to this run · recorded: yes · delivered: unproven · obeyed: unproven
+```
+<!-- HELICON-RUN-RECEIPT END -->
+
+
