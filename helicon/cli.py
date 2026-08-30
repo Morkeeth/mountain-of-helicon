@@ -4135,7 +4135,7 @@ def cmd_truth(args):
                      recursive=getattr(args, "recursive", False))
     if getattr(args, "json", False):
         import json as _json
-        print(_json.dumps(res, indent=2, default=str))
+        print(_json.dumps(res, indent=2, default=str, ensure_ascii=False))
         return
     print(format_report(res, top=getattr(args, "top", None),
                         min_score=getattr(args, "min_score", 1),
