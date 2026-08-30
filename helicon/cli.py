@@ -3804,12 +3804,14 @@ Decay stats:
 def cmd_embed(args):
     from helicon.config import load_config
     from helicon.db import init_db
-    from helicon.embeddings import embed_all_cubes, get_embedding_stats
+    from helicon.embeddings import embed_all_cubes, get_embedding_stats, _embed_provider
 
     config = load_config()
     conn = init_db(config["db_path"])
 
-    print("Embedding all memories with all-MiniLM-L6-v2 (384 dims)...\n")
+    kind, _c, model, dim = _embed_provider()
+    label = f"{model} ({dim} dims)" if kind == "remote" else "all-MiniLM-L6-v2 (384 dims, local)"
+    print(f"Embedding all memories with {label}...\n")
     result = embed_all_cubes(conn)
     print(f"  Embedded: {result['embedded']} new")
     print(f"  Skipped: {result['skipped']} (already done)")

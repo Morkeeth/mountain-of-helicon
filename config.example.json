@@ -2,7 +2,12 @@
   "db_path": "~/.helicon/helicon.db",
   "qwen_api_key": "",
   "openrouter_api_key": "",
-  "qwen_model": "qwen-plus",
+  "embeddings": {
+    "api_key": "",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "openai/text-embedding-3-small",
+    "dim": 1536
+  },
   "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   "connectors": {
     "claude-code": {

@@ -79,21 +79,33 @@ _provider_cache = None
 
 
 def _embed_provider():
-    """Which embedding backend to use, resolved once from config. If config has
-    an `embeddings` block with api_key + base_url, the whole retrieval stack is
-    Qwen-native (Alibaba Model Studio text-embedding-v4). Otherwise falls back to
-    local MiniLM. Returns (kind, client, model_name, dim)."""
+    """Which embedding backend to use, resolved once from config.
+
+    Priority:
+      1. config.embeddings with api_key + base_url (OpenAI-compatible API)
+      2. config.openrouter_api_key -> OpenRouter embeddings endpoint
+      3. local all-MiniLM-L6-v2 fallback
+
+    Returns (kind, client, model_name, dim)."""
     global _provider_cache
     if _provider_cache is not None:
         return _provider_cache
     prov = ("local", None, "all-MiniLM-L6-v2", 384)
     try:
         from helicon.config import load_config
-        e = (load_config().get("embeddings") or {})
-        if e.get("api_key") and e.get("base_url"):
+        cfg = load_config()
+        e = (cfg.get("embeddings") or {})
+        api_key = e.get("api_key") or cfg.get("openrouter_api_key") or ""
+        base_url = e.get("base_url") or (
+            "https://openrouter.ai/api/v1" if cfg.get("openrouter_api_key") and not e.get("base_url")
+            else ""
+        )
+        if api_key and base_url:
             from openai import OpenAI
-            client = OpenAI(api_key=e["api_key"], base_url=e["base_url"])
-            prov = ("qwen", client, e.get("model", "text-embedding-v4"), int(e.get("dim", 1024)))
+            client = OpenAI(api_key=api_key, base_url=base_url)
+            model = e.get("model") or "openai/text-embedding-3-small"
+            dim = int(e.get("dim", 1536))
+            prov = ("remote", client, model, dim)
     except Exception:
         pass
     _provider_cache = prov
@@ -107,7 +119,7 @@ def _normalize(v: np.ndarray) -> np.ndarray:
 
 def embed_text(text: str) -> np.ndarray:
     kind, client, model, dim = _embed_provider()
-    if kind == "qwen":
+    if kind == "remote":
         r = client.embeddings.create(model=model, input=[text[:8000]],
                                      dimensions=dim, encoding_format="float")
         return _normalize(np.array(r.data[0].embedding, dtype=np.float32))
@@ -116,7 +128,7 @@ def embed_text(text: str) -> np.ndarray:
 
 def embed_batch(texts: list[str]) -> np.ndarray:
     kind, client, model, dim = _embed_provider()
-    if kind == "qwen":
+    if kind == "remote":
         out = []
         for i in range(0, len(texts), 10):  # Model Studio caps at 10 inputs/call
             r = client.embeddings.create(model=model, input=[t[:8000] for t in texts[i:i + 10]],
@@ -128,8 +140,8 @@ def embed_batch(texts: list[str]) -> np.ndarray:
 
 def store_embedding(conn: sqlite3.Connection, cube_id: str, embedding):
     kind, _c, model, dim = _embed_provider()
-    mname = model if kind == "qwen" else "all-MiniLM-L6-v2"
-    d = dim if kind == "qwen" else 384
+    mname = model if kind == "remote" else "all-MiniLM-L6-v2"
+    d = dim if kind == "remote" else 384
     conn.execute(
         "INSERT OR REPLACE INTO cube_embeddings (cube_id, embedding, embedded_at, model, dim) "
         "VALUES (?, ?, ?, ?, ?)",
@@ -145,7 +157,7 @@ def embed_all_cubes(conn: sqlite3.Connection, batch_size: int = 64) -> dict:
     # plain `helicon embed` re-embeds everything with the new model (store_embedding
     # REPLACEs the stale row by cube_id).
     _k, _c, _m, _dim = _embed_provider()
-    cur_dim = _dim if _k == "qwen" else 384
+    cur_dim = _dim if _k == "remote" else 384
     already = set()
     try:
         rows = conn.execute("SELECT cube_id FROM cube_embeddings WHERE dim = ?", (cur_dim,)).fetchall()
@@ -180,7 +192,7 @@ def embed_all_cubes(conn: sqlite3.Connection, batch_size: int = 64) -> dict:
 
 def _load_all_embeddings(conn: sqlite3.Connection) -> tuple[list[str], np.ndarray]:
     _k, _c, _m, _dim = _embed_provider()
-    cur_dim = _dim if _k == "qwen" else 384
+    cur_dim = _dim if _k == "remote" else 384
     rows = conn.execute(
         "SELECT ce.cube_id, ce.embedding FROM cube_embeddings ce "
         "JOIN helicon_cubes gc ON ce.cube_id = gc.id "
@@ -342,10 +354,19 @@ def rerank_health() -> dict:
     speaks to the reranker and reports what came back.
     """
     kind, _c, _m, _d = _embed_provider()
-    if kind != "qwen":
+    if kind != "remote":
         return {"ok": None,
-                "reason": "no Qwen embeddings configured — rerank is off by "
+                "reason": "no remote embeddings configured — rerank is off by "
                           "design, retrieval uses the hybrid order"}
+    try:
+        from helicon.config import load_config
+        e = load_config().get("embeddings") or {}
+        if "dashscope" not in (e.get("base_url") or "").lower():
+            return {"ok": None,
+                    "reason": "OpenRouter embeddings — DashScope qwen3-rerank "
+                              "not available; hybrid order only"}
+    except Exception:
+        pass
     # conn=None on purpose: the durable memo would answer for a dead reranker.
     out = rerank("helicon rerank health probe",
                  ["alpha: a document about ranking",
@@ -368,7 +389,15 @@ def rerank(query: str, documents: list[str], top_n: int, conn=None):
     Memoized on (query, documents, top_n): the model is not deterministic, and
     retrieval that will not reproduce cannot be regression-tested."""
     kind, _c, _m, _d = _embed_provider()
-    if kind != "qwen" or not documents:
+    if kind != "remote" or not documents:
+        return None
+    try:
+        from helicon.config import load_config
+        e = load_config().get("embeddings") or {}
+        # qwen3-rerank is DashScope-only; OpenRouter has no equivalent endpoint.
+        if "dashscope" not in (e.get("base_url") or "").lower():
+            return None
+    except Exception:
         return None
     import hashlib
     key = hashlib.sha256(
@@ -585,7 +614,7 @@ def semantic_health(conn: sqlite3.Connection) -> dict:
     """
     init_embedding_table(conn)
     _k, _c, model, dim = _embed_provider()
-    cur_dim = dim if _k == "qwen" else 384
+    cur_dim = dim if _k == "remote" else 384
     stored = {r["dim"]: r["c"] for r in conn.execute(
         "SELECT dim, COUNT(*) c FROM cube_embeddings GROUP BY dim")}
     usable = conn.execute(
