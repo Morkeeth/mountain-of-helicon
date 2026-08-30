@@ -18,7 +18,7 @@ Public onboarding: [ONBOARDING.md](./ONBOARDING.md) (review + CI only).
 **Goal:** board stops lying — `flagged_files` trends down.
 
 ```bash
-jq .flagged_files,.delta_files ~/.helicon/truth-daily-summary.json
+jq .g6 ~/.helicon/truth-daily-summary.json
 ```
 
 SLASK LIVE STATE block includes one line from this JSON when `slask_stamp.py` runs.

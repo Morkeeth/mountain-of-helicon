@@ -1,119 +1,159 @@
 #!/usr/bin/env python3
-"""Parse truth-daily-latest.txt → truth-daily-summary.json with delta."""
+"""Daily truth cross-check → machine-readable G6 summary (no text parsing)."""
 from __future__ import annotations
 
 import json
-import re
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from helicon.truth import format_report, scan_store
+
 STORE = Path.home() / ".helicon"
-RECEIPT = STORE / "truth-daily-latest.txt"
 SUMMARY = STORE / "truth-daily-summary.json"
 PREV = STORE / "truth-daily-summary.prev.json"
+RECEIPT = STORE / "truth-daily-latest.txt"
 
-ROW_RE = re.compile(
-    r"^\s+(\d+)\s+(\d+)\s+(\d+[dh]?)\s+(\S.+?)\s*$"
+VAULT = Path(
+    os.environ.get(
+        "OBSIDIAN_VAULT",
+        Path.home()
+        / "Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian LIFE",
+    )
 )
-SECTION_RE = re.compile(r"^--- (.+?) · (.+?) ---")
-
-
-def parse_receipt(text: str) -> dict:
-    stores: list[dict] = []
-    top_files: list[dict] = []
-    current_label = "unknown"
-    flagged_rows = 0
-    files_seen: set[str] = set()
-
-    for line in text.splitlines():
-        sec = SECTION_RE.match(line)
-        if sec:
-            current_label = sec.group(1).strip()
-            continue
-        m = ROW_RE.match(line)
-        if not m:
-            continue
-        score = int(m.group(2))
-        if score < 1:
-            continue
-        flagged_rows += 1
-        fname = m.group(4).strip()
-        files_seen.add(fname)
-        top_files.append(
-            {
-                "file": fname,
-                "score": score,
-                "rank": int(m.group(1)),
-                "age": m.group(3),
-                "store": current_label,
-            }
-        )
-
-    # Re-scan section headers for scanned/signaled counts
-    parts = re.split(r"^--- (.+?) · (.+?) ---\n", text, flags=re.M)
-    if len(parts) > 1:
-        for i in range(1, len(parts), 3):
-            label = parts[i].strip()
-            body = parts[i + 2] if i + 2 < len(parts) else ""
-            scanned = signaled = 0
-            hdr = re.search(
-                r"(\d+) files scanned · (\d+) carry a staleness/rot signal",
-                body,
+STORES: list[tuple[str, Path]] = [
+    ("SLASK", VAULT / "! ❄SLASK 🧊"),
+    (
+        "dashboard",
+        VAULT / "00 Dashboard",
+    ),
+    (
+        "claude-memory",
+        Path(
+            os.environ.get(
+                "CLAUDE_MEMORY",
+                Path.home() / ".claude/projects/-Users-morkeeth/memory",
             )
-            if hdr:
-                scanned, signaled = int(hdr.group(1)), int(hdr.group(2))
-            stores.append(
-                {"label": label, "scanned": scanned, "signaled": signaled}
-            )
+        ),
+    ),
+]
 
-    top_files.sort(key=lambda x: (-x["score"], x["file"]))
-    return {
-        "flagged_rows": flagged_rows,
-        "flagged_files": len(files_seen),
-        "stores": stores,
-        "top_files": top_files[:10],
-    }
+
+def _load_prev() -> dict:
+    for path in (PREV, SUMMARY):
+        if path.is_file():
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                pass
+    return {}
+
+
+def _g6_flagged(prev: dict, out: dict) -> int:
+    g6 = prev.get("g6") or {}
+    return int(g6.get("flagged", prev.get("flagged_files", 0)))
 
 
 def main() -> int:
-    if not RECEIPT.is_file():
-        print(f"missing receipt: {RECEIPT}", file=__import__("sys").stderr)
-        return 1
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    prev = _load_prev()
+    prev_flagged = _g6_flagged(prev, prev)
 
-    parsed = parse_receipt(RECEIPT.read_text(encoding="utf-8"))
-    prev: dict = {}
-    if PREV.is_file():
-        try:
-            prev = json.loads(PREV.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            prev = {}
-    elif SUMMARY.is_file():
-        try:
-            prev = json.loads(SUMMARY.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            prev = {}
+    store_rows: list[dict] = []
+    flagged_items: list[dict] = []
+    human: list[str] = [
+        f"=== helicon truth daily · {now.astimezone().isoformat(timespec='seconds')} ==="
+    ]
 
-    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    for label, path in STORES:
+        human.append("")
+        human.append(f"--- {label} · {path} ---")
+        if not path.exists():
+            human.append(f"[skip] path missing: {path}")
+            store_rows.append(
+                {"label": label, "path": str(path), "scanned": 0, "flagged": 0, "skip": True}
+            )
+            continue
+
+        res = scan_store(str(path))
+        if res.get("error"):
+            human.append(f"[warn] {res['error']}")
+            store_rows.append(
+                {
+                    "label": label,
+                    "path": str(path),
+                    "scanned": 0,
+                    "flagged": 0,
+                    "error": res["error"],
+                }
+            )
+            continue
+
+        store_rows.append(
+            {
+                "label": label,
+                "path": str(path),
+                "scanned": res["total"],
+                "flagged": res["flagged"],
+                "clean": res.get("clean", 0),
+            }
+        )
+        human.append(format_report(res))
+        for it in res["items"]:
+            if it["score"] < 1:
+                continue
+            flagged_items.append(
+                {
+                    "file": it["file"],
+                    "path": it["path"],
+                    "score": it["score"],
+                    "age_days": it["age_days"],
+                    "store": label,
+                }
+            )
+
+    human.append("")
+    human.append(f"=== end {now.astimezone().isoformat(timespec='seconds')} ===")
+
+    flagged_items.sort(key=lambda x: (-x["score"], x["file"]))
+    flagged = len(flagged_items)
+    delta = flagged - prev_flagged
+    top_item = flagged_items[0] if flagged_items else None
+
     out = {
-        "at": now,
-        "flagged_rows": parsed["flagged_rows"],
-        "flagged_files": parsed["flagged_files"],
-        "delta_rows": parsed["flagged_rows"] - int(prev.get("flagged_rows", 0)),
-        "delta_files": parsed["flagged_files"] - int(prev.get("flagged_files", 0)),
-        "stores": parsed["stores"],
-        "top_files": parsed["top_files"],
+        "at": now.isoformat(),
+        "g6": {
+            "flagged": flagged,
+            "delta": delta,
+            "top": (
+                {
+                    "file": top_item["file"],
+                    "score": top_item["score"],
+                    "store": top_item["store"],
+                }
+                if top_item
+                else None
+            ),
+        },
+        "stores": store_rows,
+        "top": flagged_items[:10],
         "previous_at": prev.get("at"),
-        "receipt": str(RECEIPT),
     }
 
     STORE.mkdir(parents=True, exist_ok=True)
+    RECEIPT.write_text("\n".join(human) + "\n", encoding="utf-8")
     if SUMMARY.is_file():
         SUMMARY.replace(PREV)
-    SUMMARY.write_text(json.dumps(out, indent=2) + "\n", encoding="utf-8")
-    delta_s = f"{out['delta_files']:+d} files" if out["delta_files"] else "unchanged"
+    SUMMARY.write_text(
+        json.dumps(out, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+
+    delta_s = f"{delta:+d} vs prior" if prev.get("at") else "first reading"
+    top_name = top_item["file"] if top_item else "—"
     print(
-        f"truth summary: {out['flagged_files']} flagged files "
-        f"({delta_s} vs prior) → {SUMMARY}"
+        f"truth summary: {flagged} flagged ({delta_s}) · top {top_name} → {SUMMARY}",
+        file=sys.stderr,
     )
     return 0
 
