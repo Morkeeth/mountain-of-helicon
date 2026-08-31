@@ -11,9 +11,10 @@ Three-layer memory system for AI agent output. Extracts what agents built, learn
 ## History
 
 Born as a Qwen Cloud hackathon entry (Jul 2026, MemoryAgent track); the frozen
-submission lives on as Mount Helicon (separate repo, never touched). This repo
-is the PRODUCT — a real OSS tool launched Aug 2026. Submission-era files are
-archived under `docs/archive/hackathon-2026/`, history intact.
+hackathon submission lives in a separate write-blocked repo and is never touched
+from this tree. This repo is the PRODUCT — a real OSS tool launched Aug 2026.
+Submission-era files are archived under `docs/archive/hackathon-2026/`, history
+intact.
 
 ## Stack
 

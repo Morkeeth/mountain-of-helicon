@@ -360,8 +360,20 @@ def rerank_health() -> dict:
                           "design, retrieval uses the hybrid order"}
     try:
         from helicon.config import load_config
-        e = load_config().get("embeddings") or {}
-        if "dashscope" not in (e.get("base_url") or "").lower():
+        cfg = load_config()
+        e = cfg.get("embeddings") or {}
+        base_url = (e.get("base_url") or "").lower()
+        has_dashscope_key = bool(
+            e.get("api_key")
+            or cfg.get("qwen_api_key")
+            or os.environ.get("QWEN_API_KEY")
+            or os.environ.get("DASHSCOPE_API_KEY")
+        )
+        if "dashscope" in base_url and not has_dashscope_key:
+            return {"ok": None,
+                    "reason": "no DashScope key — rerank probe skipped (BYOK); "
+                              "retrieval uses the hybrid order"}
+        if "dashscope" not in base_url:
             return {"ok": None,
                     "reason": "OpenRouter embeddings — DashScope qwen3-rerank "
                               "not available; hybrid order only"}
