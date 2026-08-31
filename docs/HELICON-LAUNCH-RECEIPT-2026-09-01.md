@@ -1,7 +1,7 @@
 # Helicon launch receipt · 1 Sep 2026 (IDE night)
 
 **Repo:** Morkeeth/mountain-of-helicon · `main`  
-**Lane:** IDE (harness `mount-helicon` blocked — work on product repo)
+**Lane:** IDE + harness `Morkeeth/mountain-of-helicon`
 
 ## Gates
 
