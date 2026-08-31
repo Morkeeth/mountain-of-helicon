@@ -2,8 +2,21 @@
 
 ```bash
 pip install mountain-of-helicon
-helicon witness          # your last agent session: every claim vs its evidence
-helicon setup            # your whole stack, graded, zero config
+helicon truth ~/.claude --recursive   # which of your agent's documents are lying, and why
+```
+
+**No API key. No database. No config.** It reads a directory and returns a ranked report,
+and every row cites the line it fired on. On this machine, that first run reads:
+
+```
+1182 files scanned · 628 carry a staleness/rot signal · 554 clean
+  1   39   GOLDEN_RULES.md
+        +22  expired dated claim (108d past, 2026-05-15)  -> "Close-Out - May 15"
+```
+
+```bash
+helicon witness           # your last agent session: every claim vs its evidence
+helicon setup             # your whole stack, graded
 ```
 
 One real catch, from a real transcript, in under a minute:
