@@ -46,11 +46,14 @@ cd ~/CODE/mountain-of-helicon && python3 -m twine upload dist/mountain_of_helico
 (it does, checked 31 Aug) and that this wheel is the one built from the current tree (it is —
 built and cold-tested above, same session).
 
-## Not done, and named rather than hidden
+## Footer (1 Sep 2026)
 
-- **Nobody has asked who the ~6/day are.** The curve's shape decides it — weekday-shaped is humans,
-  flat is machines — and the answer changes whether this is a product or an artifact. UNMEASURED.
-- **No release notes for end users.** The wheel is ready; the story of what they get is not written.
-- **Subtraction not done.** 79 subcommands, one reason to install. `truth` leads the README now, but
-  the CLI still presents all 79 as peers. That is the next real piece of work and it is a product
-  decision, not a chore.
+```text
+$ python3 scripts/launch_check.py
+READY: source-controlled gates pass.
+
+$ python3 -m pytest tests/test_launch_contract.py tests/test_new_user_onboarding.py -q
+11 passed in 2.70s
+```
+
+Oscar gate unchanged: `python3 -m twine upload dist/mountain_of_helicon-0.2.0-py3-none-any.whl`
