@@ -60,5 +60,5 @@ def test_readme_runs_preflight_before_install():
 
 def test_demo_is_allowed_without_user_config():
     source = inspect.getsource(cli.main)
-    allowlist = source.split("SELF_CONFIGURING =", 1)[1].split("\n", 1)[0]
-    assert '"demo"' in allowlist
+    block = source.split("SELF_CONFIGURING =", 1)[1].split(")", 1)[0]
+    assert '"demo"' in block
