@@ -4142,8 +4142,74 @@ def cmd_truth(args):
                         redact=not getattr(args, "no_redact", False)))
 
 
+# SUBTRACTION-MEMO: one reason to install, surfaced at `helicon --help`.
+_PRODUCT_LINE = (
+    "Find out which of your agent's documents are lying — with evidence, "
+    "before the work starts."
+)
+_HELICON_HELP_GROUPS = (
+    ("Verify", ("truth", "witness", "review", "ci", "doctor")),
+    ("Lab", ("demo", "scan", "serve", "doorway")),
+    ("Harness", ("export", "setup", "board")),
+)
+
+
+class _HeliconArgumentParser(argparse.ArgumentParser):
+    """Group subcommands for strangers; everything else stays registered."""
+
+    def format_help(self):
+        formatter = self._get_formatter()
+        formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
+        if self.description:
+            formatter.add_text(self.description)
+
+        sub_action = next(
+            (a for a in self._actions if isinstance(a, argparse._SubParsersAction)),
+            None,
+        )
+        if sub_action:
+            grouped: set[str] = set()
+            for group_title, names in _HELICON_HELP_GROUPS:
+                entries = []
+                for name in names:
+                    for action in sub_action._choices_actions:
+                        if action.dest == name:
+                            entries.append((name, action.help))
+                            grouped.add(name)
+                            break
+                if entries:
+                    formatter.start_section(group_title)
+                    for name, help_text in entries:
+                        formatter.add_text(f"  {name:<22}{help_text}")
+                    formatter.end_section()
+
+            others = sorted(
+                (action.dest, action.help)
+                for action in sub_action._choices_actions
+                if action.dest not in grouped
+            )
+            if others:
+                formatter.start_section("other commands")
+                for name, help_text in others:
+                    formatter.add_text(f"  {name:<22}{help_text}")
+                formatter.end_section()
+
+        for action_group in self._action_groups:
+            if action_group.title == "positional arguments":
+                continue
+            formatter.start_section(action_group.title)
+            formatter.add_arguments(action_group._group_actions)
+            formatter.end_section()
+
+        return formatter.format_help()
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Mountain of Helicon - memory audit for AI agent stacks")
+    parser = _HeliconArgumentParser(
+        prog="helicon",
+        usage="helicon [-h] <command> ...",
+        description=_PRODUCT_LINE,
+    )
     sub = parser.add_subparsers(dest="command")
 
     init_p = sub.add_parser("init", help="Auto-detect AI tools and create config")
