@@ -36,3 +36,4 @@ launch/
 PRODUCT.md
 *.bak-*
 config.json.bak-*
+static.stale.*
