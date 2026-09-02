@@ -1,7 +1,45 @@
 # Mountain of Helicon
 
+**Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
+commands that no longer exist, paths the repo reorganized away. Your agent loads
+those rules as fact at the start of every session. Nothing tells you until
+something breaks.
+
 ```bash
-pip install mountain-of-helicon
+pip install mountain-of-helicon && helicon review .
+```
+
+What it printed on a public repo that is not ours (`anthropics/anthropic-cookbook`,
+fresh clone, 2026-09-03):
+
+```
+  ✗ Your setup lies to its agent in 4 places.
+
+    ✗ CLAUDE.md:48  points at <username>/<feature-description>  — not in this repo
+    ✗ CLAUDE.md:87  points at notebook-review  — not in this repo
+    ✗ CLAUDE.md:88  points at model-check  — not in this repo
+    ✗ CLAUDE.md:89  points at link-review  — not in this repo
+
+  GRADE D   ·   7 references checked, 4 broken
+  An agent that trusts this file walks into 4 dead ends.
+```
+
+No API key. No config file. No upload. It reads the agent rules your repo already
+commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks every pointer against
+the tree on disk. Exit code is non-zero when the setup lies, so it drops straight
+into CI.
+
+Second command: `helicon witness` grades your agent's last session instead of your
+repo: which of its "done / passes / fixed" claims have tool evidence in the same
+trace. On the author's own last 20 sessions the median verified-claims share was
+**0.42** (measured 2026-09-02; 10 of the 20 carried a checkable claim).
+
+## The other two doors: your agent's memory, and its claims
+
+The review above reads a repo. The same engine reads a memory directory and a session
+transcript, with no key and no config:
+
+```bash
 helicon truth ~/.claude --recursive   # which of your agent's documents are lying, and why
 ```
 
@@ -27,8 +65,6 @@ One real catch, from a real transcript, in under a minute:
 ```
 
 Your agent said it. The trace doesn't back it. Now you know before you merge.
-
----
 
 **Your CLAUDE.md is lying to your agent, and nothing tells you.**
 

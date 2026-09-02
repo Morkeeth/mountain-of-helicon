@@ -1,6 +1,17 @@
 # Mountain of Helicon — Product Vision
 
-**Mountain of Helicon is the control plane for agentic work.**
+**Mountain of Helicon tells you which line of your `AGENTS.md`, `CLAUDE.md` or
+agent memory is now a lie about your code, with the evidence, before an agent
+reads it.**
+
+The problem: your agent's docs drift from your repo, your agent loads them as fact,
+and nothing tells you.
+The command: `pip install mountain-of-helicon && helicon review .`
+The output: a graded list, one broken reference per line with its `file:line`, and a
+non-zero exit when the setup lies. The second number, from `helicon witness`: the
+share of your agent's claims that its own trace can back.
+
+Everything below is where that grows.
 
 ## Origin
 
