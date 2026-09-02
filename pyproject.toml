@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mountain-of-helicon"
 version = "0.2.0"
-description = "Mountain of Helicon — executable preflight and governance for agent context"
+description = "Check whether your AGENTS.md lies to your coding agent — file:line evidence, no API key"
 readme = "README.md"
 license = "MIT"
 authors = [{name = "Oscar Morkeeth"}]
