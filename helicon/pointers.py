@@ -55,7 +55,16 @@ _RE_IMPORT = re.compile(r"(?<![`\w])@([\w./-]+)")
 _RE_MDLINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _RE_WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]")
 _RE_BACKTICK = re.compile(r"`([^`\n]+)`")
-_RE_BARE = re.compile(r"(?<![\w`(/@])([\w.-]+/[\w./-]+)")
+# 2026-09-03: the lookbehind must also refuse '-', '.' and '~'. Without them the match
+# started mid-token — `truth-dictionary/aliases.json` was graded as `dictionary/aliases.json`,
+# `mcp-server/README.md` as `server/README.md`, `~/.helicon/config.json` as
+# `helicon/config.json` — and every one of those was reported broken against a repo that
+# had the real file. Ran on the author's own six repos: 21 of 24 findings were this.
+_RE_BARE = re.compile(r"(?<![\w`(/@~.-])([\w.-]+/[\w./-]+)")
+_RE_CODESPAN = re.compile(r"`[^`\n]*`")
+_RE_SLASH_COMMAND = re.compile(r"^/[\w-]+$")
+_RE_HOSTNAME = re.compile(r"^[\w-]+(\.[\w-]+)+$")
+_PLACEHOLDER = ("<", ">", "{", "}", "YYYY", "…", "...")
 
 # A line that DESCRIBES a path's absence is not a broken pointer — it is documentation
 # about the absence. "`ci_gate.py` is NOT inherited here" mentions the path to say it is
@@ -95,6 +104,64 @@ def _norm(target: str) -> str:
     if t.startswith("./"):
         t = t[2:]
     return t.lstrip("/")
+
+
+_TREE_CACHE: dict[str, tuple[set[str], list[str], list[str]]] = {}
+
+
+def _tree(repo_root: str) -> tuple[set[str], list[str], list[str]]:
+    """One walk per repo: lower-cased basenames, relative dir paths, relative file paths."""
+    root = os.path.abspath(repo_root)
+    hit = _TREE_CACHE.get(root)
+    if hit is not None:
+        return hit
+    names: set[str] = set()
+    dirs: list[str] = []
+    files: list[str] = []
+    for r, ds, fs in os.walk(root):
+        ds[:] = [d for d in ds if d not in (".git", "node_modules", "__pycache__", ".venv", "venv")]
+        rel = os.path.relpath(r, root).replace(os.sep, "/")
+        for d in ds:
+            dirs.append(d if rel == "." else f"{rel}/{d}")
+        for f in fs:
+            names.add(f.lower())
+            files.append(f if rel == "." else f"{rel}/{f}")
+    _TREE_CACHE[root] = (names, dirs, files)
+    return _TREE_CACHE[root]
+
+
+def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
+    """Classify a path-shaped token. Returns (target, resolved) or None when the token
+    is not something a repo tree can grade — a slash command that is not a file, an npm
+    scope, a URL route, a hostname, a template. Each skip is a class the 2026-09-03 run on
+    the author's own repos graded as a dead pointer while the thing it named existed."""
+    tok = raw.strip().strip("'\"")
+    if not tok or any(m in tok for m in _PLACEHOLDER):
+        return None                                    # `<username>/<feature>` is a template
+    if tok.startswith("@") and not tok.lower().endswith(_CODE_EXT) and not _exists(repo_root, _norm(tok[1:])):
+        return None                                    # `@typescript-eslint/no-explicit-any` is an npm scope
+    if _RE_HOSTNAME.match(tok.split("/", 1)[0]) and not tok.split("/", 1)[0].lower().endswith(_CODE_EXT):
+        return None                                    # relay.vercel.app/api/… is a URL
+    if _RE_SLASH_COMMAND.match(tok):
+        name = tok[1:]                                 # `/notebook-review` is a Claude Code command
+        for cand in (f".claude/commands/{name}.md", f".claude/skills/{name}/SKILL.md",
+                     f".claude/skills/{name}"):
+            if os.path.exists(os.path.join(repo_root, cand)):
+                return cand, True
+        return None                                    # built-in or harness command: not gradable here
+    rel = _norm(tok)
+    if "*" in rel or "?" in rel:
+        import glob as _glob                            # `contracts/src/FavourEscrowV2*.sol`
+        return rel, bool(_glob.glob(os.path.join(repo_root, rel)))
+    if _exists(repo_root, rel):
+        return rel, True
+    names, dirs, files = _tree(repo_root)
+    if "/" not in rel:                                 # `campaign-unlock.ts` names a file, not a root path
+        return rel, rel.lower() in names
+    if tok.startswith("/") and not rel.lower().endswith(_CODE_EXT):
+        # `/api/escrow-v2` is route-shaped: resolved if any directory ends with it, else not gradable
+        return (rel, True) if any(d == rel or d.endswith("/" + rel) for d in dirs) else None
+    return rel, False
 
 
 def _exists(repo_root: str, rel: str) -> bool:
@@ -153,16 +220,22 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
     for i, line in enumerate(text.splitlines(), 1):
         for m in _RE_IMPORT.finditer(line):
             raw = m.group(1)
+            # An @import is a file. `@typescript-eslint/no-explicit-any` is an npm scope:
+            # no extension and nothing on disk → not an import, not graded.
             if _looks_like_path(raw):
-                rel = _norm(raw)
-                ok = _exists(repo_root, rel)
+                r = _resolve(repo_root, raw)
+                if r is None or (not r[1] and not raw.lower().endswith(_CODE_EXT)):
+                    continue
+                rel, ok = r
                 add("IMPORT", "@" + raw, rel, i, line, ok,
                     "resolved" if ok else f"@import target not in repo: {rel}")
         for m in _RE_MDLINK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and not _SCHEME.match(raw.strip()):
-                rel = _norm(raw)
-                ok = _exists(repo_root, rel)
+                r = _resolve(repo_root, raw)
+                if r is None:
+                    continue
+                rel, ok = r
                 add("MDLINK", raw, rel, i, line, ok,
                     "resolved" if ok else f"linked path not in repo: {rel}")
         for m in _RE_WIKILINK.finditer(line):
@@ -173,15 +246,21 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
         for m in _RE_BACKTICK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and " " not in raw.strip():
-                rel = _norm(raw)
-                ok = _exists(repo_root, rel)
+                r = _resolve(repo_root, raw)
+                if r is None:
+                    continue
+                rel, ok = r
                 add("BACKTICK", f"`{raw}`", rel, i, line, ok,
                     "resolved" if ok else f"path in code font not in repo: {rel}")
-        for m in _RE_BARE.finditer(line):
-            raw = m.group(1)
+        # Code spans were graded above; scanning them again as bare prose is how
+        # `~/.zen/zup-active.json` produced a second, mangled pointer `zen/zup-active.json`.
+        for m in _RE_BARE.finditer(_RE_CODESPAN.sub(" ", line)):
+            raw = m.group(1).rstrip(".-")
             if _looks_like_path(raw) and raw.lower().endswith(_CODE_EXT):
-                rel = _norm(raw)
-                ok = _exists(repo_root, rel)
+                r = _resolve(repo_root, raw)
+                if r is None:
+                    continue
+                rel, ok = r
                 add("BARE", raw, rel, i, line, ok,
                     "resolved" if ok else f"bare path not in repo: {rel}")
     return out
