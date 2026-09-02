@@ -4,17 +4,17 @@
 
 ## The one reason
 
-> **Find out which of your agent's documents are lying — with evidence, before the work starts.**
+> **Find out which line of your AGENTS.md is now a lie about your code — with evidence, before the work starts.**
 
-That is `helicon truth`. Everything else is depth for power users or Oscar's harness.
+That is `helicon review`. Everything else is depth for power users or Oscar's harness.
 
 ## Keep at the front door
 
 | Command | Role |
 |---------|------|
-| `helicon truth <dir>` | Stranger cold path — no key, no DB |
+| `helicon review` / `helicon ci` | Stranger cold path — repo rules vs tree, no key, no DB |
 | `helicon witness` | Session claims vs transcript |
-| `helicon review` / `helicon ci` | Repo agent-rules vs tree |
+| `helicon truth <dir>` | Memory / notes staleness (power user) |
 | `helicon doctor` | Health check before daily loop |
 
 ## Defer in README / help (not delete yet)
@@ -25,9 +25,10 @@ That is `helicon truth`. Everything else is depth for power users or Oscar's har
 
 ## Done when (subtraction ship)
 
-- README ≤400 lines with truth → witness → review as the only numbered path
+- README ≤400 lines with review → witness → truth as the only numbered path
 - `helicon --help` groups commands: **Verify** · **Lab** · **Harness**
-- PyPI description matches README lead (not witness)
+- PyPI description matches README lead (`review`, not `truth` or `witness`)
+- `helicon review --json` for CI consumers
 
 ## Not this wave
 

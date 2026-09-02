@@ -24,7 +24,9 @@ vs-repo classes, and the finding that stale context files measurably degrade age
 """
 from __future__ import annotations
 
-from helicon.pointers import check_pointers
+import json
+
+from helicon.pointers import DEFAULT_INSTRUCTION_FILES, check_pointers
 from helicon.commands import check_commands
 from helicon.execute import check_execution
 from helicon.versions import check_versions
@@ -105,8 +107,10 @@ def format_review(repo_root: str, res: dict) -> str:
     elif checked:
         L.append("  " + _p("✓ This setup tells its agent the truth.", "b", "grn"))
     else:
-        L.append("  " + _p("· No instruction file to review "
-                           "(no CLAUDE.md / AGENTS.md / .cursorrules).", "dim"))
+        L.append("  " + _p("· No agent instruction file found in this repo.", "dim"))
+        looked = ", ".join(DEFAULT_INSTRUCTION_FILES[:4]) + ", …"
+        L.append("  " + _p(f"    Looked for: {looked}", "dim"))
+        L.append("  " + _p("    Add AGENTS.md or CLAUDE.md, then run again.", "dim"))
     L.append("")
 
     # ranked findings — broken first, each a clean one-liner.
@@ -177,21 +181,81 @@ def format_review(repo_root: str, res: dict) -> str:
         if broken:
             L.append("  " + _p(f"An agent that trusts this file walks into {broken} dead "
                                f"end{'' if broken == 1 else 's'}.", "dim"))
+            L.append("  " + _p("    Fix the file:line rows above, then re-run "
+                               "`helicon review .`", "dim"))
         else:
             L.append("  " + _p("Every path and command an agent is told to use is real.", "dim"))
     L += ["", "  " + _p(_BASIS, "dim"), ""]
     return "\n".join(L)
 
 
+def _collect_findings(res: dict) -> list[dict]:
+    """Flat findings list for --json / CI consumers."""
+    out: list[dict] = []
+    for r in res["pointers"].get("receipts", []):
+        where, _, fact = r["receipt"].partition(" — ")
+        out.append({"tier": "pointer", "where": where.strip(), "raw": r["raw"],
+                    "detail": fact.strip()})
+    for r in res["commands"].get("receipts", []):
+        where, _, fact = r["receipt"].partition(" — ")
+        out.append({"tier": "command", "where": where.strip(), "raw": r["raw"],
+                    "detail": fact.strip()})
+    for r in res.get("versions", {}).get("receipts", []):
+        if r.get("verdict") == "CONTRADICTED":
+            where, _, fact = r["receipt"].partition(" — ")
+            out.append({"tier": "version", "where": where.strip(), "raw": r["raw"],
+                        "detail": fact.strip()})
+    for r in res.get("execution", {}).get("receipts", []):
+        if r.get("verdict") == "CONTRADICTED":
+            out.append({"tier": "execution", "where": f"{r['file']}:{r['line_no']}",
+                        "raw": r["raw"], "detail": r.get("receipt", "")})
+    return out
+
+
+def review_summary(repo_root: str, res: dict) -> dict:
+    """Structured review result for scripts and CI."""
+    broken = (res["pointers"]["broken"] + res["commands"]["broken"]
+              + res["versions"]["broken"] + res["execution"]["broken"])
+    checked = (res["pointers"]["checked"] + res["commands"]["checked"]
+               + res["versions"]["checked"] + res["execution"]["checked"])
+    grade, _ = _grade(broken, checked) if checked else ("–", "dim")
+    files = sorted(set(res["pointers"].get("files", [])
+                       + res["commands"].get("files", [])))
+    return {
+        "repo": repo_root,
+        "grade": grade,
+        "broken": broken,
+        "checked": checked,
+        "clean": broken == 0 and checked > 0,
+        "instruction_files": files,
+        "findings": _collect_findings(res),
+        "pointers": res["pointers"],
+        "commands": res["commands"],
+        "versions": res.get("versions", {}),
+        "execution": res.get("execution", {}),
+    }
+
+
 def main(argv=None) -> int:
     import os
     import sys
-    args = argv if argv is not None else sys.argv[1:]
+    args = list(argv if argv is not None else sys.argv[1:])
+    as_json = False
+    if "--json" in args:
+        as_json = True
+        args.remove("--json")
     repo = os.path.abspath(args[0]) if args else os.getcwd()
     res = review(repo)
-    print(format_review(repo, res))
+    if as_json:
+        print(json.dumps(review_summary(repo, res), indent=2))
+    else:
+        print(format_review(repo, res))
     broken = (res["pointers"]["broken"] + res["commands"]["broken"]
               + res["versions"]["broken"] + res["execution"]["broken"])
+    checked = (res["pointers"]["checked"] + res["commands"]["checked"]
+               + res["versions"]["checked"] + res["execution"]["checked"])
+    if checked == 0:
+        return 2
     return 1 if broken else 0
 
 

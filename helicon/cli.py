@@ -3662,7 +3662,10 @@ def cmd_review(args):
     helicon.review` and the `helicon-review` console entry point exactly."""
     from helicon.review import main as review_main
     repo = getattr(args, "repo", None) or "."
-    raise SystemExit(review_main([repo]))
+    argv = [repo]
+    if getattr(args, "json", False):
+        argv.append("--json")
+    raise SystemExit(review_main(argv))
 
 
 def cmd_stack(args):
@@ -4245,6 +4248,8 @@ def main():
         "review", help="Review a repo's agent setup: does its CLAUDE.md/AGENTS.md lie to the agent?")
     reporeview_p.add_argument("repo", nargs="?", default=".",
                               help="Path to the repo to review (default: current directory)")
+    reporeview_p.add_argument("--json", action="store_true",
+                              help="machine-readable result (for scripts/CI)")
 
     review_p = sub.add_parser("review-queue", help="Fast teach-once review of pending memory items")
     review_p.add_argument("--batch", "-n", type=int, default=5, help="How many to surface (default 5)")
