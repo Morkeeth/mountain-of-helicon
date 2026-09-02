@@ -1,46 +1,29 @@
 # Mountain of Helicon
 
+**Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
+commands that no longer exist, paths the repo reorganized away. Your agent loads
+those rules as fact at the start of every session. Nothing tells you until
+something breaks.
+
 ```bash
 pip install mountain-of-helicon
-helicon truth ~/.claude --recursive   # which of your agent's documents are lying, and why
+helicon review /path/to/your-repo
 ```
 
-**No API key. No database. No config.** It reads a directory and returns a ranked report,
-and every row cites the line it fired on. On this machine, that first run reads:
-
 ```
-1182 files scanned · 628 carry a staleness/rot signal · 554 clean
-  1   39   GOLDEN_RULES.md
-        +22  expired dated claim (108d past, 2026-05-15)  -> "Close-Out - May 15"
-```
+  ✗ Your setup lies to its agent in 4 places.
 
-```bash
-helicon witness           # your last agent session: every claim vs its evidence
-helicon setup             # your whole stack, graded
+    ✗ CLAUDE.md:48  points at <username>/<feature-description>  — not in this repo
+    ✗ CLAUDE.md:87  points at notebook-review  — not in this repo
+
+  GRADE D   ·   7 references checked, 4 broken
+  An agent that trusts this file walks into 4 dead ends.
 ```
 
-One real catch, from a real transcript, in under a minute:
-
-```
-[NO-EVIDENCE ] L1127: "I ran the full pytest suite and all tests pass."
-               → no tool call in this run could support it
-```
-
-Your agent said it. The trace doesn't back it. Now you know before you merge.
-
----
-
-**Your CLAUDE.md is lying to your agent, and nothing tells you.**
-
-It says "see `docs/architecture.md`" after that file moved. It routes to a
-directory the monorepo split apart. It warns about a rail that was retired six
-weeks ago. Your agent loads all of it as fact at the start of every session, acts
-on it, and neither of you finds out.
-
-Mountain of Helicon runs the claims in those files against the repository in
-front of it, before the work starts. Every contradiction it reports carries the
-command and the stdout that proved it — so you are ruling on evidence, not on a
-model's opinion about your docs.
+No API key. No config file. No upload. It reads the agent rules your repo already
+commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks every pointer
+against the tree on disk. Exit code is non-zero when the setup lies — so it drops
+straight into CI.
 
 ### One line, no clone
 
