@@ -135,9 +135,10 @@ The 20 session files above are live; most grew between 09-02 and 09-03 (`20a6039
 `a4fe6193` 1,004 → 1,304, `3de9086c` 814 → 1,039). So the honest before/after is **one snapshot, two
 extractors**: all 20 files were copied at 2026-09-03 and scored twice — once with the 09-02 extractor exactly
 as committed at `aee0f1b` (`git show aee0f1b:helicon/witness.py`), once with the widened one. Nothing in the
-09-02 table was re-typed; it stays as the historical column. Legacy rows are byte-identical between the two
-runs (checked per session: every old claim reappears with the same type; the new classes only fire on
-sentences the five old types did not claim — one type per sentence, old types first).
+09-02 table was re-typed; it stays as the historical column. Legacy rows are identical between the two runs:
+all 143 old-extractor rows compared as (line, type, verdict, text) against the widened extractor's non-new
+rows, 0 sessions differ. The new classes only fire on sentences the five old types did not claim — one type
+per sentence, old types first.
 
 ### Three new claim classes
 
@@ -162,8 +163,10 @@ Binding rules the new classes share, and the old five do not (kept unchanged on 
 - **Hedges kill the claim.** not/never/nothing/should/will/likely/may/until/when/confirm/verify/make sure
   within 40 chars before the match → not extracted. Adjectival "the deployed version" → not extracted.
 
-Every decoy in the three fixtures is a shape that fired on this corpus during the build, not an invented one:
-"a coordinator is **likely live**", "a second agent **may** already be live", "**Nothing** was pushed, uploaded,
+All but two decoys in the three fixtures are shapes that fired on this corpus during the build (the two
+written from the rule rather than the corpus: "the deployed version still carries the old footer" — the
+determiner guard — and "$500 for first place" as prose, which pins the $500 result-side FP from the other
+side): "a coordinator is **likely live**", "a second agent **may** already be live", "**Nothing** was pushed, uploaded,
 deployed or posted", "All six lanes deployed and did real work" (no deployable noun), "Day 11 **passed twelve
 tests**", "`3 failed, 3 passed`" (a failure report, not a pass claim), a pasted `exit=0 traceback=0` table (17
 bogus claims from one message), "That saved about 40 minutes", "generated **by** `build-labs.py`" (the producer,
