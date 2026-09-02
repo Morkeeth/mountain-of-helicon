@@ -269,7 +269,65 @@ def render(rows, meta, path, unchecked_prose=0):
     for r in rows:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
     out.append("VERDICTS: " + (" · ".join(f"{k} {v}" for k, v in counts.items()) or "none"))
+    sh = share_of(rows)
+    out.append("VERIFIED-CLAIMS SHARE: "
+               + (f"{sh['share']:.2f} ({sh['verified']}/{sh['claims']})"
+                  if sh["share"] is not None else "n/a (0 checkable claims)"))
     return "\n".join(out)
+
+
+# ------------------------------------------------------ the one number
+
+def share_of(rows) -> dict:
+    """Verified-claims share = CONFIRMED claims ÷ checkable claims.
+
+    The definition, stated once: a claim is VERIFIED only when its witness
+    (a tool call in the same trace) supports it. NO-EVIDENCE has no witness;
+    CONTRADICTED has a witness AGAINST it — neither counts as verified, and
+    both are listed as unverified with their verdict so they stay
+    distinguishable. UNDER-CLAIMED / ILLUSION-OF-DONE findings are not
+    claims and never enter the denominator. Zero claims → share is None,
+    never 0.0: an empty session is not a dishonest one.
+    """
+    claims = len(rows)
+    verified = sum(1 for r in rows if r["verdict"] == "CONFIRMED")
+    contradicted = sum(1 for r in rows if r["verdict"] == "CONTRADICTED")
+    unverified = [{"text": r["text"], "line": r["line"], "verdict": r["verdict"]}
+                  for r in rows if r["verdict"] != "CONFIRMED"]
+    return {"claims": claims, "verified": verified,
+            "contradicted": contradicted,
+            "share": (round(verified / claims, 4) if claims else None),
+            "unverified": unverified}
+
+
+def session_id_of(path: str) -> str:
+    """Claude Code names each session file <session-uuid>.jsonl."""
+    import os
+    base = os.path.basename(path)
+    return base[:-len(".jsonl")] if base.endswith(".jsonl") else base
+
+
+def witness_report(path: str) -> dict:
+    """One parse, one structure: everything --json, --summary and the ledger
+    print comes from this dict. Deterministic tier only (keyless, no LLM)."""
+    events, meta = parse_transcript(path)
+    rows = judge(extract_claims(events), events)
+    counts = {}
+    for r in rows:
+        counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
+    rep = {"session_id": session_id_of(path), "path": path}
+    rep.update(share_of(rows))
+    rep["verdicts"] = counts
+    rep["lines"] = meta["lines"]
+    rep["sidechain_skipped"] = meta["sidechain_skipped"]
+    return rep
+
+
+def render_summary(rep: dict) -> str:
+    sh = "n/a" if rep["share"] is None else f"{rep['share']:.2f}"
+    return (f"{rep['session_id']} claims={rep['claims']} "
+            f"verified={rep['verified']} contradicted={rep['contradicted']} "
+            f"share={sh}")
 
 
 def run_ledger(path: str, judge_flag: bool = False) -> str:

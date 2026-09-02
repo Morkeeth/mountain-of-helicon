@@ -4081,8 +4081,18 @@ def cmd_witness(args):
                   "Pass a path: helicon witness <session.jsonl>")
             return
         path = newest
-    print(run_ledger(os.path.expanduser(path),
-                     judge_flag=getattr(args, "judge", False)))
+    path = os.path.expanduser(path)
+    if getattr(args, "json", False) or getattr(args, "summary", False):
+        # The one number. Deterministic tier only; --judge is ignored here.
+        from helicon.witness import render_summary, witness_report
+        rep = witness_report(path)
+        if getattr(args, "json", False):
+            import json as _json
+            print(_json.dumps(rep, ensure_ascii=False))
+        else:
+            print(render_summary(rep))
+        return
+    print(run_ledger(path, judge_flag=getattr(args, "judge", False)))
 
 
 def cmd_export(args):
@@ -4133,6 +4143,13 @@ def cmd_truth(args):
     res = scan_store(path,
                      include_archive=getattr(args, "archive", False),
                      recursive=getattr(args, "recursive", False))
+    if getattr(args, "count", False):
+        # Stability probe: the rot count alone, so a run can be measured
+        # before/after. An error must never read as a clean 0.
+        if res.get("error"):
+            sys.exit(f"truth: {res['error']}")
+        print(res["flagged"])
+        return
     if getattr(args, "json", False):
         import json as _json
         print(_json.dumps(res, indent=2, default=str, ensure_ascii=False))
@@ -4611,6 +4628,8 @@ def main():
     truth_p.add_argument("--archive", action="store_true")
     truth_p.add_argument("--json", action="store_true")
     truth_p.add_argument("--no-redact", dest="no_redact", action="store_true")
+    truth_p.add_argument("--count", action="store_true",
+                         help="Print only the rot count (files with a staleness/rot signal) — the stability probe for before/after a run")
     sub.add_parser("mcp", help="Run the MCP server on stdio (for agent clients)")
     sub.add_parser("science", help="Grade your live store against published agent-research thresholds (which one is your stack on the wrong side of)")
     mb_p = sub.add_parser("measurement-bench", help="The measurement bench: science + weekly series + store truth in one pass")
@@ -4627,6 +4646,11 @@ def main():
                            help="Path to a session .jsonl (default: newest under ~/.claude/projects)")
     witness_p.add_argument("--judge", action="store_true",
                            help="Also judge unchecked prose claims via YOUR OWN claude CLI (one bounded call, local)")
+    witness_p.add_argument("--json", action="store_true",
+                           help="Print {session_id, claims, verified, share, unverified:[{text,line,verdict}]} "
+                                "as one JSON object (deterministic tier only; --judge ignored)")
+    witness_p.add_argument("--summary", action="store_true",
+                           help="Print one line: session_id claims=N verified=M contradicted=C share=0.xx")
 
     setup_p = sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
     setup_p.add_argument("--record", action="store_true",
