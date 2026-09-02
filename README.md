@@ -9,20 +9,23 @@ something breaks.
 pip install mountain-of-helicon && helicon review .
 ```
 
-What it printed on a public repo that is not ours (`anthropics/anthropic-cookbook`,
-fresh clone, 2026-09-03):
+What it printed on our own public repo, `MorkeethHQ/world-relay`, from a fresh clone of
+`main` on 2026-09-03:
 
 ```
-  ✗ Your setup lies to its agent in 4 places.
+  ✗ Your setup lies to its agent in 1 place.
 
-    ✗ CLAUDE.md:48  points at <username>/<feature-description>  — not in this repo
-    ✗ CLAUDE.md:87  points at notebook-review  — not in this repo
-    ✗ CLAUDE.md:88  points at model-check  — not in this repo
-    ✗ CLAUDE.md:89  points at link-review  — not in this repo
+    ✗ AGENTS.md:19  points at src/__tests__/e2e-api.test.ts  — not in this repo
 
-  GRADE D   ·   7 references checked, 4 broken
-  An agent that trusts this file walks into 4 dead ends.
+  GRADE B   ·   35 references checked, 1 broken
+  An agent that trusts this file walks into 1 dead end.
 ```
+
+The test moved to `src/lib/__tests__/e2e-api.test.ts`; the rule that tells the agent how to run it did not
+move with it. The same command on `anthropics/anthropic-cookbook`, same day, prints
+**GRADE A, 6 references checked, 0 broken**. An earlier build of this tool graded
+that repo D on four pointers that all resolved; the fix and its fixtures are in
+[`docs/HELICON-ON-OUR-OWN-BOARD-2026-09-03.md`](docs/HELICON-ON-OUR-OWN-BOARD-2026-09-03.md).
 
 No API key. No config file. No upload. It reads the agent rules your repo already
 commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks every pointer against
