@@ -172,9 +172,18 @@ def static_checks(root: Path) -> list[Check]:
             "Package metadata names Mountain and current source URLs",
             (
                 "Mountain of Helicon" in pyproject
+                and 'name = "mountain-of-helicon"' in pyproject
                 and "https://github.com/Morkeeth/mountain-of-helicon" in pyproject
             ),
-            "distribution name remains a founder decision",
+            (
+                "mountain-of-helicon · Mountain of Helicon · canonical URLs"
+                if (
+                    "Mountain of Helicon" in pyproject
+                    and 'name = "mountain-of-helicon"' in pyproject
+                    and "https://github.com/Morkeeth/mountain-of-helicon" in pyproject
+                )
+                else "missing product name, distribution name, or canonical URLs in pyproject.toml"
+            ),
         ),
         Check(
             "roadmap",
