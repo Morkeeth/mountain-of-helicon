@@ -103,3 +103,35 @@ def test_hostname_path_is_a_url_not_a_pointer():
 def test_real_dead_pointer_is_still_caught():
     d = _repo({"src/index.ts": "x"})
     assert _broken(d, "`src/__tests__/e2e-api.test.ts` is opt-in.") == ["src/__tests__/e2e-api.test.ts"]
+
+
+def test_role_not_is_not_an_absence_claim():
+    # HorseTrack@3ee8c1f: "stubs, not the primary architecture" is about ROLE.
+    # Bare `\bnot\b` used to skip these and lose to a naive backtick baseline.
+    d = _repo({"README.md": "x"})
+    text = (
+        "- Treat `claude/.claude/agents/` as Claude stubs, not the primary architecture.\n"
+        "- Treat `Codex/.Codex/agents/` as Codex stubs, not the primary architecture.\n"
+    )
+    assert _broken(d, text) == [
+        "claude/.claude/agents/",
+        "Codex/.Codex/agents/",
+    ]
+
+
+def test_dotfile_named_in_code_font_is_graded():
+    # HorseTrack tells agents `.roomodes` is the Roo mode source; no slash, no ext.
+    d = _repo({"README.md": "x"})
+    assert _broken(d, "- Treat `.roomodes` as the Roo mode source.\n") == [".roomodes"]
+    d2 = _repo({".roomodes": "x"})
+    assert _broken(d2, "- Treat `.roomodes` as the Roo mode source.\n") == []
+
+
+def test_described_absence_still_skips_inherited_and_moved():
+    # Keep the real absence-documentation cases from test_pointers.py on this fixture set.
+    d = _repo({"README.md": "x"})
+    text = (
+        "`ci_gate.py` is NOT inherited here — it lives in the other repo.\n"
+        "`witness.py` was moved to the engine package.\n"
+    )
+    assert _broken(d, text) == []

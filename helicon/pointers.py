@@ -70,9 +70,21 @@ _PLACEHOLDER = ("<", ">", "{", "}", "YYYY", "…", "...")
 # about the absence. "`ci_gate.py` is NOT inherited here" mentions the path to say it is
 # gone, and grading it as a dead reference is the crying-wolf false positive the review
 # caught. If the line negates near the pointer, the missing path is intentional.
+#
+# 2026-09-04: bare `\bnot\b` / `\bwas\b` / `\bwere\b` were too wide. HorseTrack's
+# "Treat `claude/.claude/agents/` as Claude stubs, not the primary architecture."
+# contains "not" about ROLE, not absence — and Helicon silently dropped two true
+# dead pointers while a two-hour naive backtick+ls-files baseline still caught them.
+# Require absence-shaped phrasing; keep the real "`is NOT inherited here`" case.
 _NEGATION = re.compile(
-    r"\b(not|no longer|never|isn'?t|aren'?t|was|were|used to|removed|deleted|dropped|"
-    r"vendored|absent|missing|gone|moved to|renamed|instead of|replaced by|superseded)\b",
+    r"\b("
+    r"is not|are not|was not|were not|"
+    r"not (?:here|present|inherited|tracked|found|available|used|included|"
+    r"shipped|committed|in this|in the)|"
+    r"no longer|never|isn'?t|aren'?t|"
+    r"used to|removed|deleted|dropped|vendored|absent|missing|gone|"
+    r"moved to|renamed|instead of|replaced by|superseded"
+    r")\b",
     re.I,
 )
 
@@ -95,6 +107,11 @@ def _looks_like_path(tok: str) -> bool:
     if tok.startswith(("#", "mailto:", "tel:")):
         return False
     if "/" in tok:
+        return True
+    # Dotfiles named in code font (`.roomodes`, `.env.local`) are paths even without
+    # a slash or code extension. HorseTrack tells agents to treat `.roomodes` as the
+    # Roo mode source — and the file is not in the repo.
+    if tok.startswith(".") and re.fullmatch(r"\.[\w.-]+", tok):
         return True
     return tok.lower().endswith(_CODE_EXT)
 
