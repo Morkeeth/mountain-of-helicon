@@ -35,14 +35,16 @@ A stranger runs `helicon --help`, sees **Verify** first, and has one paste-ready
 **Slice 1 only** — Verify-first receipt + HorseTrack paste draft + launch gates green at object.
 
 **Done when:**
-- [ ] `helicon --help | head -25` shows Verify group with `truth` first (command logged in receipt)
-- [ ] `python3 scripts/launch_check.py` → READY
-- [ ] `TMPDIR="$HOME/pytmp" python3 -m pytest tests/test_launch_contract.py -q` green (count re-derived)
-- [ ] `docs/HELICON-LAUNCH-RECEIPT-2026-09-04.md` exists with commands run
-- [ ] `docs/PR-01-HORSETRACK-READY.md` is paste-ready; no foreign PR opened
-- [ ] HorseTrack findings re-derived at current default SHA (not carried from 2026-08-09 ledger)
+- [x] `helicon --help | head -25` shows Verify group with `truth` as first listed command — ran 2026-09-03 night
+- [x] `python3 scripts/launch_check.py` → READY — ran after pyproject + detail fix
+- [x] `TMPDIR="$HOME/pytmp" python3 -m pytest tests/test_launch_contract.py -q` → 8 passed
+- [x] `docs/HELICON-LAUNCH-RECEIPT-2026-09-04.md` exists with commands run
+- [x] `docs/PR-01-HORSETRACK-READY.md` is paste-ready; no foreign PR opened
+- [x] HorseTrack findings re-derived at `3ee8c1f` (clone + `helicon review .` + `git ls-files`)
 
 ## LOG
 
 - 2026-09-03 night: Read prior `hack.md` (S2 already shipped). Ran first-step: Verify-first **already present** on `main`. `launch_check.py` → **BLOCKED** on `package-metadata` (`"Mountain of Helicon"` missing from `pyproject.toml` since `747a550`). `test_launch_contract` 2 failed / 6 passed. Full `pytest -q` interrupted: 5 collection errors from `anyio.abc.BlockingPortal` DeprecationWarning under `error::DeprecationWarning`.
 - 2026-09-03 night: Rewrote this contract for WAVE 2026-09-04 before further code.
+- 2026-09-03 night: Restored product name in `pyproject.toml`; honest package-metadata detail; ignored anyio BlockingPortal deprecation. `launch_check` → READY; launch_contract → 8 passed.
+- 2026-09-03 night: Cloned `hoangtruong01/HorseTrack@3ee8c1f`. Naive backtick baseline **16** broken; Helicon **12** — we lost. Root cause: bare `\bnot\b` matched "not the primary architecture"; `.roomodes` not path-shaped. Fixed `helicon/pointers.py`; after fix Helicon **16** = naive **16**. Wrote receipt + PR-01 paste draft. Did **not** open HorseTrack PR.
