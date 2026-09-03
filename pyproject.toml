@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mountain-of-helicon"
 version = "0.2.0"
-description = "Check whether your AGENTS.md lies to your coding agent — file:line evidence, no API key"
+description = "Mountain of Helicon — check whether your AGENTS.md lies to your coding agent — file:line evidence, no API key"
 readme = "README.md"
 license = "MIT"
 authors = [{name = "Oscar Morkeeth"}]
@@ -73,4 +73,7 @@ filterwarnings = [
     # starlette's own deprecation class subclasses UserWarning, not
     # DeprecationWarning — ignored by message so nothing else hides behind it.
     "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+    # anyio 4.15+ deprecates anyio.abc.BlockingPortal; starlette.testclient
+    # still imports the alias at module load. We cannot fix starlette from here.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated",
 ]

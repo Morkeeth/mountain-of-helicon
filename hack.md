@@ -1,46 +1,48 @@
-# hack.md — HELICON-S2 subtraction ship (help groups)
+# hack.md — WAVE 2026-09-04 · Verify-first + HorseTrack spine
 
 ## NORTH STAR
 
-A stranger runs `helicon --help` and immediately sees **one reason to install**: find which agent documents are lying, with evidence, before work starts (`helicon truth`).
+A stranger runs `helicon --help`, sees **Verify** first, and has one paste-ready PR that proves a real repo's agent docs lie — with commands, not vibes.
 
 ## PROMISE LINE
 
-**GET:** Grouped CLI help — Verify · Lab · Harness — with `truth` first under Verify and a one-line product sentence at the top.
+**GET:** Launch receipt (2026-09-04) proving Verify-first help + green launch_contract, plus `docs/PR-01-HORSETRACK-READY.md` Oscar can paste (no PR opened from this agent).
 
-**CONSTRAINT:** No subcommand deleted; no PyPI publish; outward acts are Oscar's click.
+**CONSTRAINT:** No PyPI upload; no foreign-repo PR open; no Show HN; no broad ROADMAP rewrite. Outward acts are Oscar's click.
 
 ## OPEN QUESTIONS
 
-- **BLOCKING:** none for this slice (grouping is copy/UX only per `docs/SUBTRACTION-MEMO.md`).
-- **NON-BLOCKING:** Which ungrouped commands deserve a fourth group later (79 total; only 12 grouped tonight).
+- **BLOCKING:** none for this slice (Verify grouping already on `main`; work is verify + receipt + draft + gate rot).
+- **NON-BLOCKING:** Whether Oscar pastes the HorseTrack PR tonight; which second stranger repo is PR-02.
 
 ## CONSTITUTION
 
 1. Run it, do not read it — every checkbox needs the command that proved it.
-2. Re-derive numbers at the object (`pytest -q`, `launch_check.py`), never carry figures from prompts.
-3. Minimal diff in `helicon/cli.py` (subparsers/help only).
-4. Do not delete subcommands, reorganise the repo, or publish to PyPI.
+2. Re-derive numbers at the object (`helicon --help`, `launch_check.py`, `pytest`, live HorseTrack clone). Never carry August corpus counts from docs.
+3. Never tick a done-when whose command did not execute.
+4. Do not open PRs on foreign repos; do not `twine upload`; do not push public beyond this product branch/PR.
 5. Report SHIPPED / VERIFIED / WRONG; WRONG is mandatory.
+6. Ambition = open the bigger object + baseline arm that can beat us + something a stranger can use.
 
 ## PLAN
 
-1. **Slice 1 (NOW):** Help groups + product one-liner + launch receipt S2 section + launch_contract pytest. *Risk: argparse has no native subcommand groups — custom formatter must not break existing commands.*
-2. Slice 2: README ≤400 lines with truth → witness → review path only (deferred).
-3. Slice 3: PyPI description matches README lead (Oscar gate, deferred).
+1. **Slice 1 (NOW):** Confirm Verify-first help at object; fix launch_contract blockers found by running (package-metadata string rot + anyio collection); re-clone HorseTrack and run `helicon review` vs naive baseline; write `docs/HELICON-LAUNCH-RECEIPT-2026-09-04.md` + `docs/PR-01-HORSETRACK-READY.md`. *Risk: findings from August may be dead or false after pointer precision work — must re-verify at HEAD.*
+2. Slice 2 (deferred): README ≤400 lines truth→witness→review path only.
+3. Slice 3 (Oscar gate): PyPI description / upload.
 
 ## NOW
 
-**Slice 1 only:** Add Verify/Lab/Harness labels in `helicon/cli.py`; product sentence from SUBTRACTION-MEMO at top of `--help`; append S2 before/after to `docs/HELICON-LAUNCH-RECEIPT-2026-09-01.md`; run `python3 -m pytest tests/test_launch_contract.py -q` and `python3 scripts/launch_check.py`.
+**Slice 1 only** — Verify-first receipt + HorseTrack paste draft + launch gates green at object.
 
 **Done when:**
-- `helicon --help` shows Verify group with `truth` as first listed command
-- receipt updated with before/after `helicon --help | head -20`
-- launch_check READY; launch_contract pytest count logged
+- [ ] `helicon --help | head -25` shows Verify group with `truth` first (command logged in receipt)
+- [ ] `python3 scripts/launch_check.py` → READY
+- [ ] `TMPDIR="$HOME/pytmp" python3 -m pytest tests/test_launch_contract.py -q` green (count re-derived)
+- [ ] `docs/HELICON-LAUNCH-RECEIPT-2026-09-04.md` exists with commands run
+- [ ] `docs/PR-01-HORSETRACK-READY.md` is paste-ready; no foreign PR opened
+- [ ] HorseTrack findings re-derived at current default SHA (not carried from 2026-08-09 ledger)
 
 ## LOG
 
-- 2026-08-31: Pulled `origin/main` (d7b0853); `hack.md` did not exist — wrote contract before code.
-- 2026-08-31: S2 shipped — `_HeliconArgumentParser` groups Verify/Lab/Harness in `helicon/cli.py`; receipt S2 section appended.
-- 2026-08-31: `python3 scripts/launch_check.py` → READY; `TMPDIR="$HOME/pytmp" python3 -m pytest tests/test_launch_contract.py -q` → 8 passed.
-- 2026-08-31: First `helicon --help` failed — `HelpFormatter.add_usage()` missing `groups` on Py3.12; fixed with `self._mutually_exclusive_groups`.
+- 2026-09-03 night: Read prior `hack.md` (S2 already shipped). Ran first-step: Verify-first **already present** on `main`. `launch_check.py` → **BLOCKED** on `package-metadata` (`"Mountain of Helicon"` missing from `pyproject.toml` since `747a550`). `test_launch_contract` 2 failed / 6 passed. Full `pytest -q` interrupted: 5 collection errors from `anyio.abc.BlockingPortal` DeprecationWarning under `error::DeprecationWarning`.
+- 2026-09-03 night: Rewrote this contract for WAVE 2026-09-04 before further code.
