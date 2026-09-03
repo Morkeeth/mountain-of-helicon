@@ -126,6 +126,15 @@ python3 -m twine upload dist/*
 # DO NOT open https://github.com/hoangtruong01/HorseTrack/compare/...
 ```
 
+## Full suite (re-derived)
+
+```bash
+$ TMPDIR="$HOME/pytmp" python3 -m pytest -q --tb=no
+1158 passed, 1 skipped, 2 xfailed in 362.22s (0:06:02)
+```
+
+Do not carry this number forward — re-run.
+
 ## Verdict
 
 ✅ Verify-first help confirmed at object · ✅ launch_contract READY (8 passed) · ✅ HorseTrack re-verified at `3ee8c1f` · ✅ paste draft ready · ⚠️ Helicon lost to naive baseline until the negation/dotfile fix · ⚠️ full-suite count re-derived separately in the PR body
