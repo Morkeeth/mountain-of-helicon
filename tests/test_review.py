@@ -60,5 +60,23 @@ def test_json_shape_for_ci():
     assert summary["clean"] is False
     assert summary["findings"]
     assert summary["findings"][0]["tier"] == "pointer"
+    assert "machine_gaps" in summary
     payload = json.loads(json.dumps(summary))
     assert payload["grade"] in ("C", "D", "F")
+
+
+def test_missing_home_path_is_not_a_lie_in_review_output():
+    d = _repo({
+        "docs/SETUP.md": "# setup\n",
+        "AGENTS.md": "Read `docs/SETUP.md`. Needs `~/.no-helicon-env-2026/config.json`.\n",
+    })
+    res = review(d)
+    assert main([d]) == 0
+    out = format_review(d, res)
+    assert "GRADE A" in out
+    assert "tells its agent the truth" in out
+    assert "machine-local" in out
+    assert "~/.no-helicon-env-2026/config.json" in out
+    summary = review_summary(d, res)
+    assert summary["broken"] == 0
+    assert summary["machine_gaps"]
