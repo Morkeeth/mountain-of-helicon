@@ -238,7 +238,7 @@ class ContextHistory:
                     seen = next((f for f in snap["review"]["findings"] if f["id"] == finding_id), None)
                     if seen:
                         prior = (snap, seen)
-                    elif (prior and _time(snap["review"]["observed_at"]) >= _time(old["observed_at"])
+                    elif (prior and (snap["id"] == baseline_id or _time(snap["review"]["observed_at"]) > _time(old["observed_at"]))
                           and _time(prior[0]["review"]["observed_at"]) < _time(snap["review"]["observed_at"])
                           and _absence_checked(prior[1], prior[0]["review"], snap["review"])
                           and _absence_checked(finding, current_review, snap["review"])):

@@ -184,3 +184,15 @@ def test_compare_does_not_resolve_a_review_that_changed_after_scan(tmp_path):
     path.write_text("Changed after scan")
     with pytest.raises(HistoryError, match="changed"):
         store.compare(first["id"], after)
+
+
+def test_same_timestamp_conflicting_scans_do_not_prove_recurrence(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    store = ContextHistory(tmp_path / "history")
+    first = store.save(review(path, 1))
+    before = store.save(review(path, 2))
+    ambiguous = store.save(review(path, 2, finding=False))
+    current = review(path, 3)
+    diff = store.compare(before["id"], current, [first["id"], ambiguous["id"]])
+    assert diff["counts"]["recurring"] == 0
+    assert diff["counts"]["persisting"] == 1
