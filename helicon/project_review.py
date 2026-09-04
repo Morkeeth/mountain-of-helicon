@@ -3,8 +3,13 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from .project_intents_review import fingerprint, inspect_intents
 
 TERMINAL = {"submitted", "delivered", "accepted", "lost", "won", "cancelled"}
+
+
+class SourcesChanged(ValueError):
+    """Discard cross-source conclusions when no stable reading was obtained."""
 
 
 def independent_question(row, project):
@@ -23,16 +28,31 @@ def project_review(home=None):
     root = Path(home) if home is not None else Path(os.environ.get("ZUP_HOME", str(Path.home() / ".zen")))
     result = dict(schema="helicon.project-review/1", observed_at=datetime.now(timezone.utc).isoformat(),
                   source=str(root), status="unmeasured", findings=[], projects=[], latest_event=None,
-                  scope="Local project events, board and queue. Not a submission-provider verification or a memory-benefit score.")
+                  scope="Local project events, board, queue and field-scoped project intents. Intent phase and document bindings are not outcome receipts or proof of memory benefit.")
     try:
-        paths = [root / "active-board.json", root / "zup-next.json", *sorted((root / "project-events").glob("*.json"))]
+        event_paths = sorted((root / "project-events").glob("*.json"))
+        paths = [root / "active-board.json", root / "zup-next.json", *event_paths]
+        intent_path = root / "project-intents.json"
         # A concurrent writer must not produce a false cross-file contradiction.
-        before = {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in paths}
+        before = {p: fingerprint(p) for p in [*paths, intent_path]}
         board, queue, *events = [json.loads(p.read_text()) for p in paths]
-        if before != {p: (p.stat().st_mtime_ns, p.stat().st_size) for p in paths}:
-            raise ValueError("Project state changed during review; retry")
-        if paths[2:] != sorted((root / "project-events").glob("*.json")):
-            raise ValueError("Project events changed during review; retry")
+        intents = {}
+        result["intent_source"] = dict(path=str(intent_path), status="not_configured",
+                                      scope="Phase and chosen document revisions only; no lifecycle or outcome authority.")
+        if before[intent_path] is not None:
+            try:
+                intents, findings = inspect_intents(json.loads(intent_path.read_text()), board["projects"], before)
+                result["findings"].extend(findings)
+                result["intent_source"]["status"] = "available"
+            except (OSError, ValueError, TypeError) as exc:
+                result["intent_source"].update(status="unavailable", reason=str(exc))
+                result["findings"].append(dict(kind="source-unavailable", source="project-intents",
+                    title="Project corrections are unavailable", consequence="Phase and document corrections cannot be checked; event checks still run.",
+                    action="Repair the project-intents source in ZUP without replacing its history.", detail=str(exc)))
+        if before != {p: fingerprint(p) for p in before}:
+            raise SourcesChanged("Project state changed during review; retry")
+        if event_paths != sorted((root / "project-events").glob("*.json")):
+            raise SourcesChanged("Project events changed during review; retry")
         projects = board["projects"]
         ids = [p["id"] for p in projects]
         if len(ids) != len(set(ids)):
@@ -66,7 +86,9 @@ def project_review(home=None):
             # repeating its text and timestamp in the projection being checked.
             if p.get('stateEventId') and not valid_receipt:
                 dated_ruling = False
-            if not valid_receipt and not dated_ruling:
+            intent = intents.get(p["id"])
+            phase_intent = bool(intent and intent["phase"] and not (p.get("stateEventId") and not valid_receipt))
+            if not valid_receipt and not dated_ruling and not phase_intent:
                 undated.append(p["id"])
             if p.get("stateEventId") and not receipt:
                 result["findings"].append(dict(kind="missing-event", project=p["id"]))
@@ -78,10 +100,11 @@ def project_review(home=None):
                     result["findings"].append(dict(kind="settled-project-reopened-in-queue", project=p["id"]))
                 if any(q.get('needsHuman') and not independent_question(q, p) for q in matching):
                     result['findings'].append(dict(kind='unscoped-settled-project-request', project=p['id']))
-            result["projects"].append(dict(id=p["id"], state=p.get("lifecycle") or ("dated ruling" if dated_ruling else "not verified"),
-                evidence_status="event" if valid_receipt else "ruling" if dated_ruling else "unverified",
+            checked_state = (p.get("lifecycle") or "dated ruling") if (valid_receipt or dated_ruling) else "phase recorded; outcome not verified" if phase_intent else "not verified"
+            result["projects"].append(dict(id=p["id"], state=checked_state, reported_lifecycle=p.get("lifecycle"),
+                evidence_status="event" if valid_receipt else "ruling" if dated_ruling else "phase-intent" if phase_intent else "unverified",
                 event_id=p.get("stateEventId"), source=p.get("stateSource"), observed_at=p.get("stateObservedAt"),
-                evidence=p.get("stateEvidence"), historical_ids=p.get("identityHistory", [])))
+                evidence=p.get("stateEvidence"), historical_ids=p.get("identityHistory", []), intent=intent))
         for finding in board.get("stateReview", {}).get("findings", []):
             result["findings"].append(dict(kind="zup-reported-conflict", detail=finding))
         if undated:
@@ -102,9 +125,17 @@ def project_review(home=None):
             if finding["kind"] in descriptions:
                 finding["title"], finding["consequence"], finding["action"] = descriptions[finding["kind"]]
         result["coverage"] = dict(total=len(projects), event_backed=sum(p["evidence_status"] == "event" for p in result["projects"]),
-                                  dated_rulings=sum(p["evidence_status"] == "ruling" for p in result["projects"]), unverified=len(undated))
+                                  dated_rulings=sum(p["evidence_status"] == "ruling" for p in result["projects"]),
+                                  phase_intents=sum(p["evidence_status"] == "phase-intent" for p in result["projects"]), unverified=len(undated))
+        if before != {p: fingerprint(p) for p in before} or event_paths != sorted((root / "project-events").glob("*.json")):
+            raise SourcesChanged("Project sources changed during review; retry")
         result.update(status="attention" if result["findings"] else "measured", event_count=len(events),
                       project_count=len(projects), latest_event=max((e["observedAt"] for e in events), default=None))
     except (OSError, ValueError, KeyError, TypeError) as exc:
+        if isinstance(exc, SourcesChanged):
+            result.update(findings=[], projects=[])
+            result.pop("coverage", None)
+            if "intent_source" in result:
+                result["intent_source"].update(status="unavailable", reason="Sources changed while reading; retry")
         result.update(status="unmeasured", reason=str(exc))
     return result

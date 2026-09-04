@@ -16,4 +16,4 @@ def test_dated_ruling_is_not_misreported_as_an_event(tmp_path):
     (tmp_path / "active-board.json").write_text(json.dumps({"projects": [{"id": "p", "stateObservedAt": "2026-09-04T20:00:00Z", "stateEvidence": "operator decision"}]}))
     (tmp_path / "zup-next.json").write_text(json.dumps({"queue": []}))
     report = project_review(tmp_path)
-    assert report["coverage"] == {"total": 1, "event_backed": 0, "dated_rulings": 1, "unverified": 0}
+    assert report["coverage"] == {"total": 1, "event_backed": 0, "dated_rulings": 1, "phase_intents": 0, "unverified": 0}
