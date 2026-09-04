@@ -57,8 +57,20 @@ and every row cites the line it fired on. On this machine, that first run reads:
 
 ```bash
 helicon witness           # your last agent session: every claim vs its evidence
-helicon setup             # your whole stack, graded
+helicon setup --audit     # local Claude, Cursor and Codex setup evidence
 ```
+
+For a specific project, run `helicon setup --audit --project /path/to/repo`.
+Add `--json` for the `helicon.setup-audit/1` contract consumed by ZUP.
+The audit reads instruction and skill files, reports their hashes, and checks
+inspectable Claude hook routes and post-compaction vault references. It neither
+executes hooks nor changes configuration. Reports contain local paths and hashes,
+not instruction bodies or configuration secrets; review paths before sharing.
+
+Discovered files are candidates, not proof they reached a model. Effective context,
+plugin activation, cloud settings, and skill benefit remain unmeasured. The older
+`helicon setup` census remains available, but its limited file count no longer
+passes as a measurement of total loaded context.
 
 One real catch, from a real transcript, in under a minute:
 

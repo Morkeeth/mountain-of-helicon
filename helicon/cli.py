@@ -3986,6 +3986,19 @@ def cmd_setup(args):
     """Zero-config census + two-axis score. No key, no init, no config needed:
     missing pieces render as UNMEASURED with the reason, never as a crash and
     never as a zero pretending to be a grade."""
+    if getattr(args, "audit", False):
+        if getattr(args, "record", False):
+            raise SystemExit("setup --audit is read-only; --record belongs to the legacy census")
+        from helicon.setup_audit import audit_setup, render_audit
+        report = audit_setup(project=getattr(args, "project", None))
+        if getattr(args, "json", False):
+            import json as _json
+            print(_json.dumps(report, indent=2))
+        else:
+            print(render_audit(report))
+        return
+    if getattr(args, "json", False) or getattr(args, "project", None):
+        raise SystemExit("--json and --project require setup --audit")
     import sqlite3 as _sqlite3
     from helicon.setupcheck import axis2, census
 
@@ -4658,6 +4671,9 @@ def main():
                            help="Print one line: session_id claims=N verified=M contradicted=C share=0.xx")
 
     setup_p = sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
+    setup_p.add_argument("--audit", action="store_true", help="Read-only setup audit across Claude, Cursor and Codex")
+    setup_p.add_argument("--json", action="store_true", help="Versioned setup-audit report (requires --audit)")
+    setup_p.add_argument("--project", help="Project whose instructions to inspect (requires --audit)")
     setup_p.add_argument("--record", action="store_true",
                          help="Also write today's axis-1 snapshot row (replaces same-day; needs a store)")
     sub.add_parser("optimize", help="LLM-powered optimization suggestions")
