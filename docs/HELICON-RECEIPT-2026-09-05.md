@@ -104,3 +104,5 @@ Naive loses on precision against this product's own AGENTS.md. Env-aware does no
 4. **R1b is narrow** — only `always/must/only/never use <token>` with subject binders. "Prefer X" / "don't use X" without never / multi-word objects are unmeasured. Precision over recall.
 5. **Clobbered `helicon/rules.py` once** during slice 2; restored from HEAD before commit. Named in LOG so it is not forgotten.
 6. **Did not re-run the author's six private repos** — not present in this VM.
+7. **Full pytest not fully green in this VM** — anyio/starlette DeprecationWarning raised as error on several TestClient imports; pre-existing env issue, not introduced by this branch (slice tests 51/51).
+8. **Stopped after Slice 2** — did not start Slice 3 (README ≤400 / PyPI lead; Oscar gate).
