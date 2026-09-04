@@ -17,7 +17,7 @@ The review endpoint is read-only: `GET /api/setup/review`. It does not run inges
 
 The frontend builds. Browser review exercised the default view, memory explanation, source evidence and affected-project disclosure. Deterministic tests cover missing and empty stores, field gaps, wrong-project receipts, independent questions, phase-only evidence, invalid intent and changed documents. The integration was also read against an actual native-written ZUP fixture.
 
-The existing two package-metadata test failures are separate from this work. No source scan or successful build is presented as proof of memory quality.
+The final full suite passed 1,193 tests, with one skipped and two expected failures. The existing two package-metadata test failures remain separate from this work. No source scan or successful build is presented as proof of memory quality.
 
 ## Next evidence to establish
 
