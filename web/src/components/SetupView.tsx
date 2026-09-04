@@ -126,6 +126,10 @@ export default function SetupView() {
   const { census, axis2, snapshots } = data;
   const passing = axis2.filter(c => c.verdict === 'PASS').length;
   const measurable = axis2.filter(c => c.verdict !== 'UNMEASURED').length;
+  const memoryChecks = data.memory_review?.checks ?? [];
+  const history = memoryChecks.find(c => c.id === 'transcript-index')?.rows[0];
+  const prepared = memoryChecks.find(c => c.id === 'embeddings')?.rows[0];
+  const use = memoryChecks.find(c => c.id === 'retrieval')?.rows[0];
 
   return (
     <div className="max-w-2xl mx-auto pb-16">
@@ -143,16 +147,15 @@ export default function SetupView() {
 
       {/* AXIS 1 — you vs you (primary) */}
       <section className="mb-9" aria-label="Index and memory review">
-        <h2 className="text-[18px] mb-2" style={{ color: INK }}>Index and memory review</h2>
+        <h2 className="text-[18px] mb-2" style={{ color: INK }}>Is your memory system helping?</h2>
+        <p className="text-[13px] mb-4" style={{ color: MUTED }}>This page reads two local stores: Transcripto's saved conversations and Helicon's copied memories. It does not read every live app. A recent scan does not make an old fact current.</p>
+        <div className="grid gap-3 mb-5" style={{ color: INK }}>
+          <div className="p-4" style={{ background: PANEL }}><strong>Your saved history</strong><p className="text-[13px] mt-1">{history ? `${history.messages} messages in ${history.sessions} sessions. Newest saved event: ${history.latest_event ?? 'not recorded'}.` : 'The conversation index could not be measured.'}</p><p className="text-[12px] mt-2" style={{ color: MUTED }}>Source: Transcripto's local index. This count does not prove all conversations were captured.</p></div>
+          <div className="p-4" style={{ background: PANEL }}><strong>Can memory be found by meaning?</strong><p className="text-[13px] mt-1">{prepared ? `${prepared.with_embeddings ?? 0} of ${prepared.live_memories} live memories have stored search vectors (embeddings).` : 'Search preparation could not be measured.'}</p><p className="text-[12px] mt-2" style={{ color: MUTED }}>Source: Helicon's memory and embedding records. This measures preparation, not useful or correct answers.</p></div>
+          <div className="p-4" style={{ background: PANEL }}><strong>Is memory helping the work?</strong><p className="text-[13px] mt-1">Not established yet.{use ? ` Helicon recorded ${use.recorded_events} retrieval events; ${use.marked_acted_on} were marked acted on.` : ''}</p><p className="text-[12px] mt-2" style={{ color: MUTED }}>Source: Helicon's retrieval log. These records do not cover every agent or prove that memory improved a result.</p></div>
+        </div>
         {data.memory_review ? <>
-          <p className="text-[12px] mb-3" style={{ color: MUTED }}>{data.memory_review.scope} · observed {data.memory_review.observed_at}</p>
-          <div className="flex flex-wrap gap-5 mb-4" style={{ color: INK }}>
-            {data.memory_review.checks.filter(c => ['embeddings', 'retrieval'].includes(c.id)).flatMap(c => c.rows.slice(0, 1).map((row, i) =>
-              <p key={c.id + i} className="text-[14px]">{c.id === 'embeddings'
-                ? `${row.with_embeddings ?? '—'} / ${row.live_memories ?? '—'} live memories have embeddings`
-                : `${row.recorded_events ?? '—'} retrieval events · ${row.marked_acted_on ?? '—'} marked acted on`}</p>
-            ))}
-          </div>
+          <p className="text-[12px] mb-3" style={{ color: MUTED }}>Details and evidence · read at {data.memory_review.observed_at}</p>
           {data.memory_review.checks.map(check => <details key={check.id} className="py-3" style={{ borderBottom: `1px solid ${LINE}` }}>
             <summary className="cursor-pointer text-[14px]" style={{ color: INK }}>{check.question} <span className="text-[11px]" style={{ color: MUTED }}>· {check.status}</span></summary>
             <p className="text-[12px] mt-3" style={{ color: MUTED }}>{check.interpretation}</p>
@@ -166,7 +169,7 @@ export default function SetupView() {
       </section>
 
       <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: ACCENT }}>You vs you — the primary axis</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: ACCENT }}>How the store changed — not a quality score</h2>
         <Trend snaps={snapshots} />
       </section>
 
