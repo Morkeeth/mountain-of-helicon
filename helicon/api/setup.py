@@ -23,6 +23,12 @@ from helicon.project_review import project_review
 
 router = APIRouter()
 
+
+@router.get('/setup/review')
+async def operating_review():
+    """Fresh local evidence only: no filesystem census, snapshots, or writes."""
+    return {'memory_review': memory_review(get_conn()), 'project_review': project_review()}
+
 _TTL_S = 120
 _cache: dict = {"res": None, "mono": 0.0, "ran_at": None, "took_s": None}
 
