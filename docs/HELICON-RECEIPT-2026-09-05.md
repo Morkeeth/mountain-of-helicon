@@ -63,6 +63,7 @@ Also fixed: CLAUDE.md with no path claims used to print "No agent instruction fi
 | `helicon review .` (before, real HOME) | 0 (GRADE B, 1 broken) |
 | `HOME=$EMPTY PYTHONPATH=/workspace python3 -m helicon.review /workspace` | 0 (GRADE A, 0 broken, 1 machine_gap) |
 | `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_pointers.py tests/test_pointers_precision.py tests/test_review.py tests/test_review2.py tests/test_commands.py tests/test_rules_r1b.py` | 0 · **51 passed** |
+| Full suite (ignore 5 anyio-collection-broken API modules) | **1117 passed**, 10 failed, 1 skipped, 2 xfailed — failures: 2× launch_contract (`package-metadata`), 1× `test_web_dir_fallback` (anyio DeprecationWarning-as-error), 7× api_rot/hackathon_adk (same anyio). None from this slice’s files. |
 | `HOME=$EMPTY PYTHONPATH=/workspace python3 scripts/pointer_env_baseline.py /workspace` | 0 · 4 cases, **2 DISAGREE** (expected) |
 | Planted v1/v2 `python3 -m helicon.review $TMP` | **1** |
 | `helicon --help` \| head (Verify · truth first) | 0 |
