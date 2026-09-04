@@ -26,6 +26,7 @@ def project_review(home=None):
         if len(ids) != len(set(ids)):
             result["findings"].append(dict(kind="duplicate-project-id"))
         by_event = {}
+        undated = []
         for e in events:
             if e.get("schema") != "zup.project-event/1" or not e.get("evidence") or not e.get("source"):
                 raise ValueError("Invalid project event evidence")
@@ -40,6 +41,14 @@ def project_review(home=None):
             if old_ids:
                 result["findings"].append(dict(kind="duplicate-project-identity", project=p["id"], aliases=sorted(old_ids)))
             receipt = by_event.get(p.get("stateEventId"))
+            dated_ruling = False
+            try:
+                observed = datetime.fromisoformat(p.get("stateObservedAt", "").replace("Z", "+00:00"))
+                dated_ruling = bool(p.get("stateEvidence")) and observed.tzinfo is not None and observed <= datetime.now(timezone.utc)
+            except (ValueError, TypeError):
+                pass
+            if not receipt and not dated_ruling:
+                undated.append(p["id"])
             if p.get("stateEventId") and not receipt:
                 result["findings"].append(dict(kind="missing-event", project=p["id"]))
             if receipt and (receipt["type"] != p.get("lifecycle") or receipt["evidence"] != p.get("stateEvidence")
@@ -49,11 +58,30 @@ def project_review(home=None):
                 matching = [q for q in queue["queue"] if q["id"] in {p["id"], *p.get("aliases", [])}]
                 if any(q.get("needsHuman") or q.get("band") != "PARKED" for q in matching):
                     result["findings"].append(dict(kind="settled-project-reopened-in-queue", project=p["id"]))
-            result["projects"].append(dict(id=p["id"], state=p.get("lifecycle", "not event-backed"),
+            result["projects"].append(dict(id=p["id"], state=p.get("lifecycle") or ("dated ruling" if dated_ruling else "not verified"),
+                evidence_status="event" if receipt else "ruling" if dated_ruling else "unverified",
                 event_id=p.get("stateEventId"), source=p.get("stateSource"), observed_at=p.get("stateObservedAt"),
                 evidence=p.get("stateEvidence"), historical_ids=p.get("identityHistory", [])))
         for finding in board.get("stateReview", {}).get("findings", []):
             result["findings"].append(dict(kind="zup-reported-conflict", detail=finding))
+        if undated:
+            result["findings"].append(dict(kind="undated-project-status", projects=undated,
+                title=f"{len(undated)} project records have no dated state evidence",
+                consequence="Projects remain visible, but their old instructions must not be treated as current tasks.",
+                action="Reconcile each next milestone against a current project receipt, not a snapshot timestamp."))
+        descriptions = {
+            "duplicate-project-id": ("A project ID appears twice", "Counts and routing can disagree.", "Resolve the duplicate identity."),
+            "duplicate-project-identity": ("An old name remains a separate project", "An old task can return under the earlier name.", "Merge the identity, keeping its history."),
+            "missing-event": ("A displayed state has no matching event", "Its evidence cannot be checked.", "Recover the receipt or mark the state unverified."),
+            "projection-disagrees-with-event": ("The board contradicts its event receipt", "The displayed phase is not reliable.", "Rebuild the board from the authoritative event."),
+            "settled-project-reopened-in-queue": ("A settled phase is back in the action queue", "Completed work can be requested again.", "Remove the obsolete action; preserve the achievement."),
+            "zup-reported-conflict": ("Project records conflict", "A current state cannot be selected safely.", "Resolve the conflicting receipts."),
+        }
+        for finding in result["findings"]:
+            if finding["kind"] in descriptions:
+                finding["title"], finding["consequence"], finding["action"] = descriptions[finding["kind"]]
+        result["coverage"] = dict(total=len(projects), event_backed=sum(p["evidence_status"] == "event" for p in result["projects"]),
+                                  dated_rulings=sum(p["evidence_status"] == "ruling" for p in result["projects"]), unverified=len(undated))
         result.update(status="attention" if result["findings"] else "measured", event_count=len(events),
                       project_count=len(projects), latest_event=max((e["observedAt"] for e in events), default=None))
     except (OSError, ValueError, KeyError, TypeError) as exc:
