@@ -61,6 +61,11 @@ helicon setup --audit     # local Claude, Cursor and Codex setup evidence
 ```
 
 For a specific project, run `helicon setup --audit --project /path/to/repo`.
+The Setup page also includes an index-and-memory operating review: live sources,
+scan errors, live embedding coverage and model mix, exact duplicate hashes,
+recorded retrieval use, and live keyword-search smoke probes. Expand each check
+for its rows, query and next action. Relevance, contradiction quality and causal
+benefit are explicitly unmeasured here; a working search is not a correct answer.
 For recorded results, `helicon outcomes` shows accepted, rework, rollback and
 missing acceptance decisions, with the recorded-run denominator. It does not
 grade all agent work. `--json` exports the `helicon.outcomes/1` contract for ZUP.

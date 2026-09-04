@@ -18,6 +18,7 @@ from fastapi import APIRouter
 from helicon.api.app import get_conn, get_config
 from helicon.setupcheck import SNAP_DDL as _SNAP_DDL
 from helicon.setupcheck import axis2, census, record_snapshot
+from helicon.memory_review import memory_review
 
 router = APIRouter()
 
@@ -43,7 +44,7 @@ async def setup(fresh: int = 0):
     t0 = time.monotonic()
     cen = census(conn, get_config() or {})
     chips = axis2(conn, cen, get_config() or {})
-    res = {"census": cen, "axis2": chips}
+    res = {"census": cen, "axis2": chips, "memory_review": memory_review(conn)}
     took = round(time.monotonic() - t0, 2)
     _cache.update({"res": res, "mono": time.monotonic(), "took_s": took,
                    "ran_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
