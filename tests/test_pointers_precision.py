@@ -50,9 +50,13 @@ def test_home_path_in_code_font_is_graded_once_at_home_not_twice():
         assert _broken(d, "Needs `~/.helicon-pointer-test-2026-09-03.json` to run.") == []
     finally:
         os.remove(probe)
-    # and a home path that does not exist is still one broken pointer, not a mangled second one
-    b = _broken(d, "Needs `~/.no-such-dir-2026/config.json` to run.")
-    assert b == ["~/.no-such-dir-2026/config.json"]
+    # Missing host path is NOT a repo lie (2026-09-05): same doctrine as R14
+    # external commands. Surfaced as machine_gap, never as broken.
+    assert _broken(d, "Needs `~/.no-such-dir-2026/config.json` to run.") == []
+    assert _checked(d, "Needs `~/.no-such-dir-2026/config.json` to run.") == []
+    gaps = P.extract_machine_gaps(
+        "Needs `~/.no-such-dir-2026/config.json` to run.", d)
+    assert [g["target"] for g in gaps] == ["~/.no-such-dir-2026/config.json"]
 
 
 def test_slash_command_resolves_against_claude_commands():

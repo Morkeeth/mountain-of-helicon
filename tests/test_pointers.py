@@ -103,6 +103,23 @@ def test_tilde_and_absolute_paths_are_graded_on_the_real_filesystem():
     assert res["broken"] == 0, res
 
 
+def test_missing_tilde_path_is_machine_gap_not_repo_lie():
+    """Cold-clone doctrine: lacking Oscar's ~/.helicon/config.json must not
+    convict the instruction file of lying about the repo."""
+    d = _repo({
+        "helicon/config.py": "x\n",
+        "AGENTS.md": (
+            "Live connectors require the author's `~/.helicon-no-such-2026-09-05.json` "
+            "(see `helicon/config.py`) and cannot run without it.\n"
+        ),
+    })
+    res = pointers.check_pointers(d)
+    assert res["broken"] == 0, res
+    assert res["verdict"] == "CLEAN", res
+    assert len(res["machine_gaps"]) == 1
+    assert "~/.helicon-no-such-2026-09-05.json" in res["machine_gaps"][0]["raw"]
+
+
 def test_a_described_absence_is_not_a_broken_pointer():
     # A line that says a path is NOT here is documentation about the absence, not a dead
     # reference. Real caught case: "`ci_gate.py` is NOT inherited here".
@@ -119,6 +136,37 @@ def test_a_plain_missing_pointer_is_still_flagged_after_the_precision_fix():
     d = _repo({"CLAUDE.md": "Always read `docs/ARCHITECTURE.md` first.\n"})
     res = pointers.check_pointers(d)
     assert res["verdict"] == "ROT FOUND" and res["broken"] == 1, res
+
+
+def test_cold_home_self_review_does_not_convict_env_config(tmp_path, monkeypatch):
+    """Control that was RED on main: HOME without ~/.helicon/config.json made
+    `helicon review` on this product's AGENTS.md report a repo lie. Must stay green
+    after the env-pointer fix — watch the control go RED under the naive arm in
+    scripts/pointer_env_baseline.py."""
+    from helicon.review import review, review_summary
+    # Isolate HOME so expanduser("~/.helicon/config.json") cannot hit a real file.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    # Also clear XDG if anything else expands home via environ.
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    agents = os.path.join(root, "AGENTS.md")
+    if not os.path.isfile(agents):
+        return  # not running inside the product checkout
+    # Confirm the control input: AGENTS.md still names the env config.
+    body = open(agents, encoding="utf-8").read()
+    assert "`~/.helicon/config.json`" in body
+    res = review(root)
+    summary = review_summary(root, res)
+    assert not any(
+        "~/.helicon/config.json" in (f.get("raw") or "")
+        for f in summary["findings"]
+    ), summary["findings"]
+    gaps = summary.get("machine_gaps") or []
+    assert any("~/.helicon/config.json" in (g.get("raw") or "") for g in gaps), gaps
+    # Grade must not be dragged by the env gap alone.
+    ptr = res["pointers"]
+    assert ptr["broken"] == 0 or not any(
+        "~/.helicon/config.json" in r.get("raw", "") for r in ptr["receipts"]
+    )
 
 
 if __name__ == "__main__":
