@@ -3982,6 +3982,23 @@ def cmd_consolidation_eval(args):
         print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
+def cmd_outcomes(args):
+    from helicon.outcomes import outcome_report, render_outcomes, compare_cohort
+    from helicon.config import load_config, helicon_home
+    from pathlib import Path
+    import json
+    db = args.db or load_config().get("db_path") or str(Path(helicon_home()) / "helicon.db")
+    report = outcome_report(db)
+    if args.baseline:
+        report["comparison"] = compare_cohort(json.loads(Path(args.baseline).read_text()), report)
+    if args.save_baseline:
+        if report["status"] != "measured":
+            raise SystemExit("Cannot freeze an unmeasured baseline")
+        with Path(args.save_baseline).open("x") as handle:
+            json.dump(report, handle, indent=2)
+    print(json.dumps(report, indent=2) if args.json else render_outcomes(report))
+
+
 def cmd_setup(args):
     """Zero-config census + two-axis score. No key, no init, no config needed:
     missing pieces render as UNMEASURED with the reason, never as a crash and
@@ -4670,6 +4687,11 @@ def main():
     witness_p.add_argument("--summary", action="store_true",
                            help="Print one line: session_id claims=N verified=M contradicted=C share=0.xx")
 
+    outcomes_p = sub.add_parser("outcomes", help="Read-only coverage of recorded outcomes, not a quality score")
+    outcomes_p.add_argument("--db", help="Existing store to inspect, never created")
+    outcomes_p.add_argument("--json", action="store_true")
+    outcomes_p.add_argument("--baseline", help="Compare the exact run cohort in a saved report")
+    outcomes_p.add_argument("--save-baseline", help="Freeze this reading in a new file; never overwrite")
     setup_p = sub.add_parser("setup", help="Zero-config census + two-axis score of this machine's agent stack (no key, no init)")
     setup_p.add_argument("--audit", action="store_true", help="Read-only setup audit across Claude, Cursor and Codex")
     setup_p.add_argument("--json", action="store_true", help="Versioned setup-audit report (requires --audit)")
@@ -4760,6 +4782,7 @@ def main():
         "score": cmd_score,
         "stack": cmd_stack,
         "setup": cmd_setup,
+        "outcomes": cmd_outcomes,
         "witness": cmd_witness,
         "skills-review": cmd_skills_review,
         "review": cmd_review,
@@ -4797,7 +4820,7 @@ def main():
     SELF_CONFIGURING = (
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
         "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
-        "review",
+        "review", "outcomes",
     )
     has_explicit_bench_db = (
         args.command == "measurement-bench" and bool(getattr(args, "db", None))

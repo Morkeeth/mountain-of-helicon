@@ -61,6 +61,14 @@ helicon setup --audit     # local Claude, Cursor and Codex setup evidence
 ```
 
 For a specific project, run `helicon setup --audit --project /path/to/repo`.
+For recorded results, `helicon outcomes` shows accepted, rework, rollback and
+missing acceptance decisions, with the recorded-run denominator. It does not
+grade all agent work. `--json` exports the `helicon.outcomes/1` contract for ZUP.
+Use `helicon outcomes --save-baseline /local/path/baseline.json` to freeze a
+reading in a new file; later use `--baseline /local/path/baseline.json` to compare
+the same run IDs. New runs are excluded; missing old runs mark the comparison
+incomplete. Acceptance changes are not evidence of causal setup benefit.
+
 Add `--json` for the `helicon.setup-audit/1` contract consumed by ZUP.
 The audit reads instruction and skill files, reports their hashes, and checks
 inspectable Claude hook routes and post-compaction vault references. It neither
@@ -459,9 +467,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (75 commands)
+## CLI (76 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `outcomes` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
