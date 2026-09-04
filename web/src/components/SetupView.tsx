@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 type Check = { id: string; question: string; status: string; interpretation: string; action: string; source?: string; query: string; rows: Record<string, unknown>[] };
 type Finding = {kind: string; title?: string; consequence?: string; action?: string; project?: string; projects?: string[]; checks?: string[]};
 type Stage = {id: string; title: string; state: string; summary: string; source: string; watermark?: string; limit: string; checks: string[]};
+type Intent = {phase: string; revision: number; source: string; actor: {kind: string; id: string}; observed_at: string};
 type Report = {
-  project_review?: { status: string; reason?: string; projects: {id: string; state: string; source?: string; observed_at?: string; evidence?: string; evidence_status?: string}[]; findings: Finding[]; observed_at: string };
+  project_review?: { status: string; reason?: string; intent_source?: {status: string; scope: string}; projects: {id: string; state: string; source?: string; observed_at?: string; evidence?: string; evidence_status?: string; intent?: Intent}[]; findings: Finding[]; observed_at: string };
   memory_review?: { observed_at: string; checks: Check[]; stages?: Stage[]; findings?: Finding[]; relationship?: string };
 };
 
@@ -29,7 +30,7 @@ export default function SetupView() {
   }
   useEffect(() => { void refresh(); }, []);
   const projects = report?.project_review;
-  const backed = projects?.projects.filter(p => ['event', 'ruling'].includes(p.evidence_status ?? '')) ?? [];
+  const backed = projects?.projects.filter(p => ['event', 'ruling', 'phase-intent'].includes(p.evidence_status ?? '')) ?? [];
   const checks = report?.memory_review?.checks ?? [];
   const findings: Finding[] = [...(report?.memory_review?.findings ?? []), ...(projects?.findings ?? [])]
     .sort((a, b) => priority(a) - priority(b));
@@ -62,6 +63,7 @@ export default function SetupView() {
           <p className="mt-1" style={{color:'var(--helicon-muted)'}}>State source: {project?.source ?? 'Not recorded'}</p>
           {project?.observed_at && <p className="mt-1">Recorded: {recordedTime(project.observed_at)}</p>}
           {project?.evidence && <p className="mt-1">{project.evidence}</p>}
+          {project?.intent && <p className="mt-2">Recorded phase: {project.intent.phase || 'Not set'} · revision {project.intent.revision}. Source: {project.intent.source}, {project.intent.actor.kind}/{project.intent.actor.id}, {recordedTime(project.intent.observed_at)}. This is not an outcome receipt.</p>}
         </div>;
       })}
     </details>;
@@ -101,8 +103,9 @@ export default function SetupView() {
       </section>
       <details className="text-sm" style={{borderTop: '1px solid var(--helicon-line)', paddingTop: 16}}>
         <summary className="cursor-pointer">Evidence and technical details</summary>
-        <p className="my-4" style={{color:'var(--helicon-muted)'}}>Sources: ZUP's local project events and board; Helicon's memory store; Transcripto's conversation index. Checked {projects?.observed_at ?? report.memory_review?.observed_at ?? 'at an unknown time'}.</p>
-        {backed.map(p => <p key={p.id} className="my-3">{p.id}: {p.state}. {p.evidence}</p>)}
+        <p className="my-4" style={{color:'var(--helicon-muted)'}}>Sources: ZUP's local project events, board and optional project corrections; Helicon's memory store; Transcripto's conversation index. Checked {projects?.observed_at ?? report.memory_review?.observed_at ?? 'at an unknown time'}.</p>
+        {projects?.intent_source && <p className="my-3">Project corrections: {projects.intent_source.status.replaceAll('_', ' ')}. {projects.intent_source.scope}</p>}
+        {backed.map(p => <p key={p.id} className="my-3">{p.id}: {p.state}. {p.evidence} {p.intent?.phase && <>Phase: {p.intent.phase}, revision {p.intent.revision}, {p.intent.source} ({p.intent.actor.kind}/{p.intent.actor.id}), recorded {recordedTime(p.intent.observed_at)}.</>}</p>)}
         {projects?.findings.map((f, i) => <pre className="whitespace-pre-wrap break-words" key={i}>{JSON.stringify(f, null, 2)}</pre>)}
         {checks.map(evidence)}
       </details>
