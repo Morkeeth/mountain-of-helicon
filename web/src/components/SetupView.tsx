@@ -1,245 +1,63 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 
-/* THE SETUP — the census of the stack and the two-axis score (proposal v3).
-   Axis 1 PRIMARY: you vs you — dated snapshots, the score is a trend, never a
-   lone number; before the second reading the trend honestly says it can't
-   exist yet. Axis 2 SECONDARY: you vs the frontier — each chip is a
-   deterministic probe with a citation; FAIL and UNMEASURED render as
-   themselves, never as green. */
-
-const INK = 'var(--helicon-ink)';
-const MUTED = 'var(--helicon-muted)';
-const FAINT = 'var(--helicon-faint)';
-const ACCENT = 'var(--helicon-accent)';
-const SERIF = 'var(--helicon-serif)';
-const MONO = 'var(--helicon-mono)';
-const PANEL = 'var(--helicon-panel-2)';
-const LINE = 'var(--helicon-line)';
-
-interface Cell { value: number | null; measured: boolean; how: string; names?: string[] }
-interface FileStat { label: string; path: string; exists: boolean; lines?: number; bytes?: number; age_days?: number }
-interface Chip { id: string; claim: string; verdict: 'PASS' | 'FAIL' | 'UNMEASURED'; probe: string; source: string }
-interface Snapshot { day: string; skills: number | null; routines: number | null; memories_live: number | null; memories_retired: number | null; sessions: number | null; context_bytes: number | null; chips_pass: number; chips_fail: number; chips_unmeasured: number }
-interface SetupData {
-  project_review?: { status: string; reason?: string; observed_at: string; latest_event: string | null; source: string; scope: string; event_count?: number; project_count?: number; findings: Record<string, unknown>[]; projects: Array<{id: string; state: string; evidence?: string; source?: string; observed_at?: string}> };
-  memory_review?: { observed_at: string; scope: string; checks: Array<{
-    id: string; question: string; status: string; rows: Record<string, unknown>[];
-    interpretation: string; action: string; query: string;
-  }> };
-  census: {
-    skills: Cell; routines: Cell; sessions: Cell;
-    memories: { live: Cell; retired: Cell; files?: Cell };
-    context_files: FileStat[];
-    connectors: Record<string, boolean>;
-  };
-  axis2: Chip[];
-  snapshots: Snapshot[];
-  ran_at: string; cached: boolean;
-}
-
-const VERDICT_COLOR: Record<Chip['verdict'], string> = {
-  PASS: 'var(--helicon-good, #3a7d44)',
-  FAIL: ACCENT,
-  UNMEASURED: FAINT,
+type Check = { id: string; question: string; status: string; interpretation: string; query: string; rows: Record<string, unknown>[] };
+type Report = {
+  project_review?: { status: string; reason?: string; projects: {id: string; state: string; evidence?: string}[]; findings: Record<string, unknown>[]; observed_at: string };
+  memory_review?: { observed_at: string; checks: Check[] };
 };
 
-function CensusRow({ label, cell }: { label: string; cell: Cell }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2" style={{ borderBottom: `1px solid ${LINE}` }}>
-      <span className="text-[13px] w-40 shrink-0" style={{ color: INK }}>{label}</span>
-      {cell.measured ? (
-        <span className="tabular-nums text-[15px]" style={{ fontFamily: MONO, color: INK }}>{cell.value?.toLocaleString()}</span>
-      ) : (
-        <span className="text-[12px] uppercase tracking-wider" style={{ color: FAINT }}>unmeasured</span>
-      )}
-      <span className="text-[11px] leading-snug min-w-0 flex-1 basis-40 break-words" style={{ color: MUTED }}>{cell.how}</span>
-    </div>
-  );
-}
-
-/* The trend, honest about its own length. One snapshot is a baseline, not a
-   trend; the delta line only exists from the second reading on. */
-function Trend({ snaps }: { snaps: Snapshot[] }) {
-  if (snaps.length === 0) {
-    return <p className="text-[13px]" style={{ color: MUTED }}>
-      No reading recorded yet. Record the first — the trend begins with the second.
-    </p>;
-  }
-  const [latest, prev] = snaps; // API returns newest first
-  if (!prev) {
-    return <p className="text-[13px]" style={{ color: MUTED }}>
-      First reading recorded {latest.day}. The trend begins with the second reading.
-    </p>;
-  }
-  const delta = (a: number | null, b: number | null) =>
-    a == null || b == null ? '—' : (a - b >= 0 ? `+${a - b}` : `${a - b}`);
-  const rows: [string, number | null, string][] = [
-    ['memories live', latest.memories_live, delta(latest.memories_live, prev.memories_live)],
-    ['sessions', latest.sessions, delta(latest.sessions, prev.sessions)],
-    ['frontier checks passing', latest.chips_pass, delta(latest.chips_pass, prev.chips_pass)],
-    ['always-loaded bytes', latest.context_bytes, delta(latest.context_bytes, prev.context_bytes)],
-  ];
-  return (
-    <div>
-      <p className="text-[11px] uppercase tracking-[0.15em] mb-2" style={{ color: MUTED }}>
-        {latest.day} vs {prev.day} · {snaps.length} readings held
-      </p>
-      {rows.map(([label, v, d]) => (
-        <div key={label} className="flex items-baseline gap-3 py-1">
-          <span className="text-[13px] w-44" style={{ color: INK }}>{label}</span>
-          <span className="tabular-nums text-[14px]" style={{ fontFamily: MONO, color: INK }}>{v?.toLocaleString() ?? '—'}</span>
-          <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: MUTED }}>{d}</span>
-        </div>
-      ))}
-      {/* Goodhart gate: auto-triage moves the live count, so a delta here is
-          data about the store, not proof the human's stack improved. */}
-      <p className="text-[10.5px] mt-2 leading-snug" style={{ color: FAINT }}>
-        memories-live can be moved by the tool's own auto-triage — deltas are store data,
-        not self-improvement, until reviewer provenance is a typed column (Goodhart gate).
-      </p>
-    </div>
-  );
-}
-
 export default function SetupView() {
-  const [data, setData] = useState<SetupData | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-
-  const load = useCallback((fresh = false) => {
-    fetch(`/api/setup${fresh ? '?fresh=1' : ''}`)
-      .then(r => r.json()).then(setData)
-      .catch(e => setErr(e instanceof Error ? e.message : 'load failed'));
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  const record = async () => {
-    setRecording(true);
+  const [report, setReport] = useState<Report>();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  async function refresh() {
+    setLoading(true);
     try {
-      await fetch('/api/setup/snapshot', { method: 'POST' });
-      load(true);
-    } finally { setRecording(false); }
-  };
-
-  if (err) return <p className="py-16 text-center text-[13px]" style={{ color: ACCENT }}>Setup census failed to load: {err}</p>;
-  if (!data) return <p className="py-16 text-center text-[13px]" style={{ color: MUTED }}>…</p>;
-
-  const { census, axis2, snapshots } = data;
-  const passing = axis2.filter(c => c.verdict === 'PASS').length;
-  const measurable = axis2.filter(c => c.verdict !== 'UNMEASURED').length;
-  const memoryChecks = data.memory_review?.checks ?? [];
-  const history = memoryChecks.find(c => c.id === 'transcript-index')?.rows[0];
-  const prepared = memoryChecks.find(c => c.id === 'embeddings')?.rows[0];
-  const use = memoryChecks.find(c => c.id === 'retrieval')?.rows[0];
-
-  return (
-    <div className="max-w-2xl mx-auto pb-16">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
-        <h1 style={{ fontFamily: SERIF, fontWeight: 300, color: INK }} className="text-[28px]">The Setup</h1>
-        <button onClick={record} disabled={recording}
-          className="text-[12px] px-3 py-1.5 rounded-lg shrink-0 transition-all hover:brightness-110 disabled:opacity-40"
-          style={{ border: `1px solid ${LINE}`, color: INK }}>
-          {recording ? 'Recording…' : "Record today's reading"}
-        </button>
-      </div>
-      <p className="text-[12px] mb-8" style={{ color: MUTED }}>
-        census {data.cached ? 'cached, ' : ''}taken {data.ran_at?.slice(0, 16).replace('T', ' ')} UTC
-      </p>
-
-      {/* AXIS 1 — you vs you (primary) */}
-      <section className="mb-9" aria-label="Project state integrity">
-        <h2 className="text-[18px] mb-2" style={{ color: INK }}>Does the board agree with what happened?</h2>
-        <p className="text-[13px] mb-3" style={{ color: MUTED }}>Helicon independently reads ZUP's event files, board and action queue. Old names must resolve to one project. Settled phases must not return as pending actions.</p>
-        {data.project_review ? <>
-          <p style={{ color: INK }}>{data.project_review.status === 'unmeasured' ? `Not measured: ${data.project_review.reason}` : `${data.project_review.project_count} projects · ${data.project_review.event_count} recorded events · ${data.project_review.findings.length} findings`}</p>
-          <p className="text-[12px] my-2" style={{ color: MUTED }}>Latest event: {data.project_review.latest_event ?? 'none recorded'}. Checked: {data.project_review.observed_at}. No findings means these checks found none, not that every project is current.</p>
-          {data.project_review.findings.map((f, i) => <p key={i} className="text-[12px] py-2 break-words" style={{ color: ACCENT }}>{JSON.stringify(f)}</p>)}
-          <details className="text-[13px] mt-3"><summary>Project evidence and sources</summary>
-            {data.project_review.projects.map(p => <div key={p.id} className="py-3" style={{ borderBottom: `1px solid ${LINE}` }}><strong>{p.id}: {p.state}</strong><p>{p.evidence ?? 'No dated state evidence'}</p><p style={{ color: MUTED }}>{p.source ?? 'board hint'} · {p.observed_at ?? 'event time unknown'}</p></div>)}
-            <p className="text-[12px] mt-3" style={{ color: MUTED }}>{data.project_review.source} · {data.project_review.scope}</p>
-          </details>
-        </> : <p style={{ color: MUTED }}>Project evidence review unavailable.</p>}
-      </section>
-      <section className="mb-9" aria-label="Index and memory review">
-        <h2 className="text-[18px] mb-2" style={{ color: INK }}>Is your memory system helping?</h2>
-        <p className="text-[13px] mb-4" style={{ color: MUTED }}>This page reads two local stores: Transcripto's saved conversations and Helicon's copied memories. It does not read every live app. A recent scan does not make an old fact current.</p>
-        <div className="grid gap-3 mb-5" style={{ color: INK }}>
-          <div className="p-4" style={{ background: PANEL }}><strong>Your saved history</strong><p className="text-[13px] mt-1">{history ? `${history.messages} messages in ${history.sessions} sessions. Newest saved event: ${history.latest_event ?? 'not recorded'}.` : 'The conversation index could not be measured.'}</p><p className="text-[12px] mt-2" style={{ color: MUTED }}>Source: Transcripto's local index. This count does not prove all conversations were captured.</p></div>
-          <div className="p-4" style={{ background: PANEL }}><strong>Can memory be found by meaning?</strong><p className="text-[13px] mt-1">{prepared ? `${prepared.with_embeddings ?? 0} of ${prepared.live_memories} live memories have stored search vectors (embeddings).` : 'Search preparation could not be measured.'}</p><p className="text-[12px] mt-2" style={{ color: MUTED }}>Source: Helicon's memory and embedding records. This measures preparation, not useful or correct answers.</p></div>
-          <div className="p-4" style={{ background: PANEL }}><strong>Is memory helping the work?</strong><p className="text-[13px] mt-1">Not established yet.{use ? ` Helicon recorded ${use.recorded_events} retrieval events; ${use.marked_acted_on} were marked acted on.` : ''}</p><p className="text-[12px] mt-2" style={{ color: MUTED }}>Source: Helicon's retrieval log. These records do not cover every agent or prove that memory improved a result.</p></div>
-        </div>
-        {data.memory_review ? <>
-          <p className="text-[12px] mb-3" style={{ color: MUTED }}>Details and evidence · read at {data.memory_review.observed_at}</p>
-          {data.memory_review.checks.map(check => <details key={check.id} className="py-3" style={{ borderBottom: `1px solid ${LINE}` }}>
-            <summary className="cursor-pointer text-[14px]" style={{ color: INK }}>{check.question} <span className="text-[11px]" style={{ color: MUTED }}>· {check.status}</span></summary>
-            <p className="text-[12px] mt-3" style={{ color: MUTED }}>{check.interpretation}</p>
-            {check.rows.map((row, i) => <dl key={i} className="text-[12px] my-3 p-3" style={{ background: PANEL }}>
-              {Object.entries(row).map(([key, value]) => <div key={key} className="flex flex-wrap gap-x-2 py-1 break-all"><dt style={{ color: MUTED }}>{key.replaceAll('_', ' ')}:</dt><dd style={{ color: INK }}>{value == null ? 'not recorded' : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>)}
-            </dl>)}
-            <p className="text-[12px] mt-2" style={{ color: INK }}>Next: {check.action}</p>
-            <details className="text-[11px] mt-2" style={{ color: MUTED }}><summary>Measurement source</summary><code className="block whitespace-pre-wrap break-all mt-2">{check.query}</code></details>
-          </details>)}
-        </> : <p style={{ color: MUTED }}>Memory review unavailable from this server. No quality claim can be made.</p>}
-      </section>
-
-      <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: ACCENT }}>How the store changed — not a quality score</h2>
-        <Trend snaps={snapshots} />
-      </section>
-
-      {/* AXIS 2 — you vs the frontier (secondary) */}
-      <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-1" style={{ color: MUTED }}>You vs the frontier — secondary</h2>
-        <p className="text-[12px] mb-3" style={{ color: MUTED }}>
-          <span style={{ fontFamily: MONO, color: INK }}>{passing}/{measurable}</span> measurable checks pass ·
-          reference: docs/memory-context-frontier-2026-08.md
-        </p>
-        <div className="space-y-2">
-          {axis2.map(c => (
-            <div key={c.id} className="p-3 rounded-lg" style={{ background: PANEL, border: `1px solid ${LINE}` }}>
-              <div className="flex items-baseline gap-2.5">
-                <span className="text-[10px] uppercase tracking-wider w-24 shrink-0" style={{ color: VERDICT_COLOR[c.verdict], fontWeight: 700 }}>{c.verdict}</span>
-                <span className="text-[13px] min-w-0 flex-1 break-words" style={{ color: INK }}>{c.claim}</span>
-              </div>
-              <p className="text-[11.5px] mt-1 md:ml-[6.6rem] break-words" style={{ fontFamily: MONO, color: MUTED }}>{c.probe}</p>
-              <p className="text-[10.5px] mt-0.5 md:ml-[6.6rem] break-words" style={{ color: FAINT }}>{c.source}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* The census */}
-      <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: MUTED }}>The census</h2>
-        <CensusRow label="Skills" cell={census.skills} />
-        <CensusRow label="Routines" cell={census.routines} />
-        <CensusRow label="Memories, live" cell={census.memories.live} />
-        <CensusRow label="Memories, retired" cell={census.memories.retired} />
-        {census.memories.files && <CensusRow label="Memory files" cell={census.memories.files} />}
-        <CensusRow label="Sessions" cell={census.sessions} />
-      </section>
-
-      {/* Where context lives */}
-      <section>
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: MUTED }}>Where context lives</h2>
-        {census.context_files.map(f => (
-          <div key={f.label} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2" style={{ borderBottom: `1px solid ${LINE}` }}>
-            <span className="text-[13px] w-56 shrink-0" style={{ color: INK }}>{f.label}</span>
-            {f.exists ? (
-              <>
-                <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: INK }}>{f.lines} lines</span>
-                <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: MUTED }}>{((f.bytes ?? 0) / 1024).toFixed(1)}KB</span>
-                <span className="text-[11px]" style={{ color: FAINT }}>touched {f.age_days}d ago</span>
-              </>
-            ) : (
-              <span className="text-[12px]" style={{ color: FAINT }}>not found</span>
-            )}
-          </div>
-        ))}
-        <p className="text-[11px] mt-2" style={{ color: FAINT }}>
-          Connectors: {Object.entries(census.connectors).map(([k, v]) => `${k} ${v ? 'on' : 'off'}`).join(' · ') || 'none configured'}
-        </p>
-      </section>
+      const response = await fetch('/api/setup?fresh=1');
+      if (!response.ok) throw new Error(`Review unavailable (${response.status})`);
+      setReport(await response.json()); setError('');
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void refresh(); }, []);
+  const projects = report?.project_review;
+  const backed = projects?.projects.filter(p => p.state !== 'not event-backed') ?? [];
+  const unknown = (projects?.projects.length ?? 0) - backed.length;
+  const checks = report?.memory_review?.checks ?? [];
+  const embeddings = checks.find(c => c.id === 'embeddings')?.rows[0];
+  const index = checks.find(c => c.id === 'transcript-index');
+  return <main className="max-w-2xl mx-auto pb-12" style={{color: 'var(--helicon-ink)'}}>
+    <div className="flex justify-between items-center mb-8">
+      <h1 className="text-[28px]" style={{fontFamily: 'var(--helicon-serif)'}}>Your setup</h1>
+      <button className="text-sm" disabled={loading} onClick={() => void refresh()}>{loading ? 'Checking…' : 'Check now'}</button>
     </div>
-  );
+    {error && <p role="alert" className="mb-5">{error}. Any earlier reading below is not current.</p>}
+    {!report ? <p>Reading the local sources…</p> : <>
+      <section className="mb-7">
+        <h2 className="text-lg mb-2">The project board is not fully verified.</h2>
+        <p className="text-sm">{projects?.status === 'unmeasured' ? projects.reason : `${backed.length} project states have event records. ${unknown} do not. Old board hints must not become instructions.`}</p>
+        {!!projects?.findings.length && <p className="text-sm mt-2">There are conflicting records to resolve. See evidence below.</p>}
+      </section>
+      <section className="mb-7">
+        <h2 className="text-lg mb-2">Memory is stored. Its usefulness is not proven.</h2>
+        <p className="text-sm">{index?.status === 'measured' ? 'Conversation history is available.' : 'The conversation index could not be checked.'} {embeddings && Number(embeddings.with_embeddings) < Number(embeddings.live_memories) ? 'Some memories lack search vectors.' : ''} We have no reliable test showing that this memory improves completed work.</p>
+      </section>
+      <section className="mb-8">
+        <h2 className="text-lg mb-2">What matters next</h2>
+        <p className="text-sm">Keep old project instructions out of ZUP. Check retrieval on real questions before adding more memory or treating its counts as progress.</p>
+      </section>
+      <details className="text-sm" style={{borderTop: '1px solid var(--helicon-line)', paddingTop: 16}}>
+        <summary className="cursor-pointer">Evidence and technical details</summary>
+        <p className="my-4" style={{color:'var(--helicon-muted)'}}>Sources: ZUP's local project events and board; Helicon's memory store; Transcripto's conversation index. Checked {projects?.observed_at ?? report.memory_review?.observed_at ?? 'at an unknown time'}.</p>
+        {backed.map(p => <p key={p.id} className="my-3">{p.id}: {p.state}. {p.evidence}</p>)}
+        {projects?.findings.map((f, i) => <pre className="whitespace-pre-wrap break-words" key={i}>{JSON.stringify(f, null, 2)}</pre>)}
+        {checks.map(c => <details key={c.id} className="py-3">
+          <summary>{c.question}</summary>
+          <p className="my-2">{c.status}: {c.interpretation}</p>
+          <pre className="text-xs whitespace-pre-wrap break-words">{JSON.stringify(c.rows, null, 2)}</pre>
+          <p className="text-xs mt-2 break-words">{c.query}</p>
+        </details>)}
+      </details>
+    </>}
+  </main>;
 }
