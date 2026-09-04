@@ -1,5 +1,6 @@
 """Read-only memory operating review. Measurements are not a health grade."""
 import sqlite3
+import json
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ LIVE = "merged_into IS NULL AND review_status NOT IN ('killed','superseded')"
 
 def memory_review(conn, trace_db=None):
     checks = []
+    store = next((r[2] for r in conn.execute('PRAGMA database_list') if r[1] == 'main'), '') or 'in-memory database'
     trace = Path(trace_db) if trace_db is not None else Path.home() / ".trace/trace.db"
     trace_sql = "SELECT count(*) AS messages, count(DISTINCT session_id) AS sessions, sum(cwd IS NULL OR trim(cwd)='') AS missing_project_paths, sum(julianday(ts) IS NULL) AS invalid_event_times, strftime('%Y-%m-%dT%H:%M:%fZ',max(julianday(ts))) AS latest_event FROM messages"
     try:
@@ -56,7 +58,7 @@ def memory_review(conn, trace_db=None):
             "These are the last five recorded scans, not proof all source material was captured.",
             "Resolve scan errors and compare raw-source counts with indexed counts.")
     measure("embeddings", "Can semantic retrieval cover live memory?",
-            f"SELECT count(*) AS live_memories, sum(EXISTS(SELECT 1 FROM cube_embeddings e WHERE e.cube_id=c.id)) AS with_embeddings FROM helicon_cubes c WHERE {LIVE}",
+            f"SELECT count(*) AS live_memories, coalesce(sum(EXISTS(SELECT 1 FROM cube_embeddings e WHERE e.cube_id=c.id)),0) AS with_embeddings FROM helicon_cubes c WHERE {LIVE}",
             "Coverage counts embeddings for live IDs only. It does not measure relevance or vector freshness.",
             "Inspect missing live embeddings and confirm model compatibility before rebuilding.")
     measure("embedding-models", "Are vector models mixed?",
@@ -92,5 +94,67 @@ def memory_review(conn, trace_db=None):
         checks.append(dict(id=key, question=question, status="unmeasured", rows=[], query="not run",
             interpretation="No validated measurement is supplied by this review. Absence of a finding is not a clean result.",
             action="Join the relevant evaluation or drift receipts to a fixed population before reporting a score."))
+    for check in checks:
+        check['source'] = str(trace) if check['id'] == 'transcript-index' else store
     return dict(schema="helicon.memory-review/1", observed_at=datetime.now(timezone.utc).isoformat(),
-                scope="Local transcript index and current memory store; no source writes or model calls", checks=checks)
+                scope="Local transcript index and current memory store; no source writes or model calls", checks=checks,
+                **operating_summary(checks))
+
+
+def operating_summary(checks):
+    """Explain separate measured stores without claiming a verified ingestion chain."""
+    by_id = {c['id']: c for c in checks}
+    def first(key):
+        check = by_id[key]
+        return check['rows'][0] if check['status'] == 'measured' and check['rows'] else None
+
+    index, vectors, retrieval = (first(k) for k in ('transcript-index', 'embeddings', 'retrieval'))
+    population = by_id['population']
+    live = sum(r['memories'] for r in population['rows'] if r['review_status'] not in ('killed', 'superseded')) if population['status'] == 'measured' else None
+    stages = [
+        dict(id='history', title='Saved conversations', checks=['transcript-index'],
+             state='unavailable' if index is None else 'empty' if not index['messages'] else 'measured',
+             summary='Index unavailable' if index is None else f"{index['messages']:,} messages in {index['sessions']:,} sessions",
+             source="Transcripto's local conversation index", watermark=index.get('latest_event') if index else None,
+             limit='Raw conversations were not compared. Capture completeness is unknown.'),
+        dict(id='memory', title='Copied memory', checks=['population', 'sources', 'scans', 'duplicates'],
+             state='unavailable' if live is None else 'empty' if not live else 'measured',
+             summary='Memory store unavailable' if live is None else f'{live:,} live memories',
+             source="Helicon's local memory records", watermark=None,
+             limit='Copies from connectors, not every live app. Source dates are shown in the evidence.'),
+        dict(id='search', title='Search preparation', checks=['embeddings', 'embedding-models', 'search'],
+             state='unavailable' if vectors is None else 'empty' if not vectors['live_memories'] else 'measured',
+             summary='Vector coverage unavailable' if vectors is None else f"{vectors['with_embeddings']:,} of {vectors['live_memories']:,} live memories have vectors",
+             source="Helicon's embedding records and keyword search", watermark=None,
+             limit='Stored vectors do not prove semantic retrieval works. Keyword probes do not test relevance.'),
+        dict(id='use', title='Recorded use', checks=['retrieval', 'correctness', 'contradictions', 'benefit'],
+             state='unavailable' if retrieval is None else 'empty' if not retrieval['recorded_events'] else 'measured',
+             summary='Retrieval log unavailable' if retrieval is None else f"{retrieval['recorded_events']:,} retrieval events; {retrieval['marked_acted_on']:,} marked acted on",
+             source="Helicon's retrieval instrumentation", watermark=retrieval.get('latest_event') if retrieval else None,
+             limit='Only logged use is visible. Whether memory improved an outcome is not measured.'),
+    ]
+    findings = []
+    unavailable = [c['id'] for c in checks if c['status'] != 'measured' and c['id'] not in ('correctness', 'contradictions', 'benefit')]
+    if unavailable:
+        findings.append(dict(kind='source-unavailable', title='Some evidence could not be read',
+                             consequence='This review cannot establish coverage for those checks.',
+                             action='Inspect the unavailable source before treating this as a clean review.', checks=unavailable))
+    if index and (index.get('invalid_event_times') or index.get('missing_project_paths')):
+        findings.append(dict(kind='incomplete-transcript-fields', title='Some conversations lack usable dates or project paths',
+                             consequence='Project matching and freshness can be incomplete.', action='Inspect the index field counts.', checks=['transcript-index']))
+    if vectors and vectors['with_embeddings'] < vectors['live_memories']:
+        findings.append(dict(kind='missing-vectors', title='Some live memories have no search vector',
+                             consequence='Vector search cannot cover those memory IDs.',
+                             action='Inspect coverage and model compatibility before rebuilding.', checks=['embeddings', 'embedding-models']))
+    scan = first('scans')
+    if scan:
+        try:
+            errors = json.loads(scan['errors']) if isinstance(scan.get('errors'), str) else scan.get('errors')
+        except ValueError:
+            errors = scan['errors']
+        if errors or not scan.get('completed_at'):
+            findings.append(dict(kind='scan-incomplete', title='The latest recorded scan is incomplete or has errors',
+                                 consequence='Some connector material may not have reached memory.',
+                                 action='Inspect the scan receipt before calling ingestion complete.', checks=['scans']))
+    return dict(stages=stages, findings=findings,
+                relationship='Separate local observations. This review does not prove conversations became memory or memory reached an agent.')

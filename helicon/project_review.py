@@ -7,6 +7,18 @@ from pathlib import Path
 TERMINAL = {"submitted", "delivered", "accepted", "lost", "won", "cancelled"}
 
 
+def independent_question(row, project):
+    relation = (row.get('decision') or {}).get('stateRelation') or {}
+    try:
+        at = datetime.fromisoformat(relation.get('confirmedAt', '').replace('Z', '+00:00'))
+        bound = (relation.get('stateEventID') == project['stateEventId']) if project.get('stateEventId') else bool(project.get('stateObservedAt') and relation.get('stateObservedAt') == project['stateObservedAt'])
+        return bool(relation.get('kind') == 'independent-question' and relation.get('source') == 'operator'
+                    and str(relation.get('milestoneID') or '').strip() and bound
+                    and at.tzinfo is not None and at <= datetime.now(timezone.utc))
+    except (ValueError, TypeError):
+        return False
+
+
 def project_review(home=None):
     root = Path(home) if home is not None else Path(os.environ.get("ZUP_HOME", str(Path.home() / ".zen")))
     result = dict(schema="helicon.project-review/1", observed_at=datetime.now(timezone.utc).isoformat(),
@@ -41,25 +53,33 @@ def project_review(home=None):
             if old_ids:
                 result["findings"].append(dict(kind="duplicate-project-identity", project=p["id"], aliases=sorted(old_ids)))
             receipt = by_event.get(p.get("stateEventId"))
+            valid_receipt = bool(receipt and receipt["type"] == p.get("lifecycle")
+                                 and receipt["evidence"] == p.get("stateEvidence")
+                                 and receipt["projectId"] in {p["id"], *p.get("aliases", [])})
             dated_ruling = False
             try:
                 observed = datetime.fromisoformat(p.get("stateObservedAt", "").replace("Z", "+00:00"))
                 dated_ruling = bool(p.get("stateEvidence")) and observed.tzinfo is not None and observed <= datetime.now(timezone.utc)
             except (ValueError, TypeError):
                 pass
-            if not receipt and not dated_ruling:
+            # A broken linked receipt cannot be upgraded to a trusted ruling by
+            # repeating its text and timestamp in the projection being checked.
+            if p.get('stateEventId') and not valid_receipt:
+                dated_ruling = False
+            if not valid_receipt and not dated_ruling:
                 undated.append(p["id"])
             if p.get("stateEventId") and not receipt:
                 result["findings"].append(dict(kind="missing-event", project=p["id"]))
-            if receipt and (receipt["type"] != p.get("lifecycle") or receipt["evidence"] != p.get("stateEvidence")
-                            or receipt["projectId"] not in {p["id"], *p.get("aliases", [])}):
+            if receipt and not valid_receipt:
                 result["findings"].append(dict(kind="projection-disagrees-with-event", project=p["id"]))
             if p.get("lifecycle") in TERMINAL:
                 matching = [q for q in queue["queue"] if q["id"] in {p["id"], *p.get("aliases", [])}]
-                if any(q.get("needsHuman") or q.get("band") != "PARKED" for q in matching):
+                if any(q.get("band") != "PARKED" and not independent_question(q, p) for q in matching):
                     result["findings"].append(dict(kind="settled-project-reopened-in-queue", project=p["id"]))
+                if any(q.get('needsHuman') and not independent_question(q, p) for q in matching):
+                    result['findings'].append(dict(kind='unscoped-settled-project-request', project=p['id']))
             result["projects"].append(dict(id=p["id"], state=p.get("lifecycle") or ("dated ruling" if dated_ruling else "not verified"),
-                evidence_status="event" if receipt else "ruling" if dated_ruling else "unverified",
+                evidence_status="event" if valid_receipt else "ruling" if dated_ruling else "unverified",
                 event_id=p.get("stateEventId"), source=p.get("stateSource"), observed_at=p.get("stateObservedAt"),
                 evidence=p.get("stateEvidence"), historical_ids=p.get("identityHistory", [])))
         for finding in board.get("stateReview", {}).get("findings", []):
@@ -75,6 +95,7 @@ def project_review(home=None):
             "missing-event": ("A displayed state has no matching event", "Its evidence cannot be checked.", "Recover the receipt or mark the state unverified."),
             "projection-disagrees-with-event": ("The board contradicts its event receipt", "The displayed phase is not reliable.", "Rebuild the board from the authoritative event."),
             "settled-project-reopened-in-queue": ("A settled phase is back in the action queue", "Completed work can be requested again.", "Remove the obsolete action; preserve the achievement."),
+            "unscoped-settled-project-request": ("A question on a settled project has no decision record", "It may be new work or an obsolete step; this check cannot tell.", "Attach the current question and its evidence before routing it."),
             "zup-reported-conflict": ("Project records conflict", "A current state cannot be selected safely.", "Resolve the conflicting receipts."),
         }
         for finding in result["findings"]:
