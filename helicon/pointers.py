@@ -153,6 +153,18 @@ def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
     if "*" in rel or "?" in rel:
         import glob as _glob                            # `contracts/src/FavourEscrowV2*.sol`
         return rel, bool(_glob.glob(os.path.join(repo_root, rel)))
+    # Host paths before the repo walk: present → resolved; absent → ungradable
+    # (not a repo lie). Check the raw token — `_norm` strips a leading `/`, which
+    # would turn `/Users/x/y.md` into a fake relative path.
+    if _machine_local(tok):
+        host = tok.strip().strip("'\"")
+        if host.startswith("~"):
+            ok = os.path.exists(os.path.expanduser(host))
+            return (host, True) if ok else None
+        if os.path.isabs(host):
+            ok = os.path.exists(host)
+            return (host, True) if ok else None
+        return None
     if _exists(repo_root, rel):
         return rel, True
     names, dirs, files = _tree(repo_root)
@@ -162,6 +174,34 @@ def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
         # `/api/escrow-v2` is route-shaped: resolved if any directory ends with it, else not gradable
         return (rel, True) if any(d == rel or d.endswith("/" + rel) for d in dirs) else None
     return rel, False
+
+
+def _machine_local(tok: str) -> bool:
+    """True when the token names a host path, not an intra-repo path or URL route.
+
+    Same doctrine as R14 external commands: the provider is outside the repo, so
+    *absence* proves nothing about whether the instruction file lies about the
+    repo. Present host paths still resolve; missing ones are ungradable — never
+    a "setup lies" finding. (2026-09-05: cold clone of this product graded B
+    solely because `~/.helicon/config.json` was absent on the reviewer's machine.)
+
+    `/api/escrow-v2` is NOT machine-local — it is a route (see `_resolve`). Only
+    `~/…` and absolute paths under a filesystem root (or with a code extension)
+    count.
+    """
+    t = tok.strip().strip("'\"")
+    if t.startswith("~"):
+        return True
+    if not os.path.isabs(t):
+        return False
+    if t.lower().endswith(_CODE_EXT):
+        return True
+    # `/Users/x/y`, `/home/x/y`, `/tmp/x` — host. `/api/x` — route, not here.
+    first = t.split("/", 2)[1] if t.startswith("/") and len(t) > 1 else ""
+    return first in {
+        "Users", "home", "tmp", "var", "etc", "opt", "private", "root",
+        "Volumes", "mnt", "data", "workspace",
+    }
 
 
 def _exists(repo_root: str, rel: str) -> bool:
@@ -199,8 +239,41 @@ def _wikilink_resolves(repo_root: str, name: str) -> bool:
 
 
 def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
+    """Extract and grade repo pointers. Machine-local gaps are recorded separately
+    via extract_machine_gaps — they do not appear here as broken pointers."""
+    out, _gaps = _extract(text, repo_root)
+    return out
+
+
+def extract_machine_gaps(text: str, repo_root: str) -> list[dict]:
+    """Host paths named in the file that are absent on this machine.
+
+    Not repo-lies. Surfaced so a reader can see what the grader refused to convict
+    on, instead of silently dropping them."""
+    _out, gaps = _extract(text, repo_root)
+    return gaps
+
+
+def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
     out: list[Pointer] = []
+    gaps: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    seen_gaps: set[str] = set()
+
+    def note_gap(kind: str, raw: str, line_no: int, line: str):
+        key = raw.strip()
+        if key in seen_gaps:
+            return
+        # Described absences are not even machine gaps worth listing.
+        prose = line.replace(raw, " ")
+        if _NEGATION.search(prose):
+            return
+        seen_gaps.add(key)
+        gaps.append({
+            "kind": kind, "raw": raw, "target": _norm(raw.strip("`")),
+            "line_no": line_no, "line": line.strip()[:160],
+            "receipt": "machine-local path not on this host (not a repo lie)",
+        })
 
     def add(kind: str, raw: str, target: str, line_no: int, line: str, resolved: bool, receipt: str):
         key = (kind, raw)
@@ -217,6 +290,16 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
         seen.add(key)
         out.append(Pointer(kind, raw, target, line_no, line.strip()[:160], resolved, receipt))
 
+    def grade_path(kind: str, raw: str, display: str, line_no: int, line: str, miss_msg: str):
+        r = _resolve(repo_root, raw)
+        if r is None:
+            if _machine_local(raw):
+                note_gap(kind, display, line_no, line)
+            return
+        rel, ok = r
+        add(kind, display, rel, line_no, line, ok,
+            "resolved" if ok else miss_msg.format(rel=rel))
+
     for i, line in enumerate(text.splitlines(), 1):
         for m in _RE_IMPORT.finditer(line):
             raw = m.group(1)
@@ -224,20 +307,28 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
             # no extension and nothing on disk → not an import, not graded.
             if _looks_like_path(raw):
                 r = _resolve(repo_root, raw)
-                if r is None or (not r[1] and not raw.lower().endswith(_CODE_EXT)):
+                if r is None:
+                    if _machine_local(raw):
+                        note_gap("IMPORT", "@" + raw, i, line)
+                    elif raw.lower().endswith(_CODE_EXT):
+                        # Missing repo @import with extension — still broken. The old
+                        # path required (not r[1] and not ext) to continue; None with
+                        # an extension used to fall through only when resolve returned
+                        # (rel, False). Re-check: previously if r is None OR (not ok and
+                        # not ext): continue. So None always continued. Machine gap is
+                        # the only new None case we want to note; other Nones stay skipped.
+                        pass
                     continue
                 rel, ok = r
+                if not ok and not raw.lower().endswith(_CODE_EXT):
+                    continue
                 add("IMPORT", "@" + raw, rel, i, line, ok,
                     "resolved" if ok else f"@import target not in repo: {rel}")
         for m in _RE_MDLINK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and not _SCHEME.match(raw.strip()):
-                r = _resolve(repo_root, raw)
-                if r is None:
-                    continue
-                rel, ok = r
-                add("MDLINK", raw, rel, i, line, ok,
-                    "resolved" if ok else f"linked path not in repo: {rel}")
+                grade_path("MDLINK", raw, raw, i, line,
+                           "linked path not in repo: {rel}")
         for m in _RE_WIKILINK.finditer(line):
             raw = m.group(1)
             ok = _wikilink_resolves(repo_root, raw)
@@ -246,24 +337,16 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
         for m in _RE_BACKTICK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and " " not in raw.strip():
-                r = _resolve(repo_root, raw)
-                if r is None:
-                    continue
-                rel, ok = r
-                add("BACKTICK", f"`{raw}`", rel, i, line, ok,
-                    "resolved" if ok else f"path in code font not in repo: {rel}")
+                grade_path("BACKTICK", raw, f"`{raw}`", i, line,
+                           "path in code font not in repo: {rel}")
         # Code spans were graded above; scanning them again as bare prose is how
         # `~/.zen/zup-active.json` produced a second, mangled pointer `zen/zup-active.json`.
         for m in _RE_BARE.finditer(_RE_CODESPAN.sub(" ", line)):
             raw = m.group(1).rstrip(".-")
             if _looks_like_path(raw) and raw.lower().endswith(_CODE_EXT):
-                r = _resolve(repo_root, raw)
-                if r is None:
-                    continue
-                rel, ok = r
-                add("BARE", raw, rel, i, line, ok,
-                    "resolved" if ok else f"bare path not in repo: {rel}")
-    return out
+                grade_path("BARE", raw, raw, i, line,
+                           "bare path not in repo: {rel}")
+    return out, gaps
 
 
 def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
@@ -273,6 +356,10 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     broken pointers with the exact line and the contradicting repo fact. UNMEASURED
     only when no instruction file with any checkable pointer exists — never a silent
     green (a repo with no pointers to grade is not the same as a clean repo).
+
+    machine_gaps lists host paths (`~/…`, absolute) named in the file but absent on
+    this machine. They are NOT broken and do not affect verdict or grade — same
+    doctrine as R14 external commands.
     """
     targets: list[str] = []
     if files:
@@ -282,6 +369,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
                    if os.path.exists(os.path.join(repo_root, f))]
 
     pointers: list[Pointer] = []
+    machine_gaps: list[dict] = []
     read_files: list[str] = []
     for rel in targets:
         try:
@@ -290,9 +378,15 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
         except OSError:
             continue
         read_files.append(rel)
-        for p in extract_pointers(text, repo_root):
+        found, gaps = _extract(text, repo_root)
+        for p in found:
             p.receipt = f"{rel}:{p.line_no} — {p.receipt}"
             pointers.append(p)
+        for g in gaps:
+            g = dict(g)
+            g["file"] = rel
+            g["receipt"] = f"{rel}:{g['line_no']} — {g['receipt']}"
+            machine_gaps.append(g)
 
     broken = [p for p in pointers if not p.resolved]
     if not read_files or not pointers:
@@ -307,6 +401,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
         "checked": len(pointers),
         "broken": len(broken),
         "files": read_files,
+        "machine_gaps": machine_gaps,
         "receipts": [
             {"kind": p.kind, "raw": p.raw, "line_no": p.line_no,
              "line": p.line, "receipt": p.receipt}
@@ -323,6 +418,11 @@ def format_pointers(res: dict) -> str:
     lines = [head]
     for r in res["receipts"]:
         lines.append(f"  ✗ {r['kind']} {r['raw']}  →  {r['receipt']}")
+    gaps = res.get("machine_gaps") or []
+    if gaps:
+        lines.append(f"  · {len(gaps)} machine-local path(s) absent on this host (not repo lies)")
+        for g in gaps:
+            lines.append(f"    · {g['receipt']}: {g['raw']}")
     return "\n".join(lines)
 
 

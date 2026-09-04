@@ -1,46 +1,52 @@
-# hack.md — HELICON-S2 subtraction ship (help groups)
+# hack.md — OVERNIGHT 2026-09-05 · env-pointer lie grade
 
 ## NORTH STAR
 
-A stranger runs `helicon --help` and immediately sees **one reason to install**: find which agent documents are lying, with evidence, before work starts (`helicon truth`).
+A cold clone of this repo must not be graded as lying because the reviewer's machine lacks Oscar's `~/.helicon/config.json`.
 
 ## PROMISE LINE
 
-**GET:** Grouped CLI help — Verify · Lab · Harness — with `truth` first under Verify and a one-line product sentence at the top.
+**GET:** Machine-local paths (`~/…`, absolute outside the tree) leave the "setup lies about this repo" grade — same doctrine as external commands (R14): absence outside the repo proves nothing about the repo.
 
-**CONSTRAINT:** No subcommand deleted; no PyPI publish; outward acts are Oscar's click.
+**CONSTRAINT:** Intra-repo dead pointers still fire. No PyPI publish. Outward acts are Oscar's click (no public post/submit; draft PR is delivery only).
 
 ## OPEN QUESTIONS
 
-- **BLOCKING:** none for this slice (grouping is copy/UX only per `docs/SUBTRACTION-MEMO.md`).
-- **NON-BLOCKING:** Which ungrouped commands deserve a fourth group later (79 total; only 12 grouped tonight).
+- **BLOCKING:** none — doctrine already shipped for commands (`test_external_commands_are_unmeasured_not_false_alarms`); pointers lagged.
+- **NON-BLOCKING:** Should present `~/…` paths stay in the checked denominator (today: yes, as resolved) or also leave it? Keeping them in for now so a resolved home path still counts as evidence the extractor saw it.
+- **NON-BLOCKING:** R1b same-source contradiction (ROADMAP) — next slice, not tonight's NOW unless Slice 1 finishes early with headroom.
 
 ## CONSTITUTION
 
-1. Run it, do not read it — every checkbox needs the command that proved it.
-2. Re-derive numbers at the object (`pytest -q`, `launch_check.py`), never carry figures from prompts.
-3. Minimal diff in `helicon/cli.py` (subparsers/help only).
-4. Do not delete subcommands, reorganise the repo, or publish to PyPI.
-5. Report SHIPPED / VERIFIED / WRONG; WRONG is mandatory.
+1. Run it, do not read it — every checkbox names the command that proved it.
+2. Re-derive numbers at the object; never carry figures from this prompt or prior receipts.
+3. A control that has not been watched going RED is not a control — the cold-HOME self-review must fail on main before the fix and pass after.
+4. Never rank by title; open the object (clean HOME, this checkout, public fixtures).
+5. Baseline arm required: naive "missing ~/ = broken" vs env-aware; if naive wins anywhere that matters, that is the finding.
+6. Report SHIPPED / VERIFIED / WRONG; WRONG is mandatory.
 
 ## PLAN
 
-1. **Slice 1 (NOW):** Help groups + product one-liner + launch receipt S2 section + launch_contract pytest. *Risk: argparse has no native subcommand groups — custom formatter must not break existing commands.*
-2. Slice 2: README ≤400 lines with truth → witness → review path only (deferred).
-3. Slice 3: PyPI description matches README lead (Oscar gate, deferred).
+1. **Slice 1 (NOW / riskiest):** Env-local missing pointers are not repo-lies. Extract skips them from broken/checked (like ungradable slash-commands), optionally surfaces `machine_gaps` for honesty. Cold-HOME control + baseline eval + precision/pointer tests + `docs/HELICON-RECEIPT-2026-09-05.md`. *Risk: buying precision by silencing real agent dead-ends that name `~/CODE/...` — baseline arm must keep a fixture where the naive grader "catches" a missing home path and we state we intentionally exclude it from the lie grade.*
+2. Slice 2: R1b same-source contradiction detector (ROADMAP Camp II) — only if Slice 1 is green with headroom.
+3. Slice 3: README ≤400 / PyPI lead (SUBTRACTION-MEMO) — Oscar gate, deferred.
 
 ## NOW
 
-**Slice 1 only:** Add Verify/Lab/Harness labels in `helicon/cli.py`; product sentence from SUBTRACTION-MEMO at top of `--help`; append S2 before/after to `docs/HELICON-LAUNCH-RECEIPT-2026-09-01.md`; run `python3 -m pytest tests/test_launch_contract.py -q` and `python3 scripts/launch_check.py`.
+**Slice 1 only:** Env-local pointer lie-grade fix + cold-HOME control + naive baseline comparison + named receipt.
 
 **Done when:**
-- `helicon --help` shows Verify group with `truth` as first listed command
-- receipt updated with before/after `helicon --help | head -20`
-- launch_check READY; launch_contract pytest count logged
+- [x] `HOME=<empty> helicon review .` on this checkout: 0 broken from `~/.helicon/config.json` — ran: `HOME=$EMPTY PYTHONPATH=/workspace python3 -m helicon.review /workspace` → exit 0, GRADE A, 0 broken, 1 machine_gap
+- [x] Intra-repo dead pointer still ROT FOUND — `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_pointers.py::test_a_plain_missing_pointer_is_still_flagged_after_the_precision_fix` (in 44-pass batch)
+- [x] Existing home-path-present still not broken — `tests/test_pointers_precision.py::test_home_path_in_code_font_is_graded_once_at_home_not_twice`
+- [x] Baseline script prints naive vs env-aware counts — `python3 scripts/pointer_env_baseline.py /workspace` → 2 DISAGREE
+- [x] Pointer/review/commands pytest green — 44 passed. `launch_contract` **honest BLOCKED** (pre-existing `package-metadata`, exit 1 on main too)
+- [x] `helicon --help` still shows Verify with `truth` first — exit 0
+- [x] `docs/HELICON-RECEIPT-2026-09-05.md` exists with commands + exit codes
 
 ## LOG
 
-- 2026-08-31: Pulled `origin/main` (d7b0853); `hack.md` did not exist — wrote contract before code.
-- 2026-08-31: S2 shipped — `_HeliconArgumentParser` groups Verify/Lab/Harness in `helicon/cli.py`; receipt S2 section appended.
-- 2026-08-31: `python3 scripts/launch_check.py` → READY; `TMPDIR="$HOME/pytmp" python3 -m pytest tests/test_launch_contract.py -q` → 8 passed.
-- 2026-08-31: First `helicon --help` failed — `HelpFormatter.add_usage()` missing `groups` on Py3.12; fixed with `self._mutually_exclusive_groups`.
+- 2026-09-04: Read contract `hack.md` (was S2 help-groups, done). `git log -5` on main → first-screen + witness-share. Ran `helicon review .` → GRADE B, sole finding `AGENTS.md:63 ~/.helicon/config.json` — file absent on this VM (`ls` exit 2). Own-board doc claimed A only because author's HOME had the file. Commands already exclude external providers; pointers did not. Slice 1 chosen.
+- 2026-09-04: Branch `cursor/env-pointer-lie-grade-9d89` from `origin/main` @ 8714be6.
+- 2026-09-04: Slice 1 implemented. Cold HOME control: GRADE B→A. Pytest pointers/review/commands **44 passed**. Baseline 2 DISAGREE. `launch_check` **BLOCKED** pre-existing `package-metadata` (exit 1). Receipt: `docs/HELICON-RECEIPT-2026-09-05.md`.
+- 2026-09-04: Done-when checks — cold HOME review run (`HOME=… PYTHONPATH=… python3 -m helicon.review`); intra-repo dead still fires (pytest); baseline printed; `--help` Verify/truth first.
