@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 type Check = { id: string; question: string; status: string; interpretation: string; query: string; rows: Record<string, unknown>[] };
 type Report = {
-  project_review?: { status: string; reason?: string; projects: {id: string; state: string; evidence?: string}[]; findings: Record<string, unknown>[]; observed_at: string };
+  project_review?: { status: string; reason?: string; projects: {id: string; state: string; evidence?: string; evidence_status?: string}[]; findings: {kind: string; title?: string; consequence?: string; action?: string; project?: string}[]; observed_at: string };
   memory_review?: { observed_at: string; checks: Check[] };
 };
 
@@ -21,8 +21,7 @@ export default function SetupView() {
   }
   useEffect(() => { void refresh(); }, []);
   const projects = report?.project_review;
-  const backed = projects?.projects.filter(p => p.state !== 'not event-backed') ?? [];
-  const unknown = (projects?.projects.length ?? 0) - backed.length;
+  const backed = projects?.projects.filter(p => ['event', 'ruling'].includes(p.evidence_status ?? '')) ?? [];
   const checks = report?.memory_review?.checks ?? [];
   const embeddings = checks.find(c => c.id === 'embeddings')?.rows[0];
   const index = checks.find(c => c.id === 'transcript-index');
@@ -34,9 +33,12 @@ export default function SetupView() {
     {error && <p role="alert" className="mb-5">{error}. Any earlier reading below is not current.</p>}
     {!report ? <p>Reading the local sources…</p> : <>
       <section className="mb-7">
-        <h2 className="text-lg mb-2">The project board is not fully verified.</h2>
-        <p className="text-sm">{projects?.status === 'unmeasured' ? projects.reason : `${backed.length} project states have event records. ${unknown} do not. Old board hints must not become instructions.`}</p>
-        {!!projects?.findings.length && <p className="text-sm mt-2">There are conflicting records to resolve. See evidence below.</p>}
+        <h2 className="text-lg mb-2">What needs attention</h2>
+        {!projects || projects.status === 'unmeasured' ? <p className="text-sm">Project checks are unavailable. {projects?.reason}</p> : projects.findings.length ? projects.findings.slice(0, 3).map((finding, i) => <div key={i} className="my-4">
+          <p className="text-sm font-medium">{finding.title ?? 'Project records disagree'}{finding.project ? `: ${finding.project}` : ''}</p>
+          <p className="text-sm mt-1">{finding.consequence}</p>
+          <p className="text-sm mt-1" style={{color: 'var(--helicon-muted)'}}>{finding.action}</p>
+        </div>) : <p className="text-sm">No conflicts found in the project checks run. This does not verify every source or prove memory quality.</p>}
       </section>
       <section className="mb-7">
         <h2 className="text-lg mb-2">Memory is stored. Its usefulness is not proven.</h2>
