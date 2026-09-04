@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
 type Check = { id: string; question: string; status: string; interpretation: string; action: string; source?: string; query: string; rows: Record<string, unknown>[] };
-type Finding = {kind: string; title?: string; consequence?: string; action?: string; project?: string; checks?: string[]};
+type Finding = {kind: string; title?: string; consequence?: string; action?: string; project?: string; projects?: string[]; checks?: string[]};
 type Stage = {id: string; title: string; state: string; summary: string; source: string; watermark?: string; limit: string; checks: string[]};
 type Report = {
-  project_review?: { status: string; reason?: string; projects: {id: string; state: string; evidence?: string; evidence_status?: string}[]; findings: {kind: string; title?: string; consequence?: string; action?: string; project?: string}[]; observed_at: string };
+  project_review?: { status: string; reason?: string; projects: {id: string; state: string; source?: string; observed_at?: string; evidence?: string; evidence_status?: string}[]; findings: Finding[]; observed_at: string };
   memory_review?: { observed_at: string; checks: Check[]; stages?: Stage[]; findings?: Finding[]; relationship?: string };
 };
 
@@ -49,6 +49,23 @@ export default function SetupView() {
       <details className="text-xs"><summary>Source query</summary><p className="mt-2 break-words">{check.source}</p><pre className="mt-2 whitespace-pre-wrap break-words">{check.query}</pre></details>
     </details>;
   }
+  function affectedProjects(finding: Finding) {
+    const ids = finding.projects ?? (finding.project ? [finding.project] : []);
+    if (!ids.length) return null;
+    return <details className="text-sm mt-2">
+      <summary className="cursor-pointer">Inspect affected projects</summary>
+      {ids.map(id => {
+        const project = projects?.projects.find(p => p.id === id);
+        return <div key={id} className="my-4 pl-3" style={{borderLeft:'1px solid var(--helicon-line)'}}>
+          <p className="font-medium">{id}</p>
+          <p className="mt-1">State: {project?.state ?? 'Not recorded'}</p>
+          <p className="mt-1" style={{color:'var(--helicon-muted)'}}>State source: {project?.source ?? 'Not recorded'}</p>
+          {project?.observed_at && <p className="mt-1">Recorded: {recordedTime(project.observed_at)}</p>}
+          {project?.evidence && <p className="mt-1">{project.evidence}</p>}
+        </div>;
+      })}
+    </details>;
+  }
   return <div className="max-w-2xl mx-auto pb-12" style={{color: 'var(--helicon-ink)'}}>
     <div className="flex justify-between items-center mb-8">
       <h1 className="text-[28px]" style={{fontFamily: 'var(--helicon-serif)'}}>Your setup</h1>
@@ -64,9 +81,10 @@ export default function SetupView() {
           <p className="text-sm mt-1">{finding.consequence}</p>
           <p className="text-sm mt-1" style={{color: 'var(--helicon-muted)'}}>{finding.action}</p>
           {finding.checks && <details className="text-sm mt-2"><summary className="cursor-pointer">Inspect evidence</summary>{checks.filter(c => finding.checks?.includes(c.id)).map(evidence)}</details>}
+          {affectedProjects(finding)}
         </div>) : projects?.status === 'measured' && report.memory_review && <p className="text-sm">No issues found by the checks run. Memory correctness and benefit remain unmeasured.</p>}
         {!report.memory_review && <p className="text-sm">Memory checks are unavailable. No memory-quality conclusion can be drawn.</p>}
-        {findings.length > 3 && <details className="text-sm"><summary>{findings.length - 3} more findings</summary>{findings.slice(3).map((f,i)=><div key={i} className="my-4"><p>{f.title}</p><p className="mt-1">{f.consequence}</p><p className="mt-1">{f.action}</p>{checks.filter(c => f.checks?.includes(c.id)).map(evidence)}</div>)}</details>}
+        {findings.length > 3 && <details className="text-sm"><summary>{findings.length - 3} more findings</summary>{findings.slice(3).map((f,i)=><div key={i} className="my-4"><p>{f.title}</p><p className="mt-1">{f.consequence}</p><p className="mt-1">{f.action}</p>{checks.filter(c => f.checks?.includes(c.id)).map(evidence)}{affectedProjects(f)}</div>)}</details>}
       </section>
       <section className="mb-7">
         <details className="text-sm">
