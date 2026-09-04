@@ -21,6 +21,10 @@ interface FileStat { label: string; path: string; exists: boolean; lines?: numbe
 interface Chip { id: string; claim: string; verdict: 'PASS' | 'FAIL' | 'UNMEASURED'; probe: string; source: string }
 interface Snapshot { day: string; skills: number | null; routines: number | null; memories_live: number | null; memories_retired: number | null; sessions: number | null; context_bytes: number | null; chips_pass: number; chips_fail: number; chips_unmeasured: number }
 interface SetupData {
+  memory_review?: { observed_at: string; scope: string; checks: Array<{
+    id: string; question: string; status: string; rows: Record<string, unknown>[];
+    interpretation: string; action: string; query: string;
+  }> };
   census: {
     skills: Cell; routines: Cell; sessions: Cell;
     memories: { live: Cell; retired: Cell; files?: Cell };
@@ -138,6 +142,29 @@ export default function SetupView() {
       </p>
 
       {/* AXIS 1 — you vs you (primary) */}
+      <section className="mb-9" aria-label="Index and memory review">
+        <h2 className="text-[18px] mb-2" style={{ color: INK }}>Index and memory review</h2>
+        {data.memory_review ? <>
+          <p className="text-[12px] mb-3" style={{ color: MUTED }}>{data.memory_review.scope} · observed {data.memory_review.observed_at}</p>
+          <div className="flex flex-wrap gap-5 mb-4" style={{ color: INK }}>
+            {data.memory_review.checks.filter(c => ['embeddings', 'retrieval'].includes(c.id)).flatMap(c => c.rows.slice(0, 1).map((row, i) =>
+              <p key={c.id + i} className="text-[14px]">{c.id === 'embeddings'
+                ? `${row.with_embeddings ?? '—'} / ${row.live_memories ?? '—'} live memories have embeddings`
+                : `${row.recorded_events ?? '—'} retrieval events · ${row.marked_acted_on ?? '—'} marked acted on`}</p>
+            ))}
+          </div>
+          {data.memory_review.checks.map(check => <details key={check.id} className="py-3" style={{ borderBottom: `1px solid ${LINE}` }}>
+            <summary className="cursor-pointer text-[14px]" style={{ color: INK }}>{check.question} <span className="text-[11px]" style={{ color: MUTED }}>· {check.status}</span></summary>
+            <p className="text-[12px] mt-3" style={{ color: MUTED }}>{check.interpretation}</p>
+            {check.rows.map((row, i) => <dl key={i} className="text-[12px] my-3 p-3" style={{ background: PANEL }}>
+              {Object.entries(row).map(([key, value]) => <div key={key} className="flex flex-wrap gap-x-2 py-1 break-all"><dt style={{ color: MUTED }}>{key.replaceAll('_', ' ')}:</dt><dd style={{ color: INK }}>{value == null ? 'not recorded' : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>)}
+            </dl>)}
+            <p className="text-[12px] mt-2" style={{ color: INK }}>Next: {check.action}</p>
+            <details className="text-[11px] mt-2" style={{ color: MUTED }}><summary>Measurement source</summary><code className="block whitespace-pre-wrap break-all mt-2">{check.query}</code></details>
+          </details>)}
+        </> : <p style={{ color: MUTED }}>Memory review unavailable from this server. No quality claim can be made.</p>}
+      </section>
+
       <section className="mb-9">
         <h2 className="text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: ACCENT }}>You vs you — the primary axis</h2>
         <Trend snaps={snapshots} />
