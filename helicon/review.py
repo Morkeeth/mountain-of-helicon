@@ -30,6 +30,7 @@ from helicon.pointers import DEFAULT_INSTRUCTION_FILES, check_pointers
 from helicon.commands import check_commands
 from helicon.execute import check_execution
 from helicon.versions import check_versions
+from helicon.same_source import check_same_source_rules
 
 _BASIS = (
     "Based on: Helicon's ROT catalogue (instruction-vs-repo drift classes) · "
@@ -57,6 +58,7 @@ def review(repo_root: str, execute: bool | None = None) -> dict:
         "commands": check_commands(repo_root),
         "versions": check_versions(repo_root),
         "execution": check_execution(repo_root, execute=execute),
+        "rules": check_same_source_rules(repo_root),
     }
 
 _ANSI = {"red": "31", "grn": "32", "ylw": "33", "dim": "2", "b": "1", "cyan": "36"}
@@ -90,11 +92,20 @@ def format_review(repo_root: str, res: dict) -> str:
     p, c = res["pointers"], res["commands"]
     v = res.get("versions", {"broken": 0, "checked": 0, "receipts": []})
     e = res.get("execution", {"broken": 0, "checked": 0, "receipts": [], "executed": False})
+    rules = res.get("rules", {"broken": 0, "checked": 0, "receipts": [], "files": []})
     # A CONTRADICTED test — "the doc says this passes, it fails" — is a lie in exactly
     # the sense the headline means, so it counts. So is a version claim the manifest
-    # refutes. UNVERIFIABLE claims (not run / no manifest) do not.
-    broken = p["broken"] + c["broken"] + v.get("broken", 0) + e.get("broken", 0)
-    checked = p["checked"] + c["checked"] + v.get("checked", 0) + e.get("checked", 0)
+    # refutes. Same-file competing use-rules (R1b) count. UNVERIFIABLE claims (not
+    # run / no manifest) do not.
+    broken = (p["broken"] + c["broken"] + v.get("broken", 0)
+              + e.get("broken", 0) + rules.get("broken", 0))
+    checked = (p["checked"] + c["checked"] + v.get("checked", 0)
+               + e.get("checked", 0) + rules.get("checked", 0))
+    instr = sorted(set(
+        (p.get("files") or []) + (c.get("files") or [])
+        + (v.get("files") or []) + (e.get("files") or [])
+        + (rules.get("files") or [])
+    ))
     name = _os.path.basename(repo_root.rstrip("/")) or repo_root
     L = [""]
     L.append("  " + _p("❄ HELICON", "b", "cyan") + _p(f"  reviewing {name}", "dim"))
@@ -106,6 +117,12 @@ def format_review(repo_root: str, res: dict) -> str:
                            f"{'' if broken == 1 else 's'}.", "b", "red"))
     elif checked:
         L.append("  " + _p("✓ This setup tells its agent the truth.", "b", "grn"))
+    elif instr:
+        # File exists but nothing path/command/version/rule-shaped was graded.
+        # Saying "no instruction file" here was a lie — planted R1b cases hit it.
+        L.append("  " + _p(f"· Found {', '.join(instr)} but nothing checkable yet.", "dim"))
+        L.append("  " + _p("    No path, command, version, or imperative use-rule claims "
+                           "to grade.", "dim"))
     else:
         L.append("  " + _p("· No agent instruction file found in this repo.", "dim"))
         looked = ", ".join(DEFAULT_INSTRUCTION_FILES[:4]) + ", …"
@@ -134,6 +151,12 @@ def format_review(repo_root: str, res: dict) -> str:
             L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
                      + "  " + _p("declares ", "b") + _p(r["raw"], "b", "red")
                      + _p(f"  — {fact.strip()}", "dim"))
+    for r in rules.get("receipts", []):
+        where, _, fact = r["receipt"].partition(" — ")
+        L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
+                 + "  " + _p("rules conflict ", "b")
+                 + _p(r.get("raw", fact.strip()), "b", "red")
+                 + _p(f"  — {fact.strip()}", "dim"))
     gaps = p.get("machine_gaps") or []
     if gaps:
         L.append("    " + _p("·", "dim") + " "
@@ -198,6 +221,9 @@ def format_review(repo_root: str, res: dict) -> str:
                                "`helicon review .`", "dim"))
         else:
             L.append("  " + _p("Every path and command an agent is told to use is real.", "dim"))
+    elif instr:
+        L.append("  " + _p("GRADE –", "dim")
+                 + _p(f"   ·   {len(instr)} instruction file(s), 0 checkable claims", "dim"))
     L += ["", "  " + _p(_BASIS, "dim"), ""]
     return "\n".join(L)
 
@@ -222,18 +248,26 @@ def _collect_findings(res: dict) -> list[dict]:
         if r.get("verdict") == "CONTRADICTED":
             out.append({"tier": "execution", "where": f"{r['file']}:{r['line_no']}",
                         "raw": r["raw"], "detail": r.get("receipt", "")})
+    for r in res.get("rules", {}).get("receipts", []):
+        where, _, fact = r["receipt"].partition(" — ")
+        out.append({"tier": "rules", "where": where.strip(), "raw": r.get("raw", ""),
+                    "detail": fact.strip()})
     return out
 
 
 def review_summary(repo_root: str, res: dict) -> dict:
     """Structured review result for scripts and CI."""
+    rules = res.get("rules") or {"broken": 0, "checked": 0, "files": [], "receipts": []}
     broken = (res["pointers"]["broken"] + res["commands"]["broken"]
-              + res["versions"]["broken"] + res["execution"]["broken"])
+              + res["versions"]["broken"] + res["execution"]["broken"]
+              + rules.get("broken", 0))
     checked = (res["pointers"]["checked"] + res["commands"]["checked"]
-               + res["versions"]["checked"] + res["execution"]["checked"])
+               + res["versions"]["checked"] + res["execution"]["checked"]
+               + rules.get("checked", 0))
     grade, _ = _grade(broken, checked) if checked else ("–", "dim")
     files = sorted(set(res["pointers"].get("files", [])
-                       + res["commands"].get("files", [])))
+                       + res["commands"].get("files", [])
+                       + rules.get("files", [])))
     return {
         "repo": repo_root,
         "grade": grade,
@@ -247,6 +281,7 @@ def review_summary(repo_root: str, res: dict) -> dict:
         "commands": res["commands"],
         "versions": res.get("versions", {}),
         "execution": res.get("execution", {}),
+        "rules": rules,
     }
 
 
@@ -264,12 +299,18 @@ def main(argv=None) -> int:
         print(json.dumps(review_summary(repo, res), indent=2))
     else:
         print(format_review(repo, res))
+    rules = res.get("rules") or {"broken": 0, "checked": 0}
     broken = (res["pointers"]["broken"] + res["commands"]["broken"]
-              + res["versions"]["broken"] + res["execution"]["broken"])
+              + res["versions"]["broken"] + res["execution"]["broken"]
+              + rules.get("broken", 0))
     checked = (res["pointers"]["checked"] + res["commands"]["checked"]
-               + res["versions"]["checked"] + res["execution"]["checked"])
-    if checked == 0:
+               + res["versions"]["checked"] + res["execution"]["checked"]
+               + rules.get("checked", 0))
+    instr = (res["pointers"].get("files") or []) + (res["commands"].get("files") or [])
+    if checked == 0 and not instr:
         return 2
+    if checked == 0 and instr:
+        return 0  # file present, nothing checkable — not a lie, not missing
     return 1 if broken else 0
 
 
