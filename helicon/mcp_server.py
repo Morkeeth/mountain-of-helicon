@@ -301,6 +301,42 @@ def _jaccard_similarity(a: str, b: str) -> float:
     return len(sa & sb) / len(sa | sb)
 
 
+def search_payload(results):
+    """The exact dicts helicon_search returns.
+
+    Named for the same reason cube_provenance is: the first guard for this bug
+    asserted against rows straight out of search_cubes, which proved the DATABASE
+    layer carries source_ref and proved nothing about whether this handler still
+    passes it on. That is one level down from the thing that broke.
+    """
+    return [
+        # source names the ingester; source_ref names the OBJECT. search_cubes
+        # selects g.*, so source_ref was already on every row here and was being
+        # dropped in the comprehension this replaced. Only the second field can
+        # be opened and checked by whoever is handed the memory.
+        {"id": r["id"], "title": r["title"], "type": r["type"],
+         "source": r["source"], "source_ref": r["source_ref"] or "",
+         "confidence": r["confidence"]}
+        for r in results
+    ]
+
+
+def cube_provenance(conn, cube_id: str):
+    """Where one memory came from, and how much it has been used.
+
+    Public and named rather than inline, so a regression test can call THE
+    QUERY THE TOOL RUNS instead of a retyped copy of it. A guard that holds its
+    own duplicate of the thing under test passes while the real code rots, which
+    is the same wrong-object failure this column was added to close.
+    """
+    return conn.execute(
+        "SELECT c.last_reinforced, c.source_ref, "
+        "COALESCE(u.times_surfaced, 0) AS used "
+        "FROM helicon_cubes c LEFT JOIN memory_utility u ON u.cube_id = c.id "
+        "WHERE c.id = ?", (cube_id,)
+    ).fetchone()
+
+
 def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000) -> dict:
     """Context-window-aware RAG: rank by relevance * confidence * recency, enforce diversity."""
     candidates = []
@@ -481,16 +517,19 @@ def _proactive_context(conn, task: str, limit: int = 10, max_tokens: int = 4000)
     for s in selected:
         # provenance the agent can act on: when this memory was last verified
         # and how often it has been served, plus the id helicon_flag needs
-        prov = conn.execute(
-            "SELECT c.last_reinforced, COALESCE(u.times_surfaced, 0) AS used "
-            "FROM helicon_cubes c LEFT JOIN memory_utility u ON u.cube_id = c.id "
-            "WHERE c.id = ?", (s["id"],)
-        ).fetchone()
+        prov = cube_provenance(conn, s["id"])
         clean_results.append({
             "id": s["id"],
             "title": s["title"],
             "type": s["type"],
             "source": s["source"],
+            # source names the ingester; source_ref names the OBJECT. Without it a
+            # reader is told a claim came from "obsidian" and can never open the
+            # file it came from, which makes every served memory unfalsifiable at
+            # the point of use. The column is NOT NULL and was non-empty on
+            # 17,465 of 17,465 rows when this was added, so it is always here to
+            # be shown and was simply being dropped on the way out.
+            "source_ref": (prov["source_ref"] or "") if prov else "",
             "confidence": s["confidence"],
             "content_preview": s["content_preview"],
             "relevance_source": s["relevance_source"],
@@ -657,11 +696,7 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         limit = arguments.get("limit", 10)
         try:
             results = search_cubes(conn, query, limit)
-            return json.dumps([
-                {"id": r["id"], "title": r["title"], "type": r["type"],
-                 "source": r["source"], "confidence": r["confidence"]}
-                for r in results
-            ], indent=2)
+            return json.dumps(search_payload(results), indent=2)
         except Exception as e:
             return json.dumps({"error": str(e)})
 
