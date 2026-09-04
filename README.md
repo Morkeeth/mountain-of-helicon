@@ -1,5 +1,12 @@
 # Mountain of Helicon
 
+The Setup screen includes an independent, read-only ZUP project-state review.
+It compares local event receipts, canonical board identities, and queue actions.
+Duplicate identities, missing receipts, inconsistent state, and actions on
+settled phases are findings. Missing stores are unmeasured. A clean comparison
+does not prove every project is current or that memory improves outcomes.
+The source is `ZUP_HOME` (default `~/.zen`); no private records are published.
+
 **Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
 commands that no longer exist, paths the repo reorganized away. Your agent loads
 those rules as fact at the start of every session. Nothing tells you until
