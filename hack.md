@@ -33,16 +33,16 @@ A cold clone of this repo must not be graded as lying because the reviewer's mac
 
 ## NOW
 
-**Slice 1 only:** Env-local pointer lie-grade fix + cold-HOME control + naive baseline comparison + named receipt.
+**Slice 2:** R1b same-source rule contradiction in `helicon review` — plant "always use v1" / "always use v2" in one CLAUDE.md and get a finding (today: silent + false "no instruction file" when the file has no path claims).
 
 **Done when:**
-- [x] `HOME=<empty> helicon review .` on this checkout: 0 broken from `~/.helicon/config.json` — ran: `HOME=$EMPTY PYTHONPATH=/workspace python3 -m helicon.review /workspace` → exit 0, GRADE A, 0 broken, 1 machine_gap
-- [x] Intra-repo dead pointer still ROT FOUND — `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_pointers.py::test_a_plain_missing_pointer_is_still_flagged_after_the_precision_fix` (in 44-pass batch)
-- [x] Existing home-path-present still not broken — `tests/test_pointers_precision.py::test_home_path_in_code_font_is_graded_once_at_home_not_twice`
-- [x] Baseline script prints naive vs env-aware counts — `python3 scripts/pointer_env_baseline.py /workspace` → 2 DISAGREE
-- [x] Pointer/review/commands pytest green — 44 passed. `launch_contract` **honest BLOCKED** (pre-existing `package-metadata`, exit 1 on main too)
-- [x] `helicon --help` still shows Verify with `truth` first — exit 0
-- [x] `docs/HELICON-RECEIPT-2026-09-05.md` exists with commands + exit codes
+- [x] Planted same-file v1/v2 conflict → review reports broken — `python3 -m helicon.review $TMP` exit **1**, GRADE D
+- [x] Null/baseline arm silent on same plant — `find_conflicts` vs `[]` in `test_null_baseline_arm_is_silent_on_plant`
+- [x] Clean single-rule file stays clean — `test_single_always_use_is_clean`
+- [x] False "No agent instruction file" fixed — empty-claims fixture prints "Found CLAUDE.md but nothing checkable yet."
+- [x] pytest green — 51 passed (pointers/review/commands/r1b/review2)
+- [x] Slice 1 cold-HOME still GRADE A — re-run exit 0
+- [x] Receipt updated
 
 ## LOG
 
@@ -50,3 +50,6 @@ A cold clone of this repo must not be graded as lying because the reviewer's mac
 - 2026-09-04: Branch `cursor/env-pointer-lie-grade-9d89` from `origin/main` @ 8714be6.
 - 2026-09-04: Slice 1 implemented. Cold HOME control: GRADE B→A. Pytest pointers/review/commands **44 passed**. Baseline 2 DISAGREE. `launch_check` **BLOCKED** pre-existing `package-metadata` (exit 1). Receipt: `docs/HELICON-RECEIPT-2026-09-05.md`.
 - 2026-09-04: Done-when checks — cold HOME review run (`HOME=… PYTHONPATH=… python3 -m helicon.review`); intra-repo dead still fires (pytest); baseline printed; `--help` Verify/truth first.
+- 2026-09-04: Slice 1 committed `4cd9079` + pushed. Reproduced ROADMAP R1b gap: planted Always use v1/v2 CLAUDE.md → review says "No agent instruction file found" (checked=0) while `instruction_files=['CLAUDE.md']`. Slice 2 NOW.
+- 2026-09-04: **WRONG:** briefly overwrote `helicon/rules.py` (triage compiler); restored from HEAD; R1b in `helicon/same_source.py`. Caught by test_review2 ImportError.
+- 2026-09-04: Slice 2 green — planted exit 1; 51 pytest passed; cold HOME still A.
