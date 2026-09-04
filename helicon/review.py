@@ -134,7 +134,20 @@ def format_review(repo_root: str, res: dict) -> str:
             L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
                      + "  " + _p("declares ", "b") + _p(r["raw"], "b", "red")
                      + _p(f"  — {fact.strip()}", "dim"))
+    gaps = p.get("machine_gaps") or []
+    if gaps:
+        L.append("    " + _p("·", "dim") + " "
+                 + _p(f"{len(gaps)} machine-local path{'' if len(gaps) == 1 else 's'} "
+                      "absent on this host", "dim")
+                 + _p("  — not counted as a repo lie", "dim"))
+        for g in gaps[:5]:
+            where = f"{g.get('file', '?')}:{g.get('line_no', '?')}"
+            L.append("      " + _p(where, "dim") + "  " + _p(g.get("raw", ""), "dim"))
+        if len(gaps) > 5:
+            L.append("      " + _p(f"… +{len(gaps) - 5} more", "dim"))
     if broken:
+        L.append("")
+    elif gaps:
         L.append("")
 
     # THIRD BLOCK — commands RAN vs their claim. The wedge: existence checks prove a
@@ -229,6 +242,7 @@ def review_summary(repo_root: str, res: dict) -> dict:
         "clean": broken == 0 and checked > 0,
         "instruction_files": files,
         "findings": _collect_findings(res),
+        "machine_gaps": res["pointers"].get("machine_gaps") or [],
         "pointers": res["pointers"],
         "commands": res["commands"],
         "versions": res.get("versions", {}),
