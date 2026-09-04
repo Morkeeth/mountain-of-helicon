@@ -140,7 +140,7 @@ def operating_summary(checks):
                              consequence='This review cannot establish coverage for those checks.',
                              action='Inspect the unavailable source before treating this as a clean review.', checks=unavailable))
     if index and (index.get('invalid_event_times') or index.get('missing_project_paths')):
-        findings.append(dict(kind='incomplete-transcript-fields', title='Some conversations lack usable dates or project paths',
+        findings.append(dict(kind='incomplete-transcript-fields', title='Some indexed messages lack usable dates or project paths',
                              consequence='Project matching and freshness can be incomplete.', action='Inspect the index field counts.', checks=['transcript-index']))
     if vectors and vectors['with_embeddings'] < vectors['live_memories']:
         findings.append(dict(kind='missing-vectors', title='Some live memories have no search vector',
