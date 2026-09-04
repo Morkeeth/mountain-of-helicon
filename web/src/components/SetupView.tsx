@@ -21,6 +21,7 @@ interface FileStat { label: string; path: string; exists: boolean; lines?: numbe
 interface Chip { id: string; claim: string; verdict: 'PASS' | 'FAIL' | 'UNMEASURED'; probe: string; source: string }
 interface Snapshot { day: string; skills: number | null; routines: number | null; memories_live: number | null; memories_retired: number | null; sessions: number | null; context_bytes: number | null; chips_pass: number; chips_fail: number; chips_unmeasured: number }
 interface SetupData {
+  project_review?: { status: string; reason?: string; observed_at: string; latest_event: string | null; source: string; scope: string; event_count?: number; project_count?: number; findings: Record<string, unknown>[]; projects: Array<{id: string; state: string; evidence?: string; source?: string; observed_at?: string}> };
   memory_review?: { observed_at: string; scope: string; checks: Array<{
     id: string; question: string; status: string; rows: Record<string, unknown>[];
     interpretation: string; action: string; query: string;
@@ -146,6 +147,19 @@ export default function SetupView() {
       </p>
 
       {/* AXIS 1 — you vs you (primary) */}
+      <section className="mb-9" aria-label="Project state integrity">
+        <h2 className="text-[18px] mb-2" style={{ color: INK }}>Does the board agree with what happened?</h2>
+        <p className="text-[13px] mb-3" style={{ color: MUTED }}>Helicon independently reads ZUP's event files, board and action queue. Old names must resolve to one project. Settled phases must not return as pending actions.</p>
+        {data.project_review ? <>
+          <p style={{ color: INK }}>{data.project_review.status === 'unmeasured' ? `Not measured: ${data.project_review.reason}` : `${data.project_review.project_count} projects · ${data.project_review.event_count} recorded events · ${data.project_review.findings.length} findings`}</p>
+          <p className="text-[12px] my-2" style={{ color: MUTED }}>Latest event: {data.project_review.latest_event ?? 'none recorded'}. Checked: {data.project_review.observed_at}. No findings means these checks found none, not that every project is current.</p>
+          {data.project_review.findings.map((f, i) => <p key={i} className="text-[12px] py-2 break-words" style={{ color: ACCENT }}>{JSON.stringify(f)}</p>)}
+          <details className="text-[13px] mt-3"><summary>Project evidence and sources</summary>
+            {data.project_review.projects.map(p => <div key={p.id} className="py-3" style={{ borderBottom: `1px solid ${LINE}` }}><strong>{p.id}: {p.state}</strong><p>{p.evidence ?? 'No dated state evidence'}</p><p style={{ color: MUTED }}>{p.source ?? 'board hint'} · {p.observed_at ?? 'event time unknown'}</p></div>)}
+            <p className="text-[12px] mt-3" style={{ color: MUTED }}>{data.project_review.source} · {data.project_review.scope}</p>
+          </details>
+        </> : <p style={{ color: MUTED }}>Project evidence review unavailable.</p>}
+      </section>
       <section className="mb-9" aria-label="Index and memory review">
         <h2 className="text-[18px] mb-2" style={{ color: INK }}>Is your memory system helping?</h2>
         <p className="text-[13px] mb-4" style={{ color: MUTED }}>This page reads two local stores: Transcripto's saved conversations and Helicon's copied memories. It does not read every live app. A recent scan does not make an old fact current.</p>

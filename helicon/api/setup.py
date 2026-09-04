@@ -19,6 +19,7 @@ from helicon.api.app import get_conn, get_config
 from helicon.setupcheck import SNAP_DDL as _SNAP_DDL
 from helicon.setupcheck import axis2, census, record_snapshot
 from helicon.memory_review import memory_review
+from helicon.project_review import project_review
 
 router = APIRouter()
 
@@ -39,7 +40,7 @@ async def setup(fresh: int = 0):
             (time.monotonic() - _cache["mono"]) < _TTL_S:
         return {**_cache["res"], "ran_at": _cache["ran_at"],
                 "took_s": _cache["took_s"], "cached": True,
-                "snapshots": _snapshots(get_conn())}
+                "snapshots": _snapshots(get_conn()), "project_review": project_review()}
     conn = get_conn()
     t0 = time.monotonic()
     cen = census(conn, get_config() or {})
@@ -49,7 +50,7 @@ async def setup(fresh: int = 0):
     _cache.update({"res": res, "mono": time.monotonic(), "took_s": took,
                    "ran_at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     return {**res, "ran_at": _cache["ran_at"], "took_s": took, "cached": False,
-            "snapshots": _snapshots(conn)}
+            "snapshots": _snapshots(conn), "project_review": project_review()}
 
 
 @router.post("/setup/snapshot")
