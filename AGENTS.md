@@ -70,7 +70,7 @@ Dependencies are refreshed automatically on VM startup (`pip install -e .`, `pip
 cd web && npm ci && npm run build   # writes web/dist/ (untracked)
 ```
 
-The FastAPI backend serves `web/dist/` when present and otherwise falls back to the SPA route, so a missing `web/dist/` only means the prebuilt UI is not served — run `npm run dev` (Vite on :5173, proxies `/api`) for live frontend work. Deployment/CI is responsible for building `web/dist/`; a committed copy only drifts from source.
+The FastAPI backend serves `web/dist/` when present and otherwise falls back to the SPA route, so a missing `web/dist/` only means the prebuilt UI is not served — run `cd web && npm run dev` (Vite on :5173, proxies `/api`) for live frontend work. Deployment/CI is responsible for building `web/dist/`; a committed copy only drifts from source.
 
 
 ## Governed run receipts (helicon export)

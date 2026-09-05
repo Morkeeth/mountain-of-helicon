@@ -74,6 +74,53 @@ def test_a_described_removal_is_not_a_broken_command():
     assert res["broken"] == 0
 
 
+def test_npm_test_lifecycle_alias_grades_like_npm_run():
+    """`npm test` was invisible to R14 while `npm run test` fired — false GRADE –."""
+    d = _repo({
+        "package.json": json.dumps({"scripts": {"build": "tsc"}}),
+        "CLAUDE.md": "Run `npm test` before commit.\n",
+    })
+    res = check_commands(d)
+    assert res["verdict"] == "ROT FOUND", res
+    assert any(r["raw"] == "test" for r in res["receipts"])
+
+
+def test_negation_in_other_clause_does_not_silence_dead_command():
+    """'missing web/dist; run `npm run build`' must still convict a missing script."""
+    d = _repo({
+        "package.json": json.dumps({"scripts": {}}),
+        "CLAUDE.md": (
+            "web/dist is NOT committed and is missing; run `npm run build` first.\n"
+        ),
+    })
+    res = check_commands(d)
+    assert res["verdict"] == "ROT FOUND", res
+    assert any(r["raw"] == "build" for r in res["receipts"])
+
+
+def test_cd_web_npm_run_resolves_subdir_package_json():
+    """`cd web && npm run build` must check web/package.json, not the repo root."""
+    d = _repo({
+        "web/package.json": json.dumps({"scripts": {"build": "vite build", "dev": "vite"}}),
+        "CLAUDE.md": "Frontend: `cd web && npm run build` then `cd web && npm run missing`.\n",
+    })
+    res = check_commands(d)
+    assert res["verdict"] == "ROT FOUND", res
+    raws = {r["raw"] for r in res["receipts"]}
+    assert "missing" in raws
+    assert "build" not in raws
+
+
+def test_bare_npm_run_still_uses_root_package_json():
+    d = _repo({
+        "web/package.json": json.dumps({"scripts": {"dev": "vite"}}),
+        "CLAUDE.md": "Run `npm run dev`.\n",  # no cd — root has no package.json
+    })
+    res = check_commands(d)
+    assert res["verdict"] == "ROT FOUND", res
+    assert any(r["raw"] == "dev" for r in res["receipts"])
+
+
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failed = 0

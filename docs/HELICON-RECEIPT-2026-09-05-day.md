@@ -97,8 +97,44 @@ Plus this day receipt + day `hack.md` contract (separate commit).
 6. **No merge to main** — PR-ready only.
 7. **`prefer` still unmeasured** — Prefer npm/yarn plant stays GRADE – by design (Slice 2 open question). Soft contradictions in prefer-language remain a silent hole.
 8. **Don't-line normalizes to `never` in the receipt text** — output says `` `never use yarn` `` even when the file wrote `Don't`. Honest enough for the conflict; the surface wording is not the author's.
+9. **`cd DIR && npm run` only matches that exact shape** — prose "from `web/`, run `npm run dev`" still grades against root package.json. Subdir resolution requires the `cd` in the same backtick.
+10. **Clause-scoped negation is commands-only** — pointers still use line-global `_NEGATION` (separate hole if a path claim shares a line with unrelated "missing").
 
-## Slice 2b — bare never↔always (no subject)
+## Slice 3 — R14 npm lifecycle + clause negation + cd-web
+
+False greens before:
+
+```
+# `npm test` invisible
+$ printf '%s\n' 'Run `npm test` before commit.' > "$TMP/CLAUDE.md"  # package.json scripts={build}
+$ … helicon.review → GRADE – · 0 checkable claims · exit 0
+
+# other-clause negation silences dead script
+$ printf '%s\n' 'web/dist is NOT committed and is missing; run `npm run build` first.' > …
+$ … → GRADE – · exit 0
+```
+
+After: both → GRADE F exit 1.
+
+Own-board embarrassment then fix:
+
+```
+# After checker fix, before AGENTS.md edit:
+$ HOME=$EMPTY … helicon.review /workspace
+  ✗ AGENTS.md:73  runs no 'dev' in package.json scripts
+  GRADE B · exit 1
+# True: bare `npm run dev` at repo root (no package.json). Line earlier already said cd web.
+
+# After AGENTS.md:73 → `cd web && npm run dev` + R14 resolves web/package.json:
+$ HOME=$EMPTY … helicon.review /workspace
+  GRADE A · 12 references checked, 0 broken · exit 0
+$ … check_commands → CLEAN (3 checked, 0 broken)
+```
+
+```
+$ TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_commands.py tests/test_rules_r1b.py tests/test_review.py tests/test_review2.py tests/test_pointers.py tests/test_pointers_precision.py
+62 passed
+```
 
 ```
 # BEFORE
@@ -123,8 +159,10 @@ $ echo $?
 
 ```
 $ TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_rules_r1b.py tests/test_review.py tests/test_review2.py tests/test_pointers.py tests/test_pointers_precision.py tests/test_commands.py
-# re-derived after 2b — see commit message / LOG for exact count
+58 passed
 ```
+
+Also: empty-HOME self-review still exit 0 GRADE A after 2b.
 
 Overnight R1b only matched `always|must|only|never`. Softer negation graded as truth:
 
