@@ -8,9 +8,10 @@ published wheel. This module is the named class — not folded into R1.
 
 Precision over recall. Only imperative use-rules with a bindable subject:
   Always/Must/Only use X … <subject>
-  Never use X … <subject>
+  Never / Don't / Do not use X … <subject>
 Two positive use-rules with the same subject and different objects → conflict.
-A never-use and an always-use of the same object+subject → conflict.
+A never/don't-use and an always-use of the same object+subject → conflict.
+`Prefer` is intentionally unmeasured (scoped exceptions are common; open question).
 
 No LLM. No DB. Keyless. Wired into helicon.review as the `rules` tier
 (JSON key `rules`; implementation lives here so helicon/rules.py — the
@@ -25,9 +26,11 @@ from dataclasses import dataclass
 from helicon.pointers import DEFAULT_INSTRUCTION_FILES
 
 # "Always use v1 of the API." · "Must use npm for installs." · "Never use yarn."
+# "Don't use yarn for installs." · "Do not use yarn for installs."
 # Object is ONE token (or a backtick span) — never swallow "of the …".
+# Prefer stays out: too often scoped ("prefer X; prefer Y for Z").
 _USE_RULE = re.compile(
-    r"\b(?P<mod>always|must|only|never)\s+use\s+"
+    r"\b(?P<mod>always|must|only|never|don'?t|do\s+not)\s+use\s+"
     r"(?P<obj>`[^`]+`|v?\d+(?:\.\d+)*|[A-Za-z][\w./+-]*)"
     r"(?P<rest>[^.\n]*)",
     re.IGNORECASE,
@@ -47,7 +50,7 @@ _STOP = {
 
 @dataclass
 class RuleClaim:
-    modality: str          # always|must|only|never
+    modality: str          # always|must|only|never  (don't/do not → never)
     obj: str               # normalized object
     subject: str           # normalized subject key (may be "")
     line_no: int
@@ -59,6 +62,15 @@ def _norm_obj(raw: str) -> str:
     t = raw.strip().strip("`").strip().lower()
     t = re.sub(r"\s+", " ", t)
     return t
+
+
+def _norm_modality(raw: str) -> str:
+    """Collapse don't / do not onto never so conflict kinds stay stable."""
+    m = re.sub(r"\s+", " ", (raw or "").strip().lower())
+    m = m.replace("'", "")
+    if m in ("dont", "do not"):
+        return "never"
+    return m
 
 
 def _norm_subject(rest: str) -> str:
@@ -74,7 +86,7 @@ def extract_use_rules(text: str) -> list[RuleClaim]:
     out: list[RuleClaim] = []
     for i, line in enumerate(text.splitlines(), 1):
         for m in _USE_RULE.finditer(line):
-            mod = m.group("mod").lower()
+            mod = _norm_modality(m.group("mod"))
             raw_obj = m.group("obj")
             obj = _norm_obj(raw_obj)
             if not obj or len(obj) > 60:

@@ -13,7 +13,7 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 ## OPEN QUESTIONS
 
 - **BLOCKING:** none — overnight commits cherry-picked clean onto `main` @ `8714be6`.
-- **NON-BLOCKING:** What is the smallest next truth slice after land+reprove that is not the Oscar-gated README rewrite? Decide only after Slice 1 green.
+- **NON-BLOCKING:** Should `prefer` count as conflict-grade? Deferred — Prefer npm/yarn stays UNMEASURED (verified). Negative modality only for Slice 2.
 - **NON-BLOCKING:** Full-suite anyio/launch_contract reds — re-derive if probing; do not invent fleet-wide green.
 
 ## CONSTITUTION
@@ -28,19 +28,22 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 ## PLAN
 
 1. **Slice 1 (land / riskiest):** Cherry-pick overnight onto `cursor/env-pointer-land-cb81`; empty-HOME RED→GREEN; day receipt. *Risk: clean cherry-pick without object re-proof.*
-2. Slice 2: One small next truth slice — only if Slice 1 green. Not README ≤400 (Oscar gate).
+2. **Slice 2:** R1b `don't` / `do not use` as never — Don't vs Always plant must leave GRADE A.
 3. Slice 3: README ≤400 / PyPI lead — Oscar gate, skip unless trivial.
 
 ## NOW
 
-**Slice 1 done — moving to Slice 2 selection after commit.** Land verified; day receipt written.
+**Slice 2 done.** Next only if headroom and not Oscar-gated README.
 
-**Done when (Slice 1):**
-- [x] Branch from today's main contains overnight commits — `git log --oneline origin/main..HEAD` → 4 cherry-picks (`b172b83`…`0411d2d`)
-- [x] Empty-HOME review on bare main goes RED — `HOME=$EMPTY PYTHONPATH=/workspace python3 -m helicon.review /workspace` → exit **1**, GRADE B, 11 checked, 1 broken
-- [x] Empty-HOME review on land branch goes GREEN — same command → exit **0**, GRADE A, 10 checked, 0 broken, 1 machine_gap
-- [x] `docs/HELICON-RECEIPT-2026-09-05-day.md` exists with before/after from today's runs
-- [x] Targeted pytest — `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_pointers.py tests/test_pointers_precision.py tests/test_review.py tests/test_review2.py tests/test_commands.py tests/test_rules_r1b.py` → **51 passed**
+**Done when (Slice 2):**
+- [x] Control RED before code: Don't yarn / Always yarn → GRADE A exit 0
+- [x] After: same plant → exit **1**, GRADE D, never-vs-always
+- [x] Always v1/v2 control still exit 1
+- [x] Precision: single Don't-use CLEAN; Prefer npm/yarn UNMEASURED exit 0
+- [x] pytest — `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_rules_r1b.py tests/test_review.py tests/test_review2.py tests/test_pointers.py tests/test_pointers_precision.py tests/test_commands.py` → **56 passed**
+- [x] Empty-HOME still GRADE A exit 0
+
+**Done when (Slice 1):** all green (see LOG).
 
 ## LOG
 
@@ -48,4 +51,6 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 - 2026-09-05: Fetched `origin/main` + `origin/cursor/env-pointer-lie-grade-9d89`. Local main matches remote @ `8714be6`.
 - 2026-09-05: **Control RED on bare main** — empty HOME review exit 1, GRADE B, AGENTS.md:63 `~/.helicon/config.json` broken. (Overnight receipt claimed exit 0 for GRADE B — **wrong to carry**; today exit 1.)
 - 2026-09-05: Branch `cursor/env-pointer-land-cb81`; cherry-pick `4cd9079 160ab07 e72c1c2 ed4cb5f` → `b172b83 2162ee0 92761e4 0411d2d`, 0 conflicts.
-- 2026-09-05: **Control GREEN after land** — exit 0, GRADE A, 1 machine_gap. R1b plant exit 1 GRADE D. Baseline 2 DISAGREE. Pytest 51 passed. Day receipt written.
+- 2026-09-05: **Control GREEN after land** — exit 0, GRADE A, 1 machine_gap. R1b plant exit 1 GRADE D. Baseline 2 DISAGREE. Pytest 51 passed. Day receipt written. Committed `8c12276`, pushed.
+- 2026-09-05: Slice 2 chosen by opening the object: `Don't use yarn` / `Always use yarn` → GRADE A exit 0 (Don't-line invisible; claims only always). Prefer npm/yarn → GRADE – (deferred). Negative modality only.
+- 2026-09-05: Slice 2 shipped — `_USE_RULE` accepts don't/do not; normalize to never. Plant exit 1 GRADE D. Prefer still UNMEASURED. Empty HOME A. Pytest **56 passed**.
