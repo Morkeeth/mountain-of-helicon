@@ -68,6 +68,25 @@ def test_never_vs_always_same_object_conflicts():
     assert any(r["kind"] == "never-vs-always" for r in res["receipts"])
 
 
+def test_bare_never_vs_always_same_object_conflicts():
+    """No subject binder — stranger plant after reading 'rules conflict'.
+    Was GRADE A: empty-subject arm required _same_family with a!=b."""
+    d = _repo({
+        "CLAUDE.md": "Never use yarn.\nAlways use yarn.\n",
+    })
+    res = check_same_source_rules(d)
+    assert res["verdict"] == "ROT FOUND", res
+    assert any(r["kind"] == "never-vs-always" for r in res["receipts"])
+    assert main([d]) == 1
+
+
+def test_trailing_period_on_object_still_binds():
+    """'Never use yarn.' must normalize to yarn, not yarn."""
+    claims = extract_use_rules("Never use yarn.\nAlways use yarn.\n")
+    assert all(c.obj == "yarn" for c in claims), claims
+    assert find_conflicts(claims)
+
+
 def test_dont_use_vs_always_same_object_conflicts():
     """Day slice 2: Don't-line was invisible; plant graded A. Must fire."""
     d = _repo({

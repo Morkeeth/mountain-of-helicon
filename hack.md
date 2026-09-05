@@ -33,17 +33,13 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 
 ## NOW
 
-**Slice 2 done.** Next only if headroom and not Oscar-gated README.
+**Slice 2b done.** Oscar-gated README still deferred.
 
-**Done when (Slice 2):**
-- [x] Control RED before code: Don't yarn / Always yarn → GRADE A exit 0
-- [x] After: same plant → exit **1**, GRADE D, never-vs-always
-- [x] Always v1/v2 control still exit 1
-- [x] Precision: single Don't-use CLEAN; Prefer npm/yarn UNMEASURED exit 0
-- [x] pytest — `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_rules_r1b.py tests/test_review.py tests/test_review2.py tests/test_pointers.py tests/test_pointers_precision.py tests/test_commands.py` → **56 passed**
-- [x] Empty-HOME still GRADE A exit 0
-
-**Done when (Slice 1):** all green (see LOG).
+**Done when (Slice 2b):**
+- [x] Control RED: bare Never/Always yarn → GRADE A exit 0
+- [x] After: exit **1**, never-vs-always; trailing `.` stripped from obj
+- [x] Don't plant, with-subject never/always, bare v1/v2 still exit 1; Prefer UNMEASURED
+- [x] Empty-HOME GRADE A; pytest re-derived (see LOG)
 
 ## LOG
 

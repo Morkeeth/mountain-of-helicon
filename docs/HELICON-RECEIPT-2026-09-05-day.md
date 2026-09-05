@@ -98,7 +98,33 @@ Plus this day receipt + day `hack.md` contract (separate commit).
 7. **`prefer` still unmeasured** — Prefer npm/yarn plant stays GRADE – by design (Slice 2 open question). Soft contradictions in prefer-language remain a silent hole.
 8. **Don't-line normalizes to `never` in the receipt text** — output says `` `never use yarn` `` even when the file wrote `Don't`. Honest enough for the conflict; the surface wording is not the author's.
 
-## Slice 2 — R1b don't / do not (day)
+## Slice 2b — bare never↔always (no subject)
+
+```
+# BEFORE
+$ printf '%s\n' 'Never use yarn.' 'Always use yarn.' > "$TMP/CLAUDE.md"
+$ PYTHONPATH=/workspace python3 -m helicon.review "$TMP"
+  ✓ This setup tells its agent the truth.
+  GRADE A   ·   2 references checked, 0 broken
+$ echo $?
+0
+# Root cause: empty-subject arm required _same_family with a!=b, so identical
+# objects never reached never-vs-always. Objects also kept trailing '.'.
+```
+
+```
+# AFTER
+$ PYTHONPATH=/workspace python3 -m helicon.review "$TMP"
+  ✗ … rules conflict yarn vs yarn — L1 `never use yarn` conflicts with L2 `always use yarn`
+  GRADE D   ·   2 references checked, 1 broken
+$ echo $?
+1
+```
+
+```
+$ TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_rules_r1b.py tests/test_review.py tests/test_review2.py tests/test_pointers.py tests/test_pointers_precision.py tests/test_commands.py
+# re-derived after 2b — see commit message / LOG for exact count
+```
 
 Overnight R1b only matched `always|must|only|never`. Softer negation graded as truth:
 
