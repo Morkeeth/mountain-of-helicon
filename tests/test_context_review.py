@@ -161,3 +161,69 @@ def test_probe_object_changed_invalidates_finding(monkeypatch, tmp_path):
     report = context_review(home, project)
     assert not report["findings"]
     assert any(s["status"] == "changed" and s["path"] == str(target) for s in report["sources"])
+def test_reader_refuses_link_swap_at_open_without_blocking(tmp_path, monkeypatch):
+    import os
+    from helicon import context_history
+    from helicon.context_review import _read
+    source = tmp_path / 'AGENTS.md'
+    source.write_text('Alpha phase = Build\n')
+    target = tmp_path / 'outside.md'
+    target.write_text('Alpha phase = Review\n')
+    original_open = os.open
+    swapped = False
+    def swap(path, flags, *args, **kwargs):
+        nonlocal swapped
+        if str(path) == str(source) and not swapped:
+            swapped = True
+            source.unlink()
+            source.symlink_to(target)
+        return original_open(path, flags, *args, **kwargs)
+    monkeypatch.setattr(context_history.os, 'open', swap)
+    status, data, info = _read(source)
+    assert swapped
+    assert status == 'unreadable'
+    assert data is None and info is None
+    assert target.read_text() == 'Alpha phase = Review\n'
+
+
+def test_reader_rejects_oversize_and_corrupt_text_with_unknown_coverage(tmp_path):
+    from helicon.context_review import context_review, MAX_BYTES
+    home, project = tmp_path / 'home', tmp_path / 'project'
+    home.mkdir(); project.mkdir()
+    source = project / 'AGENTS.md'
+    for content in (b'x' * (MAX_BYTES + 1), b'\xff\xfeAlpha phase = Build\n'):
+        source.write_bytes(content)
+        report = context_review(home, project)
+        matching = [s for s in report['sources'] if s['path'] == str(source)]
+        assert matching and all(s['status'] == 'unreadable' and s['sha256'] is None for s in matching)
+        assert not report['findings']
+        assert any(c['status'] == 'unknown' for c in report['coverage']['checks'] if c['id'].startswith('instruction-claims:'))
+def test_leading_read_with_purpose_and_later_independent_condition(tmp_path):
+    text = ('Read `catalog/retired.json` to calculate the available inventory value. '
+            'Use only that catalog; do not guess another source if it is unavailable.\r\n')
+    home, project = setup(tmp_path, text)
+    report = context_review(home, project)
+    matches = [f for f in report['findings'] if f['subject'] == str(project / 'catalog/retired.json')]
+    assert len(matches) == 1
+    span = matches[0]['evidence'][0]
+    assert span['quote'] == text
+    assert (project / 'AGENTS.md').read_bytes()[span['start_byte']:span['end_byte']].decode() == text
+
+
+def test_conditional_read_and_same_word_noise_are_not_current_directives(tmp_path):
+    text = ('Read `catalog/retired.json` if you need old stock.\n'
+            'Read `catalog/retired.json` to calculate stock when archived mode is selected.\n'
+            'Read `catalog/retired.json` unless current mode is active.\n'
+            'We used to Read `catalog/retired.json` to calculate stock.\n'
+            'Reader notes mention `catalog/retired.json` to explain a migration.\n')
+    home, project = setup(tmp_path, text)
+    report = context_review(home, project)
+    assert not report['findings']
+    assert not [c for c in report['claims'] if c['predicate'] == 'reference']
+
+
+def test_sentence_boundary_does_not_split_filename_dots_or_quoted_spaces(tmp_path):
+    text = 'Read `catalog/v1. old.json` to calculate stock. If missing, report it.\n'
+    home, project = setup(tmp_path, text)
+    report = context_review(home, project)
+    assert any(f['subject'] == str(project / 'catalog/v1. old.json') for f in report['findings'])

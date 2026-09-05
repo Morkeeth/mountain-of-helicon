@@ -73,3 +73,25 @@ def test_two_files_cannot_pass_effective_context_budget():
     cen = {"context_files": [{"label": "global CLAUDE.md", "exists": True, "lines": 1, "bytes": 10}], "memories": {}}
     chip = next(c for c in axis2(None, cen, {}) if c["id"] == "context-weight")
     assert chip["verdict"] == "UNMEASURED"
+def test_actual_scanner_does_not_hang_on_instruction_skill_or_configuration_fifos(tmp_path):
+    import os
+    import subprocess
+    import sys
+    paths = ['AGENTS.md', '.claude/skills/bad/SKILL.md', '.claude/settings.json', '.helicon/config.json']
+    for relative in paths:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        os.mkfifo(path)
+    script = ('import json,sys; from helicon.context_review import context_review; '
+              'from helicon.setup_audit import audit_setup; '
+              'print(json.dumps({"audit":audit_setup(sys.argv[1],sys.argv[1]),'
+              '"review":context_review(sys.argv[1],sys.argv[1])}))')
+    result = subprocess.run([sys.executable, '-c', script, str(tmp_path)],
+                            capture_output=True, text=True, timeout=5, check=True)
+    data = json.loads(result.stdout)
+    ids = {f['id'] for f in data['audit']['findings'] if f['status'] == 'unmeasured'}
+    assert 'claude-settings' in ids
+    assert 'unreadable:' + str(tmp_path / 'AGENTS.md') in ids
+    assert 'skill-unreadable:' + str(tmp_path / '.claude/skills/bad/SKILL.md') in ids
+    sources = [s for s in data['review']['sources'] if s['path'] == str(tmp_path / 'AGENTS.md')]
+    assert sources and all(s['status'] == 'unreadable' for s in sources)
