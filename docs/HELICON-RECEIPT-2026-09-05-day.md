@@ -122,7 +122,7 @@ Day: day receipt · don't-use · bare never/always · R14 npm/clause/cd-web + AG
 
 1. **Overnight receipt said GRADE B exited 0; today's bare-main run exited 1.** Object today is exit 1.
 2. **Checked-count drift** across runs (11 → 10 → 12) — day claims use today's numbers only.
-3. **Full pytest suite not the Slice done-when** — targeted 62 passed. launch_contract / anyio left unclaimed.
+3. **Full pytest (5 anyio-collection modules ignored):** `TMPDIR=$HOME/pytmp python3 -m pytest -q --ignore=tests/test_api_findings_log.py --ignore=tests/test_claims_api.py --ignore=tests/test_fleet_api.py --ignore=tests/test_govern_api_boundary.py --ignore=tests/test_remote_mcp.py` → **1128 passed**, 10 failed, 1 skipped, 2 xfailed. Failures: launch_contract×2 (`package-metadata`), api_rot×4 + hackathon_adk×3 + web_dir_fallback×1 (anyio DeprecationWarning-as-error). None from today's pointer/review/commands/r1b files. Targeted slice suite **62 passed**.
 4. **`HOME=` empty cannot use `helicon` console script** — probe uses `python3 -m helicon.review`.
 5. **README ≤400 Oscar-gated** — not started (not this Slice 3).
 6. **No merge to main** — PR-ready only.
