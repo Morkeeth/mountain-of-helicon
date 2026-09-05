@@ -221,3 +221,90 @@ def test_actual_stdio_server_consumes_frozen_project_packet(setup, monkeypatch):
     assert consumed["consumption"]["transport"] == "local-stdio"
     assert store.inspect(packet["id"], recipient)["state"] == "consumed"
     assert store.inspect(packet["id"], recipient)["behavior_status"] == "unverified"
+
+
+def test_list_restores_metadata_only_after_restart_without_writes(setup):
+    store, snapshot, source, recipient = setup
+    assert store.list(recipient["project"]) == []
+    assert not store.root.exists()
+    first = store.create(snapshot["id"], ["source"], recipient)
+    second = store.create(snapshot["id"], ["source"], dict(recipient, run_id="next-run"))
+    store.consume(first["id"], recipient, transport="local-stdio")
+    artifact = source.parent / "greeting.txt"
+    artifact.write_text("Hello")
+    store.attach_behavior(first["id"], recipient, str(artifact), "reviewer", "Inspected the greeting", "supported")
+    before = {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in store.root.rglob("*.json")}
+    reopened = ContextPackets(store.root, store.history.root, project=recipient["project"])
+    rows = reopened.list()
+    assert {r["id"] for r in rows} == {first["id"], second["id"]}
+    assert all("content" not in s for r in rows for s in r["sources"])
+    restored = next(r for r in rows if r["id"] == first["id"])
+    assert restored["state"] == "consumed"
+    assert restored["consumption"]["transport"] == "local-stdio"
+    assert restored["behavior"][0]["artifact_current"]
+    assert restored["review_id"] == snapshot["id"]
+    after = {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in store.root.rglob("*.json")}
+    assert before == after
+    source.write_text("Changed after issue")
+    assert all(r["source_status"] != "current" for r in reopened.list())
+
+
+@pytest.mark.parametrize("kind", ["malformed", "fifo", "dangling-link", "wrong-hash", "invalid-time"])
+def test_list_reports_corrupt_consumption_unavailable(setup, kind):
+    import helicon.context_packet as module
+    store, snapshot, source, recipient = setup
+    packet = store.create(snapshot["id"], ["source"], recipient)
+    store.consume(packet["id"], recipient)
+    path = store.root / "consumed" / (packet["id"] + ".json")
+    if kind == "malformed":
+        path.write_text("{broken")
+    elif kind in {"wrong-hash", "invalid-time"}:
+        original = json.loads(path.read_text())
+        payload = {k: v for k, v in original.items() if k not in ("id", "sha256")}
+        if kind == "wrong-hash":
+            payload["packet_sha256"] = "0" * 64
+        else:
+            payload["consumed_at"] = "not-an-observation-time"
+        path.unlink()
+        module._publish(path.parent, payload, filename=packet["id"])
+    else:
+        path.unlink()
+        if kind == "fifo":
+            os.mkfifo(path)
+        else:
+            path.symlink_to(path.parent / "absent.json")
+    rows = store.list(recipient["project"])
+    assert rows[0]["state"] == "unavailable"
+    assert rows[0]["behavior_status"] == "unverified"
+    assert "consumption" not in rows[0]
+
+
+def test_list_denies_wrong_project_and_storage_link_before_read(setup):
+    store, snapshot, source, recipient = setup
+    packet = store.create(snapshot["id"], ["source"], recipient)
+    other_project = source.parent.parent / "other-project"
+    other_project.mkdir()
+    bound = ContextPackets(store.root, store.history.root, project=str(other_project))
+    assert bound.list()[0]["state"] == "unavailable"
+    assert bound.list()[0]["id"] == packet["id"]
+    with pytest.raises(PacketError, match="another configured project"):
+        bound.list(recipient["project"])
+    moved = store.root.parent / "moved-issued"
+    (store.root / "issued").rename(moved)
+    (store.root / "issued").symlink_to(moved, target_is_directory=True)
+    with pytest.raises(PacketError, match="child must not"):
+        store.list(recipient["project"])
+
+
+def test_list_marks_wrong_packet_behavior_reference_unavailable(setup):
+    import helicon.context_packet as module
+    store, snapshot, source, recipient = setup
+    packet = store.create(snapshot["id"], ["source"], recipient)
+    store.consume(packet["id"], recipient)
+    artifact = source.parent / "result.txt"
+    artifact.write_text("Hello")
+    behavior = store.attach_behavior(packet["id"], recipient, str(artifact), "reviewer", "Inspected result", "supported")
+    payload = {k: v for k, v in behavior.items() if k not in ("id", "sha256")}
+    payload["consumption_id"] = "0" * 64
+    module._publish(store.root / "behavior", payload)
+    assert store.list(recipient["project"])[0]["state"] == "unavailable"

@@ -121,13 +121,16 @@ def _publish(directory, payload, filename=None):
 
 
 class ContextPackets:
-    def __init__(self, root, history_root):
+    def __init__(self, root, history_root, *, project=None):
         self.root = Path(root).expanduser().absolute()
         self.history = ContextHistory(history_root)
+        self.project = str(project) if project is not None else None
 
     def _storage_boundary(self, project):
+        if self.project is not None and project != self.project:
+            raise PacketError("Packet store belongs to another configured project")
         resolved = self.root.resolve()
-        if resolved.is_relative_to(Path(project)):
+        if project is not None and resolved.is_relative_to(Path(project)):
             raise PacketError("Packet storage must be outside the project")
         if any((p / ".git").exists() for p in [resolved, *resolved.parents]):
             raise PacketError("Packet storage must be outside git worktrees")
@@ -198,9 +201,9 @@ class ContextPackets:
     def inspect(self, packet_id, recipient):
         packet = self._load(packet_id, recipient)
         consumed_path = self.root / "consumed" / f"{packet_id}.json"
-        receipt = _read_record(consumed_path) if consumed_path.exists() else None
-        if receipt and (receipt.get("packet_id") != packet_id or receipt.get("recipient") != packet["recipient"]):
-            raise PacketError("Consumption receipt does not match the packet")
+        receipt = _read_record(consumed_path) if consumed_path.exists() or consumed_path.is_symlink() else None
+        if receipt:
+            self._validate_consumption(receipt, packet)
         try:
             self._current(packet)
             source_status = "current"
@@ -210,6 +213,11 @@ class ContextPackets:
         for path in (self.root / "behavior").glob("*.json"):
             record = _read_record(path)
             if record.get("packet_id") == packet_id:
+                if (record.get("schema") != "helicon.context-behavior-review/1"
+                        or record.get("packet_sha256") != packet["sha256"]
+                        or record.get("recipient") != packet["recipient"]
+                        or not receipt or record.get("consumption_id") != receipt["id"]):
+                    raise PacketError("Behavior receipt does not match the consumed packet")
                 try:
                     artifact = _project_file(record["artifact"], packet["recipient"]["project"])
                     current = _sha(_file_bytes(artifact)) == record["artifact_sha256"]
@@ -222,6 +230,48 @@ class ContextPackets:
                 "consumption": receipt, "behavior": behavior,
                 "behavior_status": "reviewer_recorded" if behavior else "unverified"}
 
+    def list(self, project=None):
+        """Restore packet metadata after restart, without delivering any bytes.
+
+        A configured store is project-bound. Direct library callers can supply
+        ``project`` explicitly. Corrupt records remain visible as unavailable;
+        their former delivery state is never inferred from the filename.
+        """
+        project = self.project if project is None else project
+        self._storage_boundary(project)
+        results = []
+        for path in sorted((self.root / "issued").glob("*.json")):
+            packet_id = path.stem
+            try:
+                _identifier(packet_id)
+                packet = _read_record(path)
+                recipient = _recipient(packet.get("recipient"))
+                if project is not None and recipient["project"] != project:
+                    raise PacketError("Packet belongs to another configured project")
+                results.append(self.inspect(packet_id, recipient))
+            except (PacketError, KeyError, TypeError) as exc:
+                results.append({"id": packet_id, "state": "unavailable", "error": str(exc),
+                                "behavior_status": "unverified"})
+        return sorted(results, key=lambda r: (r.get("issued_at", ""), r["id"]), reverse=True)
+
+    @staticmethod
+    def _validate_consumption(receipt, packet):
+        if (receipt.get("schema") != "helicon.context-consumption/1"
+                or receipt.get("packet_id") != packet["id"]
+                or receipt.get("packet_sha256") != packet["sha256"]
+                or receipt.get("recipient") != packet["recipient"]
+                or receipt.get("source_hashes") != {s["id"]: s["sha256"] for s in packet["sources"]}
+                or receipt.get("transport") not in {"local-library", "local-stdio"}
+                or not isinstance(receipt.get("consumed_at"), str)):
+            raise PacketError("Consumption receipt does not match the packet")
+        try:
+            consumed_at = datetime.fromisoformat(receipt["consumed_at"].replace("Z", "+00:00"))
+            issued_at = datetime.fromisoformat(packet["issued_at"].replace("Z", "+00:00"))
+            if consumed_at.tzinfo is None or not issued_at <= consumed_at <= datetime.now(timezone.utc):
+                raise ValueError("invalid consumption time")
+        except (ValueError, TypeError, KeyError) as exc:
+            raise PacketError("Consumption receipt has no valid observation time") from exc
+
     def consume(self, packet_id, recipient, *, transport="local-library"):
         if transport not in {"local-library", "local-stdio"}:
             raise PacketError("Context packets are local only")
@@ -233,8 +283,7 @@ class ContextPackets:
             "consumed_at": _now(), "transport": transport,
             "source_hashes": {s["id"]: s["sha256"] for s in packet["sources"]},
             "behavior": "unverified"}, filename=packet_id)
-        if receipt.get("packet_id") != packet_id or receipt.get("recipient") != packet["recipient"]:
-            raise PacketError("Consumption receipt does not match the packet")
+        self._validate_consumption(receipt, packet)
         return {"packet": packet, "consumption": receipt, "behavior_status": "unverified"}
 
     def attach_behavior(self, packet_id, recipient, artifact, reviewer, evidence, verdict):
@@ -273,4 +322,4 @@ def packet_store_for_project(project, config):
     if str(requested) not in allowed:
         raise PacketError("Project is not in the local context-review configuration")
     state = Path(helicon_home()).resolve() / "context-review" / _sha(str(requested).encode())[:24]
-    return ContextPackets(state / "packets", state / "reviews")
+    return ContextPackets(state / "packets", state / "reviews", project=str(requested))
