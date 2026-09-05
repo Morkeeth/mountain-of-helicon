@@ -53,3 +53,4 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 - 2026-09-05: Slice 2 chosen by opening the object: `Don't use yarn` / `Always use yarn` → GRADE A exit 0 (Don't-line invisible; claims only always). Prefer npm/yarn → GRADE – (deferred). Negative modality only.
 - 2026-09-05: Slice 2 shipped — `_USE_RULE` accepts don't/do not; normalize to never. Plant exit 1 GRADE D. Prefer still UNMEASURED. Empty HOME A. Pytest **56 passed**.
 - 2026-09-05: Slice 2b — bare `Never use yarn.` / `Always use yarn.` was GRADE A (empty-subject `_same_family` required a!=b). Fixed + strip trailing sentence punct from objs. Pytest **58 passed**. Empty HOME A.
+- 2026-09-05: Slice 3 — R14: `npm test` lifecycle; clause-scoped negation; `cd DIR && npm run` → DIR/package.json. Own-board went GRADE B on AGENTS.md:73 bare `npm run dev`; fixed to `cd web && npm run dev`. Empty HOME A, 12 checked. Pytest **62 passed**.
