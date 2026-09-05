@@ -10,6 +10,7 @@ import re
 import shlex
 from datetime import datetime, timezone
 from pathlib import Path
+from .context_history import HistoryError, read_source_bytes
 
 
 SCHEMA = "helicon.setup-audit/1"
@@ -26,21 +27,22 @@ def audit_setup(home=None, project=None):
 
     def inspect(path, harness, stage):
         path = Path(path)
-        if not path.is_file():
+        if not path.exists() and not path.is_symlink():
             return None
         key = (str(path), harness, stage)
         if key in seen:
             return None
         seen.add(key)
         try:
-            data = path.read_bytes()
-        except OSError:
+            data = read_source_bytes(path)
+            body = data.decode("utf-8")
+        except (OSError, HistoryError, UnicodeError):
             finding("unreadable:" + str(path), harness, "Instruction file could not be read",
                     [str(path)], "Check access to this file.", "unmeasured")
             return None
         files.append(dict(path=str(path), harness=harness, stage=stage,
                           bytes=len(data), sha256=hashlib.sha256(data).hexdigest()))
-        return data.decode("utf-8", errors="replace")
+        return body
 
     if not project.is_dir():
         finding("project-unavailable", "all", "Project directory is unavailable",
@@ -97,8 +99,9 @@ def audit_setup(home=None, project=None):
             if root.is_dir():
                 for path in sorted(root.rglob("SKILL.md")):
                     try:
-                        data = path.read_bytes()
-                    except OSError:
+                        data = read_source_bytes(path)
+                        data.decode("utf-8")
+                    except (OSError, HistoryError, UnicodeError):
                         finding("skill-unreadable:" + str(path), harness, "Skill could not be read",
                                 [str(path)], "Check access to this skill.", "unmeasured")
                         continue
@@ -110,7 +113,7 @@ def audit_setup(home=None, project=None):
     hooks = []
     vault = None
     try:
-        config = json.loads((home / ".helicon/config.json").read_text())
+        config = json.loads(read_source_bytes(home / ".helicon/config.json").decode("utf-8"))
         obsidian = config.get("connectors", {}).get("obsidian", {})
         if obsidian.get("enabled") and obsidian.get("vault_path"):
             vault = Path(obsidian["vault_path"].replace("~/", str(home) + "/", 1))
@@ -118,7 +121,7 @@ def audit_setup(home=None, project=None):
         pass  # No declared vault means no vault-reference check.
     if settings_path.exists():
         try:
-            settings = json.loads(settings_path.read_text())
+            settings = json.loads(read_source_bytes(settings_path).decode("utf-8"))
             groups = settings.get("hooks", {})
             if not isinstance(groups, dict):
                 raise ValueError("hooks must be an object")

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .setup_audit import audit_setup
+from .context_history import HistoryError, read_source_bytes
 
 SCHEMA = "helicon.context-review/1"
 MAX_BYTES = 2_000_000  # Read bound, not a quality threshold.
@@ -24,11 +25,9 @@ def _id(*parts):
 
 def _read(path):
     try:
-        before = path.stat()
-        if not path.is_file() or before.st_size > MAX_BYTES:
-            return "unreadable", None, None
-        data = path.read_bytes()
-        after = path.stat()
+        before = path.lstat()
+        data = read_source_bytes(path, limit=MAX_BYTES)
+        after = path.lstat()
         if (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_size) != (after.st_dev, after.st_ino, after.st_mtime_ns, after.st_size):
             return "changed", None, None
         if len(data) > MAX_BYTES:
@@ -37,6 +36,8 @@ def _read(path):
         return "available" if data else "empty", data, after
     except FileNotFoundError:
         return "missing", None, None
+    except HistoryError as exc:
+        return "changed" if "changed while" in str(exc) else "unreadable", None, None
     except (OSError, UnicodeError):
         return "unreadable", None, None
 
@@ -45,6 +46,24 @@ def _evidence(source, line, number, offset):
     return dict(source_id=source["id"], path=source["path"], sha256=source["sha256"],
                 line_start=number, line_end=number, start_byte=offset,
                 end_byte=offset + len(line.encode("utf-8")), quote=line)
+
+
+def _first_sentence(text):
+    """Keep filename punctuation inside backticks; split prose sentences only."""
+    quoted = False
+    for index, char in enumerate(text):
+        if char == '`':
+            quoted = not quoted
+        if not quoted and char in '.!?' and index + 1 < len(text) and text[index + 1].isspace():
+            return text[:index + 1]
+    return text
+
+
+def _reference_directive(text):
+    first = _first_sentence(re.sub(r"^\s*[-*]\s+", "", text.strip()))
+    if re.search(r"\b(if|unless|when|once|only after)\b", first, re.I):
+        return None
+    return re.fullmatch(r"(?:Read|See|Source:)\s+`([^`]+)`(?:\s+to\s+.+?)?[.!?]?", first)
 
 
 def _lines(data):
@@ -65,7 +84,8 @@ def _lines(data):
                 if re.search(r"\b(history|historical|example|examples|baseline|receipts?)\b", heading[2], re.I):
                     excluded = level
             elif excluded is None and not clean.startswith(">") and not re.search(
-                    r"\b(example|previously|formerly|used to|was|were|deleted|removed|if|might|would|should|will|planned|do not read|never read)\b", clean, re.I):
+                    r"\b(example|previously|formerly|used to|was|were|deleted|removed|if|might|would|should|will|planned|do not read|never read)\b",
+                    _first_sentence(clean) if _reference_directive(clean) else clean, re.I):
                 yield number, line, offset
         offset += len(line.encode("utf-8"))
 
@@ -76,7 +96,8 @@ def _claims(source, data, project, home):
         evidence = _evidence(source, line, number, offset)
         # A literal loader pointer remains useful even when delivery is unknown.
         # Resolve home explicitly against the reviewed home, not this process's.
-        pointers = [] if re.search(r"\b(is missing|does not exist|no longer)\b", text) else re.findall(r"`(~/[^`]+)`", text)
+        pointer_text = _first_sentence(text) if _reference_directive(text) else text
+        pointers = [] if re.search(r"\b(is missing|does not exist|no longer)\b", pointer_text) else re.findall(r"`(~/[^`]+)`", pointer_text)
         for raw in pointers:
             yield dict(subject=str((home / raw[2:]).resolve()), predicate="reference", value=True, evidence=evidence)
         if source["stage"] == "project instruction candidate":
@@ -99,7 +120,7 @@ def _claims(source, data, project, home):
             yield dict(subject=str(target), predicate="exists", value=path[2] in ("exists", "is present"), evidence=evidence)
         # Common instruction form: read an exact local file. An unavailable
         # reference blocks the instruction; it does not prove the fact is false.
-        read = re.fullmatch(r"(?:Read|See|Source:)\s+`([^`]+)`\.?", text)
+        read = _reference_directive(text)
         if read:
             raw = read[1]
             if raw.startswith("~/") or (source["stage"] == "global instruction candidate" and not Path(raw).is_absolute()):
