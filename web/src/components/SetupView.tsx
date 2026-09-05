@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ContextReview from './ContextReview';
 
 type Check = { id: string; question: string; status: string; interpretation: string; action: string; source?: string; query: string; rows: Record<string, unknown>[] };
 type Finding = {kind: string; title?: string; consequence?: string; action?: string; project?: string; projects?: string[]; checks?: string[]};
@@ -74,6 +75,7 @@ export default function SetupView() {
       <button className="text-sm" disabled={loading} onClick={() => void refresh()}>{loading ? 'Checking…' : 'Check now'}</button>
     </div>
     {error && <p role="alert" className="mb-5">{error}. Any earlier reading below is not current.</p>}
+    <ContextReview />
     {!report ? <p>{loading ? 'Reading the local sources…' : 'No review is available. Try Check now.'}</p> : <>
       <section className="mb-7">
         <h2 className="text-lg mb-2">What needs attention</h2>
