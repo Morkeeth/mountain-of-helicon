@@ -66,3 +66,8 @@ not meet Vite's documented runtime requirement. Two selected actual instruction
 files were also copied byte-for-byte into private temporary storage and reviewed.
 That copy check retains unknown loading and absent dependencies; its missing-path
 findings are not claims about the original setup. No global source was changed.
+
+Full combined verification: 1,285 passed, one skipped, two expected failures,
+and two failures in `test_launch_contract.py` because package metadata still
+names the earlier distribution. These are release-contract failures, not a
+passing release gate. The source-review and handoff tests pass separately.
