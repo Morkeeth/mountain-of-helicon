@@ -46,8 +46,10 @@ def _actor(value):
 
 class CorrectionStore:
     def __init__(self, state_dir, allowed_roots):
-        self.roots = tuple(Path(p).expanduser().resolve(strict=True) for p in allowed_roots)
-        if not self.roots or any(not p.is_dir() or p == Path('/') for p in self.roots):
+        # A disconnected project must not hide its saved correction history.
+        # Availability is enforced by descriptor traversal at preview/apply/undo.
+        self.roots = tuple(Path(p).expanduser().resolve(strict=False) for p in allowed_roots)
+        if not self.roots or any((p.exists() and not p.is_dir()) or p == Path('/') for p in self.roots):
             raise CorrectionScopeError("Explicit non-root source directories are required")
         self.state_dir = Path(state_dir).expanduser().resolve()
         self.db_path = self.state_dir / 'context-corrections.sqlite3'

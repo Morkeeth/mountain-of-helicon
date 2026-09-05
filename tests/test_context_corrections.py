@@ -286,3 +286,24 @@ def test_configured_root_ancestor_link_swap_is_refused(tmp_path):
     with pytest.raises(CorrectionScopeError):
         store.apply(p['id'], p['preview_hash'], 'agent:test')
     assert (moved / 'project' / 'AGENTS.md').read_text() == 'old'
+
+
+def test_disconnected_project_history_remains_readable_but_apply_refuses(setup, tmp_path):
+    store, root, path = setup
+    p = preview(store, path)
+    root.rename(tmp_path / 'disconnected-project')
+    restarted = CorrectionStore(store.state_dir, [root])
+    before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in store.state_dir.iterdir()}
+    assert restarted.history()[0]['id'] == p['id']
+    after = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in store.state_dir.iterdir()}
+    assert before == after
+    with pytest.raises(CorrectionScopeError):
+        restarted.apply(p['id'], p['preview_hash'], 'local-reviewer')
+    assert not root.exists()
+
+
+def test_missing_root_empty_history_does_not_create_source_or_state(tmp_path):
+    root, state = tmp_path / 'missing-project', tmp_path / 'missing-state'
+    assert CorrectionStore(state, [root]).history() == []
+    assert not root.exists()
+    assert not state.exists()
