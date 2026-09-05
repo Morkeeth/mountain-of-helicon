@@ -134,8 +134,14 @@ def _absence_checked(finding: dict, previous: dict, current: dict) -> bool:
             return False
         for source_id in population:
             a, b = source_before.get(source_id, {}), source_after.get(source_id, {})
-            if not a.get("sha256") or not b.get("sha256") or a.get("path") != b.get("path"):
+            if a.get("path") != b.get("path"):
                 return False
+            if not a.get("sha256") or not b.get("sha256"):
+                # A conventional entrypoint absent in both complete scans is
+                # stable scope, not a vanished evidence source. Never allow a
+                # missing source that supported the original finding.
+                if source_id in evidence_ids or a.get("status") != "missing" or b.get("status") != "missing":
+                    return False
         covered.update(population)
     return evidence_ids <= covered
 
@@ -174,6 +180,11 @@ class ContextHistory:
                 self.load(sha)  # refuse a corrupt object at the existing ID
         finally:
             os.unlink(temporary)
+        directory_fd = os.open(self.root, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
         return self.load(sha)
 
     def load(self, snapshot_id: str) -> dict:
