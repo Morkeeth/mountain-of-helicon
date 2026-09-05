@@ -68,6 +68,53 @@ def test_never_vs_always_same_object_conflicts():
     assert any(r["kind"] == "never-vs-always" for r in res["receipts"])
 
 
+def test_dont_use_vs_always_same_object_conflicts():
+    """Day slice 2: Don't-line was invisible; plant graded A. Must fire."""
+    d = _repo({
+        "CLAUDE.md": "Don't use yarn for installs.\nAlways use yarn for installs.\n",
+    })
+    res = check_same_source_rules(d)
+    assert res["verdict"] == "ROT FOUND", res
+    assert any(r["kind"] == "never-vs-always" for r in res["receipts"])
+    assert main([d]) == 1
+
+
+def test_do_not_use_vs_always_same_object_conflicts():
+    d = _repo({
+        "CLAUDE.md": "Do not use yarn for installs.\nAlways use yarn for installs.\n",
+    })
+    res = check_same_source_rules(d)
+    assert res["verdict"] == "ROT FOUND", res
+    assert main([d]) == 1
+
+
+def test_single_dont_use_is_clean():
+    d = _repo({"CLAUDE.md": "Don't use yarn for installs.\n"})
+    res = check_same_source_rules(d)
+    assert res["verdict"] == "CLEAN" and res["broken"] == 0, res
+
+
+def test_prefer_stays_unmeasured():
+    """Open question: Prefer is deferred — must not invent conflicts."""
+    d = _repo({
+        "CLAUDE.md": "Prefer npm for installs.\nPrefer yarn for installs.\n",
+    })
+    res = check_same_source_rules(d)
+    assert res["verdict"] == "UNMEASURED", res
+    assert res["broken"] == 0
+    assert main([d]) == 0
+
+
+def test_null_baseline_silent_on_dont_plant():
+    """Naive/null arm has no don't-extractor — disagreement is the measurement."""
+    text = "Don't use yarn for installs.\nAlways use yarn for installs.\n"
+    claims = extract_use_rules(text)
+    assert any(c.modality == "never" and c.obj == "yarn" for c in claims)
+    assert find_conflicts(claims)
+    null_conflicts = []  # existence-tier only
+    assert null_conflicts == []
+
+
 def test_empty_claims_file_does_not_say_missing():
     """Regression: CLAUDE.md with no path claims used to print 'No agent
     instruction file found' while instruction_files listed it."""

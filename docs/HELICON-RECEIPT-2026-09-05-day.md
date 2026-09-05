@@ -91,7 +91,41 @@ Plus this day receipt + day `hack.md` contract (separate commit).
 
 1. **Overnight receipt said GRADE B exited 0 on main; today's bare-main run exited 1.** Carrying that exit code would have been a lie. Re-derived: exit **1** on GRADE B at `8714be6`. Possible causes: review exit policy already treated B as fail on this tip, or overnight mis-logged; object today is exit 1.
 2. **Checked-count drift:** bare main empty-HOME = **11** checked; overnight receipt said **12**; land after = **10**. Do not reconcile by reading — these are three different runs/objects. Day claims use today's numbers only.
-3. **Did not re-run full pytest suite today for the land claim** — targeted 51 passed is the Slice-1 done-when. Full-suite anyio/launch_contract status left to overnight receipt + optional later probe.
+3. **Did not re-run full pytest suite today for the land claim** — targeted suite is the Slice-1/2 done-when. Full-suite anyio/launch_contract status left to overnight receipt + optional later probe.
 4. **`HOME=` empty still cannot use the `helicon` console script** (user-site under `~/.local`) — probe uses `PYTHONPATH=/workspace python3 -m helicon.review`.
 5. **Slice 3 README ≤400 not started** — Oscar gate per day brief.
 6. **No merge to main** — PR-ready only.
+7. **`prefer` still unmeasured** — Prefer npm/yarn plant stays GRADE – by design (Slice 2 open question). Soft contradictions in prefer-language remain a silent hole.
+8. **Don't-line normalizes to `never` in the receipt text** — output says `` `never use yarn` `` even when the file wrote `Don't`. Honest enough for the conflict; the surface wording is not the author's.
+
+## Slice 2 — R1b don't / do not (day)
+
+Overnight R1b only matched `always|must|only|never`. Softer negation graded as truth:
+
+```
+# BEFORE (land tip, before Slice 2 code)
+$ printf '%s\n' "Don't use yarn for installs." "Always use yarn for installs." > "$TMP/CLAUDE.md"
+$ PYTHONPATH=/workspace python3 -m helicon.review "$TMP"
+  ✓ This setup tells its agent the truth.
+  GRADE A   ·   1 reference checked, 0 broken
+$ echo $?
+0
+# extract_use_rules → only [('always','yarn','installs')] — Don't-line invisible
+```
+
+```
+# AFTER
+$ PYTHONPATH=/workspace python3 -m helicon.review "$TMP"
+  ✗ Your setup lies to its agent in 1 place.
+    ✗ CLAUDE.md:1/2  rules conflict yarn vs yarn  — L1 `never use yarn` conflicts with L2 `always use yarn` on subject 'installs'
+  GRADE D   ·   2 references checked, 1 broken
+$ echo $?
+1
+```
+
+Also verified: `Do not use yarn` / `Always use yarn` → exit 1; Prefer npm/yarn → GRADE – exit 0 (deferred); Always v1/v2 still exit 1; empty-HOME self-review still GRADE A exit 0.
+
+```
+$ TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_rules_r1b.py tests/test_review.py tests/test_review2.py tests/test_pointers.py tests/test_pointers_precision.py tests/test_commands.py
+56 passed
+```
