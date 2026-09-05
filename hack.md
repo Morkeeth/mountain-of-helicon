@@ -1,55 +1,51 @@
-# hack.md — OVERNIGHT 2026-09-05 · env-pointer lie grade
+# hack.md — DAY 2026-09-05 · land env-pointer + next truth slice
 
 ## NORTH STAR
 
-A cold clone of this repo must not be graded as lying because the reviewer's machine lacks Oscar's `~/.helicon/config.json`.
+A cold clone / empty-HOME review of this product must not convict `AGENTS.md` for a missing host config that lives outside the repo — and that fix must live on a fresh branch from today's `main`, re-proven at the object.
 
 ## PROMISE LINE
 
-**GET:** Machine-local paths (`~/…`, absolute outside the tree) leave the "setup lies about this repo" grade — same doctrine as external commands (R14): absence outside the repo proves nothing about the repo.
+**GET:** Overnight `cursor/env-pointer-lie-grade-9d89` (env-local missing pointers → `machine_gaps`, not lies; R1b same-source conflicts) replayed onto a new day branch from current `main`, with a day receipt that shows before/after review grades from commands run today.
 
-**CONSTRAINT:** Intra-repo dead pointers still fire. No PyPI publish. Outward acts are Oscar's click (no public post/submit; draft PR is delivery only).
+**CONSTRAINT:** No merge to `main` without Oscar. No PyPI publish. No private flip. No force-push. Outward acts are Oscar's click (draft PR only). Slice 3 README ≤400 stays Oscar-gated unless trivial.
 
 ## OPEN QUESTIONS
 
-- **BLOCKING:** none — doctrine already shipped for commands (`test_external_commands_are_unmeasured_not_false_alarms`); pointers lagged.
-- **NON-BLOCKING:** Should present `~/…` paths stay in the checked denominator (today: yes, as resolved) or also leave it? Keeping them in for now so a resolved home path still counts as evidence the extractor saw it.
-- **NON-BLOCKING:** R1b same-source contradiction (ROADMAP) — next slice, not tonight's NOW unless Slice 1 finishes early with headroom.
+- **BLOCKING:** none — overnight commits cherry-picked clean onto `main` @ `8714be6`.
+- **NON-BLOCKING:** What is the smallest next truth slice after land+reprove that is not the Oscar-gated README rewrite? Decide only after Slice 1 green.
+- **NON-BLOCKING:** Full-suite anyio/launch_contract reds — re-derive if probing; do not invent fleet-wide green.
 
 ## CONSTITUTION
 
 1. Run it, do not read it — every checkbox names the command that proved it.
-2. Re-derive numbers at the object; never carry figures from this prompt or prior receipts.
-3. A control that has not been watched going RED is not a control — the cold-HOME self-review must fail on main before the fix and pass after.
-4. Never rank by title; open the object (clean HOME, this checkout, public fixtures).
-5. Baseline arm required: naive "missing ~/ = broken" vs env-aware; if naive wins anywhere that matters, that is the finding.
+2. Re-derive numbers at the object; never carry figures from the overnight receipt or this prompt.
+3. A control that has not been watched going RED is not a control — empty-HOME review must fail on bare `main` before the land and pass after.
+4. Never rank by title; open the object (clean HOME, this checkout, planted fixtures).
+5. Do not tick a box whose done-when was not executed.
 6. Report SHIPPED / VERIFIED / WRONG; WRONG is mandatory.
 
 ## PLAN
 
-1. **Slice 1 (NOW / riskiest):** Env-local missing pointers are not repo-lies. Extract skips them from broken/checked (like ungradable slash-commands), optionally surfaces `machine_gaps` for honesty. Cold-HOME control + baseline eval + precision/pointer tests + `docs/HELICON-RECEIPT-2026-09-05.md`. *Risk: buying precision by silencing real agent dead-ends that name `~/CODE/...` — baseline arm must keep a fixture where the naive grader "catches" a missing home path and we state we intentionally exclude it from the lie grade.*
-2. Slice 2: R1b same-source contradiction detector (ROADMAP Camp II) — only if Slice 1 is green with headroom.
-3. Slice 3: README ≤400 / PyPI lead (SUBTRACTION-MEMO) — Oscar gate, deferred.
+1. **Slice 1 (land / riskiest):** Cherry-pick overnight onto `cursor/env-pointer-land-cb81`; empty-HOME RED→GREEN; day receipt. *Risk: clean cherry-pick without object re-proof.*
+2. Slice 2: One small next truth slice — only if Slice 1 green. Not README ≤400 (Oscar gate).
+3. Slice 3: README ≤400 / PyPI lead — Oscar gate, skip unless trivial.
 
 ## NOW
 
-**Slice 2:** R1b same-source rule contradiction in `helicon review` — plant "always use v1" / "always use v2" in one CLAUDE.md and get a finding (today: silent + false "no instruction file" when the file has no path claims).
+**Slice 1 done — moving to Slice 2 selection after commit.** Land verified; day receipt written.
 
-**Done when:**
-- [x] Planted same-file v1/v2 conflict → review reports broken — `python3 -m helicon.review $TMP` exit **1**, GRADE D
-- [x] Null/baseline arm silent on same plant — `find_conflicts` vs `[]` in `test_null_baseline_arm_is_silent_on_plant`
-- [x] Clean single-rule file stays clean — `test_single_always_use_is_clean`
-- [x] False "No agent instruction file" fixed — empty-claims fixture prints "Found CLAUDE.md but nothing checkable yet."
-- [x] pytest green — 51 passed (pointers/review/commands/r1b/review2)
-- [x] Slice 1 cold-HOME still GRADE A — re-run exit 0
-- [x] Receipt updated
+**Done when (Slice 1):**
+- [x] Branch from today's main contains overnight commits — `git log --oneline origin/main..HEAD` → 4 cherry-picks (`b172b83`…`0411d2d`)
+- [x] Empty-HOME review on bare main goes RED — `HOME=$EMPTY PYTHONPATH=/workspace python3 -m helicon.review /workspace` → exit **1**, GRADE B, 11 checked, 1 broken
+- [x] Empty-HOME review on land branch goes GREEN — same command → exit **0**, GRADE A, 10 checked, 0 broken, 1 machine_gap
+- [x] `docs/HELICON-RECEIPT-2026-09-05-day.md` exists with before/after from today's runs
+- [x] Targeted pytest — `TMPDIR=$HOME/pytmp python3 -m pytest -q tests/test_pointers.py tests/test_pointers_precision.py tests/test_review.py tests/test_review2.py tests/test_commands.py tests/test_rules_r1b.py` → **51 passed**
 
 ## LOG
 
-- 2026-09-04: Read contract `hack.md` (was S2 help-groups, done). `git log -5` on main → first-screen + witness-share. Ran `helicon review .` → GRADE B, sole finding `AGENTS.md:63 ~/.helicon/config.json` — file absent on this VM (`ls` exit 2). Own-board doc claimed A only because author's HOME had the file. Commands already exclude external providers; pointers did not. Slice 1 chosen.
-- 2026-09-04: Branch `cursor/env-pointer-lie-grade-9d89` from `origin/main` @ 8714be6.
-- 2026-09-04: Slice 1 implemented. Cold HOME control: GRADE B→A. Pytest pointers/review/commands **44 passed**. Baseline 2 DISAGREE. `launch_check` **BLOCKED** pre-existing `package-metadata` (exit 1). Receipt: `docs/HELICON-RECEIPT-2026-09-05.md`.
-- 2026-09-04: Done-when checks — cold HOME review run (`HOME=… PYTHONPATH=… python3 -m helicon.review`); intra-repo dead still fires (pytest); baseline printed; `--help` Verify/truth first.
-- 2026-09-04: Slice 1 committed `4cd9079` + pushed. Reproduced ROADMAP R1b gap: planted Always use v1/v2 CLAUDE.md → review says "No agent instruction file found" (checked=0) while `instruction_files=['CLAUDE.md']`. Slice 2 NOW.
-- 2026-09-04: **WRONG:** briefly overwrote `helicon/rules.py` (triage compiler); restored from HEAD; R1b in `helicon/same_source.py`. Caught by test_review2 ImportError.
-- 2026-09-04: Slice 2 green — planted exit 1; 51 pytest passed; cold HOME still A.
+- 2026-09-05: Read contract — previous `hack.md` was HELICON-S2 help groups (stale). Overnight branch exists: 4 commits on `cursor/env-pointer-lie-grade-9d89`, merge-base = `main` @ `8714be6`, 0 behind / 4 ahead. Wrote day contract before any land code.
+- 2026-09-05: Fetched `origin/main` + `origin/cursor/env-pointer-lie-grade-9d89`. Local main matches remote @ `8714be6`.
+- 2026-09-05: **Control RED on bare main** — empty HOME review exit 1, GRADE B, AGENTS.md:63 `~/.helicon/config.json` broken. (Overnight receipt claimed exit 0 for GRADE B — **wrong to carry**; today exit 1.)
+- 2026-09-05: Branch `cursor/env-pointer-land-cb81`; cherry-pick `4cd9079 160ab07 e72c1c2 ed4cb5f` → `b172b83 2162ee0 92761e4 0411d2d`, 0 conflicts.
+- 2026-09-05: **Control GREEN after land** — exit 0, GRADE A, 1 machine_gap. R1b plant exit 1 GRADE D. Baseline 2 DISAGREE. Pytest 51 passed. Day receipt written.
