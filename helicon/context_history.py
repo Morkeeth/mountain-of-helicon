@@ -18,16 +18,47 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import tempfile
 from datetime import datetime
 
 
 SCHEMA = "helicon.context-history/1"
 _HASH = re.compile(r"[0-9a-f]{64}\Z")
+MAX_SOURCE_BYTES = 4 * 1024 * 1024
 
 
 class HistoryError(ValueError):
     """An invalid, changed or corrupt review cannot supply comparison evidence."""
+
+
+def read_source_bytes(path: str | Path, limit: int = MAX_SOURCE_BYTES) -> bytes:
+    """Bounded regular-file read; a FIFO or symlink replacement cannot block.
+
+    Source identities are canonical paths from the scanner. Reading through a
+    new link, even to identical bytes, is not the reviewed identity.
+    """
+    path = Path(path)
+    try:
+        if not path.is_absolute() or path != path.resolve():
+            raise HistoryError("Reviewed source identity changed through a symlink")
+        flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags)
+        with os.fdopen(fd, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_size > limit:
+                raise HistoryError("Reviewed source must be a bounded regular file")
+            data = stream.read(limit + 1)
+            after = os.fstat(stream.fileno())
+            named = path.lstat()
+        if (len(data) > limit or not stat.S_ISREG(named.st_mode)
+                or (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+                != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                or (after.st_dev, after.st_ino) != (named.st_dev, named.st_ino)):
+            raise HistoryError("Reviewed source changed while being read")
+        return data
+    except (OSError, RuntimeError) as exc:
+        raise HistoryError("Reviewed source is unavailable or its identity changed") from exc
 
 
 def _bytes(value) -> bytes:
@@ -92,9 +123,9 @@ def _revalidate_sources(review: dict) -> list[dict]:
         expected = source.get("sha256")
         if expected:
             try:
-                actual = _digest(path.read_bytes())
-            except OSError as exc:
-                raise HistoryError(f"Reviewed source is unavailable: {source['id']}") from exc
+                actual = _digest(read_source_bytes(path))
+            except HistoryError as exc:
+                raise HistoryError(f"Reviewed source is unavailable or changed: {source['id']}: {exc}") from exc
             if actual != expected:
                 raise HistoryError(f"Reviewed source changed: {source['id']}")
             state = "matched"

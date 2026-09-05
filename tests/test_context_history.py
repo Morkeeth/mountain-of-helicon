@@ -3,6 +3,9 @@
 from copy import deepcopy
 import hashlib
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -212,3 +215,32 @@ def test_stably_missing_optional_entrypoint_does_not_hide_checked_resolution(tmp
     assert store.compare(snap["id"], after)["counts"]["resolved"] == 1
     after["sources"][-1] = dict(optional, status="unreadable")
     assert store.compare(snap["id"], after)["counts"]["unchecked"] == 1
+
+
+def test_source_swap_to_fifo_is_denied_without_blocking(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    r = review(path)
+    path.unlink()
+    os.mkfifo(path)
+    script = "import json,sys; from helicon.context_history import ContextHistory; ContextHistory(sys.argv[1]).save(json.loads(sys.argv[2]))"
+    result = subprocess.run([sys.executable, "-c", script, str(tmp_path / "history"), json.dumps(r)],
+                            capture_output=True, text=True, timeout=5)
+    assert result.returncode != 0
+    assert "bounded regular file" in result.stderr
+    assert not (tmp_path / "history").exists()
+
+
+def test_same_bytes_symlink_swap_and_oversized_source_are_denied(tmp_path):
+    from helicon.context_history import MAX_SOURCE_BYTES, read_source_bytes
+    path = tmp_path / "AGENTS.md"
+    r = review(path)
+    target = tmp_path / "other.md"
+    path.rename(target)
+    path.symlink_to(target)
+    with pytest.raises(HistoryError, match="symlink"):
+        ContextHistory(tmp_path / "history").save(r)
+    oversized = tmp_path / "oversized"
+    with oversized.open("wb") as stream:
+        stream.truncate(MAX_SOURCE_BYTES + 1)
+    with pytest.raises(HistoryError, match="bounded regular file"):
+        read_source_bytes(oversized)
