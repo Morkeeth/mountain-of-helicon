@@ -43,3 +43,26 @@ Selected project sources can be prepared as a minimal local packet for an exact 
 - The controlled fixture retained different-subject noise without a false conflict. A missed longer read instruction was retained as a failed case and added to parser tests; the UI then displayed its missing path.
 - Targeted source/correction/history/packet/API suites passed. Frontend build passed. A full combined suite and real-agent behavior proof are still pending at this boundary.
 - No live personal instruction file was corrected. The controlled project is labelled test data; its events do not count as user acceptance or production outcomes.
+
+### Resumed proof, 5 September
+
+A fresh agent consumed the corrected packet through the real local MCP interface,
+then calculated the inventory from the requested source. An independent reviewer
+read the catalog and verified the exact result: 5,430 EUR cents, excluding the
+inactive row. The earlier original-packet agent had stopped at the missing source.
+The separate consumption receipt and artifact-bound behavior review persist in
+private project state. This proves the controlled correction-to-next-run path,
+not general memory benefit, production acceptance, or other provider coverage.
+
+`context_handoff.prepare_handoff` now prepares a private `zup.helicon-origin/1`
+reference for one explicit project ID, snapshot and finding. It verifies source
+hashes, exact quoted byte spans and evidence revision, publishes an immutable
+origin file outside source repositories, and does not create a task or send work.
+The consumer must validate again: preparation does not prevent later source drift.
+
+The 91 targeted source, correction, history, packet, handoff and API tests pass.
+The frontend builds with the installed Node 22 runtime; the shell's Node 16 does
+not meet Vite's documented runtime requirement. Two selected actual instruction
+files were also copied byte-for-byte into private temporary storage and reviewed.
+That copy check retains unknown loading and absent dependencies; its missing-path
+findings are not claims about the original setup. No global source was changed.
