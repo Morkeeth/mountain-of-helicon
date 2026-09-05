@@ -38,6 +38,36 @@ def _send_message(msg):
 
 TOOLS = [
     {
+        "name": "helicon_context_packet_inspect",
+        "description": "Inspect a project-scoped local context packet for this exact run. Returns metadata, revision status and existing consumption/behavior records; does not deliver content or mark it consumed. Local stdio only.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "packet_id": {"type": "string"},
+                "recipient": {"type": "object", "properties": {
+                    "run_id": {"type": "string"}, "provider": {"type": "string"},
+                    "project": {"type": "string"}}, "required": ["run_id", "provider", "project"],
+                    "additionalProperties": False},
+            },
+            "required": ["packet_id", "recipient"],
+        },
+    },
+    {
+        "name": "helicon_context_packet_consume",
+        "description": "Consume a selected project context packet for this exact run over local stdio. Refuses source drift or recipient mismatch. Returns frozen content and source hashes plus a consumption receipt. Consumption is not proof of behavior; no remote tool access.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "packet_id": {"type": "string"},
+                "recipient": {"type": "object", "properties": {
+                    "run_id": {"type": "string"}, "provider": {"type": "string"},
+                    "project": {"type": "string"}}, "required": ["run_id", "provider", "project"],
+                    "additionalProperties": False},
+            },
+            "required": ["packet_id", "recipient"],
+        },
+    },
+    {
         "name": "helicon_health",
         "description": "Get the current health score of your memory system. Returns: overall score (0-100), total memories, reviewed count, pending count, decay stats by type.",
         "inputSchema": {"type": "object", "properties": {}, "required": []},
@@ -283,7 +313,8 @@ TOOLS = [
 # boundary.
 REMOTE_TOOL_NAMES = frozenset(
     tool["name"] for tool in TOOLS
-    if tool["name"] not in {"helicon_compile", "helicon_triage", "helicon_consolidate"}
+    if tool["name"] not in {"helicon_compile", "helicon_triage", "helicon_consolidate",
+                            "helicon_context_packet_inspect", "helicon_context_packet_consume"}
 )
 SUPPORTED_PROTOCOL_VERSIONS = ("2025-03-26", "2024-11-05")
 
@@ -593,6 +624,24 @@ def _flag_memory(conn, memory_id: str, verdict: str, reason: str = "") -> dict:
 
 
 def handle_tool_call(name: str, arguments: dict, conn) -> str:
+    if name in {"helicon_context_packet_inspect", "helicon_context_packet_consume"}:
+        from helicon.context_packet import PacketError, packet_store_for_project
+        try:
+            recipient = arguments.get("recipient")
+            if not isinstance(recipient, dict):
+                raise PacketError("Exact recipient is required")
+            project = recipient.get("project")
+            if not isinstance(project, str):
+                raise PacketError("Recipient project is required")
+            store = packet_store_for_project(project, load_config())
+            if name.endswith("_consume"):
+                result = store.consume(arguments.get("packet_id"), recipient, transport="local-stdio")
+            else:
+                result = store.inspect(arguments.get("packet_id"), recipient)
+            return json.dumps(result, indent=2)
+        except (PacketError, OSError) as exc:
+            return json.dumps({"error": str(exc)}, indent=2)
+
     if name == "helicon_prompt_gate":
         from helicon.wager import WagerError, compile_execution_prompt
         try:
