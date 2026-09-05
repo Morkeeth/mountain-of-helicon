@@ -196,3 +196,19 @@ def test_same_timestamp_conflicting_scans_do_not_prove_recurrence(tmp_path):
     diff = store.compare(before["id"], current, [first["id"], ambiguous["id"]])
     assert diff["counts"]["recurring"] == 0
     assert diff["counts"]["persisting"] == 1
+
+
+def test_stably_missing_optional_entrypoint_does_not_hide_checked_resolution(tmp_path):
+    path = tmp_path / "AGENTS.md"
+    store = ContextHistory(tmp_path / "history")
+    before = review(path)
+    optional = {"id": "optional", "path": str(tmp_path / "CLAUDE.md"), "status": "missing", "sha256": None}
+    before["sources"].append(optional)
+    before["coverage"]["checks"][0]["source_ids"].append("optional")
+    snap = store.save(before)
+    after = review(path, 2, finding=False)
+    after["sources"].append(optional)
+    after["coverage"]["checks"][0]["source_ids"].append("optional")
+    assert store.compare(snap["id"], after)["counts"]["resolved"] == 1
+    after["sources"][-1] = dict(optional, status="unreadable")
+    assert store.compare(snap["id"], after)["counts"]["unchecked"] == 1
