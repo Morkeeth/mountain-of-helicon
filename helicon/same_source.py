@@ -61,6 +61,8 @@ class RuleClaim:
 def _norm_obj(raw: str) -> str:
     t = raw.strip().strip("`").strip().lower()
     t = re.sub(r"\s+", " ", t)
+    # Sentence punctuation after a bare object ("Never use yarn.") — not version dots.
+    t = t.rstrip(".,;:!")
     return t
 
 
@@ -87,7 +89,7 @@ def extract_use_rules(text: str) -> list[RuleClaim]:
     for i, line in enumerate(text.splitlines(), 1):
         for m in _USE_RULE.finditer(line):
             mod = _norm_modality(m.group("mod"))
-            raw_obj = m.group("obj")
+            raw_obj = m.group("obj").strip().rstrip(".,;:!")
             obj = _norm_obj(raw_obj)
             if not obj or len(obj) > 60:
                 continue
@@ -107,13 +109,15 @@ def find_conflicts(claims: list[RuleClaim]) -> list[dict]:
         for b in claims[i + 1:]:
             if a.line_no == b.line_no:
                 continue
-            # Same subject required when either names one; if both empty, bind by
-            # object stem family (v1/v2, python3.11/python3.12).
+            # Same subject required when either names one; if both empty, allow
+            # same-object never↔always OR same-family competing always (v1/v2).
             if a.subject or b.subject:
                 if a.subject != b.subject:
                     continue
             else:
-                if not _same_family(a.obj, b.obj):
+                if a.obj == b.obj:
+                    pass  # fall through — bare never/always yarn must convict
+                elif not _same_family(a.obj, b.obj):
                     continue
             # never X vs always/must/only X
             if {_positive(a.modality), _positive(b.modality)} == {True, False}:
