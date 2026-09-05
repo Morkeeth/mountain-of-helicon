@@ -8,6 +8,8 @@ the command either resolves to something the repo defines, or it does not.
 
 Only the DETERMINISTICALLY resolvable command shapes are graded, so a miss is a real miss:
   npm run X / yarn X / pnpm X   -> X must be a key in package.json "scripts"
+  cd DIR && npm run X           -> X must be in DIR/package.json scripts
+  npm test|start|stop|restart   -> same as npm run <lifecycle>
   make X                        -> X: must be a target in a Makefile
   ./path or bash path.sh        -> the script file must exist
   python[3] path.py / -m pkg    -> the file (or package dir) must exist in the repo
@@ -24,15 +26,37 @@ import re
 
 from helicon.pointers import DEFAULT_INSTRUCTION_FILES, _NEGATION
 
-# Command references inside inline code spans. Each group 1 = the token we resolve.
-_RE_NPM = re.compile(r"`(?:npm run|yarn|pnpm(?: run)?)\s+([\w:.-]+)`")
+# Command references inside inline code spans.
+# npm lifecycle aliases (test/start/stop/restart) are scripts too — `npm test` ≡ `npm run test`.
+# `cd web && npm run build` resolves against web/package.json.
+# Do NOT grade `npm ci` / `npm install` / `npm publish` (external / non-script).
+_RE_NPM = re.compile(
+    r"`(?:cd\s+([\w./-]+)\s*&&\s*)?(?:npm run|yarn|pnpm(?: run)?)\s+([\w:.-]+)`"
+    r"|`npm\s+(test|start|stop|restart)`"
+)
 _RE_MAKE = re.compile(r"`make\s+([\w.-]+)`")
 _RE_PY = re.compile(r"`python3?\s+(?:-m\s+([\w.]+)|([\w./-]+\.py))[^`]*`")
 _RE_SCRIPT = re.compile(r"`(?:bash|sh|\./)\s*([\w./-]+\.(?:sh|bash|py|js|ts))`")
 
+# Clause breaks for described-absence: negation in a *different* clause must not
+# silence a later imperative ("missing web/dist; run `npm run build`").
+_CLAUSE_BREAK = re.compile(r"[.;](?:\s|$)|(?:\s[-–—]\s)")
 
-def _pkg_scripts(repo_root: str) -> set[str]:
-    p = os.path.join(repo_root, "package.json")
+
+def _clause_containing(line: str, idx: int) -> str:
+    bounds = [0]
+    for m in _CLAUSE_BREAK.finditer(line):
+        bounds.append(m.end())
+    bounds.append(len(line))
+    for a, b in zip(bounds, bounds[1:]):
+        if a <= idx < b:
+            return line[a:b]
+    return line
+
+
+def _pkg_scripts(repo_root: str, subdir: str | None = None) -> set[str]:
+    base = os.path.join(repo_root, subdir) if subdir else repo_root
+    p = os.path.join(base, "package.json")
     try:
         with open(p, encoding="utf-8") as fh:
             return set(json.load(fh).get("scripts", {}) or {})
@@ -72,8 +96,13 @@ def _module_in_repo(repo_root: str, mod: str) -> bool:
 def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
     targets = [f for f in (files or DEFAULT_INSTRUCTION_FILES)
                if os.path.exists(os.path.join(repo_root, f))]
-    scripts = _pkg_scripts(repo_root)
+    scripts_cache: dict[str | None, set[str]] = {None: _pkg_scripts(repo_root)}
     targets_mk = _make_targets(repo_root)
+
+    def scripts_for(subdir: str | None) -> set[str]:
+        if subdir not in scripts_cache:
+            scripts_cache[subdir] = _pkg_scripts(repo_root, subdir)
+        return scripts_cache[subdir]
 
     checked: list[dict] = []
     read_files: list[str] = []
@@ -86,22 +115,27 @@ def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
         read_files.append(rel)
         for i, line in enumerate(lines, 1):
             for m in _RE_NPM.finditer(line):
-                _grade(checked, "npm", m.group(1), m.group(1) in scripts, rel, i, line,
-                       f"no '{m.group(1)}' in package.json scripts")
+                # groups: (cd_dir?, script) | (None, None, lifecycle)
+                script = m.group(2) or m.group(3)
+                cd_dir = m.group(1)
+                pkg = scripts_for(cd_dir)
+                where = f"{cd_dir}/package.json" if cd_dir else "package.json"
+                _grade(checked, "npm", script, script in pkg, rel, i, line,
+                       f"no '{script}' in {where} scripts", match_start=m.start())
             for m in _RE_MAKE.finditer(line):
                 _grade(checked, "make", m.group(1), m.group(1) in targets_mk, rel, i, line,
-                       f"no '{m.group(1)}' target in Makefile")
+                       f"no '{m.group(1)}' target in Makefile", match_start=m.start())
             for m in _RE_PY.finditer(line):
                 mod, path = m.group(1), m.group(2)
                 if mod:
                     _grade(checked, "python-m", mod, _module_in_repo(repo_root, mod), rel, i, line,
-                           f"module '{mod}' not in repo")
+                           f"module '{mod}' not in repo", match_start=m.start())
                 elif path:
                     _grade(checked, "python", path, _file_in_repo(repo_root, path), rel, i, line,
-                           f"script '{path}' not in repo")
+                           f"script '{path}' not in repo", match_start=m.start())
             for m in _RE_SCRIPT.finditer(line):
                 _grade(checked, "script", m.group(1), _file_in_repo(repo_root, m.group(1)),
-                       rel, i, line, f"script '{m.group(1)}' not in repo")
+                       rel, i, line, f"script '{m.group(1)}' not in repo", match_start=m.start())
 
     broken = [c for c in checked if not c["resolved"]]
     if not read_files or not checked:
@@ -115,10 +149,13 @@ def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
                          for c in broken]}
 
 
-def _grade(acc, kind, raw, resolved, rel, line_no, line, why):
+def _grade(acc, kind, raw, resolved, rel, line_no, line, why, match_start: int = 0):
     # a described absence ("we removed `make old`") is not a broken command reference.
+    # Negation must sit in the *same clause* as the command — otherwise
+    # "missing web/dist; run `npm run build`" falsely silences a dead script.
     if not resolved:
-        prose = line.replace(raw, " ")
+        clause = _clause_containing(line, match_start)
+        prose = clause.replace(raw, " ", 1)
         if _NEGATION.search(prose):
             return
     if any(c["kind"] == kind and c["raw"] == raw for c in acc):

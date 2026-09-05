@@ -33,13 +33,15 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 
 ## NOW
 
-**Slice 2b done.** Oscar-gated README still deferred.
+**Slice 3 done.** Oscar-gated README ≤400 still deferred.
 
-**Done when (Slice 2b):**
-- [x] Control RED: bare Never/Always yarn → GRADE A exit 0
-- [x] After: exit **1**, never-vs-always; trailing `.` stripped from obj
-- [x] Don't plant, with-subject never/always, bare v1/v2 still exit 1; Prefer UNMEASURED
-- [x] Empty-HOME GRADE A; pytest re-derived (see LOG)
+**Done when (Slice 3):**
+- [x] `npm test` dead → exit 1 GRADE F (was GRADE –)
+- [x] other-clause negation + dead build → exit 1 (was silent)
+- [x] described removal still CLEAN
+- [x] `cd web && npm run` resolves web/package.json; bare root still convicts
+- [x] Own-board: tool went RED on AGENTS.md:73; fixed line to `cd web && npm run dev`; empty-HOME GRADE A exit 0, 12 checked
+- [x] pytest **62 passed**
 
 ## LOG
 
@@ -50,3 +52,4 @@ A cold clone / empty-HOME review of this product must not convict `AGENTS.md` fo
 - 2026-09-05: **Control GREEN after land** — exit 0, GRADE A, 1 machine_gap. R1b plant exit 1 GRADE D. Baseline 2 DISAGREE. Pytest 51 passed. Day receipt written. Committed `8c12276`, pushed.
 - 2026-09-05: Slice 2 chosen by opening the object: `Don't use yarn` / `Always use yarn` → GRADE A exit 0 (Don't-line invisible; claims only always). Prefer npm/yarn → GRADE – (deferred). Negative modality only.
 - 2026-09-05: Slice 2 shipped — `_USE_RULE` accepts don't/do not; normalize to never. Plant exit 1 GRADE D. Prefer still UNMEASURED. Empty HOME A. Pytest **56 passed**.
+- 2026-09-05: Slice 2b — bare `Never use yarn.` / `Always use yarn.` was GRADE A (empty-subject `_same_family` required a!=b). Fixed + strip trailing sentence punct from objs. Pytest **58 passed**. Empty HOME A.
