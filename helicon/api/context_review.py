@@ -255,3 +255,16 @@ def compare_context(req: CompareRequest):
                 "evidence": comparison}
     except (ValueError, OSError) as exc:
         failed(exc)
+
+
+@router.get("/context-review/journey")
+def memory_journey(project_id: str):
+    """Local source → correction → exact-revision consumer evidence."""
+    from helicon.memory_journey import memory_journeys
+    project, packet_store = packets(project_id)
+    history, corrections = stores(project_id)
+    try:
+        return memory_journeys(project["path"], history.list(project=project["path"]),
+                               corrections.history(), packet_store.list(project=project["path"]))
+    except (ValueError, OSError, KeyError) as exc:
+        failed(exc)

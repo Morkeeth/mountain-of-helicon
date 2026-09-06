@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import ContextPacketPanel from './ContextPacketPanel';
+import MemoryJourney from './MemoryJourney';
 
 type Project = {id: string; name: string; path: string};
 type Evidence = {source_id: string; path: string; sha256: string; line_start: number; line_end: number; quote: string};
@@ -86,8 +87,8 @@ export default function ContextReview() {
   }
 
   return <section className="mb-7" aria-label="Project context review">
-    <details>
-      <summary className="cursor-pointer text-lg">Review project instructions</summary>
+    <details open>
+      <summary className="cursor-pointer text-lg">Memory history and project instructions</summary>
       <p className="text-sm my-3" style={{color: 'var(--helicon-muted)'}}>Inspect a disagreement, review a correction, and check whether it holds next time. Global instructions are read-only here.</p>
       <div className="flex flex-wrap gap-3 items-center">
         <label className="text-sm">Project <select aria-label="Context project" disabled={busy} className="p-2 rounded ml-2 max-w-full" style={inputStyle} value={projectId} onChange={e => {
@@ -97,6 +98,7 @@ export default function ContextReview() {
       </div>
       {error && <p className="text-sm my-4" role="alert">{error}</p>}
       {notice && <p className="text-sm my-4" role="status">{notice}</p>}
+        <MemoryJourney projectId={projectId} revision={revision + snapshotId + corrections.map(c=>c.id+c.status).join()} />
       {report && <>
         <p className="text-xs mt-4 break-words" style={{color: 'var(--helicon-muted)'}}>Read {new Date(report.observed_at).toLocaleString()}. {report.project}</p>
         <div className="my-5">
