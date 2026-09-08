@@ -1,16 +1,18 @@
 <!-- STATE:start -->
-## SHARED WORK STATE · revision 5ff9698e5647 · rendered 2026-09-07 · scope repo mountain-of-helicon
+## SHARED WORK STATE · revision ffabe397994e · rendered 2026-09-08 · scope repo mountain-of-helicon
 This repo's rows of the one shared work state. Authorities: todo.md (human), TASKS.yaml (ids), board clocks, Oscar's rulings (local only). Views such as GLANCE, SLASK and ZUP are adapters over the same revision.
 **A CLOSED task stays closed. Do not requeue, re-verify or re-poll it.**
-Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev 5ff9698e5647`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"5ff9698e5647","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
+Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev ffabe397994e`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"ffabe397994e","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
 
 ### OPEN
 - **HELICON-DISTRIBUTION-NAME** · Helicon: rule the distribution name · owner oscar · `mountain-of-helicon`
   - next: 2 of 1,287 tests fail on 'distribution name remains a founder decision'. One word unblocks the release gate.
+- **HELICON-FIX-DELTA-2026-09-07** · Helicon, learn from the fix delta · owner agent · `mountain-of-helicon`
+  - next: Build one real draft → sent event: show the word delta, inferred reason, confidence, authority, and proposed change to the next similar draft.
 - **HELICON-NEXT** · Helicon, next ship slice · owner agent · `mountain-of-helicon`
   - next: Continue truth/rot work on main; merge or discard stale cursor/verify-first-receipt if still useful
 
-### ACKNOWLEDGED THIS REVISION: claude/dc8db26e-0366-4b4c-8309-460715de7fcb, claude/dc8db26e-0366-4b4c-8309-460715de7fcb, claude/dc8db26e-0366-4b4c-8309-460715de7fcb
+### ACKNOWLEDGED THIS REVISION: nobody yet
 <!-- STATE:end -->
 
 # Mountain of Helicon — agent brief
