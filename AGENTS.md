@@ -1,5 +1,5 @@
 <!-- STATE:start -->
-## SHARED WORK STATE · revision ffabe397994e · rendered 2026-09-08 · scope repo mountain-of-helicon
+## SHARED WORK STATE · revision ffabe397994e · rendered 2026-09-09 · scope repo mountain-of-helicon
 This repo's rows of the one shared work state. Authorities: todo.md (human), TASKS.yaml (ids), board clocks, Oscar's rulings (local only). Views such as GLANCE, SLASK and ZUP are adapters over the same revision.
 **A CLOSED task stays closed. Do not requeue, re-verify or re-poll it.**
 Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev ffabe397994e`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"ffabe397994e","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
@@ -12,7 +12,7 @@ Before acting, record that you read this revision, exact session and exact rev: 
 - **HELICON-NEXT** · Helicon, next ship slice · owner agent · `mountain-of-helicon`
   - next: Continue truth/rot work on main; merge or discard stale cursor/verify-first-receipt if still useful
 
-### ACKNOWLEDGED THIS REVISION: nobody yet
+### ACKNOWLEDGED THIS REVISION: claude/dc8db26e-0366-4b4c-8309-460715de7fcb
 <!-- STATE:end -->
 
 # Mountain of Helicon — agent brief
