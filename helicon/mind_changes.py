@@ -28,7 +28,8 @@ from pathlib import Path
 SCHEMA = "helicon.mind-changes/1"
 WINDOWS = (7, 30)
 
-_ISO = re.compile(r"\b(20\d\d)-(\d\d)-(\d\d)\b")
+# Digit lookarounds, not \b: "2026-08-25T15:32Z" has no word boundary before "T".
+_ISO = re.compile(r"(?<!\d)(20\d\d)-(\d\d)-(\d\d)(?!\d)")
 _LINK = re.compile(r"\[\[([^\]|#]+)")
 _PATH = re.compile(r"(~/[^\s`'\")\]]+|/Users/[^\s`'\")\]]+)")
 _WORD = re.compile(r"[a-z0-9]+")
@@ -48,11 +49,19 @@ _PRIVATE = {
     "journal": re.compile(r"\b(journal entry|diary|therapy|my feelings|"
                           r"girlfriend|boyfriend|family)\b", re.I),
 }
-# Extra personal file-name patterns come from HELICON_MIND_PRIVATE_FILES, so a
-# user's own project names never need to live in this module.
-_PRIVATE_FILES = re.compile("|".join(
-    ["journal", "finance", "wallet", "trading", "diary"] +
-    [x for x in os.environ.get("HELICON_MIND_PRIVATE_FILES", "").split(",") if x]), re.I)
+def _extra_private_names():
+    """Personal file-name patterns from HELICON_MIND_PRIVATE_FILES (comma list)
+    and ~/.helicon/private-file-patterns (one per line), so a user's own project
+    names never live in this module. A launchd job reads the file; it has no env."""
+    names = [x.strip() for x in os.environ.get("HELICON_MIND_PRIVATE_FILES", "").split(",")]
+    path = Path(os.environ.get("HELICON_HOME", "~/.helicon")).expanduser() / "private-file-patterns"
+    if path.is_file():
+        names += [line.strip() for line in path.read_text().splitlines()]
+    return [re.escape(n) for n in names if n and not n.startswith("#")]
+
+
+_PRIVATE_FILES = re.compile("|".join(["journal", "finance", "wallet", "trading", "diary"] +
+                                     _extra_private_names()), re.I)
 _STOP = set("a an and are as at be by can do does for from has have how i in is it its me my "
             "of on or our so that the this to was we what when where which who why will with "
             "you your should did change changed mind decide decided decision learn learned "

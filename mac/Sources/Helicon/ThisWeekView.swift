@@ -21,6 +21,7 @@ struct ThisWeekView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                MindChangesSection()
                 if let d = data {
                     header(d)
                     setupHealth(d.setupHealth)

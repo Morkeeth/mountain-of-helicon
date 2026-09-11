@@ -65,6 +65,13 @@ def test_content_date_beats_stale_frontmatter(mem):
     assert all(d != "2026-08-01" for d, _ in dates)
 
 
+def test_undated_passage_falls_back_to_frontmatter_timestamp(tmp_path):
+    (tmp_path / "habit.md").write_text("---\nname: habit\nmetadata:\n  modified: 2026-08-25T15:32:38.191Z\n---\n\n"
+                                       "Oscar prefers short review notes with one decision per line.\n")
+    rows = memory_passages(tmp_path)
+    assert [(p["date"], p["date_source"]) for p in rows] == [("2026-08-25", "frontmatter")]
+
+
 def test_attractive_old_decoy_loses_to_recent_correction(mem):
     res = answer(Q, window=30, as_of="2026-09-11", memory_dir=mem)
     item = res["items"][0]

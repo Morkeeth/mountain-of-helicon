@@ -32,8 +32,23 @@ on loopback. Schema `helicon.mind-changes/1`. Each response carries `served_by`
 show which build produced the answer.
 
 `POST /api/mind-changes/lesson` saves one edited lesson to
-`~/.helicon/lessons/<sha>.json`. Saving is not delivery. A receiving assistant
-must read the file.
+`~/.helicon/lessons/<sha>.json`. It then issues the lesson through the existing
+context-packet adapter:
+
+1. The lesson is written as `~/.helicon/lesson-project/CLAUDE.md`.
+2. That project is reviewed and saved as an immutable source-review snapshot.
+3. A packet is issued for that one file to a named run.
+
+The response includes a pointer (packet ID and recipient) and no lesson text.
+A receiving Claude Code session consumes the packet with the local-stdio MCP
+tool `helicon_context_packet_consume`, which writes a consumption receipt.
+`GET /api/mind-changes/packet?packet_id=&run_id=` reports `issued` or
+`consumed`. Issuing is not delivery. Saving a newer lesson makes older packets
+refuse to deliver.
+
+The MCP server must list the lesson project in its `context_review.projects`.
+A keyless config holding only that project is enough:
+`{"context_review": {"projects": [{"id": "lessons", "path": "<home>/.helicon/lesson-project"}]}}`.
 
 Sources default to the Claude Code memory directory and
 `~/.local/state/fleet/rulings.jsonl`. Override with `HELICON_MIND_MEMORY` and
@@ -43,6 +58,8 @@ Sources default to the Claude Code memory directory and
 
 The route returns private quotes and paths. Never proxy it. Journal, finance
 and wallet shaped paragraphs are replaced on screen and counted by kind.
-Private rulings and personal-shaped files are dropped whole. Returned-work paths
+Private rulings and personal-shaped files are dropped whole. Add your own
+file-name patterns in `HELICON_MIND_PRIVATE_FILES` (comma list) or
+`~/.helicon/private-file-patterns` (one per line). Both stay out of git. Returned-work paths
 are opened only under `~/.local/state` and `~/CODE`, and secret-shaped names are
 never read.
