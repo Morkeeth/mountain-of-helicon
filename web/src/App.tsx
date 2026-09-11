@@ -17,6 +17,7 @@ import FindingsView from './components/FindingsView';
    already split this way for the same reason. The rule is simple — if it is not
    the queue, it is lazy. */
 const ThisWeek = lazy(() => import('./components/ThisWeek'));
+const MindChanges = lazy(() => import('./components/MindChanges'));
 const Board = lazy(() => import('./components/Board'));
 const Cockpit = lazy(() => import('./components/Cockpit'));
 const CausalLens = lazy(() => import('./components/CausalLens'));
@@ -47,7 +48,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route' | 'setup';
+type Tab = 'mind' | 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route' | 'setup';
 
 // SUBTRACTION (Jul 22): 19 tabs -> 5, and the More sheet is gone. The nav is
 // now exactly the loop from the vision: agent output arrives (Cockpit), the
@@ -76,6 +77,7 @@ type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' 
 // over; the Lab holds the rest.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
   { key: 'setup', label: 'Your setup' },
+  { key: 'mind', label: 'What changed my mind?' },
   { key: 'board', label: 'The Doorway' },
   { key: 'lab', label: 'Lab' },
 ];
@@ -113,7 +115,7 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 // Navigation is intentionally five items, but old receipts and bookmarks remain
 // valid. Hidden routes are explicit compatibility entry points, not a second menu.
 const ROUTABLE_TABS: Tab[] = [
-  'week', 'board', 'lab', 'setup',
+  'mind', 'week', 'board', 'lab', 'setup',
   'cockpit', 'start', 'brief', 'reading', 'tour', 'focus', 'health', 'findings',
   'exam', 'judge', 'gold', 'log', 'graph', 'projects', 'routines', 'evals',
   'lens', 'runs', 'route',
@@ -398,7 +400,7 @@ function App() {
     });
   };
 
-  if (loading && tab !== 'setup') {
+  if (loading && tab !== 'setup' && tab !== 'mind') {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
         <div className="flex flex-col items-center gap-3">
@@ -523,6 +525,7 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'mind' && <MindChanges />}
         {tab === 'week' && <ThisWeek />}
         {tab === 'board' && <Board />}
         {tab === 'lab' && <LabIndex onPick={setTab} />}
