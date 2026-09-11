@@ -46,7 +46,14 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
   // ---- the receipt (immediately after a ruling applies) ---------------------
   if (receipt) {
     return <ReceiptView receipt={receipt} undone={undone}
-      onUndo={() => api.undoBatch(receipt.undo_token).then(() => setUndone(true))}
+      onUndo={() => api.undoBatch(receipt.undo_token).then((r) => {
+        // fully_reversed is the object — HTTP 200 alone is not a reversal
+        // (vacuous undo_json used to claim success while the ruling remained).
+        if (!r?.fully_reversed) {
+          throw new Error('undo incomplete — the ruling is still applied');
+        }
+        setUndone(true);
+      })}
       onDone={() => {
         // onActed removes ruled findings from the parent list; the next item
         // slides into index i. Advancing here would skip it.

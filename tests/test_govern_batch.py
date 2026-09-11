@@ -1,6 +1,7 @@
 """Govern-batch: one Apply must be coherent, its receipt real, its undo total,
 and its blast radius bounded. These pin the properties a demo cannot fake."""
 import asyncio
+import json
 
 import pytest
 
@@ -93,7 +94,58 @@ def test_rule_truth_makes_the_guard_enforce_it(store):
     assert not guard_output(conn, "Stripe is in test mode, safe to run a live checkout as a test").get("clean", True)
 
 
-def test_blast_radius_leaves_source_memory_untouched(store):
+def test_confirm_kill_undo_restores_cube(store):
+    """confirm+acted on temporal kills the cube; undo must restore prior status.
+    Before 2026-09-11, undo cleared human_decision and claimed fully_reversed
+    while leaving the cube killed."""
+    conn, _ = store
+    cube = conn.execute(
+        "SELECT id, review_status FROM helicon_cubes WHERE id LIKE 'demo-%' "
+        "AND review_status NOT IN ('killed','superseded') LIMIT 1"
+    ).fetchone()
+    assert cube
+    before = cube["review_status"]
+    conn.execute(
+        "INSERT INTO audit_log (audit_type, target_type, target_id, finding, "
+        "severity, details, audited_at) VALUES "
+        "('temporal', 'cube', ?, 'planted for undo totality', 'warning', '{}', "
+        "datetime('now'))",
+        (cube["id"],),
+    )
+    conn.commit()
+    fid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
+        Ruling(finding_id=fid, verb="confirm", payload={"decision": "acted"})])))
+    assert out["applied"] == 1
+    mid = conn.execute(
+        "SELECT review_status FROM helicon_cubes WHERE id=?", (cube["id"],)
+    ).fetchone()["review_status"]
+    assert mid == "killed"
+    undo = asyncio.run(govern.undo_batch(UndoReq(undo_token=out["undo_token"])))
+    assert undo["fully_reversed"]
+    after = conn.execute(
+        "SELECT review_status FROM helicon_cubes WHERE id=?", (cube["id"],)
+    ).fetchone()["review_status"]
+    assert after == before
+    assert _decided(conn, fid) is None
+
+
+def test_undo_recovers_from_empty_decided_ids_via_receipt(store):
+    """Corrupting undo_json.decided_finding_ids to [] must not vacuous-succeed.
+    fully_reversed used to be True while the finding stayed decided."""
+    conn, _ = store
+    idf = _finding(conn, "factual")
+    out = asyncio.run(govern.apply_batch(ApplyBatchReq(rulings=[
+        Ruling(finding_id=idf, verb="rule_truth", payload={"truth": "live — real money"})])))
+    conn.execute(
+        "UPDATE govern_batches SET undo_json=? WHERE id=?",
+        (json.dumps({"correction_cubes": [], "decided_finding_ids": []}),
+         out["undo_token"]))
+    conn.commit()
+    undo = asyncio.run(govern.undo_batch(UndoReq(undo_token=out["undo_token"])))
+    assert undo["fully_reversed"]
+    assert _decided(conn, idf) is None
+
     conn, _ = store
     idf = _finding(conn, "factual")
     src_before = [dict(r) for r in conn.execute(

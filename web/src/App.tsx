@@ -707,11 +707,21 @@ function QueueGate({ onChanged }: { onChanged: () => void }) {
   const undo = async () => {
     setBusy(true); setError('');
     try {
-      await fetch('/api/queue/undo', {
+      const res = await fetch('/api/queue/undo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ batch_id: batchId }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof data?.detail === 'string' ? data.detail : `undo failed (${res.status})`);
+        return;
+      }
+      // ok:true with restored:0 used to look like success — require a real restore.
+      if (!data?.restored) {
+        setError('undo restored nothing — the batch is still applied (or was never found)');
+        return;
+      }
       load();
       onChanged();
     } catch (e) {

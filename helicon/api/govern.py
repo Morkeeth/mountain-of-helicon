@@ -105,9 +105,20 @@ def _confirm(conn, fid: int, decision: str) -> dict:
                                       f"{row['machine_decision']}"}
     conn.execute("UPDATE audit_log SET human_decision=?, resolved_at=? WHERE id=?",
                  (decision, _now(), fid))
-    if decision == "acted" and row["audit_type"] in ("temporal", "decay"):
-        conn.execute("UPDATE helicon_cubes SET review_status='killed' WHERE id=?", (row["target_id"],))
-    return {"ok": True}
+    killed = None
+    if decision == "acted" and row["audit_type"] in ("temporal", "decay") and row["target_id"]:
+        # Capture prior status so undo can restore the cube — clearing
+        # human_decision alone left kills permanent (handoff probe E4).
+        prior = conn.execute(
+            "SELECT review_status FROM helicon_cubes WHERE id=?",
+            (row["target_id"],)).fetchone()
+        if prior is not None:
+            killed = {"cube_id": row["target_id"],
+                      "prior_status": prior["review_status"]}
+            conn.execute(
+                "UPDATE helicon_cubes SET review_status='killed' WHERE id=?",
+                (row["target_id"],))
+    return {"ok": True, "killed_cube": killed}
 
 
 def _apply_one(conn, r: Ruling) -> dict:
@@ -135,11 +146,12 @@ def _apply_one(conn, r: Ruling) -> dict:
         ok = bool(res.get("ok", True)) and not res.get("error")
         return {"finding_id": fid, "verb": verb, "applied": ok, "error": res.get("error"),
                 "correction_cube": res.get("correction_cube") or res.get("correction"),
+                "killed_cube": res.get("killed_cube"),
                 "subject": (res.get("name") or res.get("subj") or res.get("subject") or p.get("canonical") or ""),
                 "truth": res.get("truth"), "wrong": res.get("wrong"), "person": res.get("person")}
     except Exception as e:  # never let one ruling abort the batch
         return {"finding_id": fid, "verb": verb, "applied": False, "error": str(e),
-                "correction_cube": None, "subject": ""}
+                "correction_cube": None, "killed_cube": None, "subject": ""}
 
 
 def _settled(conn, fid: int) -> bool:
@@ -217,6 +229,7 @@ async def apply_batch(req: ApplyBatchReq):
     undo = {
         "correction_cubes": [r["correction_cube"] for r in results if r.get("correction_cube")],
         "decided_finding_ids": [r["finding_id"] for i, r in enumerate(results) if receipt[i]["applied"]],
+        "killed_cubes": [r["killed_cube"] for r in results if r.get("killed_cube")],
     }
     batch_id = "gb_" + uuid.uuid4().hex[:12]
     conn.execute(
@@ -243,13 +256,23 @@ async def undo_batch(req: UndoReq):
     from helicon.api.app import get_conn, get_config
     conn = get_conn()
     config = get_config()
-    row = conn.execute("SELECT undo_json, undone_at FROM govern_batches WHERE id=?",
-                       (req.undo_token,)).fetchone()
+    row = conn.execute(
+        "SELECT undo_json, receipt_json, undone_at FROM govern_batches WHERE id=?",
+        (req.undo_token,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="no such batch")
     if row["undone_at"]:
         raise HTTPException(status_code=400, detail="batch already undone")
-    undo = json.loads(row["undo_json"])
+    undo = json.loads(row["undo_json"] or "{}")
+    try:
+        receipt_rows = json.loads(row["receipt_json"] or "[]")
+    except (json.JSONDecodeError, TypeError):
+        receipt_rows = []
+    # Prefer undo_json ids, but fall back to the receipt's applied findings so a
+    # corrupted empty decided_finding_ids cannot vacuous-succeed (probe E5).
+    receipt_ids = [r["finding_id"] for r in receipt_rows if r.get("applied")]
+    finding_ids = list(dict.fromkeys(
+        [*(undo.get("decided_finding_ids") or []), *receipt_ids]))
 
     for cid in undo.get("correction_cubes", []):
         conn.execute("DELETE FROM helicon_cubes WHERE id=?", (cid,))   # FTS auto-cleans via trigger
@@ -257,7 +280,12 @@ async def undo_batch(req: UndoReq):
             conn.execute("DELETE FROM cube_embeddings WHERE cube_id=?", (cid,))
         except Exception:
             pass  # embeddings optional; a fresh correction cube usually has none
-    for fid in undo.get("decided_finding_ids", []):
+    for kill in undo.get("killed_cubes") or []:
+        cid, prior = kill.get("cube_id"), kill.get("prior_status")
+        if cid and prior is not None:
+            conn.execute(
+                "UPDATE helicon_cubes SET review_status=? WHERE id=?", (prior, cid))
+    for fid in finding_ids:
         conn.execute("UPDATE audit_log SET human_decision=NULL, resolved_at=NULL WHERE id=?", (fid,))
     conn.execute("UPDATE govern_batches SET undone_at=? WHERE id=?", (_now(), req.undo_token))
     conn.commit()
@@ -265,6 +293,18 @@ async def undo_batch(req: UndoReq):
     from helicon.gold import compile_gold
     compile_gold(conn, config)  # recompile so the reverted rulings drop out of the law
     reverted = [{"finding_id": fid, "still_settled": _settled(conn, fid)}
-                for fid in undo.get("decided_finding_ids", [])]
+                for fid in finding_ids]
+    kills_restored = []
+    for kill in undo.get("killed_cubes") or []:
+        cid, prior = kill.get("cube_id"), kill.get("prior_status")
+        row_c = conn.execute(
+            "SELECT review_status FROM helicon_cubes WHERE id=?", (cid,)
+        ).fetchone() if cid else None
+        ok = bool(row_c) and row_c["review_status"] == prior
+        kills_restored.append({"cube_id": cid, "restored": ok,
+                               "status": row_c["review_status"] if row_c else None})
+    findings_clear = all(not r["still_settled"] for r in reverted)
+    cubes_clear = all(k["restored"] for k in kills_restored) if kills_restored else True
     return {"undone": True, "reverted": reverted,
-            "fully_reversed": all(not r["still_settled"] for r in reverted)}
+            "kills_restored": kills_restored,
+            "fully_reversed": findings_clear and cubes_clear}
