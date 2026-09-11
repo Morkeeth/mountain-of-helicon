@@ -35,7 +35,8 @@ export default function MindChanges() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(0);
   const [prompt, setPrompt] = useState('');
-  const [saved, setSaved] = useState<{path:string; sha256:string; note:string}>();
+  const [saved, setSaved] = useState<{path:string; sha256:string; note:string; pointer:string; packet:{packet_id:string; recipient:{run_id:string}; state:string}}>();
+  const [receipt, setReceipt] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -57,11 +58,20 @@ export default function MindChanges() {
   const item = result?.items[selected];
   const redacted = result ? Object.entries(result.redactions) : [];
 
+  async function checkReceipt() {
+    if (!saved) return;
+    const qs = new URLSearchParams({packet_id: saved.packet.packet_id, run_id: saved.packet.recipient.run_id});
+    const r = await fetch('/api/mind-changes/packet?' + qs, {headers: {'X-Helicon-Local': '1'}});
+    if (!r.ok) { setReceipt('unknown: ' + (await r.text())); return; }
+    const p = await r.json();
+    setReceipt(p.state === 'consumed' ? `consumed ${p.consumption?.consumed_at} over ${p.consumption?.transport}` : `${p.state}, not consumed yet`);
+  }
+
   async function useLesson() {
     if (!item) return;
     const sources = [...item.current, ...(item.instruction ? [item.instruction] : [])].map(p => ({path: p.path, line: p.line, date: p.date}));
     const r = await fetch('/api/mind-changes/lesson', {method: 'POST', headers: {'X-Helicon-Local': '1', 'Content-Type': 'application/json'}, body: JSON.stringify({lesson: item.lesson, prompt, sources})});
-    if (r.ok) setSaved(await r.json()); else setError(await r.text());
+    if (r.ok) { setReceipt(''); setSaved(await r.json()); } else setError(await r.text());
   }
 
   return (
@@ -144,7 +154,18 @@ export default function MindChanges() {
                 <button onClick={useLesson} className="rounded-lg px-3 py-2 text-[12px]" style={{border:'1px solid var(--helicon-line)'}}>Use this lesson in the next prompt</button>
                 <button onClick={() => navigator.clipboard?.writeText(prompt)} className="rounded-lg px-3 py-2 text-[12px]" style={{border:'1px solid var(--helicon-line)'}}>Copy</button>
               </div>
-              {saved && <div className="mt-2" style={{...mono, ...muted}}>saved {saved.path} · sha256 {saved.sha256.slice(0, 12)} · {saved.note}</div>}
+              {saved && (
+                <div className="mt-2" style={{...card}}>
+                  <div style={{...mono, ...muted}}>saved {saved.path} · sha256 {saved.sha256.slice(0, 12)}</div>
+                  <div className="mt-1" style={mono}>packet {saved.packet.packet_id.slice(0, 16)} · run {saved.packet.recipient.run_id} · {receipt || saved.packet.state}</div>
+                  <div className="mt-1 text-[11.5px]" style={muted}>{saved.note} Give the receiving session this pointer. It carries no lesson text:</div>
+                  <pre className="mt-1 whitespace-pre-wrap" style={mono}>{saved.pointer}</pre>
+                  <div className="mt-2 flex gap-2">
+                    <button onClick={() => navigator.clipboard?.writeText(saved.pointer)} className="rounded-lg px-3 py-1.5 text-[12px]" style={{border:'1px solid var(--helicon-line)'}}>Copy pointer</button>
+                    <button onClick={checkReceipt} className="rounded-lg px-3 py-1.5 text-[12px]" style={{border:'1px solid var(--helicon-line)'}}>Check delivery</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
