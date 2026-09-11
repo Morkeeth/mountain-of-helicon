@@ -1,46 +1,48 @@
-# hack.md — HELICON-S2 subtraction ship (help groups)
+# hack.md — astra-helicon-ambitious-2026-09-11
 
 ## NORTH STAR
 
-A stranger runs `helicon --help` and immediately sees **one reason to install**: find which agent documents are lying, with evidence, before work starts (`helicon truth`).
+Prove, from this checkout of `main` alone, that a fresh agent after correction still walks **finding → decision (ZUP-bound / future handoff) → returned-result**, and that ruling/undo either still breaks or is cleared — with commands, not narrative.
 
 ## PROMISE LINE
 
-**GET:** Grouped CLI help — Verify · Lab · Harness — with `truth` first under Verify and a one-line product sentence at the top.
+**GET:** A dated cloud receipt (`docs/CLOUD-RECEIPT-helicon-handoff-2026-09-11.md`) that a stranger can re-run: path map with file:line, executed correction→decision→result commands + outcomes, and ruling/undo reproduced-or-cleared with expected vs actual.
 
-**CONSTRAINT:** No subcommand deleted; no PyPI publish; outward acts are Oscar's click.
+**CONSTRAINT:** Work on `main` (or short-lived `cursor/astra-helicon-2026-09-11-ee72` if main push blocked). No deploy, no publish, no broad ZUP refresh, no private-corpus merge. A box is truth only when its done-when was RUN.
 
 ## OPEN QUESTIONS
 
-- **BLOCKING:** none for this slice (grouping is copy/UX only per `docs/SUBTRACTION-MEMO.md`).
-- **NON-BLOCKING:** Which ungrouped commands deserve a fourth group later (79 total; only 12 grouped tonight).
+- **BLOCKING:** none for this wave's done-when.
+- **NON-BLOCKING (Oscar):** live ZUP-inbox probe; whether `/api/queue/undo` should refuse `ok` on `restored:0`; anyio DeprecationWarning breaking `test_govern_api_boundary` collection on this VM.
 
 ## CONSTITUTION
 
-1. Run it, do not read it — every checkbox needs the command that proved it.
-2. Re-derive numbers at the object (`pytest -q`, `launch_check.py`), never carry figures from prompts.
-3. Minimal diff in `helicon/cli.py` (subparsers/help only).
-4. Do not delete subcommands, reorganise the repo, or publish to PyPI.
-5. Report SHIPPED / VERIFIED / WRONG; WRONG is mandatory.
+1. Run it, do not read it — every checkbox names the command that proved it.
+2. Re-derive every number at its object; never carry figures from this prompt or prior docs.
+3. Never rank by title/name — open the object (API response, DB row, sandbox file).
+4. Do not invent "fixed" without command evidence; reproduce OR explicitly clear.
+5. Outward acts are Oscar's click — no post/publish/submit; push is branch push only.
+6. Report SHIPPED / VERIFIED / WRONG; WRONG is mandatory.
 
 ## PLAN
 
-1. **Slice 1 (NOW):** Help groups + product one-liner + launch receipt S2 section + launch_contract pytest. *Risk: argparse has no native subcommand groups — custom formatter must not break existing commands.*
-2. Slice 2: README ≤400 lines with truth → witness → review path only (deferred).
-3. Slice 3: PyPI description matches README lead (Oscar gate, deferred).
+1. **Slice 1:** Orient + execute the handoff path + ruling/undo probe. *Done — E4/E5 reproduced red.*
+2. **Slice 2:** Minimal fix for E4/E5 + UI checks + pytest pins. *Done — re-probe 14/14.*
+3. Slice 3: live ZUP-inbox cross-check on Oscar's machine. Oscar gate.
 
 ## NOW
 
-**Slice 1 only:** Add Verify/Lab/Harness labels in `helicon/cli.py`; product sentence from SUBTRACTION-MEMO at top of `--help`; append S2 before/after to `docs/HELICON-LAUNCH-RECEIPT-2026-09-01.md`; run `python3 -m pytest tests/test_launch_contract.py -q` and `python3 scripts/launch_check.py`.
+**Done-when met.** Receipt written; probe green after Slice 2. Remaining work is Oscar's rulings (see receipt § What Oscar must rule).
 
 **Done when:**
-- `helicon --help` shows Verify group with `truth` as first listed command
-- receipt updated with before/after `helicon --help | head -20`
-- launch_check READY; launch_contract pytest count logged
+- [x] `docs/CLOUD-RECEIPT-helicon-handoff-2026-09-11.md` exists — command: `test -f docs/CLOUD-RECEIPT-helicon-handoff-2026-09-11.md`
+- [x] Receipt includes correction→decision→returned-result commands with outcomes — command: `python3 scripts/probe_handoff_2026_09_11.py` → 14 pass / 0 fail
+- [x] Ruling/undo reproduced then cleared — commands: first probe E4/E5 red; after fix `TMPDIR="$HOME/pytmp" python3 -m pytest -q tests/test_govern_batch.py::test_confirm_kill_undo_restores_cube tests/test_govern_batch.py::test_undo_recovers_from_empty_decided_ids_via_receipt` → 2 passed
 
 ## LOG
 
-- 2026-08-31: Pulled `origin/main` (d7b0853); `hack.md` did not exist — wrote contract before code.
-- 2026-08-31: S2 shipped — `_HeliconArgumentParser` groups Verify/Lab/Harness in `helicon/cli.py`; receipt S2 section appended.
-- 2026-08-31: `python3 scripts/launch_check.py` → READY; `TMPDIR="$HOME/pytmp" python3 -m pytest tests/test_launch_contract.py -q` → 8 passed.
-- 2026-08-31: First `helicon --help` failed — `HelpFormatter.add_usage()` missing `groups` on Py3.12; fixed with `self._mutually_exclusive_groups`.
+- 2026-09-11: Pulled `origin/main` @ `8714be6` (Already up to date). Prior `hack.md` was HELICON-S2 help-groups — rewritten for this wave before any probe code.
+- 2026-09-11: Prior receipt `CLOUD-RECEIPT-helicon-handoff-2026-09-05.md` confirmed MISSING on disk (`find` / `Glob` → 0).
+- 2026-09-11: Slice 1 probe reproduced E4 (confirm-kill survives undo) and E5 (vacuous fully_reversed + FocusReview ignore).
+- 2026-09-11: Slice 2 fixed `helicon/api/govern.py` kill-restore + receipt_json fallback; FocusReview requires `fully_reversed`; App.tsx refuses `restored:0`. Re-probe 14/14. Pytest pins 4/4 on undo totality.
+- 2026-09-11: Baseline arm: naive human_decision-only leaves guard clean; govern rule_truth blocks — govern beats naive.
