@@ -17,6 +17,7 @@ import FindingsView from './components/FindingsView';
    already split this way for the same reason. The rule is simple — if it is not
    the queue, it is lazy. */
 const ThisWeek = lazy(() => import('./components/ThisWeek'));
+const MindChanges = lazy(() => import('./components/MindChanges'));
 const Board = lazy(() => import('./components/Board'));
 const Cockpit = lazy(() => import('./components/Cockpit'));
 const CausalLens = lazy(() => import('./components/CausalLens'));
@@ -47,7 +48,7 @@ const Consistency = lazy(() => import('./components/Consistency'));
    Graph · Projects secondary. Review and Insights are gone, findings
    carry their own actions, the log carries the receipts. */
 
-type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route' | 'setup';
+type Tab = 'mind' | 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' | 'tour' | 'focus' | 'health' | 'findings' | 'exam' | 'judge' | 'gold' | 'log' | 'graph' | 'projects' | 'routines' | 'evals' | 'lens' | 'runs' | 'route' | 'setup';
 
 // SUBTRACTION (Jul 22): 19 tabs -> 5, and the More sheet is gone. The nav is
 // now exactly the loop from the vision: agent output arrives (Cockpit), the
@@ -75,7 +76,8 @@ type Tab = 'week' | 'board' | 'lab' | 'cockpit' | 'start' | 'brief' | 'reading' 
 // knowledge-palace. The Doorway (every repo + what it loads) stays one seat
 // over; the Lab holds the rest.
 const PRIMARY_TABS: { key: Tab; label: string }[] = [
-  { key: 'week', label: 'This Week' },
+  { key: 'setup', label: 'Your setup' },
+  { key: 'mind', label: 'What changed my mind?' },
   { key: 'board', label: 'The Doorway' },
   { key: 'lab', label: 'Lab' },
 ];
@@ -83,7 +85,7 @@ const PRIMARY_TABS: { key: Tab; label: string }[] = [
 // Everything the Lab routes to. These are the surfaces that used to sit in the
 // rail — none removed, all one click away through the Lab index.
 const LAB_ENTRIES: { key: Tab; label: string; group: string }[] = [
-  { key: 'setup', label: 'The Setup', group: 'The loop' },
+  { key: 'week', label: 'This Week', group: 'The loop' },
   { key: 'cockpit', label: 'The Cockpit', group: 'The loop' },
   { key: 'findings', label: 'Needs Ruling', group: 'The loop' },
   { key: 'gold', label: 'Golden Rules', group: 'The loop' },
@@ -113,7 +115,7 @@ const ALL_TABS: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS].map(t => t.key);
 // Navigation is intentionally five items, but old receipts and bookmarks remain
 // valid. Hidden routes are explicit compatibility entry points, not a second menu.
 const ROUTABLE_TABS: Tab[] = [
-  'week', 'board', 'lab', 'setup',
+  'mind', 'week', 'board', 'lab', 'setup',
   'cockpit', 'start', 'brief', 'reading', 'tour', 'focus', 'health', 'findings',
   'exam', 'judge', 'gold', 'log', 'graph', 'projects', 'routines', 'evals',
   'lens', 'runs', 'route',
@@ -136,7 +138,7 @@ const ROUTABLE_TABS: Tab[] = [
    this is the phone's primary action. Rulings returns as the center destination
    with its live needs-you badge; every lower-frequency surface stays in Lab. */
 const BAR_TABS: { key: Tab; short: string }[] = [
-  { key: 'week', short: 'This Week' },
+  { key: 'setup', short: 'Your setup' },
   { key: 'findings', short: 'Rulings' },
   { key: 'lab', short: 'Lab' },
 ];
@@ -148,6 +150,7 @@ function RailItem({ n, label, active, badge = 0, onClick }: {
   return (
     <button
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className="group relative text-left rounded-lg px-2.5 py-2 transition-colors"
       style={{ background: active ? 'var(--helicon-accent-dim)' : 'transparent' }}
     >
@@ -233,7 +236,7 @@ function App() {
   // deep-linkable tabs: /#health jumps straight to a surface (demo + docs)
   const initialTab = (): Tab => {
     const h = window.location.hash.replace('#', '') as Tab;
-    return ROUTABLE_TABS.includes(h) ? h : 'week';
+    return ROUTABLE_TABS.includes(h) ? h : 'setup';
   };
   const [tab, setTab] = useState<Tab>(initialTab);
   const [score, setScore] = useState<Score | null>(null);
@@ -308,9 +311,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    Promise.all([refresh(), loadFindings(false)])
+    // Setup owns its read-only evidence request. Unrelated global score or
+    // findings failures must not block the operator's setup review.
+    if (tab === 'setup') return;
+    Promise.allSettled([refresh(), loadFindings(false)])
       .then(() => setLoading(false));
-  }, [refresh, loadFindings]);
+  }, [tab, refresh, loadFindings]);
 
   useEffect(() => {
     if (tab !== 'projects') return;
@@ -394,7 +400,7 @@ function App() {
     });
   };
 
-  if (loading) {
+  if (loading && tab !== 'setup' && tab !== 'mind') {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
         <div className="flex flex-col items-center gap-3">
@@ -463,20 +469,20 @@ function App() {
                 <path d="M2.5 23 L14 5 L22 16.5" opacity="0.5" />
                 <path d="M15 23 L27.5 4 L41.5 23" />
               </svg>
-              <h1
+              <p
                 className="text-[15px] md:text-[19px] tracking-tight text-zinc-100 whitespace-nowrap"
                 style={{ fontFamily: 'var(--helicon-serif)', fontWeight: 300, textTransform: 'uppercase', letterSpacing: '0.04em', fontVariationSettings: "'opsz' 144" }}
               >
                 Mountain of Helicon
-              </h1>
+              </p>
               {/* tagline + badge are desktop furniture: on a phone they pushed the
                   header 169px past the viewport and shore the score clean off */}
-              <span className="hidden lg:inline text-[10px] text-zinc-500 tracking-widest uppercase font-medium">The mirror of your agent operation</span>
+              {tab !== 'setup' && <span className="hidden lg:inline text-[10px] text-zinc-500 tracking-widest uppercase font-medium">The mirror of your agent operation</span>}
             </div>
             <div className="flex items-center gap-2 md:gap-3 shrink-0">
               {/* Attention bar: live findings severity split, click-through to FINDINGS */}
               {/* the phone carries this count on the bottom bar already */}
-              {findingsData && (criticalCount > 0 || warningCount > 0) && (
+              {tab !== 'setup' && findingsData && (criticalCount > 0 || warningCount > 0) && (
                 <button
                   onClick={() => setTab('findings')}
                   className="hidden md:block text-[11px] tabular-nums transition-opacity hover:opacity-70"
@@ -486,7 +492,7 @@ function App() {
                   <span style={{ color: 'var(--helicon-stale)' }}>{warningCount} warning</span>
                 </button>
               )}
-              {score && (
+              {tab !== 'setup' && score && (
                 <div className="flex items-center gap-1.5" title={`${score.reviewed} of ${score.total} memory items triaged, review coverage, not a health grade`}>
                   <div className="hidden sm:block w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
                     <div
@@ -519,6 +525,7 @@ function App() {
             flashing spinner would be louder than the wait it describes. */}
         <Suspense fallback={<div className="py-12" />}>
 
+        {tab === 'mind' && <MindChanges />}
         {tab === 'week' && <ThisWeek />}
         {tab === 'board' && <Board />}
         {tab === 'lab' && <LabIndex onPick={setTab} />}

@@ -14,9 +14,19 @@ Helicon finds that the humans missed.
 Read-only on the vault: files are read once, never written. The bench store
 is a throwaway DB in a temp dir. Zero LLM calls.
 
-Run:  python3 scripts/rot_bench_lifeos.py
-      LIFEOS_ROOTS="dir1::dir2" python3 scripts/rot_bench_lifeos.py
+Both inputs are private and neither ships in this repo, so both are required
+and neither has a default:
+
+Run:  LIFEOS_ROOTS="dir1::dir2" \\
+      LIFEOS_ROT_KEY=~/.helicon/rot-key-lifeos.json \\
+      python3 scripts/rot_bench_lifeos.py
+
+The key format is published at bench/rot-key.example.json so a stranger can
+build one for their own notes. The key this was measured against holds 17
+labelled documents, R1 8 / R3 8 / R4 4, with 3 documents carrying two classes
+and 4 carrying facet tokens.
 """
+import json
 import os
 import sys
 import tempfile
@@ -33,60 +43,99 @@ from helicon.rot import run_rot_exam
 from helicon.scanner import result_to_cube
 from helicon.timeutil import ts_norm
 
-VAULT = os.path.expanduser(
-    "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian LIFE")
-DEFAULT_ROOTS = [
-    os.path.expanduser("~/.claude/projects/-Users-morkeeth/memory"),
-    f"{VAULT}/00 Dashboard",
-    f"{VAULT}/01 Projects",
-    f"{VAULT}/02 Content",
-    f"{VAULT}/03 Ideas",
-]
+# NOTHING IN THIS FILE NAMES A REAL DIRECTORY OR A REAL DOCUMENT.
+#
+# It used to. Until 2026-09-04 this module carried the operator's vault path,
+# his username through the Claude Code memory directory, and seventeen real
+# document paths each annotated with what was wrong with it, including a job
+# application and its outcome. All of it in a source file in two PUBLIC repos.
+#
+# There was already an override, LIFEOS_ROOTS, and it did not help, because it
+# had a fallback and the fallback was the thing that shipped. An override with a
+# default is not an override. So both inputs below are REQUIRED and neither has
+# a default: unset means this exits naming the variable.
+#
+# See the answer key note further down for why the key was moved rather than
+# replaced with synthetic paths.
+
+ROOTS_VAR = "LIFEOS_ROOTS"
+KEY_VAR = "LIFEOS_ROT_KEY"
+
+
+def _need(var, what, example):
+    sys.stderr.write(
+        "\n%s is not set.\n\n  %s\n\n  %s=%s python3 scripts/rot_bench_lifeos.py\n\n"
+        "This benchmark reads one person's real notes and scores them against a\n"
+        "human-made answer key. Both are private and neither ships in this repo,\n"
+        "so there is deliberately no default to fall back to.\n"
+        "See bench/rot-key.example.json for the key format.\n\n" % (var, what, var, example))
+    raise SystemExit(2)
+
+
+def load_roots():
+    raw = os.environ.get(ROOTS_VAR)
+    if not raw:
+        _need(ROOTS_VAR, "Directories to scan, separated by '::'.",
+              '"/path/to/notes/Projects::/path/to/notes/Ideas"')
+    return [r for r in raw.split("::") if os.path.isdir(r)]
+
+
+def load_key():
+    """The answer key, read from outside the repository.
+
+    THE KEY WAS MOVED, NOT SYNTHESISED, and that is a deliberate departure from
+    the general rule. This benchmark's entire claim is that its labels are real
+    memory rot: produced by humans, dated, found in the wild, not written to be
+    found. Replacing the corpus with invented documents would remove the leak
+    and remove the only property that makes this different from every other
+    benchmark. Synthetic rot is rot somebody planted.
+
+    So the labels live beside the private store and the schema is published
+    instead. A stranger points KEY_VAR at their own key and runs the same
+    scoring on their own notes. What stays public, because counts are not
+    biography, is the shape of the key this was measured against:
+
+        17 labelled documents, 3 of them carrying two classes each
+        R1 8 · R3 8 · R4 4
+        4 documents carry facet tokens, 8 tokens in total
+        4 further banners are ARCHIVED stamps, out of corpus by definition
+
+    Any published catch rate remains interpretable against those numbers, and
+    remains comparable to every run before this change, because the key itself
+    is byte for byte what it always was. Only its address changed.
+    """
+    path = os.environ.get(KEY_VAR)
+    if not path:
+        _need(KEY_VAR, "Path to the JSON answer key.",
+              "~/.helicon/rot-key-lifeos.json")
+    path = os.path.expanduser(path)
+    if not os.path.exists(path):
+        sys.stderr.write("\n%s points at %s, which does not exist.\n\n" % (KEY_VAR, path))
+        raise SystemExit(2)
+    with open(path) as f:
+        d = json.load(f)
+    labels = []
+    for row in d["labels"]:
+        t = [row["path"], set(row["classes"]), row["why"]]
+        if row.get("facets"):
+            t.append(set(row["facets"]))
+        labels.append(tuple(t))
+    renames = [(r["from"], r["to"], r["at"], r["why"]) for r in d["known_renames"]]
+    return labels, renames
+
+
+LABELS = []
+KNOWN_RENAMES = []
 BANNER_PATTERN = r"^> \*\*LOUPE"
-
-# The answer key: every in-corpus LOUPE banner from the Jul 5 manual audit,
-# mapped to the rot class(es) whose detector should fire on that file.
-# 4 more banners are ARCHIVED stamps on docs already moved to Archive/ —
-# out of corpus by definition (the humans fixed them by removing them).
-# For R1 labels, `facet` tokens say what the banner is actually about, so a
-# detector firing on a DIFFERENT real conflict in the same file is reported
-# as exactly that — file-level credit, not facet credit. No silent inflation.
-LABELS = [
-    ("00 Dashboard/operating-system.md",                    {"R3"}, "stack table predates reality"),
-    ("01 Projects/People Radar/people-radar-competitive-landscape.md", {"R3"}, "Jun 8 issues list obsolete"),
-    ("01 Projects/italy-ligurian-coast-trip.md",            {"R1"}, "route Aug 14-22 vs itinerary Aug 15-24"),
-    ("01 Projects/Bagel/hotline-architecture.md",           {"R3"}, "trigger table outdated (trimmed Jun 29)"),
-    ("01 Projects/Hackathons/summer-2026-hackathon-pipeline.md", {"R4", "R3"}, "GLAZE dead name + RAISE dates passed"),
-    ("01 Projects/Portfolio/portfolio-build-plan-2026-07-02.md", {"R3"}, "priority list superseded"),
-    ("01 Projects/Taste Machine/project-scope.md",          {"R3"}, "todo list drifted (voice-profile done)"),
-    ("01 Projects/Relay/security-audit-2026-07-04.md",      {"R1"}, "'NOT patched' vs merged Jul 4", {"merge-status"}),
-    ("01 Projects/Relay/funding-campaign-flow.md",          {"R1"}, "'pending merge' vs merged", {"merge-status"}),
-    ("01 Projects/Relay/FAVOUR-rebrand-and-roadmap.md",     {"R1", "R4"}, "open decisions vs rebrand EXECUTED"),
-    ("01 Projects/Job Hunt/upskill-positioning-plan.md",    {"R1"}, "'all repos private' vs portfolio LIVE", {"portfolio", "private", "live"}),
-    ("01 Projects/Job Hunt/companies/anthropic.md",         {"R1"}, "application checklist vs rejected at screen", {"rejected", "checklist", "application"}),
-    ("01 Projects/Wave Radio/ep25-the-revival.md",          {"R1", "R4"}, "this recording IS ep29"),
-    ("02 Content/content-strategy-2026.md",                 {"R3"}, "'Immediate Actions' dead 7+ weeks"),
-    ("02 Content/design-taste-system.md",                   {"R4"}, "superseded by design-taste skill"),
-    ("03 Ideas/davinci-resolve-mcp-ai-video-editing.md",    {"R3"}, "trigger references dead application"),
-    ("03 Ideas/backlog.md",                                 {"R1"}, "'Active Projects' vs decided/live states"),
-]
-
-# Renames the operator has declared elsewhere (decision log / memory /
-# commit history) — external facts, not derived from the banners.
-KNOWN_RENAMES = [
-    ("glaze", "helicon", "2026-07-04T15:05:45", "repo rename, commit 2823f41"),
-    ("RELAY", "FAVOUR", "2026-07-02T00:00:00", "rebrand executed Jul 2 (decision log)"),
-]
-
 
 def banner(msg):
     print(f"\n{'=' * 70}\n{msg}\n{'=' * 70}")
 
 
 def main():
-    roots = (os.environ["LIFEOS_ROOTS"].split("::")
-             if os.environ.get("LIFEOS_ROOTS") else DEFAULT_ROOTS)
-    roots = [r for r in roots if os.path.isdir(r)]
+    global LABELS, KNOWN_RENAMES
+    LABELS, KNOWN_RENAMES = load_key()
+    roots = load_roots()
 
     banner("1. INGEST the life OS, banners stripped (read-only on sources)")
     results = lifeos.scan({"roots": roots, "strip_pattern": BANNER_PATTERN})

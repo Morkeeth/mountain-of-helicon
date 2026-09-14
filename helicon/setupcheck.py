@@ -262,8 +262,10 @@ def axis2(conn, cen: dict, cfg: dict) -> list[dict]:
         chips.append(_chip(
             "context-weight",
             "Always-loaded context stays light (≤40KB; rest read on demand)",
-            "PASS" if total <= 40_000 else "FAIL",
-            f"{total:,} bytes always loaded ({' + '.join(f['label'] for f in always)})",
+            "UNMEASURED",
+            f"{total:,} bytes in inspected loader files ({' + '.join(f['label'] for f in always)}); "
+            "rules, hooks, imports and project instructions are excluded. "
+            "Run setup --audit for local file coverage; effective context needs a harness receipt.",
             "Manus KV-cache lessons; index-in-context/bodies-on-disk"))
     else:
         chips.append(_chip("context-weight",
