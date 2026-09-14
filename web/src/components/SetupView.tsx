@@ -1,201 +1,116 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import ContextReview from './ContextReview';
 
-/* THE SETUP — the census of the stack and the two-axis score (proposal v3).
-   Axis 1 PRIMARY: you vs you — dated snapshots, the score is a trend, never a
-   lone number; before the second reading the trend honestly says it can't
-   exist yet. Axis 2 SECONDARY: you vs the frontier — each chip is a
-   deterministic probe with a citation; FAIL and UNMEASURED render as
-   themselves, never as green. */
-
-const INK = 'var(--helicon-ink)';
-const MUTED = 'var(--helicon-muted)';
-const FAINT = 'var(--helicon-faint)';
-const ACCENT = 'var(--helicon-accent)';
-const SERIF = 'var(--helicon-serif)';
-const MONO = 'var(--helicon-mono)';
-const PANEL = 'var(--helicon-panel-2)';
-const LINE = 'var(--helicon-line)';
-
-interface Cell { value: number | null; measured: boolean; how: string; names?: string[] }
-interface FileStat { label: string; path: string; exists: boolean; lines?: number; bytes?: number; age_days?: number }
-interface Chip { id: string; claim: string; verdict: 'PASS' | 'FAIL' | 'UNMEASURED'; probe: string; source: string }
-interface Snapshot { day: string; skills: number | null; routines: number | null; memories_live: number | null; memories_retired: number | null; sessions: number | null; context_bytes: number | null; chips_pass: number; chips_fail: number; chips_unmeasured: number }
-interface SetupData {
-  census: {
-    skills: Cell; routines: Cell; sessions: Cell;
-    memories: { live: Cell; retired: Cell; files?: Cell };
-    context_files: FileStat[];
-    connectors: Record<string, boolean>;
-  };
-  axis2: Chip[];
-  snapshots: Snapshot[];
-  ran_at: string; cached: boolean;
-}
-
-const VERDICT_COLOR: Record<Chip['verdict'], string> = {
-  PASS: 'var(--helicon-good, #3a7d44)',
-  FAIL: ACCENT,
-  UNMEASURED: FAINT,
+type Check = { id: string; question: string; status: string; interpretation: string; action: string; source?: string; query: string; rows: Record<string, unknown>[] };
+type Finding = {kind: string; title?: string; consequence?: string; action?: string; project?: string; projects?: string[]; checks?: string[]};
+type Stage = {id: string; title: string; state: string; summary: string; source: string; watermark?: string; limit: string; checks: string[]};
+type Intent = {phase: string; revision: number; source: string; actor: {kind: string; id: string}; observed_at: string};
+type Report = {
+  project_review?: { status: string; reason?: string; intent_source?: {status: string; scope: string}; projects: {id: string; state: string; source?: string; observed_at?: string; evidence?: string; evidence_status?: string; intent?: Intent}[]; findings: Finding[]; observed_at: string };
+  memory_review?: { observed_at: string; checks: Check[]; stages?: Stage[]; findings?: Finding[]; relationship?: string };
 };
 
-function CensusRow({ label, cell }: { label: string; cell: Cell }) {
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2" style={{ borderBottom: `1px solid ${LINE}` }}>
-      <span className="text-[13px] w-40 shrink-0" style={{ color: INK }}>{label}</span>
-      {cell.measured ? (
-        <span className="tabular-nums text-[15px]" style={{ fontFamily: MONO, color: INK }}>{cell.value?.toLocaleString()}</span>
-      ) : (
-        <span className="text-[12px] uppercase tracking-wider" style={{ color: FAINT }}>unmeasured</span>
-      )}
-      <span className="text-[11px] leading-snug min-w-0 flex-1 basis-40 break-words" style={{ color: MUTED }}>{cell.how}</span>
-    </div>
-  );
-}
-
-/* The trend, honest about its own length. One snapshot is a baseline, not a
-   trend; the delta line only exists from the second reading on. */
-function Trend({ snaps }: { snaps: Snapshot[] }) {
-  if (snaps.length === 0) {
-    return <p className="text-[13px]" style={{ color: MUTED }}>
-      No reading recorded yet. Record the first — the trend begins with the second.
-    </p>;
-  }
-  const [latest, prev] = snaps; // API returns newest first
-  if (!prev) {
-    return <p className="text-[13px]" style={{ color: MUTED }}>
-      First reading recorded {latest.day}. The trend begins with the second reading.
-    </p>;
-  }
-  const delta = (a: number | null, b: number | null) =>
-    a == null || b == null ? '—' : (a - b >= 0 ? `+${a - b}` : `${a - b}`);
-  const rows: [string, number | null, string][] = [
-    ['memories live', latest.memories_live, delta(latest.memories_live, prev.memories_live)],
-    ['sessions', latest.sessions, delta(latest.sessions, prev.sessions)],
-    ['frontier checks passing', latest.chips_pass, delta(latest.chips_pass, prev.chips_pass)],
-    ['always-loaded bytes', latest.context_bytes, delta(latest.context_bytes, prev.context_bytes)],
-  ];
-  return (
-    <div>
-      <p className="text-[11px] uppercase tracking-[0.15em] mb-2" style={{ color: MUTED }}>
-        {latest.day} vs {prev.day} · {snaps.length} readings held
-      </p>
-      {rows.map(([label, v, d]) => (
-        <div key={label} className="flex items-baseline gap-3 py-1">
-          <span className="text-[13px] w-44" style={{ color: INK }}>{label}</span>
-          <span className="tabular-nums text-[14px]" style={{ fontFamily: MONO, color: INK }}>{v?.toLocaleString() ?? '—'}</span>
-          <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: MUTED }}>{d}</span>
-        </div>
-      ))}
-      {/* Goodhart gate: auto-triage moves the live count, so a delta here is
-          data about the store, not proof the human's stack improved. */}
-      <p className="text-[10.5px] mt-2 leading-snug" style={{ color: FAINT }}>
-        memories-live can be moved by the tool's own auto-triage — deltas are store data,
-        not self-improvement, until reviewer provenance is a typed column (Goodhart gate).
-      </p>
-    </div>
-  );
+function recordedTime(value: string) {
+  if (!/(Z|[+-]\d\d:\d\d)$/.test(value)) return `${value} (time zone not recorded)`;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Invalid recorded date' : date.toLocaleString();
 }
 
 export default function SetupView() {
-  const [data, setData] = useState<SetupData | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [recording, setRecording] = useState(false);
-
-  const load = useCallback((fresh = false) => {
-    fetch(`/api/setup${fresh ? '?fresh=1' : ''}`)
-      .then(r => r.json()).then(setData)
-      .catch(e => setErr(e instanceof Error ? e.message : 'load failed'));
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  const record = async () => {
-    setRecording(true);
+  const [report, setReport] = useState<Report>();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  async function refresh() {
+    setLoading(true);
     try {
-      await fetch('/api/setup/snapshot', { method: 'POST' });
-      load(true);
-    } finally { setRecording(false); }
-  };
-
-  if (err) return <p className="py-16 text-center text-[13px]" style={{ color: ACCENT }}>Setup census failed to load: {err}</p>;
-  if (!data) return <p className="py-16 text-center text-[13px]" style={{ color: MUTED }}>…</p>;
-
-  const { census, axis2, snapshots } = data;
-  const passing = axis2.filter(c => c.verdict === 'PASS').length;
-  const measurable = axis2.filter(c => c.verdict !== 'UNMEASURED').length;
-
-  return (
-    <div className="max-w-2xl mx-auto pb-16">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
-        <h1 style={{ fontFamily: SERIF, fontWeight: 300, color: INK }} className="text-[28px]">The Setup</h1>
-        <button onClick={record} disabled={recording}
-          className="text-[12px] px-3 py-1.5 rounded-lg shrink-0 transition-all hover:brightness-110 disabled:opacity-40"
-          style={{ border: `1px solid ${LINE}`, color: INK }}>
-          {recording ? 'Recording…' : "Record today's reading"}
-        </button>
-      </div>
-      <p className="text-[12px] mb-8" style={{ color: MUTED }}>
-        census {data.cached ? 'cached, ' : ''}taken {data.ran_at?.slice(0, 16).replace('T', ' ')} UTC
-      </p>
-
-      {/* AXIS 1 — you vs you (primary) */}
-      <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: ACCENT }}>You vs you — the primary axis</h2>
-        <Trend snaps={snapshots} />
-      </section>
-
-      {/* AXIS 2 — you vs the frontier (secondary) */}
-      <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-1" style={{ color: MUTED }}>You vs the frontier — secondary</h2>
-        <p className="text-[12px] mb-3" style={{ color: MUTED }}>
-          <span style={{ fontFamily: MONO, color: INK }}>{passing}/{measurable}</span> measurable checks pass ·
-          reference: docs/memory-context-frontier-2026-08.md
-        </p>
-        <div className="space-y-2">
-          {axis2.map(c => (
-            <div key={c.id} className="p-3 rounded-lg" style={{ background: PANEL, border: `1px solid ${LINE}` }}>
-              <div className="flex items-baseline gap-2.5">
-                <span className="text-[10px] uppercase tracking-wider w-24 shrink-0" style={{ color: VERDICT_COLOR[c.verdict], fontWeight: 700 }}>{c.verdict}</span>
-                <span className="text-[13px] min-w-0 flex-1 break-words" style={{ color: INK }}>{c.claim}</span>
-              </div>
-              <p className="text-[11.5px] mt-1 md:ml-[6.6rem] break-words" style={{ fontFamily: MONO, color: MUTED }}>{c.probe}</p>
-              <p className="text-[10.5px] mt-0.5 md:ml-[6.6rem] break-words" style={{ color: FAINT }}>{c.source}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* The census */}
-      <section className="mb-9">
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: MUTED }}>The census</h2>
-        <CensusRow label="Skills" cell={census.skills} />
-        <CensusRow label="Routines" cell={census.routines} />
-        <CensusRow label="Memories, live" cell={census.memories.live} />
-        <CensusRow label="Memories, retired" cell={census.memories.retired} />
-        {census.memories.files && <CensusRow label="Memory files" cell={census.memories.files} />}
-        <CensusRow label="Sessions" cell={census.sessions} />
-      </section>
-
-      {/* Where context lives */}
-      <section>
-        <h2 className="text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: MUTED }}>Where context lives</h2>
-        {census.context_files.map(f => (
-          <div key={f.label} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2" style={{ borderBottom: `1px solid ${LINE}` }}>
-            <span className="text-[13px] w-56 shrink-0" style={{ color: INK }}>{f.label}</span>
-            {f.exists ? (
-              <>
-                <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: INK }}>{f.lines} lines</span>
-                <span className="tabular-nums text-[12px]" style={{ fontFamily: MONO, color: MUTED }}>{((f.bytes ?? 0) / 1024).toFixed(1)}KB</span>
-                <span className="text-[11px]" style={{ color: FAINT }}>touched {f.age_days}d ago</span>
-              </>
-            ) : (
-              <span className="text-[12px]" style={{ color: FAINT }}>not found</span>
-            )}
-          </div>
-        ))}
-        <p className="text-[11px] mt-2" style={{ color: FAINT }}>
-          Connectors: {Object.entries(census.connectors).map(([k, v]) => `${k} ${v ? 'on' : 'off'}`).join(' · ') || 'none configured'}
-        </p>
-      </section>
+      const response = await fetch('/api/setup/review');
+      if (!response.ok) throw new Error(`Review unavailable (${response.status})`);
+      setReport(await response.json()); setError('');
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void refresh(); }, []);
+  const projects = report?.project_review;
+  const backed = projects?.projects.filter(p => ['event', 'ruling', 'phase-intent'].includes(p.evidence_status ?? '')) ?? [];
+  const checks = report?.memory_review?.checks ?? [];
+  const findings: Finding[] = [...(report?.memory_review?.findings ?? []), ...(projects?.findings ?? [])]
+    .sort((a, b) => priority(a) - priority(b));
+  function priority(f: Finding) {
+    if (f.kind === 'source-unavailable') return 0;
+    if (['projection-disagrees-with-event', 'missing-event', 'settled-project-reopened-in-queue', 'duplicate-project-id', 'duplicate-project-identity', 'zup-reported-conflict'].includes(f.kind)) return 1;
+    return f.kind === 'missing-vectors' ? 3 : 2;
+  }
+  function evidence(check: Check) {
+    return <details key={check.id} className="py-3">
+      <summary className="cursor-pointer">{check.question} · {check.status}</summary>
+      <p className="my-3">{check.interpretation}</p>
+      {check.rows.map((row, i) => <dl key={i} className="my-4 pl-3" style={{borderLeft:'1px solid var(--helicon-line)'}}>
+        {Object.entries(row).map(([key, value]) => <div key={key} className="my-1 break-words"><dt className="inline" style={{color:'var(--helicon-muted)'}}>{key.replaceAll('_', ' ')}: </dt><dd className="inline">{value == null ? 'Not recorded' : typeof value === 'object' ? JSON.stringify(value) : String(value)}</dd></div>)}
+      </dl>)}
+      <p className="my-3">Next: {check.action}</p>
+      <details className="text-xs"><summary>Source query</summary><p className="mt-2 break-words">{check.source}</p><pre className="mt-2 whitespace-pre-wrap break-words">{check.query}</pre></details>
+    </details>;
+  }
+  function affectedProjects(finding: Finding) {
+    const ids = finding.projects ?? (finding.project ? [finding.project] : []);
+    if (!ids.length) return null;
+    return <details className="text-sm mt-2">
+      <summary className="cursor-pointer">Inspect affected projects</summary>
+      {ids.map(id => {
+        const project = projects?.projects.find(p => p.id === id);
+        return <div key={id} className="my-4 pl-3" style={{borderLeft:'1px solid var(--helicon-line)'}}>
+          <p className="font-medium">{id}</p>
+          <p className="mt-1">State: {project?.state ?? 'Not recorded'}</p>
+          <p className="mt-1" style={{color:'var(--helicon-muted)'}}>State source: {project?.source ?? 'Not recorded'}</p>
+          {project?.observed_at && <p className="mt-1">Recorded: {recordedTime(project.observed_at)}</p>}
+          {project?.evidence && <p className="mt-1">{project.evidence}</p>}
+          {project?.intent && <p className="mt-2">Recorded phase: {project.intent.phase || 'Not set'} · revision {project.intent.revision}. Source: {project.intent.source}, {project.intent.actor.kind}/{project.intent.actor.id}, {recordedTime(project.intent.observed_at)}. This is not an outcome receipt.</p>}
+        </div>;
+      })}
+    </details>;
+  }
+  return <div className="max-w-2xl mx-auto pb-12" style={{color: 'var(--helicon-ink)'}}>
+    <div className="flex justify-between items-center mb-8">
+      <h1 className="text-[28px]" style={{fontFamily: 'var(--helicon-serif)'}}>Your setup</h1>
+      <button className="text-sm" disabled={loading} onClick={() => void refresh()}>{loading ? 'Checking…' : 'Check now'}</button>
     </div>
-  );
+    {error && <p role="alert" className="mb-5">{error}. Any earlier reading below is not current.</p>}
+    <ContextReview />
+    {!report ? <p>{loading ? 'Reading the local sources…' : 'No review is available. Try Check now.'}</p> : <>
+      <section className="mb-7">
+        <h2 className="text-lg mb-2">What needs attention</h2>
+        {(!projects || projects.status === 'unmeasured') && <p className="text-sm">Project checks are unavailable. {projects?.reason}</p>}
+        {findings.length ? findings.slice(0, 3).map((finding, i) => <div key={i} className="my-5">
+          <p className="text-sm font-medium">{finding.title ?? 'Project records disagree'}{finding.project ? `: ${finding.project}` : ''}</p>
+          <p className="text-sm mt-1">{finding.consequence}</p>
+          <p className="text-sm mt-1" style={{color: 'var(--helicon-muted)'}}>{finding.action}</p>
+          {finding.checks && <details className="text-sm mt-2"><summary className="cursor-pointer">Inspect evidence</summary>{checks.filter(c => finding.checks?.includes(c.id)).map(evidence)}</details>}
+          {affectedProjects(finding)}
+        </div>) : projects?.status === 'measured' && report.memory_review && <p className="text-sm">No issues found by the checks run. Memory correctness and benefit remain unmeasured.</p>}
+        {!report.memory_review && <p className="text-sm">Memory checks are unavailable. No memory-quality conclusion can be drawn.</p>}
+        {findings.length > 3 && <details className="text-sm"><summary>{findings.length - 3} more findings</summary>{findings.slice(3).map((f,i)=><div key={i} className="my-4"><p>{f.title}</p><p className="mt-1">{f.consequence}</p><p className="mt-1">{f.action}</p>{checks.filter(c => f.checks?.includes(c.id)).map(evidence)}{affectedProjects(f)}</div>)}</details>}
+      </section>
+      <section className="mb-7">
+        <details className="text-sm">
+          <summary className="cursor-pointer text-lg">How your memory works</summary>
+          <p className="my-4" style={{color:'var(--helicon-muted)'}}>{report.memory_review?.relationship ?? 'Memory review unavailable.'}</p>
+          {report.memory_review?.stages?.map(stage => <details key={stage.id} className="py-4" style={{borderTop:'1px solid var(--helicon-line)'}}>
+            <summary className="cursor-pointer">{stage.title}<span className="block mt-1 text-sm" style={{color:'var(--helicon-muted)'}}>{stage.summary}{stage.state === 'empty' ? ' · empty' : ''}</span></summary>
+            <p className="mt-4">Source: {stage.source}</p>
+            <p className="mt-2">{stage.limit}</p>
+            {stage.watermark && <p className="mt-2">Newest recorded event: {recordedTime(stage.watermark)}</p>}
+            {checks.filter(c => stage.checks.includes(c.id)).map(evidence)}
+          </details>)}
+        </details>
+      </section>
+      <details className="text-sm" style={{borderTop: '1px solid var(--helicon-line)', paddingTop: 16}}>
+        <summary className="cursor-pointer">Evidence and technical details</summary>
+        <p className="my-4" style={{color:'var(--helicon-muted)'}}>Sources: ZUP's local project events, board and optional project corrections; Helicon's memory store; Transcripto's conversation index. Checked {projects?.observed_at ?? report.memory_review?.observed_at ?? 'at an unknown time'}.</p>
+        {projects?.intent_source && <p className="my-3">Project corrections: {projects.intent_source.status.replaceAll('_', ' ')}. {projects.intent_source.scope}</p>}
+        {backed.map(p => <p key={p.id} className="my-3">{p.id}: {p.state}. {p.evidence} {p.intent?.phase && <>Phase: {p.intent.phase}, revision {p.intent.revision}, {p.intent.source} ({p.intent.actor.kind}/{p.intent.actor.id}), recorded {recordedTime(p.intent.observed_at)}.</>}</p>)}
+        {projects?.findings.map((f, i) => <pre className="whitespace-pre-wrap break-words" key={i}>{JSON.stringify(f, null, 2)}</pre>)}
+        {checks.map(evidence)}
+      </details>
+    </>}
+  </div>;
 }

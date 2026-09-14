@@ -1,5 +1,12 @@
 # Mountain of Helicon
 
+The Setup screen includes an independent, read-only ZUP project-state review.
+It compares local event receipts, canonical board identities, and queue actions.
+Duplicate identities, missing receipts, inconsistent state, and actions on
+settled phases are findings. Missing stores are unmeasured. A clean comparison
+does not prove every project is current or that memory improves outcomes.
+The source is `ZUP_HOME` (default `~/.zen`); no private records are published.
+
 **Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
 commands that no longer exist, paths the repo reorganized away. Your agent loads
 those rules as fact at the start of every session. Nothing tells you until
@@ -57,8 +64,33 @@ and every row cites the line it fired on. On this machine, that first run reads:
 
 ```bash
 helicon witness           # your last agent session: every claim vs its evidence
-helicon setup             # your whole stack, graded
+helicon setup --audit     # local Claude, Cursor and Codex setup evidence
 ```
+
+For a specific project, run `helicon setup --audit --project /path/to/repo`.
+The Setup page also includes an index-and-memory operating review: live sources,
+scan errors, live embedding coverage and model mix, exact duplicate hashes,
+recorded retrieval use, and live keyword-search smoke probes. Expand each check
+for its rows, query and next action. Relevance, contradiction quality and causal
+benefit are explicitly unmeasured here; a working search is not a correct answer.
+For recorded results, `helicon outcomes` shows accepted, rework, rollback and
+missing acceptance decisions, with the recorded-run denominator. It does not
+grade all agent work. `--json` exports the `helicon.outcomes/1` contract for ZUP.
+Use `helicon outcomes --save-baseline /local/path/baseline.json` to freeze a
+reading in a new file; later use `--baseline /local/path/baseline.json` to compare
+the same run IDs. New runs are excluded; missing old runs mark the comparison
+incomplete. Acceptance changes are not evidence of causal setup benefit.
+
+Add `--json` for the `helicon.setup-audit/1` contract consumed by ZUP.
+The audit reads instruction and skill files, reports their hashes, and checks
+inspectable Claude hook routes and post-compaction vault references. It neither
+executes hooks nor changes configuration. Reports contain local paths and hashes,
+not instruction bodies or configuration secrets; review paths before sharing.
+
+Discovered files are candidates, not proof they reached a model. Effective context,
+plugin activation, cloud settings, and skill benefit remain unmeasured. The older
+`helicon setup` census remains available, but its limited file count no longer
+passes as a measurement of total loaded context.
 
 One real catch, from a real transcript, in under a minute:
 
@@ -192,7 +224,7 @@ checks both and prints the exact command for each.
   reality; `helicon doorway install` adds a reversible Claude Code preflight.
 - **Memory governance:** a 13-class rot exam, human rulings, receipts, undo, and
   Golden Rules.
-- **Agent access:** local MCP exposes 23 tools, plus an authenticated remote endpoint.
+- **Agent access:** local MCP exposes 25 tools, plus an authenticated remote endpoint with a narrower allowlist.
 - **Connectors:** Claude Code, Cursor and Cursor Cloud exports, git, Obsidian,
   agent rules, ChatGPT exports, Mem0, Letta, Graphiti, and LifeOS adapters.
 - **Dashboard:** Doorway, Rulings, governed runs, memory health, and the deeper
@@ -351,7 +383,7 @@ quietly causes the rot it detects is the joke writing itself.
 
 All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
-## MCP Server (23 tools)
+## MCP Server (25 tools)
 
 Agents audit their own memory mid-conversation. Add to `.claude.json`:
 
@@ -388,6 +420,8 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 | `helicon_workgraph_learning` | Withhold recommendations until real resolved outcomes accumulate |
 | `helicon_workgraph_review_skill` | Record the skill version actually loaded, hashed over its bytes |
 | `helicon_consolidate` | Run a consolidation (sleep) cycle |
+| `helicon_context_packet_inspect` | Inspect a named run's local source-packet receipt; does not deliver content |
+| `helicon_context_packet_consume` | Return the exact reviewed project sources to the named local run and record receipt, not compliance |
 
 The full JSON-RPC 2.0 handshake (initialize, tools/list, tools/call) is exercised in the receipts; `helicon mcp` runs the server on stdio, so the bare CLI never silently becomes a server.
 
@@ -447,9 +481,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (75 commands)
+## CLI (76 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `outcomes` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
@@ -580,7 +614,7 @@ Mountain of Helicon's capabilities stand on well-understood memory-systems patte
 </p>
 
 
-- **Backend:** Python 3.12, FastAPI (130 endpoints), SQLite + FTS5 (41 tables). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
+- **Backend:** Python 3.12, FastAPI (146 endpoints), SQLite + FTS5 (42 tables declared across the memory and correction stores). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass — the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
 - **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. No hosted personal-store service is

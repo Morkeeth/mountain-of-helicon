@@ -6,6 +6,16 @@
 
 It is **not** Mount Helicon. `MorkeethHQ/mount-helicon` is a **frozen hackathon submission** under judging until 2026-08-17 — a separate repository, write-blocked at GitHub. Never push to it, never open a PR against it, never assume the two share code state. "Helicon V2" and "helicon-v2" are dead names for this repo; use **Mountain of Helicon**.
 
+## Memory journey — user direction, 6 September 2026
+
+Capture history, context and memory, and show how they work together. A user must
+be able to inspect why a belief exists, its exact source and observation time,
+what correction superseded it, and which consumer received that source revision.
+Read/delivery, acknowledgment and observed behavior are different evidence states.
+Do not infer behavior from an ACK or causality from a reviewed artifact. Reuse the
+existing stores; keep private source text on the explicit loopback review boundary.
+ZUP owns next actions; Helicon owns this inspectable history.
+
 ## How to verify your work
 
 The test suite is **self-contained** — no config file, no seeded database, no API keys required. It creates what it needs in temp fixtures.

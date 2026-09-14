@@ -158,7 +158,7 @@ def _line_rows(pattern: str):
 COUNT_CLAIMS = [
     ("MCP tools", "README.md", r"MCP Server \((\d+) tools\)", count_mcp_tools),
     ("CLI commands", "README.md", r"CLI \((\d+) commands\)", count_cli_commands),
-    ("DB tables", "README.md", r"\((\d+) tables\)", count_tables),
+    ("DB tables", "README.md", r"\((\d+) tables(?: declared across the memory and correction stores)?\)", count_tables),
     ("API endpoints", "README.md", r"\((\d+) endpoints\)", count_endpoints),
     ("MCP tools (prose)", "README.md", r"exposes (\d+) tools", count_mcp_tools),
     ("rot classes", "README.md", rf"\b({_NUM})-class (?:rot|deterministic) exam", count_rot_classes),
@@ -172,7 +172,7 @@ COUNT_CLAIMS = [
     ("rot classes", "ARCHITECTURE.md", rf"\b({_NUM}) (?:documented )?failure classes", count_rot_classes),
     ("MCP tools", "ARCHITECTURE.md", r"MCP server<br/>(\d+) tools", count_mcp_tools),
     ("web tabs", "ARCHITECTURE.md", r"Web UI · (\d+) tabs", count_web_tabs),
-    ("DB tables", "ARCHITECTURE.md", r"SQLite · (\d+) tables", count_tables),
+    ("DB tables", "ARCHITECTURE.md", r"## Storage \((\d+) (?:core|declared) tables \+ FTS5\)", count_tables),
 ]
 
 # (label, doc, regex declaring the count or None, list extractor, source counter)
@@ -184,7 +184,7 @@ LIST_CLAIMS = [
      _backticked_items, count_cli_commands),
     ("tables list", "CLAUDE.md", r"\((\d+) tables: ([^)]+)\)",
      _comma_items(2), count_tables),
-    ("storage tables list", "ARCHITECTURE.md", r"## Storage \((\d+) core tables \+ FTS5\)",
+    ("storage tables list", "ARCHITECTURE.md", r"## Storage \((\d+) (?:core|declared) tables \+ FTS5\)",
      _backticked_items, count_tables),
     # no count declared in ROT.md: the source count is the expectation, and the
     # catalogue must render one row per class (it silently rendered 11 of 12)

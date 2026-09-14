@@ -1,0 +1,47 @@
+{
+ "_note": "The published SHAPE of the rot benchmark's answer key. Every path here is invented. Point LIFEOS_ROT_KEY at a file like this, describing your own notes, and LIFEOS_ROOTS at the directories holding them.",
+ "_classes": {
+  "R1": "a claim in the document contradicts a fact that is true now",
+  "R3": "the document has simply been overtaken: a list, table or plan that no longer describes anything",
+  "R4": "the document uses a name, product or decision that has been superseded"
+ },
+ "_facets": "For R1 only. Tokens saying what the conflict is actually about, so a detector firing on a DIFFERENT real conflict in the same file is reported as exactly that. File level credit, not facet credit, and no silent inflation.",
+ "generated": "2026-09-04",
+ "labels": [
+  {
+   "path": "Dashboard/operating-system.md",
+   "classes": ["R3"],
+   "why": "stack table predates the current stack"
+  },
+  {
+   "path": "Projects/Ledger/architecture.md",
+   "classes": ["R1"],
+   "why": "'Postgres, single writer' vs the microservice that replaced it",
+   "facets": ["database", "architecture"]
+  },
+  {
+   "path": "Projects/Ledger/go-live.md",
+   "classes": ["R1", "R4"],
+   "why": "'pending sign-off' vs shipped, and it still says the old product name",
+   "facets": ["sign-off", "shipped"]
+  },
+  {
+   "path": "Projects/Ledger/roadmap.md",
+   "classes": ["R3"],
+   "why": "Q2 priority list superseded by the Q3 plan"
+  },
+  {
+   "path": "Ideas/backlog.md",
+   "classes": ["R4"],
+   "why": "refers to a project by a name that was retired"
+  }
+ ],
+ "known_renames": [
+  {
+   "from": "oldname",
+   "to": "newname",
+   "at": "2026-07-04T15:05:45",
+   "why": "repo rename, external fact from the commit history rather than from a banner"
+  }
+ ]
+}
