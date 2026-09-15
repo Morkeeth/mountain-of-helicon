@@ -75,7 +75,7 @@ cross-agent learning are mature.
 ## Founder-only decisions
 
 1. Make the repository public.
-2. Choose the PyPI distribution name before publishing.
+2. Choose the PyPI distribution name before publishing. Chosen 15 Sep 2026: `helicon` (free on PyPI that day).
 3. Choose whether the current Alibaba deployment is replaced or omitted.
 4. Approve the final tweet/video after the blind review.
 
