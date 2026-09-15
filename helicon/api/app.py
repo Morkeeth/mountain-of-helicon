@@ -118,10 +118,12 @@ def create_app() -> FastAPI:
     from helicon.api.setup import router as setup_router
     from helicon.api.context_review import router as context_review_router
     from helicon.api.mind_changes import router as mind_changes_router
+    from helicon.api.correction_transfer import router as correction_transfer_router
 
     app.include_router(setup_router, prefix="/api")
     app.include_router(context_review_router, prefix="/api")
     app.include_router(mind_changes_router, prefix="/api")
+    app.include_router(correction_transfer_router, prefix="/api")
     app.include_router(cubes_router, prefix="/api")
     app.include_router(review_router, prefix="/api")
     app.include_router(score_router, prefix="/api")

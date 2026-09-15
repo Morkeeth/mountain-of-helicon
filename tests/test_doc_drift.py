@@ -157,10 +157,10 @@ def test_cli_list_short_is_caught(repo):
 
 
 def test_claude_md_table_list_drift_is_caught(repo):
-    """CLAUDE.md declared 18 tables and listed 18, while source had 24."""
+    """A shortened table list cannot pass by lowering its declared count."""
     _mutate(repo, "CLAUDE.md",
-            ", work_wagers, work_evidence, work_skill_reviews, next_moves, surface_opens, weekly_measurements, context_corrections)", ")")
-    _mutate(repo, "CLAUDE.md", "(42 tables:", "(23 tables:")
+            ", work_wagers, work_evidence, work_skill_reviews, next_moves, surface_opens, weekly_measurements, context_corrections, correction_rules)", ")")
+    _mutate(repo, "CLAUDE.md", "(43 tables:", "(23 tables:")
     assert _fails(check_lists(str(repo)), "tables list", "CLAUDE.md")
 
 
@@ -219,7 +219,7 @@ def test_honest_rounding_is_allowed_but_wrong_rounding_is_not(repo):
 
 def test_deleting_a_claim_is_not_a_way_to_pass(repo):
     """The cheapest fake fix is removing the number. It must fail, not pass."""
-    _mutate(repo, "CLAUDE.md", "- 37 routers (146 endpoints), 25 MCP tools", "- routers, MCP tools")
+    _mutate(repo, "CLAUDE.md", "- 38 routers (153 endpoints), 25 MCP tools", "- routers, MCP tools")
     drift = _fails(check_counts(str(repo)), "API routers", "CLAUDE.md")
     assert drift and "not found" in drift[0]["why"]
 

@@ -1651,6 +1651,74 @@ def cmd_ask(args):
     print(format_guarded_context(res))
 
 
+def cmd_teach(args):
+    """Run one explicit correction through proposal, decision, and scoped replay."""
+    import json
+    from pathlib import Path
+    from tempfile import TemporaryDirectory
+
+    from helicon.correction_transfer import (
+        AUTHORED_EXAMPLE,
+        CorrectionTransferStore,
+        TransferError,
+    )
+
+    if args.action == "demo":
+        case = AUTHORED_EXAMPLE
+    else:
+        if not args.case:
+            sys.exit("trial requires a local case JSON file")
+        try:
+            case = json.loads(Path(args.case).expanduser().read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            sys.exit(f"Could not read local trial case: {exc}")
+    if not isinstance(case, dict):
+        sys.exit("Trial case must be one JSON object.")
+    decision = args.decision or ("accept" if args.action == "demo" else None)
+    if decision is None:
+        sys.exit("Private trial requires an explicit --decision accept or --decision reject.")
+
+    temporary = TemporaryDirectory(prefix="helicon-authored-teach-") if not args.state else None
+    state = args.state or temporary.name
+    try:
+        store = CorrectionTransferStore(state)
+        fields = {key: value for key, value in case.items() if key != "cases"}
+        proposal = store.propose(actor="local-reviewer", **fields)
+        ruled = store.decide(proposal["id"], decision, "local-reviewer")
+        comparison = store.compare(case.get("cases", [])) if decision == "accept" else {
+            "cases": [],
+            "claim_limit": "Rejected rule: no later attempt was changed.",
+        }
+    except (TransferError, TypeError, OSError) as exc:
+        sys.exit(f"Correction transfer refused: {exc}")
+    finally:
+        if temporary:
+            temporary.cleanup()
+
+    result = {"proposal": proposal, "decision": ruled, "comparison": comparison}
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return
+    print(f"\nTEACHING CARD · {proposal.get('example_label') or 'local private trial'}")
+    print(f"  original draft  {proposal['original_draft']}")
+    print(f"  edited draft    {proposal['edited_draft']}")
+    for delta in proposal["word_delta"]:
+        mark = "-" if delta["kind"] == "removed" else "+"
+        print(f"  word delta      {mark} {delta['text']}")
+    print(f"  explicit human  {proposal.get('explicit_instruction') or 'absent'}")
+    print(f"  inferred reason {proposal.get('inferred_reason') or 'absent'}")
+    print("                  (agent-inferred; not an instruction)")
+    print(f"  proposed rule   {proposal['proposed_rule']}")
+    print(f"  chosen scope    {json.dumps(proposal['scope'], sort_keys=True)}")
+    print(f"  decision        {ruled['status']} · {ruled['id']}")
+    for item in comparison["cases"]:
+        print(f"\n  {item['label']}")
+        print(f"    frozen baseline  {item['frozen_baseline']}")
+        print(f"    next attempt     {item['result']}")
+        print(f"    transfer         {'APPLIED' if item['changed'] else 'NOT APPLIED'} · {item['evidence']}")
+    print(f"\n  limit  {comparison['claim_limit']}")
+
+
 def cmd_attribute(args):
     """Auto-attribution: trace a contradicted output finding back to the memory
     cube(s) that caused it, so you can retire the actual cause when you rule."""
@@ -4625,6 +4693,17 @@ def main():
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
 
+    teach_p = sub.add_parser(
+        "teach",
+        help="Teach one reviewed correction, then compare scoped next attempts against frozen drafts",
+    )
+    teach_p.add_argument("action", choices=["demo", "trial"])
+    teach_p.add_argument("case", nargs="?", help="local JSON case file for trial (never uploaded)")
+    teach_p.add_argument("--decision", choices=["accept", "reject"],
+                         help="required for a private trial; demo defaults to accept")
+    teach_p.add_argument("--state", help="optional local directory for a durable inspectable rule history")
+    teach_p.add_argument("--json", action="store_true", help="emit the complete teaching card and receipts")
+
     attr_p = sub.add_parser("attribute", help="Trace a contradicted output finding back to the memory that caused it")
     attr_p.add_argument("id", type=int, help="the review finding id (from `helicon review-queue --terminals --file`)")
     attr_p.add_argument("--limit", type=int, default=5, help="max candidate memories (default 5)")
@@ -4738,6 +4817,7 @@ def main():
         "unreviewed": cmd_unreviewed,
         "guard": cmd_guard,
         "ask": cmd_ask,
+        "teach": cmd_teach,
         "brief": cmd_brief,
         "board": cmd_board,
         "doorway": cmd_doorway,
@@ -4821,6 +4901,7 @@ def main():
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
         "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
         "review", "outcomes",
+        "teach",
     )
     has_explicit_bench_db = (
         args.command == "measurement-bench" and bool(getattr(args, "db", None))
