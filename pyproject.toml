@@ -73,4 +73,7 @@ filterwarnings = [
     # starlette's own deprecation class subclasses UserWarning, not
     # DeprecationWarning — ignored by message so nothing else hides behind it.
     "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+    # Starlette 1.6 still imports AnyIO's compatibility alias. Keep every other
+    # deprecation fatal while the upstream TestClient migrates to the new name.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.",
 ]
