@@ -71,7 +71,7 @@ def _digest(value: str) -> str:
 
 
 class CorrectionTransferStore:
-    """Append-audited local rule store. Source drafts are never stored implicitly."""
+    """Append-audited local rule store. Both drafts are stored verbatim in the local proposal payload."""
 
     def __init__(self, state_dir):
         self.state_dir = Path(state_dir).expanduser().resolve()
@@ -288,7 +288,7 @@ class CorrectionTransferStore:
 
 
 AUTHORED_EXAMPLE = {
-    "example_label": "Authored example — synthetic, not Oscar's corpus",
+    "example_label": "Authored example, synthetic, not Oscar's corpus",
     "original_draft": "We shipped scoped correction transfer.",
     "edited_draft": "We built scoped correction transfer.",
     "explicit_instruction": "In Helicon progress updates, use “built”, not “shipped”, until it is hosted.",
@@ -303,7 +303,7 @@ AUTHORED_EXAMPLE = {
             "context": {"project": "mountain-of-helicon", "task": "progress-update"},
         },
         {
-            "label": "Different release context — explicit non-transfer",
+            "label": "Different release context, explicit non-transfer",
             "draft": "We shipped version 0.2 to package users.",
             "context": {"project": "mountain-of-helicon", "task": "release-note"},
         },

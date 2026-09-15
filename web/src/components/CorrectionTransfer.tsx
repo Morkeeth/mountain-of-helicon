@@ -54,7 +54,7 @@ export default function CorrectionTransfer() {
     if (!example) return;
     const data = await call<Rule>('proposals', {
       ...example, cases:undefined, scope:scopeOverride || scope,
-      ...(supersedes ? {supersedes, example_label:'Authored supersession example — synthetic'} : {}),
+      ...(supersedes ? {supersedes, example_label:'Authored supersession example, synthetic'} : {}),
     });
     setRule(data); setComparison(undefined);
   }
