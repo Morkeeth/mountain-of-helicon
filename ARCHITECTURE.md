@@ -50,7 +50,7 @@ flowchart TD
   subgraph SURF["Surfaces"]
     CLI["CLI<br/>helicon scan / serve / gold / triage / battery"]
     MCP["MCP server<br/>25 tools · JSON-RPC 2.0 / stdio"]
-    WEB["Web UI · 24 tabs<br/>The Doorway · Lab · The Cockpit · Start Here · Morning Brief · Findings · Health · Gold · Exam · Judge · Log · Graph · …"]
+    WEB["Web UI · 25 tabs<br/>Teach a correction · The Doorway · Lab · The Cockpit · Start Here · Morning Brief · Findings · Health · Gold · Exam · Judge · Log · Graph · …"]
   end
 ```
 
@@ -112,11 +112,11 @@ agent output (any platform)
   → the exam re-runs nightly; a returning rot re-alarms
 ```
 
-## Storage (42 declared tables + FTS5)
+## Storage (43 declared tables + FTS5)
 
-`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards` · `judge_runs` · `govern_batches` · `task_runs` · `context_packets` · `context_packet_items` · `run_captures` · `run_events` · `prompt_library` · `doorway_cold` · `doorway_gate_cache` · `work_wagers` · `work_evidence` · `work_skill_reviews` · `next_moves` · `surface_opens` · `weekly_measurements` · `setup_snapshots` · `context_corrections`
+`helicon_cubes` (memory units) · `reviews` · `patterns` · `audit_log` · `retrieval_log` · `scan_log` · `entities` · `edges` · `entity_aliases` · `consolidations` · `qwen_cache` · `session_summaries` · `triage_log` · `eval_runs` · `score_history` · `battery_history` · `playbooks` · `memory_utility` · `cube_embeddings` · `context_snapshots` · `regret_events` · `rules` · `route_evidence` · `run_cards` · `judge_runs` · `govern_batches` · `task_runs` · `context_packets` · `context_packet_items` · `run_captures` · `run_events` · `prompt_library` · `doorway_cold` · `doorway_gate_cache` · `work_wagers` · `work_evidence` · `work_skill_reviews` · `next_moves` · `surface_opens` · `weekly_measurements` · `setup_snapshots` · `context_corrections` · `correction_rules`
 
-Plus `cubes_fts`, the FTS5 full-text index. The source-declaration count spans stores; it is not a live database census. `context_corrections` is in its own project-scoped SQLite file, not the memory database. Saved source reviews and source packets are immutable local JSON files. They are distinct from retrieved-memory ContextPackets in the memory database.
+Plus `cubes_fts`, the FTS5 full-text index. The source-declaration count spans stores; it is not a live database census. `context_corrections` and `correction_rules` are in separate project-scoped or local SQLite files, not the memory database. Saved source reviews and source packets are immutable local JSON files. They are distinct from retrieved-memory ContextPackets in the memory database.
 
 ## Research the design draws on
 
