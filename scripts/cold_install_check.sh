@@ -22,7 +22,7 @@ cat > "$fixture/AGENTS.md" <<'EOF'
 # Agent instructions
 
 Read [the setup guide](docs/setup.md).
-Read [the removed deployment guide](docs/deployment.md).
+Read [the deployment guide](docs/deployment.md).
 Run `python scripts/check.py` before each change.
 EOF
 printf '%s\n' '# Setup' > "$fixture/docs/setup.md"
