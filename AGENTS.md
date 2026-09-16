@@ -1,14 +1,15 @@
 <!-- STATE:start -->
-## SHARED WORK STATE · revision 442ab21f1c06 · rendered 2026-09-16 · scope repo mountain-of-helicon
+## SHARED WORK STATE · revision a96dbc6f3698 · rendered 2026-09-16 · scope repo mountain-of-helicon
 This repo's rows of the one shared work state. Authorities: todo.md (human), TASKS.yaml (ids), board clocks, Oscar's rulings (local only). Views such as GLANCE, SLASK and ZUP are adapters over the same revision.
 **A CLOSED task stays closed. Do not requeue, re-verify or re-poll it.**
-Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev 442ab21f1c06`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"442ab21f1c06","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
+Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev a96dbc6f3698`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"a96dbc6f3698","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
+
+### CLOSED. Not open work.
+- **HELICON-DISTRIBUTION-NAME** · Helicon: rule the distribution name · **COMPLETED**. by Oscar's ruling (held local-only)
 
 ### OPEN
 - **SEP15-QUEUE-HELICON** · Sep15 Helicon correction transfer (queued) · owner agent · `mountain-of-helicon` · due 2026-09-15T20:00
   - next: Reuse existing correction owners after weirdMD or free slot.
-- **HELICON-DISTRIBUTION-NAME** · Helicon: rule the distribution name · owner oscar · `mountain-of-helicon`
-  - next: 2 of 1,287 tests fail on 'distribution name remains a founder decision'. One word unblocks the release gate.
 - **HELICON-FIX-DELTA-2026-09-07** · Helicon, learn from the fix delta · owner agent · `mountain-of-helicon`
   - next: Build one real draft → sent event: show the word delta, inferred reason, confidence, authority, and proposed change to the next similar draft.
 - **HELICON-NEXT** · Helicon, next ship slice · owner agent · `mountain-of-helicon`
