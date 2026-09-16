@@ -99,8 +99,8 @@ def static_checks(root: Path) -> list[Check]:
         "python -m pytest -q",
         "npm run lint",
         "npm run build",
-        "python -m build",
-        "python -m twine check",
+        "bash scripts/build_release.sh",
+        "bash scripts/cold_install_check.sh",
     )
     missing_release_commands = [command for command in release_commands if command not in workflow]
 
@@ -169,12 +169,16 @@ def static_checks(root: Path) -> list[Check]:
         ),
         Check(
             "package-metadata",
-            "Package metadata names Mountain and current source URLs",
+            "Package metadata has the ruled name, version, entry point, and source URL",
             (
-                "Mountain of Helicon" in pyproject
+                re.search(r'(?m)^name = "helicon"$', pyproject) is not None
+                and re.search(r'(?m)^version = "0\.2\.0"$', pyproject) is not None
+                and re.search(
+                    r'(?m)^helicon = "helicon\.cli:main"$', pyproject
+                ) is not None
                 and "https://github.com/Morkeeth/mountain-of-helicon" in pyproject
             ),
-            "distribution name remains a founder decision",
+            "helicon 0.2.0 · helicon.cli:main · canonical source URL",
         ),
         Check(
             "roadmap",
