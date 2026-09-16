@@ -1,8 +1,8 @@
 <!-- STATE:start -->
-## SHARED WORK STATE · revision e98dc14cf136 · rendered 2026-09-16 · scope repo mountain-of-helicon
+## SHARED WORK STATE · revision 4b43922c3aea · rendered 2026-09-16 · scope repo mountain-of-helicon
 This repo's rows of the one shared work state. Authorities: todo.md (human), TASKS.yaml (ids), board clocks, Oscar's rulings (local only). Views such as GLANCE, SLASK and ZUP are adapters over the same revision.
 **A CLOSED task stays closed. Do not requeue, re-verify or re-poll it.**
-Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev e98dc14cf136`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"e98dc14cf136","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
+Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev 4b43922c3aea`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"4b43922c3aea","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
 
 ### OPEN
 - **SEP15-QUEUE-HELICON** · Sep15 Helicon correction transfer (queued) · owner agent · `mountain-of-helicon` · due 2026-09-15T20:00
