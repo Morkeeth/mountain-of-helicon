@@ -31,7 +31,7 @@ printf '%s\n' 'print("fixture check passed")' > "$fixture/scripts/check.py"
 "$python_bin" -m venv "$venv"
 echo "INSTALL: $venv/bin/python -m pip install $wheel"
 HOME="$home" "$venv/bin/python" -m pip \
-    --disable-pip-version-check install "$wheel"
+    --disable-pip-version-check --quiet install "$wheel"
 
 set +e
 HOME="$home" \
