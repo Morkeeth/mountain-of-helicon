@@ -1,8 +1,8 @@
 <!-- STATE:start -->
-## SHARED WORK STATE · revision 4b43922c3aea · rendered 2026-09-16 · scope repo mountain-of-helicon
+## SHARED WORK STATE · revision feebd2480a12 · rendered 2026-09-16 · scope repo mountain-of-helicon
 This repo's rows of the one shared work state. Authorities: todo.md (human), TASKS.yaml (ids), board clocks, Oscar's rulings (local only). Views such as GLANCE, SLASK and ZUP are adapters over the same revision.
 **A CLOSED task stays closed. Do not requeue, re-verify or re-poll it.**
-Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev 4b43922c3aea`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"4b43922c3aea","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
+Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev feebd2480a12`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"feebd2480a12","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
 
 ### OPEN
 - **SEP15-QUEUE-HELICON** · Sep15 Helicon correction transfer (queued) · owner agent · `mountain-of-helicon` · due 2026-09-15T20:00
@@ -16,6 +16,7 @@ Before acting, record that you read this revision, exact session and exact rev: 
 
 ### RULINGS AND FACTS, each with the object it was read from
 - Merge conflicts resolve toward the latest decision, never back to a stale branch. Order by merge time and Oscar's most recent word, not by which lane opened first. Applied 16 Sep: PR 30 deliberate audience choice kept over PR 26 default private. · Oscar in Claude terminal 2026-09-16 10:1x, session 37d93bc8 · 2026-09-16
+- Timestamp discipline. Every time hand-written by the orchestrator in today's RUN, coordination file and SLASK entries ran two to three hours ahead of this machine. Machine clock read 10:22 +0200 when the prose said 14:3x. Caught by the ZUP lane, which refused to reconcile two time sources silently because staleness is a subtraction of two times. Rulings in rulings.jsonl are machine-stamped by state.py and were always correct. Corrected in place and recorded rather than quietly fixed. Standing rule: a time in prose is a measurement, so read the clock or write unverified. Do not carry a time forward from an earlier document. · ZUP architecture lane, machine date verified by orchestrator morkeeth-a9 2026-09-16 10:22:33 +0200 · 2026-09-16
 
 ### ACKNOWLEDGED THIS REVISION: nobody yet
 <!-- STATE:end -->
