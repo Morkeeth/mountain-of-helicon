@@ -20,7 +20,8 @@ def test_distribution_metadata_matches_release_contract():
     )
     assert _declares('readme = "README.md"')
     assert _declares('license = "MIT"')
-    assert '"License :: OSI Approved :: MIT License"' in PYPROJECT
+    assert '"Intended Audience :: Developers"' in PYPROJECT
+    assert '"Topic :: Software Development :: Quality Assurance"' in PYPROJECT
     assert '"Programming Language :: Python :: 3.10"' in PYPROJECT
     assert '"Programming Language :: Python :: 3.11"' in PYPROJECT
     assert '"Programming Language :: Python :: 3.12"' in PYPROJECT
