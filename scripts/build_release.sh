@@ -14,6 +14,25 @@ epoch="${SOURCE_DATE_EPOCH:-$(git -C "$root" show -s --format=%ct HEAD)}"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
+normalize_sdist() {
+    local archive="$1"
+    local unpack="$2"
+    mkdir -p "$unpack"
+    tar -xzf "$archive" -C "$unpack"
+    (
+        cd "$unpack"
+        tar \
+            --sort=name \
+            --mtime="@$epoch" \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --pax-option=delete=atime,delete=ctime \
+            -cf - helicon-0.2.0
+    ) | gzip -n > "$archive.normalized"
+    mv "$archive.normalized" "$archive"
+}
+
 for run in first second; do
     source_dir="$work/source-$run"
     build_dir="$work/build-$run"
@@ -26,6 +45,9 @@ for run in first second; do
         SOURCE_DATE_EPOCH="$epoch" \
         "$python_bin" -m build --sdist --wheel --outdir "$build_dir"
     )
+    normalize_sdist \
+        "$build_dir/helicon-0.2.0.tar.gz" \
+        "$work/unpack-$run"
     "$python_bin" -m twine check "$build_dir"/*
 done
 
