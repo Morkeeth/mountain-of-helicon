@@ -1,16 +1,21 @@
 <!-- STATE:start -->
-## SHARED WORK STATE · revision e2daf56ba4f1 · rendered 2026-09-15 · scope repo mountain-of-helicon
+## SHARED WORK STATE · revision e98dc14cf136 · rendered 2026-09-16 · scope repo mountain-of-helicon
 This repo's rows of the one shared work state. Authorities: todo.md (human), TASKS.yaml (ids), board clocks, Oscar's rulings (local only). Views such as GLANCE, SLASK and ZUP are adapters over the same revision.
 **A CLOSED task stays closed. Do not requeue, re-verify or re-poll it.**
-Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev e2daf56ba4f1`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"e2daf56ba4f1","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
+Before acting, record that you read this revision, exact session and exact rev: `python3 ~/CODE/fleet-ops/state/state.py ack --session <your session id> --consumer <claude|codex|cursor> --rev e98dc14cf136`. In a cloud sandbox instead append `{"session":"<your session id>","consumer":"<claude|codex|cursor>","rev":"e98dc14cf136","ts":"<iso>","stage":"acknowledged"}` to `.fleet/ACK.jsonl` in this repo and commit it.
 
 ### OPEN
+- **SEP15-QUEUE-HELICON** · Sep15 Helicon correction transfer (queued) · owner agent · `mountain-of-helicon` · due 2026-09-15T20:00
+  - next: Reuse existing correction owners after weirdMD or free slot.
 - **HELICON-DISTRIBUTION-NAME** · Helicon: rule the distribution name · owner oscar · `mountain-of-helicon`
   - next: 2 of 1,287 tests fail on 'distribution name remains a founder decision'. One word unblocks the release gate.
 - **HELICON-FIX-DELTA-2026-09-07** · Helicon, learn from the fix delta · owner agent · `mountain-of-helicon`
   - next: Build one real draft → sent event: show the word delta, inferred reason, confidence, authority, and proposed change to the next similar draft.
 - **HELICON-NEXT** · Helicon, next ship slice · owner agent · `mountain-of-helicon`
   - next: Continue truth/rot work on main; merge or discard stale cursor/verify-first-receipt if still useful
+
+### RULINGS AND FACTS, each with the object it was read from
+- Merge conflicts resolve toward the latest decision, never back to a stale branch. Order by merge time and Oscar's most recent word, not by which lane opened first. Applied 16 Sep: PR 30 deliberate audience choice kept over PR 26 default private. · Oscar in Claude terminal 2026-09-16 10:1x, session 37d93bc8 · 2026-09-16
 
 ### ACKNOWLEDGED THIS REVISION: nobody yet
 <!-- STATE:end -->
