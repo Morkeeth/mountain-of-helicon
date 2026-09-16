@@ -58,8 +58,8 @@ def test_release_workflow_covers_product_not_only_memory_exam():
         "python -m pytest -q",
         "npm run lint",
         "npm run build",
-        "python -m build",
-        "python -m twine check",
+        "bash scripts/build_release.sh",
+        "bash scripts/cold_install_check.sh",
     ):
         assert command in workflow
 
