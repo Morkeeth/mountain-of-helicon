@@ -11,14 +11,14 @@ No database. Nothing uploaded.
 ## Run it (30 seconds)
 
 ```bash
-pip install mountain-of-helicon
+pip install helicon
 helicon review .                    # the repo you're in
 ```
 
 Or without installing:
 
 ```bash
-uvx --from mountain-of-helicon helicon-review /path/to/your-repo
+uvx --from helicon helicon-review /path/to/your-repo
 ```
 
 ## What you'll see

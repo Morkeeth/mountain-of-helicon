@@ -5,10 +5,10 @@ Three steps. No vault, no ZUP, no API key for the deterministic tier.
 ## Step 1 — Verify your repo (30 seconds)
 
 ```bash
-pip install mountain-of-helicon
+pip install helicon
 helicon review .
 # or without install:
-uvx --from mountain-of-helicon helicon-review .
+uvx --from helicon helicon-review .
 ```
 
 Reads `AGENTS.md` / `CLAUDE.md` / `.cursorrules`, checks pointers and claims against the tree. **Non-zero exit = something in your agent docs is wrong.**

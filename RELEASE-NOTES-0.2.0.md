@@ -5,11 +5,12 @@
 ## Install
 
 ```bash
-pip install mountain-of-helicon==0.2.0
-helicon truth ~/.claude --recursive --top 5
+pip install helicon==0.2.0
+helicon review /path/to/your-repo
 ```
 
-No API key. No database. No config file. Exit code 0 means the report ran; non-zero means contradictions or rot signals were found.
+No API key. No database. No config file. Exit code 0 means all checked claims
+match the repo. Exit code 1 means the report found at least one contradiction.
 
 ## What changed since 0.1.2
 
@@ -38,7 +39,7 @@ Drop into CI with `--fail-on none` first; flip to `rot` after your docs are clea
 ## Upgrade
 
 ```bash
-pip install -U mountain-of-helicon==0.2.0
+pip install -U helicon==0.2.0
 helicon doctor
 ```
 

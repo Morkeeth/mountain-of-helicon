@@ -6,7 +6,7 @@ reads it.**
 
 The problem: your agent's docs drift from your repo, your agent loads them as fact,
 and nothing tells you.
-The command: `pip install mountain-of-helicon && helicon review .`
+The commands: `pip install helicon`, then `helicon review .`
 The output: a graded list, one broken reference per line with its `file:line`, and a
 non-zero exit when the setup lies. The second number, from `helicon witness`: the
 share of your agent's claims that its own trace can back.

@@ -13,7 +13,8 @@ those rules as fact at the start of every session. Nothing tells you until
 something breaks.
 
 ```bash
-pip install mountain-of-helicon && helicon review .
+pip install helicon
+helicon review .
 ```
 
 What it printed on our own public repo, `MorkeethHQ/world-relay`, from a fresh clone of
@@ -118,8 +119,8 @@ model's opinion about your docs.
 Review any repo's agent setup in one command — no clone, no key, no LLM:
 
 ```bash
-uvx --from mountain-of-helicon helicon-review ~/your-repo
-# or:  pipx run --spec mountain-of-helicon helicon-review ~/your-repo
+uvx --from helicon helicon-review ~/your-repo
+# or:  pipx run --spec helicon helicon-review ~/your-repo
 ```
 
 It reads that repo's `CLAUDE.md` / `AGENTS.md` / `.cursorrules`, checks every

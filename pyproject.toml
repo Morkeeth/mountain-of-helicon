@@ -1,17 +1,18 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "helicon"
 version = "0.2.0"
-description = "Mountain of Helicon: check whether your AGENTS.md lies to your coding agent. file:line evidence, no API key"
+description = "Check AGENTS.md and CLAUDE.md claims against the repository on disk"
 readme = "README.md"
 license = "MIT"
 authors = [{name = "Oscar Morkeeth"}]
 keywords = ["ai-agents", "agent-memory", "claude-code", "mcp", "governance"]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -51,8 +52,8 @@ test = [
 
 [project.scripts]
 helicon = "helicon.cli:main"
-# One-line stranger entry: `uvx --from mountain-of-helicon helicon-review <repo>`
-# (or `pipx run --spec mountain-of-helicon helicon-review <repo>`). No key, no LLM.
+# This alias supports one-shot runners. The documented installed command is
+# `helicon review <repo>`. Both commands use the same keyless review function.
 helicon-review = "helicon.review:main"
 
 [project.urls]

@@ -2,23 +2,18 @@
 
 **Status: everything is ready except the publish, and the publish is Oscar's.**
 
-## The gate, run cold, 31 Aug
+## Release gate
 
 ```
-$ python3 -m build --wheel
-Successfully built mountain_of_helicon-0.2.0-py3-none-any.whl
-
-$ python3 -m venv /tmp/hstranger
-$ /tmp/hstranger/bin/pip install dist/mountain_of_helicon-0.2.0-py3-none-any.whl
-$ cd /tmp && /tmp/hstranger/bin/helicon truth ~/.claude --recursive --top 3
-STALENESS + ROT REPORT — /Users/morkeeth/.claude
-1185 files scanned · 629 carry a staleness/rot signal · 556 clean
-EXIT=0
+$ bash scripts/build_release.sh
+$ bash scripts/cold_install_check.sh
+COLD INSTALL PASS: helicon 0.2.0 reported the planted missing file and did not report the valid file or command.
 ```
 
-**An empty environment, one install, one command, a real answer.** No key, no database, no LLM,
-no config file. That is the whole product claim and it now holds from a clean venv rather than
-from this working tree.
+The build script creates the sdist and wheel twice from the same committed
+source and compares each pair byte for byte. The cold test installs only the
+local wheel into a new virtual environment. It uses an empty home directory,
+no config file, and no API key. It then reviews a generated repository.
 
 ## Why this is the launch, not a version bump
 
@@ -39,12 +34,11 @@ promise.
 ## Oscar's one command
 
 ```
-cd ~/CODE/mountain-of-helicon && python3 -m twine upload dist/mountain_of_helicon-0.2.0-py3-none-any.whl
+python3 -m twine upload dist/helicon-0.2.0.tar.gz dist/helicon-0.2.0-py3-none-any.whl
 ```
 
 **PyPI never lets a version be replaced.** Before running it: confirm `pyproject.toml` says 0.2.0
-(it does, checked 31 Aug) and that this wheel is the one built from the current tree (it is —
-built and cold-tested above, same session).
+(it does) and check that the artifact hashes match the draft pull request.
 
 ## Footer (1 Sep 2026)
 
@@ -56,4 +50,4 @@ $ python3 -m pytest tests/test_launch_contract.py tests/test_new_user_onboarding
 11 passed in 2.70s
 ```
 
-Oscar gate unchanged: `python3 -m twine upload dist/mountain_of_helicon-0.2.0-py3-none-any.whl`
+Oscar gate: `python3 -m twine upload dist/helicon-0.2.0.tar.gz dist/helicon-0.2.0-py3-none-any.whl`
