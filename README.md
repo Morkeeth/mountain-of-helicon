@@ -1,12 +1,5 @@
 # Mountain of Helicon
 
-The Setup screen includes an independent, read-only ZUP project-state review.
-It compares local event receipts, canonical board identities, and queue actions.
-Duplicate identities, missing receipts, inconsistent state, and actions on
-settled phases are findings. Missing stores are unmeasured. A clean comparison
-does not prove every project is current or that memory improves outcomes.
-The source is `ZUP_HOME` (default `~/.zen`); no private records are published.
-
 **Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
 commands that no longer exist, paths the repo reorganized away. Your agent loads
 those rules as fact at the start of every session. Nothing tells you until
@@ -39,6 +32,12 @@ commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks every pointer agai
 the tree on disk. Exit code is non-zero when the setup lies, so it drops straight
 into CI.
 
+**What the install pulls.** The review needs no API key, no database and no config
+when it runs. The install is not that small. `pip install mountain-of-helicon` also
+installs openai, fastapi, uvicorn, numpy, gitpython and pyyaml, because other
+`helicon` commands (the local web app, the memory store) use them. `helicon review`
+does not load any of them.
+
 Second command: `helicon witness` grades your agent's last session instead of your
 repo: which of its "done / passes / fixed" claims have tool evidence in the same
 trace. On the author's own last 20 sessions the median verified-claims share was
@@ -53,7 +52,7 @@ transcript, with no key and no config:
 helicon truth ~/.claude --recursive   # which of your agent's documents are lying, and why
 ```
 
-**No API key. No database. No config.** It reads a directory and returns a ranked report,
+**No API key. No database. No config at run time.** It reads a directory and returns a ranked report,
 and every row cites the line it fired on. On this machine, that first run reads:
 
 ```
@@ -68,6 +67,14 @@ helicon setup --audit     # local Claude, Cursor and Codex setup evidence
 ```
 
 For a specific project, run `helicon setup --audit --project /path/to/repo`.
+
+The Setup screen also includes an independent, read-only ZUP project-state review.
+It compares local event receipts, canonical board identities, and queue actions.
+Duplicate identities, missing receipts, inconsistent state, and actions on
+settled phases are findings. Missing stores are unmeasured. A clean comparison
+does not prove every project is current or that memory improves outcomes.
+The source is `ZUP_HOME` (default `~/.zen`); no private records are published.
+
 The Setup page also includes an index-and-memory operating review: live sources,
 scan errors, live embedding coverage and model mix, exact duplicate hashes,
 recorded retrieval use, and live keyword-search smoke probes. Expand each check

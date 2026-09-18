@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "helicon"
+name = "mountain-of-helicon"
 version = "0.2.0"
 description = "Mountain of Helicon: check whether your AGENTS.md lies to your coding agent. file:line evidence, no API key"
 readme = "README.md"
