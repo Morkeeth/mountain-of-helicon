@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-wheel="${1:-"$root/dist/helicon-0.2.0-py3-none-any.whl"}"
+wheel="${1:-"$root/dist/mountain_of_helicon-0.2.0-py3-none-any.whl"}"
 python_bin="${PYTHON:-python3}"
 
 if [[ ! -f "$wheel" ]]; then
@@ -55,7 +55,7 @@ import importlib.metadata
 import json
 import sys
 
-distribution = importlib.metadata.distribution("helicon")
+distribution = importlib.metadata.distribution("mountain-of-helicon")
 if distribution.version != "0.2.0":
     raise SystemExit(f"Expected installed version 0.2.0, got {distribution.version}")
 scripts = {
@@ -90,7 +90,7 @@ if result["instruction_files"] != ["AGENTS.md"]:
     )
 
 print(
-    "COLD INSTALL PASS: helicon 0.2.0 reported the planted missing file "
+    "COLD INSTALL PASS: mountain-of-helicon 0.2.0 reported the planted missing file "
     "and did not report the valid file or command."
 )
 print(

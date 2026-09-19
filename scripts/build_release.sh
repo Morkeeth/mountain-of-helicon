@@ -16,21 +16,28 @@ trap 'rm -rf "$work"' EXIT
 
 normalize_sdist() {
     local archive="$1"
-    local unpack="$2"
-    mkdir -p "$unpack"
-    tar -xzf "$archive" -C "$unpack"
-    (
-        cd "$unpack"
-        tar \
-            --sort=name \
-            --mtime="@$epoch" \
-            --owner=0 \
-            --group=0 \
-            --numeric-owner \
-            --pax-option=delete=atime,delete=ctime \
-            -cf - helicon-0.2.0
-    ) | gzip -n > "$archive.normalized"
-    mv "$archive.normalized" "$archive"
+    "$python_bin" - "$archive" "$epoch" <<'PYTHON'
+import gzip
+from pathlib import Path
+import sys
+import tarfile
+
+archive = Path(sys.argv[1])
+epoch = int(sys.argv[2])
+normalized = archive.with_suffix(archive.suffix + ".normalized")
+with tarfile.open(archive, "r:gz") as source:
+    with normalized.open("wb") as raw:
+        with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
+            with tarfile.open(fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT) as target:
+                for member in sorted(source.getmembers(), key=lambda item: item.name):
+                    content = source.extractfile(member) if member.isfile() else None
+                    member.uid = member.gid = 0
+                    member.uname = member.gname = ""
+                    member.mtime = epoch
+                    member.pax_headers = {}
+                    target.addfile(member, content)
+normalized.replace(archive)
+PYTHON
 }
 
 for run in first second; do
@@ -46,12 +53,12 @@ for run in first second; do
         "$python_bin" -m build --sdist --wheel --outdir "$build_dir"
     )
     normalize_sdist \
-        "$build_dir/helicon-0.2.0.tar.gz" \
+        "$build_dir/mountain_of_helicon-0.2.0.tar.gz" \
         "$work/unpack-$run"
     "$python_bin" -m twine check "$build_dir"/*
 done
 
-for artifact in helicon-0.2.0.tar.gz helicon-0.2.0-py3-none-any.whl; do
+for artifact in mountain_of_helicon-0.2.0.tar.gz mountain_of_helicon-0.2.0-py3-none-any.whl; do
     first="$work/build-first/$artifact"
     second="$work/build-second/$artifact"
     if ! cmp -s "$first" "$second"; then
@@ -66,5 +73,5 @@ mkdir -p "$output"
 cp "$work/build-first/"* "$output/"
 
 echo "Reproducible release artifacts:"
-sha256sum "$output/helicon-0.2.0.tar.gz" \
-    "$output/helicon-0.2.0-py3-none-any.whl"
+sha256sum "$output/mountain_of_helicon-0.2.0.tar.gz" \
+    "$output/mountain_of_helicon-0.2.0-py3-none-any.whl"
