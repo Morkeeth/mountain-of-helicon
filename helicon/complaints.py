@@ -72,6 +72,23 @@ PUSHBACK = re.compile(
     r"misunderstan|that is wrong|thats wrong|still (broken|wrong|failing)\b|"
     r"doesn'?t work\b)", re.I)
 
+# Second tier, added 2026-09-18 after reading 14 days of his typed turns by hand.
+# The first tier only knows corrections that OPEN a sentence ("no", "you didn't").
+# His most repeated objection does not open that way: "ZUP still carries old
+# information", "zup is still showing old hackathons", "you're writing too much".
+# Measured on Sep 4-18: the ZUP-stale complaint appeared ~15 times and the first
+# tier caught 1. These phrases are complaint-shaped anywhere in the head, so they
+# are unanchored, but still bound by HEAD_CHARS so a pasted brief cannot trip them.
+FRICTION = re.compile(
+    r"\bstill (showing|carries|carrying|talks|has|shows|not|broken|dead|an issue|"
+    r"havent|haven'?t|so messy)\b|"
+    r"\b(so much |a lot of )?stale\b|\bold (information|hackathons|things|material)\b|"
+    r"\btoo much to read\b|\bwriting too much\b|\bbabble\b|\byap\b|"
+    r"\bnot good enough\b|\bnot (quite )?usable\b|"
+    r"\b(i'?m|getting|been|seems? to be) lost\b|"
+    r"\bcan'?t (really )?und[e]?rstand\b|"
+    r"\bmissed a bunch\b|\bis (completely )?broken\b|\bnot working\b", re.I)
+
 # What the correction is ABOUT. A complaint you cannot group is a complaint you
 # cannot act on: 43 rows of prose is a diary, and the point is to see the same
 # objection arrive for a fourth time.
@@ -88,6 +105,20 @@ LABELS = (
     ("agreement",
      r"^\s*no[,.!\s]+(this|that|it|you)?\s*(is|looks|sounds|can|are)?\s*"
      r"(great|good|fine|perfect|nice|correct|right|ok)\b"),
+    # A surface he reads (ZUP, the board, notes, FAVOUR) still shows dead items.
+    # Distinct from stale-or-false: nobody asserted anything, the screen is old.
+    # Top repeat of Sep 4-18, so it gets its own bucket and is checked first.
+    ("stale-surface",
+     r"(zup|board|notes|favour|fika|dashboard|metrics)\b.{0,40}\b(stale|old)\b|"
+     r"\bstill (showing|carries|carrying|talks)\b|\bstale (items|information|projects)\b|"
+     r"\bold (information|hackathons|things|material)\b"),
+    # He cannot take in what the agent wrote. Four times Sep 8-18, two harnesses.
+    ("verbosity",
+     r"too much to read|writing too much|\bbabble\b|\byap\b|one question at the time|"
+     r"can'?t (really )?und[e]?rstand"),
+    # He has lost the overall picture, separate from any one wrong answer.
+    ("lost-overview",
+     r"\b(i'?m|getting|been|seems? to be) lost\b|create clarity"),
     # The agent asserted something untrue about the world.
     ("stale-or-false",
      r"you (didn'?t|did not|never) (fetch|check|read|see|look)|i (already|didn'?t|did not|never) "
@@ -124,8 +155,11 @@ def is_pushback(text: str) -> bool:
     """Gate 2. Applied to text that has ALREADY passed gate 1."""
     if not text:
         return False
-    match = PUSHBACK.search(text)
-    return bool(match) and match.start() < HEAD_CHARS
+    for pattern in (PUSHBACK, FRICTION):
+        match = pattern.search(text)
+        if match and match.start() < HEAD_CHARS:
+            return True
+    return False
 
 
 def authored_turns(path: str) -> list[dict]:

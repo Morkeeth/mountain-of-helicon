@@ -35,14 +35,32 @@ def _parse_ts(s: str):
 
 def parse_session_cost(path: str) -> dict | None:
     """One transcript file -> one session cost record. Sums the top-level usage
-    fields per assistant message (NOT the `iterations` sub-list, which repeats
-    them and would double-count). Duration is last minus first line timestamp.
-    Returns None for a file with no usable assistant/usage lines."""
+    fields per API MESSAGE (NOT per line, and NOT the `iterations` sub-list).
+    Duration is last minus first line timestamp. Returns None for a file with no
+    usable assistant/usage lines.
+
+    There are two repeats in this format and they sit at different levels.
+    `iterations` repeats the numbers INSIDE one usage object, and this parser
+    has always ignored it. Claude Code also writes one LINE per content block of
+    the same API message, and every one of those lines carries the identical
+    usage object and the identical `message.id`. Measured on a real transcript
+    on 2026-09-16: 250 usage-bearing lines held 112 distinct ids, 76 of them
+    repeating 2 or 3 times. Across the 270 files in that directory, summing
+    lines gave 33.5 billion tokens where deduping gave 16.4 billion, so this
+    parser was 2.05x high and disagreed with Transcripto on the same files.
+
+    The dedupe key is `message.id`, the same key Transcripto uses at
+    transcripto.py:679. A line with no id still counts, once: a dedupe that
+    silently drops spend fails in the direction nobody audits.
+    """
     out_tok = in_tok = cache_create = cache_read = 0
     assistant_msgs = 0
     models: dict[str, int] = {}
     first_ts = last_ts = None
     session_id = os.path.splitext(os.path.basename(path))[0]
+    # Scoped to this one file. A set shared across files would delete a whole
+    # session's spend on an id collision.
+    seen_msg_ids: set[str] = set()
 
     try:
         fh = open(path, errors="ignore")
@@ -68,6 +86,13 @@ def parse_session_cost(path: str) -> dict | None:
             msg = o.get("message")
             if o.get("type") != "assistant" or not isinstance(msg, dict):
                 continue
+            # Every block of one API message repeats the id, the model and the
+            # usage. Count all three once.
+            msg_id = msg.get("id")
+            if msg_id:
+                if msg_id in seen_msg_ids:
+                    continue
+                seen_msg_ids.add(msg_id)
             if msg.get("model"):
                 models[msg["model"]] = models.get(msg["model"], 0) + 1
             u = msg.get("usage")
@@ -101,11 +126,19 @@ def parse_session_cost(path: str) -> dict | None:
 
 
 def scan_session_costs(jsonl_dir: str, since: str | None = None) -> list[dict]:
-    """Every transcript in a project dir -> cost records, newest activity first.
-    `since` (ISO date/datetime) keeps only sessions whose last line is at/after it."""
+    """Every transcript UNDER a project dir -> cost records, newest activity first.
+    `since` (ISO date/datetime) keeps only sessions whose last line is at/after it.
+
+    The glob is recursive because subagent and workflow transcripts live in
+    subdirectories, and that is real spend. Measured in
+    ~/.claude/projects/-Users-morkeeth on 2026-09-16: the flat glob found 270
+    files and the recursive glob found 2,070, so the flat version was blind to
+    87 percent of the corpus. Transcripto has globbed recursively since it was
+    written (transcripto.py:199).
+    """
     jsonl_dir = os.path.expanduser(jsonl_dir)
     recs = []
-    for path in glob.glob(os.path.join(jsonl_dir, "*.jsonl")):
+    for path in glob.glob(os.path.join(jsonl_dir, "**", "*.jsonl"), recursive=True):
         rec = parse_session_cost(path)
         if rec is None:
             continue

@@ -5,7 +5,7 @@
 ## Install
 
 ```bash
-pip install helicon==0.2.0
+pip install mountain-of-helicon==0.2.0
 helicon review /path/to/your-repo
 ```
 
