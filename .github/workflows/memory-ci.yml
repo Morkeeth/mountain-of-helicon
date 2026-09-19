@@ -60,7 +60,7 @@ jobs:
         run: bash scripts/cold_install_check.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: helicon-0.2.0-dist
+          name: mountain-of-helicon-0.2.0-dist
           path: dist/
           if-no-files-found: error
       - name: Verify launch scripts parse

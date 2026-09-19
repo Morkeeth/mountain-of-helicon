@@ -1,4 +1,4 @@
-# Publishes helicon to PyPI via trusted publishing. No token is
+# Publishes mountain-of-helicon to PyPI via trusted publishing. No token is
 # stored anywhere: PyPI verifies the workflow's OIDC identity instead.
 #
 # It fires on ONE thing — a GitHub Release being published. Not on a tag, not on
@@ -7,7 +7,7 @@
 #
 # Before the first run, the pending publisher has to exist on PyPI:
 #   pypi.org > Your projects > Publishing > Add a new pending publisher
-#     PyPI project name : helicon
+#     PyPI project name : mountain-of-helicon
 #     Owner             : Morkeeth
 #     Repository        : mountain-of-helicon
 #     Workflow          : publish.yml

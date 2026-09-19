@@ -13,7 +13,7 @@ def _declares(line: str) -> bool:
 
 
 def test_distribution_metadata_matches_release_contract():
-    assert _declares('name = "helicon"')
+    assert _declares('name = "mountain-of-helicon"')
     assert _declares('version = "0.2.0"')
     assert _declares(
         'description = "Check AGENTS.md and CLAUDE.md claims against the repository on disk"'
@@ -30,7 +30,7 @@ def test_distribution_metadata_matches_release_contract():
 def test_documented_console_command_has_the_expected_entry_point():
     assert _declares('helicon = "helicon.cli:main"')
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    assert "pip install helicon\nhelicon review ." in readme
+    assert "pip install mountain-of-helicon\nhelicon review ." in readme
 
 
 def test_launch_gate_checks_the_ruled_distribution_name_and_version():
@@ -39,7 +39,7 @@ def test_launch_gate_checks_the_ruled_distribution_name_and_version():
         if check.key == "package-metadata"
     )
     assert package.ok is True
-    assert package.detail.startswith("helicon 0.2.0")
+    assert package.detail.startswith("mountain-of-helicon 0.2.0")
 
 
 def test_release_gate_builds_twice_and_cold_installs_the_wheel():

@@ -1,13 +1,13 @@
 # Mountain of Helicon 0.2.0 — launch pack
 
-**Status: everything is ready except the publish, and the publish is Oscar's.**
+**Status: integration candidate. Publish remains a separate action.**
 
 ## Release gate
 
 ```
 $ bash scripts/build_release.sh
 $ bash scripts/cold_install_check.sh
-COLD INSTALL PASS: helicon 0.2.0 reported the planted missing file and did not report the valid file or command.
+COLD INSTALL PASS: mountain-of-helicon 0.2.0 reported the planted missing file and did not report the valid file or command.
 ```
 
 The build script creates the sdist and wheel twice from the same committed
@@ -26,15 +26,14 @@ traffic excluded — is the only organic demand signal on the whole board.
 
 ## What changed at the front door
 
-The README opened on `helicon witness`, which needs a session and a store. `helicon truth` needs
-neither, and the README's own line 404 already called it *"the stranger-facing cold path"* — four
-hundred lines below the install instruction. It now leads, with a measured example rather than a
-promise.
+The README leads with `helicon review .`, which needs no key, database or config.
+The installed distribution is `mountain-of-helicon`; the command remains `helicon`.
+The README also states the dependencies installed for the other commands.
 
 ## Oscar's one command
 
 ```
-python3 -m twine upload dist/helicon-0.2.0.tar.gz dist/helicon-0.2.0-py3-none-any.whl
+python3 -m twine upload dist/mountain_of_helicon-0.2.0.tar.gz dist/mountain_of_helicon-0.2.0-py3-none-any.whl
 ```
 
 **PyPI never lets a version be replaced.** Before running it: confirm `pyproject.toml` says 0.2.0
@@ -50,4 +49,4 @@ $ python3 -m pytest tests/test_launch_contract.py tests/test_new_user_onboarding
 11 passed in 2.70s
 ```
 
-Oscar gate: `python3 -m twine upload dist/helicon-0.2.0.tar.gz dist/helicon-0.2.0-py3-none-any.whl`
+Oscar gate: `python3 -m twine upload dist/mountain_of_helicon-0.2.0.tar.gz dist/mountain_of_helicon-0.2.0-py3-none-any.whl`

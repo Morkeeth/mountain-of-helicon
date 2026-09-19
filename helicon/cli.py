@@ -67,10 +67,20 @@ def _detect_sources() -> dict:
                         break
         memory_dir = os.path.join(claude_dir, "memory") if os.path.isdir(os.path.join(claude_dir, "memory")) else None
         if not memory_dir:
+            # Pick the memory folder that actually holds memories. Taking the first
+            # one os.walk returns picked an empty per-project folder and reported
+            # "Memory files: 0" on a machine holding 347 of them.
+            best, best_n = None, -1
             for root, dirs, _ in os.walk(projects_dir):
                 if "memory" in dirs:
-                    memory_dir = os.path.join(root, "memory")
-                    break
+                    cand = os.path.join(root, "memory")
+                    try:
+                        n = sum(1 for f in os.listdir(cand) if f.endswith(".md"))
+                    except OSError:
+                        n = 0
+                    if n > best_n:
+                        best, best_n = cand, n
+            memory_dir = best
 
         if jsonl_dirs or memory_dir:
             detected["claude-code"] = {

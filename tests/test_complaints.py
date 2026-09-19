@@ -111,6 +111,27 @@ def test_labels_come_from_what_he_actually_says(text, expected):
     assert complaints.label(text) == expected
 
 
+@pytest.mark.parametrize("text,expected", [
+    # Verbatim from Sep 4-18. None of these open with "no" or "you didn't", so
+    # the first tier missed all of them.
+    ("yep zup is still showing old hackathons", "stale-surface"),
+    ("ok but colluseum has no ideation yet, ZUP still carries old information",
+     "stale-surface"),
+    ("ok you're writing too much, just give me a short list", "verbosity"),
+    ("ok its too much to read, give me one question at the time", "verbosity"),
+    ("Please, im getting lost here, research, finalise eerything", "lost-overview"),
+])
+def test_the_friction_tier_catches_his_most_repeated_objections(text, expected):
+    assert complaints.is_pushback(text)
+    assert complaints.label(text) == expected
+
+
+def test_the_friction_tier_still_respects_the_head_limit():
+    """Unanchored phrases are riskier, so a pasted brief must not trip them."""
+    buried = "x" * (complaints.HEAD_CHARS + 20) + " zup is still showing old hackathons"
+    assert not complaints.is_pushback(buried)
+
+
 def test_agreement_is_labelled_not_hidden():
     """"no this is great" is a false positive of the detector. Filtering it out
     would flatter the yield; labelling it lets the error rate be counted."""
