@@ -76,6 +76,15 @@ _NEGATION = re.compile(
     re.I,
 )
 
+# A missing target can be intentional when the instruction itself creates it. Keep
+# these visible, but do not grade the pre-run absence as a broken repo reference.
+# Require a directional preposition so prose such as "write the beat, rows in
+# `todo.md`" does not hide a genuinely unresolved pointer.
+_WRITE_TARGET = re.compile(
+    r"\b(append|create|emit|generate|save|write)\b.*\b(to|into|as)\b",
+    re.I,
+)
+
 
 @dataclass
 class Pointer:
@@ -153,6 +162,10 @@ def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
     if "*" in rel or "?" in rel:
         import glob as _glob                            # `contracts/src/FavourEscrowV2*.sol`
         return rel, bool(_glob.glob(os.path.join(repo_root, rel)))
+    # Host paths are outside the repository population. Record their current host
+    # status separately, but never let them change the repo grade's denominator.
+    if _machine_local(tok):
+        return None
     if _exists(repo_root, rel):
         return rel, True
     names, dirs, files = _tree(repo_root)
@@ -164,12 +177,37 @@ def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
     return rel, False
 
 
+def _machine_local(tok: str) -> bool:
+    """Whether *tok* names a host path rather than a repository path or URL route."""
+    target = tok.strip().strip("'\"")
+    if target.startswith("~"):
+        return True
+    if not os.path.isabs(target):
+        return False
+    if target.lower().endswith(_CODE_EXT):
+        return True
+    first = target.split("/", 2)[1] if target.startswith("/") and len(target) > 1 else ""
+    return first in {
+        "Users", "home", "tmp", "var", "etc", "opt", "private", "root",
+        "Volumes", "mnt", "data", "workspace",
+    }
+
+
+def _expected_output(line: str, raw: str) -> bool:
+    """True when the prose tells the reader to create the missing target."""
+    candidates = (raw, raw.strip("`"))
+    positions = [line.find(candidate) for candidate in candidates if candidate and candidate in line]
+    if not positions:
+        return False
+    prefix = line[:min(position for position in positions if position >= 0)]
+    return bool(_WRITE_TARGET.search(prefix))
+
+
 def _exists(repo_root: str, rel: str) -> bool:
     if not rel:
         return False
-    # A ~ or absolute path is a cross-repo reference, not an intra-repo pointer: grade
-    # it against the real filesystem where it lives. R13 used to join it onto repo_root
-    # and call an existing `~/CODE/x` broken — crying wolf on a valid reference.
+    # Kept for direct callers. The repo review classifies host paths before this
+    # function and excludes them from its grade denominator.
     if rel.startswith("~"):
         return os.path.exists(os.path.expanduser(rel))
     if os.path.isabs(rel):
@@ -199,8 +237,35 @@ def _wikilink_resolves(repo_root: str, name: str) -> bool:
 
 
 def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
+    """Return only paths that can be graded against this repo or current host."""
+    pointers, _unverified = _extract(text, repo_root)
+    return pointers
+
+
+def extract_unverified_paths(text: str, repo_root: str) -> list[dict]:
+    """Return absent external and create-on-demand paths excluded from the grade."""
+    _pointers, unverified = _extract(text, repo_root)
+    return unverified
+
+
+def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
     out: list[Pointer] = []
+    unverified: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    seen_unverified: set[tuple[str, str]] = set()
+
+    def note_unverified(kind: str, raw: str, line_no: int, line: str, reason: str):
+        key = (kind, raw)
+        if key in seen_unverified:
+            return
+        seen_unverified.add(key)
+        unverified.append({
+            "kind": kind,
+            "raw": raw,
+            "line_no": line_no,
+            "line": line.strip()[:160],
+            "reason": reason,
+        })
 
     def add(kind: str, raw: str, target: str, line_no: int, line: str, resolved: bool, receipt: str):
         key = (kind, raw)
@@ -217,6 +282,28 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
         seen.add(key)
         out.append(Pointer(kind, raw, target, line_no, line.strip()[:160], resolved, receipt))
 
+    def grade_path(kind: str, raw: str, display: str, line_no: int, line: str, miss_msg: str):
+        resolved = _resolve(repo_root, raw)
+        if resolved is None:
+            if _machine_local(raw):
+                host = raw.strip().strip("'\"")
+                host_path = os.path.expanduser(host) if host.startswith("~") else host
+                state = "present" if os.path.exists(host_path) else "absent"
+                note_unverified(
+                    kind, display, line_no, line,
+                    f"external path {state} on this host; repo claim not graded",
+                )
+            return
+        target, ok = resolved
+        if not ok and _expected_output(line, display):
+            note_unverified(
+                kind, display, line_no, line,
+                "instruction creates this path; pre-run absence not graded",
+            )
+            return
+        add(kind, display, target, line_no, line, ok,
+            "resolved" if ok else miss_msg.format(target=target))
+
     for i, line in enumerate(text.splitlines(), 1):
         for m in _RE_IMPORT.finditer(line):
             raw = m.group(1)
@@ -232,12 +319,8 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
         for m in _RE_MDLINK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and not _SCHEME.match(raw.strip()):
-                r = _resolve(repo_root, raw)
-                if r is None:
-                    continue
-                rel, ok = r
-                add("MDLINK", raw, rel, i, line, ok,
-                    "resolved" if ok else f"linked path not in repo: {rel}")
+                grade_path("MDLINK", raw, raw, i, line,
+                           "linked path not in repo: {target}")
         for m in _RE_WIKILINK.finditer(line):
             raw = m.group(1)
             ok = _wikilink_resolves(repo_root, raw)
@@ -246,24 +329,16 @@ def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
         for m in _RE_BACKTICK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and " " not in raw.strip():
-                r = _resolve(repo_root, raw)
-                if r is None:
-                    continue
-                rel, ok = r
-                add("BACKTICK", f"`{raw}`", rel, i, line, ok,
-                    "resolved" if ok else f"path in code font not in repo: {rel}")
+                grade_path("BACKTICK", raw, f"`{raw}`", i, line,
+                           "path in code font not in repo: {target}")
         # Code spans were graded above; scanning them again as bare prose is how
         # `~/.zen/zup-active.json` produced a second, mangled pointer `zen/zup-active.json`.
         for m in _RE_BARE.finditer(_RE_CODESPAN.sub(" ", line)):
             raw = m.group(1).rstrip(".-")
             if _looks_like_path(raw) and raw.lower().endswith(_CODE_EXT):
-                r = _resolve(repo_root, raw)
-                if r is None:
-                    continue
-                rel, ok = r
-                add("BARE", raw, rel, i, line, ok,
-                    "resolved" if ok else f"bare path not in repo: {rel}")
-    return out
+                grade_path("BARE", raw, raw, i, line,
+                           "bare path not in repo: {target}")
+    return out, unverified
 
 
 def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
@@ -282,6 +357,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
                    if os.path.exists(os.path.join(repo_root, f))]
 
     pointers: list[Pointer] = []
+    unverified_paths: list[dict] = []
     read_files: list[str] = []
     for rel in targets:
         try:
@@ -290,9 +366,13 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
         except OSError:
             continue
         read_files.append(rel)
-        for p in extract_pointers(text, repo_root):
+        extracted, unverified = _extract(text, repo_root)
+        for p in extracted:
             p.receipt = f"{rel}:{p.line_no} — {p.receipt}"
             pointers.append(p)
+        for gap in unverified:
+            gap["file"] = rel
+            unverified_paths.append(gap)
 
     broken = [p for p in pointers if not p.resolved]
     if not read_files or not pointers:
@@ -312,6 +392,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
              "line": p.line, "receipt": p.receipt}
             for p in broken
         ],
+        "unverified_paths": unverified_paths,
     }
 
 

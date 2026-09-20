@@ -14,12 +14,12 @@ What it printed on our own public repo, `MorkeethHQ/world-relay`, from a fresh c
 `main` on 2026-09-03:
 
 ```
-  ✗ Your setup lies to its agent in 1 place.
+  ✗ 1 graded claim contradicted by repo evidence.
 
     ✗ AGENTS.md:19  points at src/__tests__/e2e-api.test.ts  — not in this repo
 
-  GRADE B   ·   35 references checked, 1 broken
-  An agent that trusts this file walks into 1 dead end.
+  GRADE B   ·   35 claim checks, 1 contradiction
+  1 instruction claim conflicts with observed repo evidence.
 ```
 
 The test moved to `src/lib/__tests__/e2e-api.test.ts`; the rule that tells the agent how to run it did not
@@ -30,8 +30,9 @@ that repo D on four pointers that all resolved; the fix and its fixtures are in
 
 No API key. No config file. No upload. It reads the agent rules your repo already
 commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks every pointer against
-the tree on disk. Exit code is non-zero when the setup lies, so it drops straight
-into CI.
+the tree on disk. External host paths and create-on-demand outputs are shown as
+unverified and excluded from the grade; they cannot pad or lower it. Exit code is
+non-zero when a graded repo-local claim fails, so it drops straight into CI.
 
 **What the install pulls.** The review needs no API key, no database and no config
 when it runs. The install is not that small. `pip install mountain-of-helicon` also
