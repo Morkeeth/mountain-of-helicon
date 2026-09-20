@@ -95,17 +95,24 @@ def format_review(repo_root: str, res: dict) -> str:
     # refutes. UNVERIFIABLE claims (not run / no manifest) do not.
     broken = p["broken"] + c["broken"] + v.get("broken", 0) + e.get("broken", 0)
     checked = p["checked"] + c["checked"] + v.get("checked", 0) + e.get("checked", 0)
+    unverified = p.get("unverified_paths") or []
+    instruction_files = set(p.get("files", [])) | set(c.get("files", []))
     name = _os.path.basename(repo_root.rstrip("/")) or repo_root
     L = [""]
     L.append("  " + _p("❄ HELICON", "b", "cyan") + _p(f"  reviewing {name}", "dim"))
     L.append("")
 
-    # headline — the pitch line, worst case first.
+    # Headline names only what the deterministic checks established. Missing
+    # external/generated paths are surfaced below but excluded from the grade.
     if broken:
-        L.append("  " + _p(f"✗ Your setup lies to its agent in {broken} place"
-                           f"{'' if broken == 1 else 's'}.", "b", "red"))
+        L.append("  " + _p(f"✗ {broken} graded claim"
+                           f"{'' if broken == 1 else 's'} contradicted by repo evidence.",
+                           "b", "red"))
     elif checked:
-        L.append("  " + _p("✓ This setup tells its agent the truth.", "b", "grn"))
+        L.append("  " + _p("✓ No contradictions found in the checks run.", "b", "grn"))
+    elif instruction_files:
+        L.append("  " + _p("· No gradeable repo-local claim found in the instruction files.",
+                           "dim"))
     else:
         L.append("  " + _p("· No agent instruction file found in this repo.", "dim"))
         looked = ", ".join(DEFAULT_INSTRUCTION_FILES[:4]) + ", …"
@@ -134,7 +141,20 @@ def format_review(repo_root: str, res: dict) -> str:
             L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
                      + "  " + _p("declares ", "b") + _p(r["raw"], "b", "red")
                      + _p(f"  — {fact.strip()}", "dim"))
+    if unverified:
+        L.append("    " + _p("·", "dim") + " "
+                 + _p(f"{len(unverified)} external or generated path"
+                      f"{'' if len(unverified) == 1 else 's'} not graded", "dim"))
+        for gap in unverified[:5]:
+            where = f"{gap.get('file', '?')}:{gap.get('line_no', '?')}"
+            L.append("      " + _p(where, "dim") + "  "
+                     + _p(gap.get("raw", ""), "dim") + _p("  — ", "dim")
+                     + _p(gap.get("reason", "unverified"), "dim"))
+        if len(unverified) > 5:
+            L.append("      " + _p(f"… +{len(unverified) - 5} more", "dim"))
     if broken:
+        L.append("")
+    elif unverified:
         L.append("")
 
     # THIRD BLOCK — commands RAN vs their claim. The wedge: existence checks prove a
@@ -176,15 +196,16 @@ def format_review(repo_root: str, res: dict) -> str:
     if checked:
         g, gc = _grade(broken, checked)
         L.append("  " + _p(f"GRADE {g}", "b", gc)
-                 + _p(f"   ·   {checked} reference{'' if checked == 1 else 's'} checked, "
-                      f"{broken} broken", "dim"))
+                 + _p(f"   ·   {checked} claim check{'' if checked == 1 else 's'}, "
+                      f"{broken} contradiction{'' if broken == 1 else 's'}", "dim"))
         if broken:
-            L.append("  " + _p(f"An agent that trusts this file walks into {broken} dead "
-                               f"end{'' if broken == 1 else 's'}.", "dim"))
+            L.append("  " + _p(f"{broken} instruction claim"
+                               f"{'' if broken == 1 else 's'} conflict with observed repo evidence.",
+                               "dim"))
             L.append("  " + _p("    Fix the file:line rows above, then re-run "
                                "`helicon review .`", "dim"))
         else:
-            L.append("  " + _p("Every path and command an agent is told to use is real.", "dim"))
+            L.append("  " + _p("No contradiction was found in the checks run.", "dim"))
     L += ["", "  " + _p(_BASIS, "dim"), ""]
     return "\n".join(L)
 
@@ -229,6 +250,7 @@ def review_summary(repo_root: str, res: dict) -> dict:
         "clean": broken == 0 and checked > 0,
         "instruction_files": files,
         "findings": _collect_findings(res),
+        "unverified_paths": res["pointers"].get("unverified_paths") or [],
         "pointers": res["pointers"],
         "commands": res["commands"],
         "versions": res.get("versions", {}),

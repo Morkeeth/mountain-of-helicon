@@ -27,7 +27,8 @@ def test_clean_repo_grades_a_and_exits_zero():
     assert main([d]) == 0
     out = format_review(d, res)
     assert "GRADE A" in out
-    assert "tells its agent the truth" in out
+    assert "No contradictions found in the checks run" in out
+    assert "Every path and command" not in out
 
 
 def test_broken_pointer_grades_low_and_exits_one():
@@ -62,3 +63,30 @@ def test_json_shape_for_ci():
     assert summary["findings"][0]["tier"] == "pointer"
     payload = json.loads(json.dumps(summary))
     assert payload["grade"] in ("C", "D", "F")
+
+
+def test_unverified_external_path_is_visible_but_not_graded(monkeypatch, tmp_path):
+    d = _repo({
+        "docs/SETUP.md": "# setup\n",
+        "AGENTS.md": "Read `docs/SETUP.md`. State is in `~/.agent-state/run.json`.\n",
+    })
+    monkeypatch.setenv("HOME", str(tmp_path))
+    res = review(d)
+    summary = review_summary(d, res)
+    out = format_review(d, res)
+    assert summary["grade"] == "A"
+    assert summary["broken"] == 0
+    assert len(summary["unverified_paths"]) == 1
+    assert "external or generated path not graded" in out
+    assert "tells its agent the truth" not in out
+
+
+def test_instruction_file_with_only_external_paths_is_unmeasured_not_missing(monkeypatch, tmp_path):
+    d = _repo({"AGENTS.md": "State is in `~/.agent-state/run.json`.\n"})
+    monkeypatch.setenv("HOME", str(tmp_path))
+    res = review(d)
+    out = format_review(d, res)
+    assert main([d]) == 2
+    assert "No gradeable repo-local claim" in out
+    assert "No agent instruction file" not in out
+    assert "external or generated path not graded" in out

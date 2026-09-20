@@ -41,18 +41,39 @@ def test_hyphenated_dir_still_reports_a_real_miss_by_its_full_name():
     assert _broken(d, "Read `research-corpus/MANIFEST.json` first.") == ["research-corpus/MANIFEST.json"]
 
 
-def test_home_path_in_code_font_is_graded_once_at_home_not_twice():
+def test_home_path_in_code_font_is_reported_once_but_never_affects_repo_grade():
     d = _repo({"README.md": "x"})
     home = os.path.expanduser("~")
     probe = os.path.join(home, ".helicon-pointer-test-2026-09-03.json")
     open(probe, "w").write("{}")
     try:
         assert _broken(d, "Needs `~/.helicon-pointer-test-2026-09-03.json` to run.") == []
+        gaps = P.extract_unverified_paths(
+            "Needs `~/.helicon-pointer-test-2026-09-03.json` to run.", d)
+        assert len(gaps) == 1
+        assert "present on this host" in gaps[0]["reason"]
     finally:
         os.remove(probe)
-    # and a home path that does not exist is still one broken pointer, not a mangled second one
-    b = _broken(d, "Needs `~/.no-such-dir-2026/config.json` to run.")
-    assert b == ["~/.no-such-dir-2026/config.json"]
+    # An absent home path is outside the repo population. It stays visible as
+    # unverified setup evidence but cannot lower the repo grade.
+    line = "Needs `~/.no-such-dir-2026/config.json` to run."
+    assert _broken(d, line) == []
+    gaps = P.extract_unverified_paths(line, d)
+    assert [g["raw"] for g in gaps] == ["`~/.no-such-dir-2026/config.json`"]
+    assert "external path absent" in gaps[0]["reason"]
+
+
+def test_create_on_demand_path_is_not_broken_but_real_miss_still_is():
+    d = _repo({"README.md": "x"})
+    create_line = "Append the receipt to `.fleet/ACK.jsonl`."
+    assert _broken(d, create_line) == []
+    gaps = P.extract_unverified_paths(create_line, d)
+    assert len(gaps) == 1
+    assert "creates this path" in gaps[0]["reason"]
+
+    # A nearby writing verb without a directional write-to relationship must not
+    # silence a missing repo pointer.
+    assert _broken(d, "Tasks: write the beat; rows in `todo.md`.") == ["todo.md"]
 
 
 def test_slash_command_resolves_against_claude_commands():

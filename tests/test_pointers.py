@@ -92,14 +92,14 @@ def test_at_path_not_double_counted_as_bare():
     assert kinds == ["IMPORT"], res["receipts"]
 
 
-def test_tilde_and_absolute_paths_are_graded_on_the_real_filesystem():
-    # A ~ or absolute reference is cross-repo, not an intra-repo pointer. If it exists
-    # on disk it is NOT broken — R13 used to join it onto repo_root and cry wolf.
+def test_tilde_and_absolute_paths_are_reported_but_not_repo_graded():
+    # A ~ or absolute reference is cross-repo, not an intra-repo pointer. It is
+    # reported separately and never lowers or pads the repo grade.
     import os
     home_sub = "~/" + os.path.relpath(os.path.expanduser("~/CODE"), os.path.expanduser("~")) if os.path.isdir(os.path.expanduser("~/CODE")) else "~"
     d = _repo({"CLAUDE.md": f"Repos live in `{home_sub}`.\n"})
     res = pointers.check_pointers(d)
-    # a ~ path that exists on disk is a valid cross-repo reference, not broken
+    # a ~ path that exists on disk is external evidence, not a broken repo pointer
     assert res["broken"] == 0, res
 
 
