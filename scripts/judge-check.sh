@@ -46,13 +46,13 @@ if ! python3 -m venv "${VENV_ARGS[@]}" "$TMP/venv"; then
   uv venv --python "$(command -v python3)" "${VENV_ARGS[@]}" "$TMP/venv" || fail "uv venv"
 fi
 if "$TMP/venv/bin/python" -m pip --version >/dev/null 2>&1; then
-  "$TMP/venv/bin/python" -m pip install --quiet -e . || fail "pip install -e ."
+  "$TMP/venv/bin/python" -m pip install --quiet -e ".[web]" || fail "pip install -e .[web]"
 else
   command -v uv >/dev/null 2>&1 || fail "venv has no pip and uv is not installed"
-  uv pip install --quiet --python "$TMP/venv/bin/python" -e . || fail "uv pip install -e ."
+  uv pip install --quiet --python "$TMP/venv/bin/python" -e ".[web]" || fail "uv pip install -e .[web]"
 fi
 "$TMP/venv/bin/helicon" --help >/dev/null 2>&1 || fail "CLI entry point missing after install"
-ok "pip install -e . gives a working CLI"
+ok "pip install -e .[web] gives a working CLI"
 
 echo "== boot (the golden path: helicon demo -> seeded, keyless, localhost) =="
 export HELICON_DEMO_DIR="$TMP/demo"

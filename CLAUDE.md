@@ -33,7 +33,7 @@ intact.
 ## CLI (plug-and-play)
 
 ```bash
-pip install -e .           # install with CLI entry point
+pip install -e ".[web,model,retrieval]"   # CLI entry point + the full lab (plain -e . is the review only)
 helicon init                 # auto-detect Claude Code, Cursor, Obsidian, git
 helicon scan                 # extract memory items from your sources
 helicon serve                # start web UI on :8420

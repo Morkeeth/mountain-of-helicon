@@ -54,7 +54,7 @@ def test_an_unreadable_pip_version_does_not_block_the_install():
 def test_readme_runs_preflight_before_install():
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     first_demo = readme.index("python3 scripts/check_python.py")
-    first_install = readme.index("python3 -m pip install -e .")
+    first_install = readme.index("python3 -m pip install -e ")
     assert first_demo < first_install
 
 

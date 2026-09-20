@@ -117,7 +117,7 @@ If a task depends on either, **stop and say so** rather than mocking it and repo
 
 ## Cursor Cloud specific instructions
 
-Dependencies are refreshed automatically on VM startup (`pip install -e .`, `pip install pytest`, and `npm ci` in `web/`). Standard dev commands live in `CLAUDE.md` (§ Dev Commands) and `web/package.json`. Non-obvious caveats only:
+Dependencies are refreshed automatically on VM startup (`pip install -e .`, `pip install pytest`, and `npm ci` in `web/`). Plain `pip install -e .` is the review only since the slim-install change: the test suite needs `pip install -e ".[web,model,retrieval,test]"`, and the VM's startup step must be changed to that (it lives outside this repo, so this line cannot change it). Standard dev commands live in `CLAUDE.md` (§ Dev Commands) and `web/package.json`. Non-obvious caveats only:
 
 - **CLI is on `~/.local/bin`.** `pip install -e .` installs the `helicon` entry point there, which is not on `PATH` by default. Run `export PATH="$HOME/.local/bin:$PATH"` (or invoke via `python3 -m helicon.cli`).
 - **Test suite: run with `TMPDIR` outside `/tmp`.** Two tests in `tests/test_stackwatch.py` (`test_dead_path_is_a_finding_ephemeral_is_not`, `test_stack_scan_files_once`) hard-code the ephemeral prefix `('/tmp/',)`. Pytest's default `tmp_path` lives under `/tmp/pytest-of-…`, so those tests see every fixture path as "ephemeral" and file 0 findings → 2 spurious failures. Run `TMPDIR="$HOME/pytmp" python3 -m pytest -q` for a fully green suite (**675 passed** as of 2026-08; run it, do not trust this number — it is the one figure in this file that goes stale fastest). With a proper TMPDIR the `test_watch.py::test_alias_drift_flips_r4` failure noted above does not reproduce.

@@ -34,11 +34,11 @@ the tree on disk. External host paths and create-on-demand outputs are shown as
 unverified and excluded from the grade; they cannot pad or lower it. Exit code is
 non-zero when a graded repo-local claim fails, so it drops straight into CI.
 
-**What the install pulls.** The review needs no API key, no database and no config
-when it runs. The install is not that small. `pip install mountain-of-helicon` also
-installs openai, fastapi, uvicorn, numpy, gitpython and pyyaml, because other
-`helicon` commands (the local web app, the memory store) use them. `helicon review`
-does not load any of them.
+**What the install pulls.** No third-party packages. `pip install mountain-of-helicon`
+is the standard library and this package, which is all the review needs. The web app,
+the model-backed commands and the memory lab sit behind extras: `[web]`, `[model]`,
+`[retrieval]`, `[embeddings]`, or `[all]`. A command that needs one says which, in
+one line: `helicon serve needs the web extra: pip install "mountain-of-helicon[web]"`.
 
 Second command: `helicon witness` grades your agent's last session instead of your
 repo: which of its "done / passes / fixed" claims have tool evidence in the same
@@ -147,7 +147,7 @@ when the setup lies to its agent, so it drops straight into CI.
 git clone https://github.com/Morkeeth/mountain-of-helicon.git
 cd mountain-of-helicon
 python3 scripts/check_python.py     # not optional; see below
-python3 -m pip install -e .
+python3 -m pip install -e ".[web,model,retrieval]"   # or plain `-e .` for the review alone
 
 helicon review ~/your-repo          # the front door: graded, evidence-backed review
 helicon ci --path ~/your-repo       # your repo. no key, no config, no init.
