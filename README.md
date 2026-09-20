@@ -34,8 +34,9 @@ the tree on disk. External host paths and create-on-demand outputs are shown as
 unverified and excluded from the grade; they cannot pad or lower it. Exit code is
 non-zero when a graded repo-local claim fails, so it drops straight into CI.
 
-**What the install pulls.** No third-party packages. `pip install mountain-of-helicon`
-is the standard library and this package, which is all the review needs. The web app,
+**What the install pulls.** From the release after 0.2.0, no third-party packages (0.2.0
+on PyPI still pulls the full set). `pip install mountain-of-helicon` is then the
+standard library and this package, which is all the review needs. The web app,
 the model-backed commands and the memory lab sit behind extras: `[web]`, `[model]`,
 `[retrieval]`, `[embeddings]`, or `[all]`. A command that needs one says which, in
 one line: `helicon serve needs the web extra: pip install "mountain-of-helicon[web]"`.
