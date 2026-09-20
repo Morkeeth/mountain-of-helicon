@@ -37,14 +37,11 @@ def _conn():
 
 
 def _ensure(conn) -> None:
-    """Additive, created on first use so no migration is needed to start counting."""
-    conn.execute("""CREATE TABLE IF NOT EXISTS surface_opens (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        surface TEXT NOT NULL,
-        opened_by TEXT NOT NULL,
-        opened_at TEXT NOT NULL)""")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_surface_opens ON surface_opens(surface)")
-    conn.commit()
+    """Additive, created on first use so no migration is needed to start counting.
+    The table lives in helicon.db so the doorway hook can make it without importing
+    this module, and with it fastapi."""
+    from helicon.db import ensure_surface_opens
+    ensure_surface_opens(conn)
 
 
 @router.post("/surfaces/open")

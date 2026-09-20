@@ -21,20 +21,24 @@ classifiers = [
     "Topic :: Software Development :: Quality Assurance",
 ]
 requires-python = ">=3.10"
-dependencies = [
-    "openai>=1.30.0",
-    "fastapi>=0.111.0",
-    "uvicorn>=0.30.0",
-    "pyyaml>=6.0",
-    "gitpython>=3.1.0",
-    "numpy>=1.26",
-]
+# The default install is the deterministic review (`helicon review`, `helicon-review`,
+# `helicon truth`, `helicon ci`): standard library only. Nothing below is imported on
+# that path, so nothing below is installed by default. A command that needs an extra
+# prints the one `pip install` line that provides it (helicon/extras.py).
+dependencies = []
 
-# Semantic/hybrid retrieval is optional — without it, search degrades to FTS5
-# keyword only (the deterministic rot exam, scan, CLI, and the CI Action all
-# run slim, no torch). Full local: pip install "mountain-of-helicon[embeddings]".
 [project.optional-dependencies]
-embeddings = ["sentence-transformers>=3.0"]
+# The web app: `helicon serve`, `helicon demo`, the HTTP API.
+web = ["fastapi>=0.111.0", "uvicorn>=0.30.0", "pydantic>=2.0"]
+# Model-backed commands: anything that calls Qwen or another OpenAI-compatible endpoint.
+model = ["openai>=1.30.0"]
+# The memory/retrieval lab: hybrid search, consolidation, identity resolution.
+# Without it, search degrades to FTS5 keyword only.
+retrieval = ["numpy>=1.26", "requests>=2.31"]
+# Local semantic embeddings (pulls torch). Implies retrieval.
+embeddings = ["sentence-transformers>=3.0", "numpy>=1.26", "requests>=2.31"]
+# Everything the product can do.
+all = ["mountain-of-helicon[web,model,retrieval,embeddings]"]
 
 # The test path was never declared at all: pytest and the TestClient's HTTP
 # transport were simply assumed present, so "which httpx" was whatever the
