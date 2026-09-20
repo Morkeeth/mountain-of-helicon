@@ -518,6 +518,19 @@ def init_db(db_path: str) -> sqlite3.Connection:
     return conn
 
 
+def ensure_surface_opens(conn: sqlite3.Connection) -> None:
+    """Additive, created on first use so no migration is needed to start counting.
+    Lives here, not in helicon.api.surfaces, because the doorway hook writes to it on
+    every session and must not need the web extra to do so."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS surface_opens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        surface TEXT NOT NULL,
+        opened_by TEXT NOT NULL,
+        opened_at TEXT NOT NULL)""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_surface_opens ON surface_opens(surface)")
+    conn.commit()
+
+
 def rebuild_fts(conn: sqlite3.Connection):
     conn.execute("INSERT INTO cubes_fts(cubes_fts) VALUES('rebuild')")
     conn.commit()

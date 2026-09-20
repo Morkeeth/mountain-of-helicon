@@ -5,13 +5,19 @@ is computed in Python with numpy -- no native extensions needed.
 
 Model: all-MiniLM-L6-v2 (384 dims, 80MB, runs on CPU in ~50ms per query).
 """
+from __future__ import annotations
 
 import glob
 import os
 import sqlite3
 from datetime import datetime, timezone
 
-import numpy as np
+# numpy is behind the `retrieval` extra. The keyword-only context policy in this file
+# (title_matches, diversify, apply_context_policy) is what every retrieval path ends
+# in, including the FTS fallback a store takes before its first `helicon embed`, so
+# the module must import without it. Vector work fails at first use, by name.
+from helicon.extras import LazyModule
+np = LazyModule("numpy")
 
 _model = None
 _MODEL_NAME = "all-MiniLM-L6-v2"
