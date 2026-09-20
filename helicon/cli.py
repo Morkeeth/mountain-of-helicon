@@ -1458,7 +1458,7 @@ def _idle_notice_once(session: str) -> str:
     try:
         from helicon.db import init_db
         from helicon import doorway
-        from helicon.api.surfaces import _ensure as _ensure_surface_opens
+        from helicon.db import ensure_surface_opens as _ensure_surface_opens
         conn = init_db(doorway.gate_db_path())
         # surface_opens is created on first use by the API, not by the schema, so
         # the gate's own store may never have seen it. Without this the INSERT
@@ -4917,6 +4917,12 @@ def main():
         args.command == "measurement-bench" and bool(getattr(args, "db", None))
     )
 
+    # Ahead of the config gate: telling a stranger to `helicon init` and only then
+    # that the command needs an extra sends them round the loop twice.
+    if args.command in ("serve", "demo"):
+        from helicon.extras import require
+        require("web", args.command)
+
     from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING and not has_explicit_bench_db:
         try:
@@ -4932,7 +4938,16 @@ def main():
                 f"cp config.example.json ~/.helicon/config.json\n"
                 f"  what's wrong:        helicon doctor")
 
-    cmds[args.command](args)
+    # The default install carries the review and nothing else. A command that needs a
+    # package behind an extra says which extra, once, instead of a traceback.
+    try:
+        cmds[args.command](args)
+    except ModuleNotFoundError as e:
+        from helicon.extras import extra_for, refuse
+        extra = extra_for(e.name)
+        if extra is None:
+            raise
+        refuse(extra, args.command)
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ nothing leaves it. Contributions should keep those two properties intact.
 ## Quick dev loop
 
 ```bash
-python3 -m pip install -e .
+python3 -m pip install -e ".[web,model,retrieval,test]"   # the suite needs all of them
 python3 -m pytest tests/ -q
 helicon ci            # the repo audits itself
 cd web && npm install && npx vite build
