@@ -60,7 +60,7 @@ Harness rule for any rerun: load project instructions on original and corrected;
 
 ## Finding
 
-On this neutral "find the main guide/README and how to start" task, false pointers in the instruction files **did not mislead** Claude Code Sonnet on these three repositories: every original cell still opened `README.md` with a grounded start line. Corrected and no_context also passed, so correcting the contradiction was not uniquely helpful here. Loading the instruction files cost about **3×** more (roughly $0.10–$0.13 vs $0.04 per run) for the same success.
+On this neutral "find the main guide/README and how to start" task, false pointers in the instruction files **did not mislead** Claude Code Sonnet on these three repositories: every original cell still opened `README.md` with a grounded start line. Corrected and no_context also passed, so correcting the contradiction was not uniquely helpful here. Loading the instruction files cost about **3×** more (roughly $0.10 to $0.13 vs $0.04 per run) for the same success.
 
 ## Limits
 
