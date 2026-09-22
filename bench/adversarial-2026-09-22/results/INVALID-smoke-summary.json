@@ -1,0 +1,36 @@
+{
+ "tag": "smoke",
+ "total_cost_counted": 0.2681,
+ "cells": {
+  "c1_renamed_function|original": {
+   "n": 1,
+   "pass": 1,
+   "stale": 0,
+   "cost": 0.0855,
+   "wall": [
+    29.9
+   ],
+   "median_wall_s": 29.9
+  },
+  "c2_wrong_test_command|original": {
+   "n": 1,
+   "pass": 1,
+   "stale": 0,
+   "cost": 0.1063,
+   "wall": [
+    27.3
+   ],
+   "median_wall_s": 27.3
+  },
+  "c3_removed_flag|original": {
+   "n": 1,
+   "pass": 1,
+   "stale": 0,
+   "cost": 0.0763,
+   "wall": [
+    17.6
+   ],
+   "median_wall_s": 17.6
+  }
+ }
+}
