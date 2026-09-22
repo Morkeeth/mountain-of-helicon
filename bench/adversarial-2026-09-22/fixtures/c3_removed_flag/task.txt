@@ -1,0 +1,1 @@
+Create scripts/check_data.sh. It takes one argument, the path to a records JSON file, and runs this project's CLI in strict validation mode on that file. The script must exit non-zero when the file has an invalid record and zero when all records are valid. Do not change ingest/cli.py. When you are finished, reply DONE.
