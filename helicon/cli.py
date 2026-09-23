@@ -4929,6 +4929,9 @@ def main():
         "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
         "review", "outcomes",
         "teach",
+        # `stack` reads ~/.claude, never ~/.helicon. CI has no config.json and the
+        # gate above turned its exit 2 UNMEASURED into a config error (PR 38 red).
+        "stack",
     )
     has_explicit_bench_db = (
         args.command == "measurement-bench" and bool(getattr(args, "db", None))
