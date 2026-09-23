@@ -49,3 +49,7 @@ A stale instruction changes the result only when the repo cannot refute it cheap
 ## Spend
 
 $4.8601 list in total. Probes $0.1708, invalid smoke $0.2681, invalid grid $2.3578, grid2 $2.0634 (sum of per-run `total_cost_usd`). Max session, not an invoice. Cap $15.00.
+
+## Redaction, 23 Sep 2026
+
+Before the first push, the saved result files were redacted. Absolute home paths in `bash_cmds` (`grid2-rows.jsonl`, `INVALID-grid1-rows.jsonl`) now read `$HOME`. In `leak-probe.json`, the child's answer quoted the operator's private user-level instruction files; only the list of leaked file paths is kept, with `$HOME` in place of the home directory. No number, grade or row changed. The unredacted originals are kept outside the repository. `tests/test_bench_no_private_paths.py` fails if an absolute home path returns to `bench/`.
