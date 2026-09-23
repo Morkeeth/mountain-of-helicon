@@ -13,7 +13,7 @@ Usage:
   helicon science       Grade your live store against published agent-research thresholds
   helicon measurement-bench  Science + weekly series + store truth (one pass)
   helicon score         Show current Helicon Score
-  helicon stack         Audit your AI stack setup
+  helicon stack         Check your Claude Code setup against hard limits (exit 1 on red)
   helicon optimize      LLM-powered optimization suggestions
 """
 
