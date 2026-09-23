@@ -101,3 +101,70 @@ def test_clean_registry_is_clean(tmp_path):
     reg = _registry(tmp_path, "| 001 | warrant | BUILD | 🟢 | p | n |\n")
     res = audit_registry(reg, str(tmp_path), repos=[_repo("warrant")])
     assert res["clean"] and res["unlisted"] == []
+
+
+# ---------------------------------------------------------------------------
+# The bullet format written by fleet-ops registry/registry.py from 2026-09-23.
+# The vault registry was regenerated in it and `helicon registry` read 0 rows,
+# so every owned repo looked unlisted. The fixture is synthetic (no real
+# projects) and copies the generator's line grammar exactly.
+
+import os
+import pathlib
+import re
+
+import pytest
+
+from helicon.registry import parse_registry
+
+_FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "registry" / "registry-2026-09-23-format.md"
+_OLD_ROW = re.compile(r"^\|\s*(\d{3})\s*\|([^|]*)\|")  # the only row shape before this fix
+
+
+def test_the_old_row_shape_reads_nothing_in_the_new_format():
+    # The control: this is why the fix exists. If it ever matches, the fixture no
+    # longer represents the format that broke the gate.
+    lines = _FIXTURE.read_text(encoding="utf-8").splitlines()
+    assert sum(1 for l in lines if _OLD_ROW.match(l)) == 0
+
+
+def test_the_new_format_is_read_as_rows():
+    rows = parse_registry(str(_FIXTURE))["rows"]
+    # 4 curated lines + 5 lane lines. The NOBODY HAS CLASSIFIED list repeats lane
+    # rows and must not count, or every unclassified repo would read as covered twice.
+    assert len(rows) == 9
+    names = [r["names"] for r in rows]
+    assert ["Paper Lantern", "paper-lantern"] in names
+    assert ["Kettle Bot"] in names                       # repo field "none, local daemon"
+    assert ["Sundial", "sundial-cli"] in names           # empty domain cell ", "
+    assert ["Driftwood", "driftwood"] in names
+    assert all(r["num"].startswith("L") for r in rows)
+
+
+def test_a_repo_named_only_by_a_lane_row_is_covered(tmp_path):
+    res = audit_registry(str(_FIXTURE), str(tmp_path),
+                         repos=[_repo("sundial-cli"), _repo("driftwood"), _repo("unknown-repo")])
+    assert [e["name"] for e in res["unlisted"]] == ["unknown-repo"]
+    assert res["rows"] == 9
+
+
+def test_a_curated_row_pointing_at_a_missing_repo_is_a_ghost(tmp_path):
+    res = audit_registry(str(_FIXTURE), str(tmp_path),
+                         repos=[_repo("paper-lantern"), _repo("tide-chart")])
+    ghosts = {g["num"]: g["ghosts"] for g in res["rows_without_project"]}
+    assert ["ghostboardthatwasdeleted"] in ghosts.values()
+
+
+def test_the_numbered_table_still_parses(tmp_path):
+    reg = _registry(tmp_path, "| 001 | Wave Radio | CREATIVE | 🟢 | prose | next |\n")
+    rows = parse_registry(reg)["rows"]
+    assert [r["num"] for r in rows] == ["001"]
+
+
+_VAULT_REGISTRY = os.path.expanduser(
+    "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian LIFE/00 Dashboard/registry.md")
+
+
+@pytest.mark.skipif(not os.path.isfile(_VAULT_REGISTRY), reason="no local vault registry")
+def test_the_live_vault_registry_has_rows():
+    assert len(parse_registry(_VAULT_REGISTRY)["rows"]) > 0
