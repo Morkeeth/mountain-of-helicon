@@ -3747,7 +3747,28 @@ def cmd_review(args):
 
 
 def cmd_stack(args):
-    """Audit your AI agent stack."""
+    """Audit your AI agent stack against hard limits. Exit 1 on any red limit."""
+    from helicon.stacklimits import audit_stack, render
+
+    home = getattr(args, "home", None)
+    registry = getattr(args, "registry", None) or (None if home else default_registry())
+    res = audit_stack(home=home, registry_path=registry,
+                      memory_dir=getattr(args, "memory_dir", None),
+                      run_hooks=not getattr(args, "no_run_hooks", False))
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+    else:
+        if not home:
+            _stack_census()
+        print(render(res))
+    if not res["ok"]:
+        raise SystemExit(1)
+    if not res.get("measured", True):
+        raise SystemExit(2)
+
+
+def _stack_census():
+    """The tool census the old `helicon stack` printed. Informational only."""
     print("Mountain of Helicon stack audit\n")
     detected = _detect_sources()
 
@@ -3802,19 +3823,10 @@ def cmd_stack(args):
         print(f"    Repos: {len(repos)}")
         print(f"    Directory: {repos_dir}")
 
-    from helicon.config import load_config
-    config = load_config()
-    if config.get("qwen_api_key"):
-        print(f"\n  Qwen Cloud: configured")
-    else:
-        print(f"\n  Qwen Cloud: not configured (set QWEN_API_KEY)")
-
-    print(f"\nStack completeness:")
-    total_sources = len(detected)
-    has_qwen = bool(config.get("qwen_api_key"))
-    has_db = os.path.exists(config.get("db_path", "data/helicon.db"))
-    completeness = (total_sources * 20 + (30 if has_qwen else 0) + (20 if has_db else 0))
-    print(f"  {min(completeness, 100)}% - {total_sources} source(s), {'Qwen active' if has_qwen else 'no Qwen'}, {'DB seeded' if has_db else 'no DB'}")
+    # The old "Stack completeness: N%" line is gone. It said 100% on a machine
+    # whose SessionStart hook output was cut to a 2,000 character preview. It
+    # could not go red, so it was not a check. The limits below replace it.
+    print()
 
 
 def cmd_optimize(args):
@@ -4761,7 +4773,12 @@ def main():
     mb_p.add_argument("--json", action="store_true", help="emit structured JSON witness (for Firestore / ADK)")
     mb_p.add_argument("--db", help="override store path (demo SQLite in cloud)")
     sub.add_parser("score", help="Show current Helicon Score")
-    sub.add_parser("stack", help="Audit your AI stack setup")
+    stack_p = sub.add_parser("stack", help="Check your Claude Code setup against hard limits; exit 1 on any red")
+    stack_p.add_argument("--home", help="Audit this home directory instead of yours (skips the tool census)")
+    stack_p.add_argument("--registry", help="Registry markdown for the memory-index check (default: the vault registry)")
+    stack_p.add_argument("--memory-dir", dest="memory_dir", help="Memory directory holding MEMORY.md (default: the largest under ~/.claude/projects)")
+    stack_p.add_argument("--no-run-hooks", dest="no_run_hooks", action="store_true", help="Do not execute SessionStart/PostCompact hooks; S1 reports SKIP")
+    stack_p.add_argument("--json", action="store_true")
     sr_p = sub.add_parser("skills-review", help="Which installed skills actually fire (local transcripts, honest window)")
     sr_p.add_argument("--days", type=int, default=30, help="Window in days (default 30)")
 
