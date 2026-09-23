@@ -1,0 +1,104 @@
+{
+ "source": "Claude Code result JSON, ~/.local/state/day-run/2026-09-22/helicon-real-pilot-neutral/v2-<case>-<cond>.json (usage and total_cost_usd, costBasis list). project_instruction_bytes: wc -c of the CLAUDE.md the run loaded plus any @-imported file, measured 23 Sep 2026 in the pilot clones.",
+ "rows": [
+  {
+   "case": "horsetrack",
+   "cond": "original",
+   "turns": 2,
+   "cost_usd": 0.102923,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 18379,
+   "cache_read_input_tokens": 133596,
+   "output_tokens": 268,
+   "project_instruction_bytes": 3669
+  },
+  {
+   "case": "horsetrack",
+   "cond": "corrected",
+   "turns": 2,
+   "cost_usd": 0.101377,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 18200,
+   "cache_read_input_tokens": 133495,
+   "output_tokens": 187,
+   "project_instruction_bytes": 3663
+  },
+  {
+   "case": "horsetrack",
+   "cond": "no_context",
+   "turns": 2,
+   "cost_usd": 0.036122,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2652,
+   "cache_read_input_tokens": 117132,
+   "output_tokens": 208,
+   "project_instruction_bytes": 0
+  },
+  {
+   "case": "confidence",
+   "cond": "original",
+   "turns": 2,
+   "cost_usd": 0.112687,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 20967,
+   "cache_read_input_tokens": 135504,
+   "output_tokens": 171,
+   "project_instruction_bytes": 10163
+  },
+  {
+   "case": "confidence",
+   "cond": "corrected",
+   "turns": 2,
+   "cost_usd": 0.118015,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 21218,
+   "cache_read_input_tokens": 135426,
+   "output_tokens": 605,
+   "project_instruction_bytes": 10172
+  },
+  {
+   "case": "confidence",
+   "cond": "no_context",
+   "turns": 2,
+   "cost_usd": 0.039422,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 3428,
+   "cache_read_input_tokens": 117112,
+   "output_tokens": 228,
+   "project_instruction_bytes": 0
+  },
+  {
+   "case": "organizze",
+   "cond": "original",
+   "turns": 2,
+   "cost_usd": 0.129905,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 24569,
+   "cache_read_input_tokens": 140007,
+   "output_tokens": 362,
+   "project_instruction_bytes": 19553
+  },
+  {
+   "case": "organizze",
+   "cond": "corrected",
+   "turns": 3,
+   "cost_usd": 0.155526,
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 25871,
+   "cache_read_input_tokens": 223099,
+   "output_tokens": 741,
+   "project_instruction_bytes": 19547
+  },
+  {
+   "case": "organizze",
+   "cond": "no_context",
+   "turns": 2,
+   "cost_usd": 0.044252,
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 4478,
+   "cache_read_input_tokens": 117112,
+   "output_tokens": 291,
+   "project_instruction_bytes": 0
+  }
+ ]
+}
