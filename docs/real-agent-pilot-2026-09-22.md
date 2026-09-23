@@ -50,7 +50,7 @@ List-basis dollars from Claude Code JSON `total_cost_usd` (`costBasis: list`). S
 
 9/9 pass. Causal total: **$0.8402** list.
 
-Mean with instruction files loaded (original + corrected): about **$0.12**. Mean no_context: about **$0.04**. Ratio about **3×** for the same success on this task.
+Mean with instruction files loaded (original + corrected): **$0.1201**. Mean no_context: **$0.0399**. The dollar ratio is 3.01. It does not measure the project instruction file. See "Correction, 23 Sep 2026" below.
 
 ## Invalid first pass (discarded)
 
@@ -60,7 +60,31 @@ Harness rule for any rerun: load project instructions on original and corrected;
 
 ## Finding
 
-On this neutral "find the main guide/README and how to start" task, false pointers in the instruction files **did not mislead** Claude Code Sonnet on these three repositories: every original cell still opened `README.md` with a grounded start line. Corrected and no_context also passed, so correcting the contradiction was not uniquely helpful here. Loading the instruction files cost about **3×** more (roughly $0.10 to $0.13 vs $0.04 per run) for the same success.
+On this neutral "find the main guide/README and how to start" task, false pointers in the instruction files **did not mislead** Claude Code Sonnet on these three repositories: every original cell still opened `README.md` with a grounded start line. Corrected and no_context also passed, so correcting the contradiction was not uniquely helpful here. The original and corrected runs cost 3.01 times as much as no_context in list dollars for the same success. Most of that gap is user-level context and cache-write pricing, not the project instruction file (next section).
+
+## Correction, 23 Sep 2026: where the 3x came from
+
+The first version of this note said that loading the instruction files cost about 3x. The dollar ratio is right. The attribution was wrong. Two checks found it.
+
+**1. no_context removed more than the project file.** no_context used `--setting-sources ""`. That also removed the user-level context (user CLAUDE.md, user rules, skill listing and other user settings). original and corrected loaded it. So the contrast is "project file plus user-level context" against "neither".
+
+**2. The extra tokens are cache writes on two-turn runs.** Source: the nine v2 result files (`usage`, `total_cost_usd`). The per-run numbers are in `docs/real-agent-pilot-2026-09-22-usage.json`.
+
+| Mean per run | with instruction files (6 runs) | no_context (3 runs) | ratio |
+| --- | --- | --- | --- |
+| list dollars | $0.1201 | $0.0399 | 3.01 |
+| all input tokens (input + cache write + cache read) | 171,726 | 120,642 | 1.42 |
+| cache-write tokens | 21,534 | 3,519 | 6.12 |
+
+- A least-squares fit of the nine runs gives cache writes at $4.00 per million tokens, cache reads at $0.20 and output at $10.00. The fit reproduces every run cost to within $0.0001. A cache write costs 20 times a cache read.
+- The extra 18,015 cache-write tokens cost $0.0721. That is 90% of the $0.0801 gap. Eight of nine runs had two turns, so a written prefix was read back only once and never paid for itself.
+- So the files add 1.42 times the input tokens, and cache-write pricing turns that into 3.01 times the dollars.
+
+**3. The project file is the smaller part (inferred, not measured directly).** The project instruction file each run loaded was 3,669, 10,163 and 19,553 bytes (HorseTrack, confidence, organizze with its `@AGENTS.md` import). Its extra cache-write tokens against no_context were 15,548 to 21,393. A linear fit of those six deltas against file size gives about 0.32 tokens per byte plus a constant of about 14,400 tokens that does not change with the file. So the project file accounts for about 1,200 to 6,300 tokens of the gap. The constant, about 14,400 tokens, matches what `--setting-sources ""` also removed: the user-level context. This split rests on three file sizes. It was not measured by a run that loads the project file alone.
+
+**4. A run that isolates the project file agrees.** The adversarial eval of 22 Sep (`bench/adversarial-2026-09-22/RESULTS.md`) used `--setting-sources project` in every condition, so only the project file differed. Mean cost: original $0.0849, corrected $0.0649, no_context $0.0795. With the user-level context held constant, no project file was not the cheapest condition.
+
+Corrected claim: on this task, the extra cost came mostly from user-level context and cache-write pricing on two-turn runs, not from the project instruction file.
 
 ## Limits
 
