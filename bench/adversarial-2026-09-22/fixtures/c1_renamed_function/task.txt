@@ -1,0 +1,1 @@
+Add a function `order_total(order)` to shop/checkout.py. The argument is a dict with key "items" (a list of {"price", "qty"} dicts) and an optional key "discount_code". It returns the amount to charge the customer. Follow the project conventions. When you are finished, reply DONE.
