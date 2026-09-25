@@ -104,6 +104,8 @@ def _looks_like_path(tok: str) -> bool:
         return False
     if tok.startswith(("#", "mailto:", "tel:")):
         return False
+    if not re.search(r"\w", tok):
+        return False                                   # `//` is a comment marker, not a path
     if "/" in tok:
         return True
     return tok.lower().endswith(_CODE_EXT)
@@ -145,6 +147,7 @@ def _tree(repo_root: str) -> tuple[set[str], list[str], list[str]]:
 BASE_OWN = "own dir"        # the directory holding the instruction file
 BASE_ROOT = "repo root"     # fallback when the own dir does not have it
 BASE_SUFFIX = "under"       # found as a suffix of a real tree path, e.g. under codex-rs/
+BASE_PKG = "package"        # found relative to a monorepo package, e.g. package packages/zod/src/v4/
 
 # `/*param_name*/` is a Rust/C comment, not a path. Neither is a glob whose first
 # segment is not a plain name.
@@ -215,6 +218,10 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
     tok = raw.strip().strip("'\"")
     if not tok or any(m in tok for m in _PLACEHOLDER):
         return None                                    # `<username>/<feature>` is a template
+    if tok.startswith("-"):
+        return None                                    # `--conditions=@zod/source` is a CLI flag
+    if not _norm(tok).strip("/") or not re.search(r"\w", tok):
+        return None                                    # `//` normalizes to nothing: no target to grade
     if tok.startswith("/*") or tok.endswith("*/"):
         return None                                    # `/*param_name*/` is a code comment
     if tok.startswith("@") and not tok.lower().endswith(_CODE_EXT) and not _exists(repo_root, _norm(tok[1:])):
@@ -262,10 +269,120 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         own = [p for p in prefixes if not file_dir or p == file_dir or p.startswith(file_dir + "/")]
         pick = (own or prefixes)[0]
         return rel, True, f"{BASE_SUFFIX} {pick}/"
+    # Monorepo: a root doc names `core/` or `src/` relative to a package, not the root.
+    # A single segment has no tail for the suffix rule above, so it lands here.
+    # Try the bases this file's other paths resolved under, then each workspace package
+    # (package.json `workspaces`, pnpm-workspace.yaml), then its src/.
+    for b in _package_bases(repo_root, learned):
+        for pb in (b, _join(b, "src")):
+            if _exists(repo_root, _join(pb, rel)):
+                return rel, True, f"{BASE_PKG} {pb}/"
     if not _has_path_evidence(repo_root, rel, anchors):
         return None                                    # `thread/read` is an RPC name, not a path
     return rel, False, ""
 
+
+_WS_CACHE: dict[str, tuple[str, ...]] = {}
+
+
+def workspace_dirs(repo_root: str) -> tuple[str, ...]:
+    """Workspace package directories declared by the repo: package.json `workspaces`
+    (a list, or `{"packages": [...]}`) and pnpm-workspace.yaml `packages:`. Globs are
+    expanded against the tree; only existing directories are kept."""
+    root = os.path.abspath(repo_root)
+    hit = _WS_CACHE.get(root)
+    if hit is not None:
+        return hit
+    import glob as _glob
+    import json as _json
+    pats: list[str] = []
+    try:
+        with open(os.path.join(root, "package.json"), encoding="utf-8") as fh:
+            ws = _json.load(fh).get("workspaces")
+        if isinstance(ws, dict):
+            ws = ws.get("packages")
+        if isinstance(ws, list):
+            pats += [w for w in ws if isinstance(w, str)]
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        with open(os.path.join(root, "pnpm-workspace.yaml"), encoding="utf-8") as fh:
+            in_pkgs = False
+            for line in fh:
+                if re.match(r"^packages\s*:", line):
+                    in_pkgs = True
+                    continue
+                if in_pkgs:
+                    m = re.match(r"^\s+-\s*['\"]?([^'\"#]+?)['\"]?\s*(#.*)?$", line)
+                    if m:
+                        pats.append(m.group(1).strip())
+                    elif line.strip() and not line.startswith((" ", "\t")):
+                        in_pkgs = False
+    except OSError:
+        pass
+    out: list[str] = []
+    for pat in pats:
+        if pat.startswith("!"):
+            continue
+        for d in sorted(_glob.glob(os.path.join(root, pat.strip("/")))):
+            if os.path.isdir(d):
+                rel = os.path.relpath(d, root).replace(os.sep, "/")
+                if rel not in out and not rel.startswith(".."):
+                    out.append(rel)
+    _WS_CACHE[root] = tuple(out)
+    return _WS_CACHE[root]
+
+
+def _package_bases(repo_root: str, learned: tuple[str, ...] = ()) -> list[str]:
+    return list(dict.fromkeys([b for b in (*learned, *workspace_dirs(repo_root)) if b]))
+
+
+_IGNORE_CACHE: dict[str, list[tuple[str, bool, bool]]] = {}
+
+
+def _gitignore_rules(repo_root: str) -> list[tuple[str, bool, bool]]:
+    """(pattern, dir_only, anchored) from the repo's root .gitignore. A small parser, not
+    git: a fixture checked in under another repo must be judged by its own .gitignore."""
+    root = os.path.abspath(repo_root)
+    hit = _IGNORE_CACHE.get(root)
+    if hit is not None:
+        return hit
+    rules: list[tuple[str, bool, bool]] = []
+    try:
+        with open(os.path.join(root, ".gitignore"), encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                pat = line.strip()
+                if not pat or pat.startswith(("#", "!")):
+                    continue
+                dir_only = pat.endswith("/")
+                pat = pat.rstrip("/")
+                anchored = pat.startswith("/") or "/" in pat
+                rules.append((pat.lstrip("/"), dir_only, anchored))
+    except OSError:
+        pass
+    _IGNORE_CACHE[root] = rules
+    return rules
+
+
+def is_gitignored(repo_root: str, rel: str) -> bool:
+    """Does the repo's root .gitignore cover *rel* or one of its parent directories?
+    A gitignored path is created on demand; a fresh clone never has it."""
+    import fnmatch
+    rel = rel.strip("/")
+    if not rel:
+        return False
+    segs = rel.split("/")
+    for pat, _dir_only, anchored in _gitignore_rules(repo_root):
+        for i in range(1, len(segs) + 1):
+            # A dir-only rule (`.triage/`) also matches the bare name: the doc may
+            # write the directory without its slash, and it is absent either way.
+            prefix = "/".join(segs[:i])
+            if anchored:
+                if fnmatch.fnmatch(prefix, pat):
+                    return True
+            elif fnmatch.fnmatch(segs[i - 1], pat):
+                return True
+    return False
 
 def _machine_local(tok: str) -> bool:
     """Whether *tok* names a host path rather than a repository path or URL route."""
@@ -324,6 +441,12 @@ def _wikilink_resolves(repo_root: str, name: str) -> bool:
             if f.lower() == want_md:
                 return True
     return False
+
+
+def _inside_flag(line: str, start: int) -> bool:
+    """Is the match at *start* part of a CLI flag such as `--conditions=@zod/source`?"""
+    head = re.split(r"[\s`(\[]", line[:start])[-1]
+    return head.startswith("-")
 
 
 def extract_pointers(text: str, repo_root: str, file_dir: str = "") -> list[Pointer]:
@@ -416,6 +539,12 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 "instruction creates this path; pre-run absence not graded",
             )
             return
+        if not ok and is_gitignored(repo_root, _join(file_dir, target) if file_dir else target):
+            note_unverified(
+                kind, display, line_no, line,
+                "gitignored: created on demand, not graded",
+            )
+            return
         tried = (f"own dir {file_dir}/, repo root" if file_dir else "repo root") + ", tree suffix"
         add(kind, display, target, line_no, line, ok,
             f"resolved from {base}" if ok else miss_msg.format(target=target) + f" (tried {tried})",
@@ -424,6 +553,8 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
     for i, line in enumerate(text.splitlines(), 1):
         for m in _RE_IMPORT.finditer(line):
             raw = m.group(1)
+            if _inside_flag(line, m.start()):
+                continue                               # `--conditions=@zod/source` is a flag value
             # An @import is a file. `@typescript-eslint/no-explicit-any` is an npm scope:
             # no extension and nothing on disk → not an import, not graded.
             if _looks_like_path(raw):
@@ -450,8 +581,11 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                            "path in code font not in repo: {target}")
         # Code spans were graded above; scanning them again as bare prose is how
         # `~/.zen/zup-active.json` produced a second, mangled pointer `zen/zup-active.json`.
-        for m in _RE_BARE.finditer(_RE_CODESPAN.sub(" ", line)):
+        bare_line = _RE_CODESPAN.sub(" ", line)
+        for m in _RE_BARE.finditer(bare_line):
             raw = m.group(1).rstrip(".-")
+            if _inside_flag(bare_line, m.start()):
+                continue                               # `--out=dist/x.js` is a flag value
             if _looks_like_path(raw) and raw.lower().endswith(_CODE_EXT):
                 grade_path("BARE", raw, raw, i, line,
                            "bare path not in repo: {target}")
@@ -481,6 +615,39 @@ def nested_instruction_files(repo_root: str) -> list[str]:
     return sorted(out)
 
 
+def instruction_files(repo_root: str, files: list[str] | None = None,
+                      nested: bool = False) -> tuple[list[str], dict[str, list[str]]]:
+    """The instruction files to grade, one per real file on disk.
+
+    zod ships CLAUDE.md and .cursorrules as symlinks to AGENTS.md. Graded as three files,
+    every finding printed three times and the grade counted each claim three times. Files
+    are deduped by resolved real path. The canonical name is the entry that is not a
+    symlink (else the first seen); the others are returned as its aliases."""
+    if files:
+        cands = [f for f in files if os.path.exists(os.path.join(repo_root, f))]
+    else:
+        cands = [f for f in DEFAULT_INSTRUCTION_FILES
+                 if os.path.exists(os.path.join(repo_root, f))]
+        if nested:
+            cands += nested_instruction_files(repo_root)
+    groups: dict[str, list[str]] = {}
+    for f in cands:
+        groups.setdefault(os.path.realpath(os.path.join(repo_root, f)), []).append(f)
+    out: list[str] = []
+    aliases: dict[str, list[str]] = {}
+    for f in cands:
+        group = groups[os.path.realpath(os.path.join(repo_root, f))]
+        real = [g for g in group if not os.path.islink(os.path.join(repo_root, g))]
+        canon = (real or group)[0]
+        if canon != f or canon in out:
+            continue
+        out.append(canon)
+        others = [g for g in group if g != canon]
+        if others:
+            aliases[canon] = others
+    return out, aliases
+
+
 def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     """Grade every pointer in the repo's instruction files against the live tree.
 
@@ -489,13 +656,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     only when no instruction file with any checkable pointer exists — never a silent
     green (a repo with no pointers to grade is not the same as a clean repo).
     """
-    targets: list[str] = []
-    if files:
-        targets = [f for f in files if os.path.exists(os.path.join(repo_root, f))]
-    else:
-        targets = [f for f in DEFAULT_INSTRUCTION_FILES
-                   if os.path.exists(os.path.join(repo_root, f))]
-        targets += nested_instruction_files(repo_root)
+    targets, aliases = instruction_files(repo_root, files, nested=True)
 
     pointers: list[Pointer] = []
     unverified_paths: list[dict] = []
@@ -539,6 +700,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
         ],
         "unverified_paths": unverified_paths,
         "bases": bases,
+        "aliases": aliases,
     }
 
 

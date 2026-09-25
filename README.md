@@ -10,6 +10,11 @@ pip install mountain-of-helicon
 helicon review .
 ```
 
+Needs Python 3.10 or newer. A stock Mac ships Python 3.9, and its pip then says only
+`No matching distribution found`. On a Mac, run `brew install python@3.12`, then
+`python3.12 -m pip install mountain-of-helicon`. Or run `uv tool install mountain-of-helicon`,
+which fetches a matching Python for you.
+
 What it printed on our own public repo, `MorkeethHQ/world-relay`, from a fresh clone of
 `main` on 2026-09-03:
 
@@ -34,10 +39,8 @@ the tree on disk. External host paths and create-on-demand outputs are shown as
 unverified and excluded from the grade; they cannot pad or lower it. Exit code is
 non-zero when a graded repo-local claim fails, so it drops straight into CI.
 
-**What the install pulls.** The 0.2.1 release candidate has no third-party packages;
-until 0.2.1 is published, PyPI's 0.2.0 still pulls the full set. With 0.2.1,
-`pip install mountain-of-helicon` installs the standard library and this package,
-which is all the review needs. The web app,
+**What the install pulls.** `pip install mountain-of-helicon` installs this package and
+no third-party packages. The standard library is all the review needs. The web app,
 the model-backed commands and the memory lab sit behind extras: `[web]`, `[model]`,
 `[retrieval]`, `[embeddings]`, or `[all]`. A command that needs one says which, in
 one line: `helicon serve needs the web extra: pip install "mountain-of-helicon[web]"`.

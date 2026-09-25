@@ -22,7 +22,7 @@ import json
 import os
 import re
 
-from helicon.pointers import DEFAULT_INSTRUCTION_FILES, _NEGATION
+from helicon.pointers import _NEGATION, instruction_files
 
 # Command references inside inline code spans. Each group 1 = the token we resolve.
 _RE_NPM = re.compile(r"`(?:npm run|yarn|pnpm(?: run)?)\s+([\w:.-]+)`")
@@ -70,8 +70,7 @@ def _module_in_repo(repo_root: str, mod: str) -> bool:
 
 
 def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
-    targets = [f for f in (files or DEFAULT_INSTRUCTION_FILES)
-               if os.path.exists(os.path.join(repo_root, f))]
+    targets, _aliases = instruction_files(repo_root, files)
     scripts = _pkg_scripts(repo_root)
     targets_mk = _make_targets(repo_root)
 

@@ -20,7 +20,7 @@ import json
 import os
 import re
 
-from helicon.pointers import DEFAULT_INSTRUCTION_FILES, _NEGATION
+from helicon.pointers import _NEGATION, instruction_files
 
 UPHELD = "UPHELD"
 CONTRADICTED = "CONTRADICTED"
@@ -142,8 +142,7 @@ def _grade_node(repo_root: str, claimed: int) -> tuple[str, str]:
 def check_versions(repo_root: str, files: list[str] | None = None) -> dict:
     """Grade every framework/runtime version claim in the instruction files against the
     manifests. rot.py-shaped dict; per-claim verdict on each receipt. Deterministic."""
-    targets = [f for f in (files or DEFAULT_INSTRUCTION_FILES)
-               if os.path.exists(os.path.join(repo_root, f))]
+    targets, _aliases = instruction_files(repo_root, files)
     pkg = _pkg_json(repo_root)
 
     receipts: list[dict] = []
