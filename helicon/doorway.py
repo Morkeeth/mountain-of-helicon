@@ -88,21 +88,67 @@ def _seed_docs(repo: str) -> list[str]:
     return out
 
 
+def _under_repo(repo_ab: str, path: str) -> bool:
+    """True when path is lexically inside repo_ab. Does not stat."""
+    try:
+        return os.path.commonpath([repo_ab, os.path.abspath(path)]) == repo_ab
+    except ValueError:
+        return False
+
+
+def _file_inside(repo_ab: str, path: str, _depth: int = 0) -> str | None:
+    """Absolute path of an existing file inside repo_ab, or None.
+
+    A path that is already outside is not stated. A symlink is followed only
+    when its own target stays inside; the outside target is not opened.
+    """
+    if _depth > 16 or not _under_repo(repo_ab, path):
+        return None
+    rel = os.path.relpath(os.path.abspath(path), repo_ab)
+    cur = repo_ab
+    parts = [p for p in rel.split(os.sep) if p not in ("", ".")]
+    for i, part in enumerate(parts):
+        if part == "..":
+            return None
+        nxt = os.path.join(cur, part)
+        if not os.path.lexists(nxt):
+            return None
+        if os.path.islink(nxt):
+            raw = os.readlink(nxt)
+            target = os.path.normpath(raw if os.path.isabs(raw) else os.path.join(cur, raw))
+            if not _under_repo(repo_ab, target):
+                return None
+            rest = parts[i + 1:]
+            followed = os.path.join(target, *rest) if rest else target
+            return _file_inside(repo_ab, followed, _depth + 1)
+        cur = nxt
+    if parts and os.path.isfile(cur):
+        return cur
+    return None
+
+
 def _resolve_import(repo: str, importer_rel: str, target: str) -> str | None:
     """Resolve an @import the way an agent would: relative to the importing
-    file's directory, then to the repo root, then '~'. Contained to the repo."""
+    file's directory, then to the repo root.
+
+    '~' is expanded as a string. The expanded path is opened only when it
+    stays inside the repo. A path outside the repo is not stated.
+    """
+    repo_ab = os.path.abspath(repo)
     cands = []
     if target.startswith("~"):
         cands.append(os.path.expanduser(target))
-    base_dir = os.path.dirname(os.path.join(repo, importer_rel))
+    base_dir = os.path.dirname(os.path.join(repo_ab, importer_rel))
     cands.append(os.path.normpath(os.path.join(base_dir, target)))
-    cands.append(os.path.normpath(os.path.join(repo, target.lstrip("./"))))
-    repo_real = os.path.realpath(repo)
+    cands.append(os.path.normpath(os.path.join(repo_ab, target.lstrip("./"))))
+    seen: set[str] = set()
     for c in cands:
-        cr = os.path.realpath(c)
-        # only follow imports that stay inside the repo (a doorway maps THIS repo)
-        if (cr == repo_real or cr.startswith(repo_real + os.sep)) and os.path.isfile(cr):
-            return os.path.relpath(cr, repo)
+        if c in seen:
+            continue
+        seen.add(c)
+        found = _file_inside(repo_ab, c)
+        if found:
+            return os.path.relpath(found, repo_ab)
     return None
 
 
