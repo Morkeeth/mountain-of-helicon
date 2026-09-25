@@ -341,6 +341,23 @@ def cmd_reconcile(args):
         print(f"\nWould retire {total} memories. Run with --apply to execute.")
 
 
+def cmd_fix(args):
+    """Rewrite broken pointers when exactly one file in the repo has that name.
+
+    Dry run unless --apply is passed. Does not guess among several matches."""
+    from helicon.fix import apply_fixes, format_plan, render_diff
+
+    repo = os.path.abspath(getattr(args, "repo", None) or ".")
+    planned = apply_fixes(repo, apply=bool(args.apply))
+    print(format_plan(planned, apply=bool(args.apply)))
+    if not args.apply:
+        diff = render_diff(repo, planned)
+        if diff:
+            print(diff)
+    if args.apply and planned and any(not row.get("written") for row in planned):
+        raise SystemExit(1)
+
+
 def cmd_fix_skills(args):
     """Write back Qwen-generated descriptions into SKILL.md files that the
     skills audit flags as missing one. Dry-run by default; --apply writes with
@@ -3743,6 +3760,11 @@ def cmd_review(args):
     argv = [repo]
     if getattr(args, "json", False):
         argv.append("--json")
+    html = getattr(args, "html", None)
+    if html is not None:
+        argv.append("--html")
+        if html:
+            argv.append(html)
     raise SystemExit(review_main(argv))
 
 
@@ -4375,6 +4397,13 @@ def main():
                               help="Path to the repo to review (default: current directory)")
     reporeview_p.add_argument("--json", action="store_true",
                               help="machine-readable result (for scripts/CI)")
+    reporeview_p.add_argument("--html", nargs="?", const="", default=None,
+                              help="Also write a one-page HTML report (default: helicon-review.html)")
+
+    fix_repo_p = sub.add_parser(
+        "fix", help="Rewrite stale paths when one file in the repo has that name (dry-run by default)")
+    fix_repo_p.add_argument("repo", nargs="?", default=".", help="Repo to fix (default: current directory)")
+    fix_repo_p.add_argument("--apply", action="store_true", help="Write the safe fixes (default: dry-run)")
 
     review_p = sub.add_parser("review-queue", help="Fast teach-once review of pending memory items")
     review_p.add_argument("--batch", "-n", type=int, default=5, help="How many to surface (default 5)")
@@ -4813,6 +4842,7 @@ def main():
         "init": cmd_init,
         "scan": cmd_scan,
         "reconcile": cmd_reconcile,
+        "fix": cmd_fix,
         "fix-skills": cmd_fix_skills,
         "serve": cmd_serve,
         "demo": cmd_demo,
@@ -4910,7 +4940,7 @@ def main():
     SELF_CONFIGURING = (
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
         "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
-        "review", "outcomes",
+        "review", "fix", "outcomes",
         "teach",
     )
     has_explicit_bench_db = (

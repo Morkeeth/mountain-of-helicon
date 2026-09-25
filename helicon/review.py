@@ -278,15 +278,24 @@ def main(argv=None) -> int:
     import sys
     args = list(argv if argv is not None else sys.argv[1:])
     as_json = False
+    html_path = None
     if "--json" in args:
         as_json = True
         args.remove("--json")
+    if "--html" in args:
+        i = args.index("--html")
+        args.pop(i)
+        html_path = args.pop(i) if i < len(args) and not args[i].startswith("-") else ""
     repo = os.path.abspath(args[0]) if args else os.getcwd()
     res = review(repo)
     if as_json:
         print(json.dumps(review_summary(repo, res), indent=2))
     else:
         print(format_review(repo, res))
+    if html_path is not None:
+        from helicon.page import write_page
+        dest = html_path or os.path.join(repo, "helicon-review.html")
+        print(f"page: {write_page(repo, review_summary(repo, res), dest)}")
     broken = (res["pointers"]["broken"] + res["commands"]["broken"]
               + res["versions"]["broken"] + res["execution"]["broken"])
     checked = (res["pointers"]["checked"] + res["commands"]["checked"]
