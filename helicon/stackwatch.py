@@ -461,24 +461,17 @@ def output_findings(conn: sqlite3.Connection, since_days: int = 2,
 
 
 def context_findings() -> list[dict]:
-    """Standing context weight vs the measured completion tax."""
-    from helicon.pointers import read_contained, refusal_for
+    """Standing context weight vs the measured completion tax.
+
+    Both files are the user's own standing context. A symlink from
+    ~/.claude/CLAUDE.md into a dotfiles checkout is a normal setup and is read.
+    """
     out = []
-    host_claude = os.path.expanduser("~/.claude/CLAUDE.md")
-    cwd = os.path.abspath(".")
-    local_claude = os.path.join(cwd, "CLAUDE.md")
-    texts = []
-    host_dir = os.path.dirname(host_claude)
-    if os.path.lexists(host_claude) and not refusal_for(host_dir, "CLAUDE.md"):
-        body = read_contained(host_dir, "CLAUDE.md")
-        if body is not None:
-            texts.append((host_claude, body))
-    if os.path.lexists(local_claude) and not refusal_for(cwd, "CLAUDE.md"):
-        body = read_contained(cwd, "CLAUDE.md")
-        if body is not None:
-            texts.append((local_claude, body))
-    for path, raw in texts:
-        chars = len(raw)
+    for path in (os.path.expanduser("~/.claude/CLAUDE.md"),
+                 os.path.abspath("CLAUDE.md")):
+        if not os.path.exists(path):
+            continue
+        chars = len(open(path, encoding="utf-8", errors="replace").read())
         tokens = chars // 4
         if tokens > CONTEXT_BUDGET_TOKENS:
             out.append({"key": f"context|{os.path.abspath(path)}",
