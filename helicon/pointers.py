@@ -334,55 +334,84 @@ def workspace_dirs(repo_root: str) -> tuple[str, ...]:
 
 
 def _package_bases(repo_root: str, learned: tuple[str, ...] = ()) -> list[str]:
-    return list(dict.fromkeys([b for b in (*learned, *workspace_dirs(repo_root)) if b]))
+    """Learned bases first, then workspace packages. A vendored, fixture, bench or
+    dot-directory package is not where this repo keeps its paths, the same guard the
+    suffix rule applies."""
+    ws = [w for w in workspace_dirs(repo_root)
+          if not any(seg in _VENDORED or seg.startswith(".") for seg in w.split("/"))]
+    return list(dict.fromkeys([b for b in (*learned, *ws) if b]))
 
 
-_IGNORE_CACHE: dict[str, list[tuple[str, bool, bool]]] = {}
+_IGNORE_CACHE: dict[str, list[tuple[bool, list[str], bool, bool]]] = {}
 
 
-def _gitignore_rules(repo_root: str) -> list[tuple[str, bool, bool]]:
-    """(pattern, dir_only, anchored) from the repo's root .gitignore. A small parser, not
-    git: a fixture checked in under another repo must be judged by its own .gitignore."""
+def _gitignore_rules(repo_root: str) -> list[tuple[bool, list[str], bool, bool]]:
+    """(negated, segments, dir_only, anchored) from the repo's root .gitignore, in file
+    order. A small parser, not git: a fixture checked in under another repo must be
+    judged by its own .gitignore."""
     root = os.path.abspath(repo_root)
     hit = _IGNORE_CACHE.get(root)
     if hit is not None:
         return hit
-    rules: list[tuple[str, bool, bool]] = []
+    rules: list[tuple[bool, list[str], bool, bool]] = []
     try:
         with open(os.path.join(root, ".gitignore"), encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 pat = line.strip()
-                if not pat or pat.startswith(("#", "!")):
+                if not pat or pat.startswith("#"):
                     continue
+                negated = pat.startswith("!")
+                pat = pat[1:] if negated else pat
                 dir_only = pat.endswith("/")
                 pat = pat.rstrip("/")
-                anchored = pat.startswith("/") or "/" in pat
-                rules.append((pat.lstrip("/"), dir_only, anchored))
+                anchored = "/" in pat
+                segs = [x for x in pat.lstrip("/").split("/") if x]
+                if segs:
+                    rules.append((negated, segs, dir_only, anchored))
     except OSError:
         pass
     _IGNORE_CACHE[root] = rules
     return rules
 
 
+def _segs_match(pat: list[str], path: list[str]) -> bool:
+    """Match path segments against pattern segments. `*` never crosses a `/`;
+    `**` matches any number of segments."""
+    import fnmatch
+    if not pat:
+        return not path
+    if pat[0] == "**":
+        return any(_segs_match(pat[1:], path[i:]) for i in range(len(path) + 1))
+    return bool(path) and fnmatch.fnmatchcase(path[0], pat[0]) and _segs_match(pat[1:], path[1:])
+
+
 def is_gitignored(repo_root: str, rel: str) -> bool:
     """Does the repo's root .gitignore cover *rel* or one of its parent directories?
-    A gitignored path is created on demand; a fresh clone never has it."""
-    import fnmatch
-    rel = rel.strip("/")
-    if not rel:
+    A gitignored path is created on demand; a fresh clone never has it. The last
+    matching rule wins, so `!docs/GONE.md` re-includes a path and keeps it graded."""
+    is_dir = rel.endswith("/")
+    segs = [x for x in rel.strip("/").split("/") if x]
+    if not segs:
         return False
-    segs = rel.split("/")
-    for pat, _dir_only, anchored in _gitignore_rules(repo_root):
+    ignored = False
+    for negated, pat, dir_only, anchored in _gitignore_rules(repo_root):
+        hit = False
         for i in range(1, len(segs) + 1):
-            # A dir-only rule (`.triage/`) also matches the bare name: the doc may
-            # write the directory without its slash, and it is absent either way.
-            prefix = "/".join(segs[:i])
+            # A dir-only rule (`build/`) matches a parent directory, or the target
+            # itself only when the doc writes it as a directory.
+            if dir_only and i == len(segs) and not is_dir:
+                continue
+            prefix = segs[:i]
             if anchored:
-                if fnmatch.fnmatch(prefix, pat):
-                    return True
-            elif fnmatch.fnmatch(segs[i - 1], pat):
-                return True
-    return False
+                hit = _segs_match(pat, prefix)
+            else:
+                hit = len(pat) == 1 and _segs_match(pat, prefix[-1:])
+            if hit:
+                break
+        if hit:
+            ignored = not negated
+    return ignored
+
 
 def _machine_local(tok: str) -> bool:
     """Whether *tok* names a host path rather than a repository path or URL route."""
@@ -621,7 +650,7 @@ def instruction_files(repo_root: str, files: list[str] | None = None,
 
     zod ships CLAUDE.md and .cursorrules as symlinks to AGENTS.md. Graded as three files,
     every finding printed three times and the grade counted each claim three times. Files
-    are deduped by resolved real path. The canonical name is the entry that is not a
+    in the same directory are deduped by resolved real path. The canonical name is the entry that is not a
     symlink (else the first seen); the others are returned as its aliases."""
     if files:
         cands = [f for f in files if os.path.exists(os.path.join(repo_root, f))]
@@ -630,13 +659,17 @@ def instruction_files(repo_root: str, files: list[str] | None = None,
                  if os.path.exists(os.path.join(repo_root, f))]
         if nested:
             cands += nested_instruction_files(repo_root)
-    groups: dict[str, list[str]] = {}
+    # Key on (directory, real file). Paths resolve from the file's own directory, so
+    # one file linked into two directories is two different sets of claims.
+    def key(f: str) -> tuple[str, str]:
+        return (os.path.dirname(f), os.path.realpath(os.path.join(repo_root, f)))
+    groups: dict[tuple[str, str], list[str]] = {}
     for f in cands:
-        groups.setdefault(os.path.realpath(os.path.join(repo_root, f)), []).append(f)
+        groups.setdefault(key(f), []).append(f)
     out: list[str] = []
     aliases: dict[str, list[str]] = {}
     for f in cands:
-        group = groups[os.path.realpath(os.path.join(repo_root, f))]
+        group = groups[key(f)]
         real = [g for g in group if not os.path.islink(os.path.join(repo_root, g))]
         canon = (real or group)[0]
         if canon != f or canon in out:

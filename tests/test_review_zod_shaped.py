@@ -98,3 +98,52 @@ def test_stale_path_still_red_when_monorepo_rules_apply():
     # nowhere, in no package, stays a contradiction.
     repo = _copy()
     assert P._resolve(repo, "core/gone.ts", "", ("packages/zod/src/v4",)) == ("core/gone.ts", False, "")
+
+
+# Independent review findings (grok, 2026-09-25): each is a way a real stale path
+# could have gone green.
+
+def _bare_repo(gitignore: str = "") -> str:
+    d = tempfile.mkdtemp()
+    if gitignore:
+        Path(d, ".gitignore").write_text(gitignore)
+    P._IGNORE_CACHE.clear()
+    return d
+
+
+def test_gitignore_negation_keeps_a_path_graded():
+    d = _bare_repo("*.md\n!docs/GONE.md\n")
+    assert P.is_gitignored(d, "docs/OTHER.md")
+    assert not P.is_gitignored(d, "docs/GONE.md")
+
+
+def test_gitignore_star_does_not_cross_a_slash():
+    d = _bare_repo("docs/*.md\n")
+    assert P.is_gitignored(d, "docs/x.md")
+    assert not P.is_gitignored(d, "docs/api/MISSING.md")
+
+
+def test_gitignore_dir_rule_does_not_cover_a_file_of_that_name():
+    d = _bare_repo("build/\n")
+    assert P.is_gitignored(d, "build/")
+    assert P.is_gitignored(d, "build/out.js")
+    assert not P.is_gitignored(d, "build")
+
+
+def test_vendored_workspace_package_is_not_a_resolution_base():
+    repo = _copy()
+    os.makedirs(os.path.join(repo, "packages/bench/src/core"))
+    Path(repo, "packages/bench/src/core/only-in-bench.ts").write_text("")
+    P._TREE_CACHE.clear()
+    P._WS_CACHE.clear()
+    assert P._resolve(repo, "core/only-in-bench.ts") == ("core/only-in-bench.ts", False, "")
+
+
+def test_one_file_linked_into_two_directories_is_graded_in_both():
+    repo = _copy()
+    os.makedirs(os.path.join(repo, "pkg"))
+    os.symlink("../AGENTS.md", os.path.join(repo, "pkg", "CLAUDE.md"))
+    P._TREE_CACHE.clear()
+    files, aliases = P.instruction_files(repo, ["AGENTS.md", "pkg/CLAUDE.md"])
+    assert files == ["AGENTS.md", "pkg/CLAUDE.md"]
+    assert aliases == {}
