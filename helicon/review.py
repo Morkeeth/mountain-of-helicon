@@ -145,6 +145,12 @@ def format_review(repo_root: str, res: dict) -> str:
                      + _p(f"  — {fact.strip()}", "dim"))
     # Say which base each resolved path matched. A path found under codex-rs/ instead
     # of the file's own directory is a resolution choice the reader should see.
+    # A symlinked instruction file is one file. Say so once, so the reader knows the
+    # rows above are not missing CLAUDE.md or .cursorrules findings.
+    for canon, links in sorted((p.get("aliases") or {}).items()):
+        L.append("    " + _p("·", "dim") + " "
+                 + _p(f"{', '.join(links)} {'is a link' if len(links) == 1 else 'are links'}"
+                      f" to {canon}, graded once", "dim"))
     moved = {b: n for b, n in (p.get("bases") or {}).items() if b != "repo root"}
     if moved:
         desc = ", ".join(f"{b} ×{n}" for b, n in sorted(moved.items(), key=lambda kv: -kv[1]))
@@ -257,6 +263,7 @@ def review_summary(repo_root: str, res: dict) -> dict:
         "checked": checked,
         "clean": broken == 0 and checked > 0,
         "instruction_files": files,
+        "instruction_aliases": res["pointers"].get("aliases") or {},
         "findings": _collect_findings(res),
         "unverified_paths": res["pointers"].get("unverified_paths") or [],
         "pointers": res["pointers"],
