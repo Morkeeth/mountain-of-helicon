@@ -263,6 +263,10 @@ def _source_files(repo: str, limit: int = 4000) -> list[str]:
 
 
 def _read(repo: str, rel: str, cap: int = 400_000) -> str:
+    from helicon.pointers import refusal_for
+    rel_norm = rel.replace(os.sep, "/")
+    if refusal_for(repo, rel_norm):
+        return ""
     try:
         with open(os.path.join(repo, rel), encoding="utf-8", errors="replace") as fh:
             return fh.read(cap)
@@ -1018,19 +1022,21 @@ _DOC_ALIASES: dict = {}
 
 
 def _rule_docs(repo: str) -> list[tuple[str, str]]:
-    """(relative path, text) for every agent-rules file this repo commits."""
-    from helicon.connectors.agent_rules import KNOWN_RULE_FILES, KNOWN_RULE_PATHS
-    from glob import glob
+    """(relative path, text) for every agent-rules file this repo commits.
+
+    A symlink that resolves outside the repo is not opened. Seed listing is
+    doorway._seed_docs, which also refuses to glob through a directory symlink
+    that leaves the repo.
+    """
+    from helicon.doorway import _seed_docs
+    from helicon.pointers import instruction_files, read_contained, refusal_for
+    seeds = [rel for rel in _seed_docs(repo) if not refusal_for(repo, rel)]
+    canon, aliases = instruction_files(repo, files=seeds) if seeds else ([], {})
     out = []
-    for name in KNOWN_RULE_FILES:
-        if os.path.isfile(os.path.join(repo, name)):
-            out.append((name, _read(repo, name)))
-    for rel in KNOWN_RULE_PATHS:
-        if os.path.isfile(os.path.join(repo, rel)):
-            out.append((rel, _read(repo, rel)))
-    for mdc in sorted(glob(os.path.join(repo, ".cursor", "rules", "*.mdc"))):
-        rel = os.path.relpath(mdc, repo)
-        out.append((rel, _read(repo, rel)))
+    for rel in canon:
+        text = read_contained(repo, rel) or ""
+        if text.strip():
+            out.append((rel, text[:400_000]))
     # CLAUDE.md, AGENTS.md and GEMINI.md are routinely the same file under
     # three names (zed ships all three byte-identical; mem0 two). Probing each
     # copy triples one finding and inflates every count that follows — zed's
@@ -1048,9 +1054,12 @@ def _rule_docs(repo: str) -> list[tuple[str, str]]:
         seen[key] = []
         deduped.append((rel, text))
     for rel, text in deduped:
-        aliases = seen[hashlib.sha256(text.encode()).hexdigest()]
-        if aliases:
-            _DOC_ALIASES[(repo, rel)] = aliases
+        merged = list(seen[hashlib.sha256(text.encode()).hexdigest()])
+        for link_name in aliases.get(rel) or []:
+            if link_name not in merged:
+                merged.append(link_name)
+        if merged:
+            _DOC_ALIASES[(repo, rel)] = merged
     return deduped
 
 

@@ -86,16 +86,18 @@ def _split_sections(text: str) -> list[tuple[str, str]]:
 
 
 def _scan_file(repo_name: str, repo_path: str, rel_path: str, agent: str) -> list[ConnectorResult]:
+    from helicon.pointers import read_contained, refusal_for
+    rel_path = rel_path.replace(os.sep, "/")
+    if refusal_for(repo_path, rel_path):
+        return []
+    text = read_contained(repo_path, rel_path)
+    if not text or not text.strip():
+        return []
     full = os.path.join(repo_path, rel_path)
     try:
-        with open(full, encoding="utf-8", errors="replace") as f:
-            text = f.read()
-    except Exception:
-        return []
-    if not text.strip():
-        return []
-
-    created = datetime.fromtimestamp(os.path.getmtime(full)).isoformat()
+        created = datetime.fromtimestamp(os.path.getmtime(full)).isoformat()
+    except OSError:
+        created = datetime.now().isoformat()
     filename = os.path.basename(rel_path)
     results = []
     for heading, body in _split_sections(text):
@@ -118,28 +120,33 @@ def _scan_file(repo_name: str, repo_path: str, rel_path: str, agent: str) -> lis
 
 
 def _scan_repo(repo_path: str) -> list[ConnectorResult]:
+    from helicon.doorway import _seed_docs
+    from helicon.pointers import refusal_for
+
     repo_name = os.path.basename(os.path.normpath(repo_path))
     results = []
 
-    for filename, agent in KNOWN_RULE_FILES.items():
-        if os.path.isfile(os.path.join(repo_path, filename)):
-            results.extend(_scan_file(repo_name, repo_path, filename, agent))
+    for rel in _seed_docs(repo_path):
+        if refusal_for(repo_path, rel):
+            continue
+        agent = KNOWN_RULE_FILES.get(rel) or KNOWN_RULE_PATHS.get(rel) or "cursor"
+        if rel == "CLAUDE.local.md":
+            agent = "claude-code"
+        results.extend(_scan_file(repo_name, repo_path, rel, agent))
 
-    for rel_path, agent in KNOWN_RULE_PATHS.items():
-        if os.path.isfile(os.path.join(repo_path, rel_path)):
-            results.extend(_scan_file(repo_name, repo_path, rel_path, agent))
-
-    # Cursor's current format: .cursor/rules/*.mdc (one file per rule set)
-    for mdc in glob(os.path.join(repo_path, ".cursor", "rules", "*.mdc")):
-        rel = os.path.relpath(mdc, repo_path)
-        results.extend(_scan_file(repo_name, repo_path, rel, "cursor"))
-
-    # Cline can be a directory of rule files
+    # Cline can be a directory of rule files. A symlink that leaves the repo
+    # is not listed. _seed_docs already handled a .clinerules file.
     clinerules_dir = os.path.join(repo_path, ".clinerules")
-    if os.path.isdir(clinerules_dir):
+    if (
+        os.path.isdir(clinerules_dir)
+        and not os.path.islink(clinerules_dir)
+        and not refusal_for(repo_path, ".clinerules")
+    ):
         for rf in glob(os.path.join(clinerules_dir, "*")):
+            rel = os.path.relpath(rf, repo_path).replace(os.sep, "/")
+            if refusal_for(repo_path, rel):
+                continue
             if os.path.isfile(rf):
-                rel = os.path.relpath(rf, repo_path)
                 results.extend(_scan_file(repo_name, repo_path, rel, "cline"))
 
     return results

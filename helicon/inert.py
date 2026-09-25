@@ -95,20 +95,23 @@ def _tokens(sentence: str) -> list[str]:
 
 def _rule_lines(repo: str) -> list[dict]:
     """Every instruction line that states something, with where it came from."""
+    from helicon.pointers import read_contained, refusal_for
     out = []
     for name in RULE_FILES:
         path = os.path.join(repo, name)
-        if not os.path.isfile(path):
+        if not os.path.lexists(path) or refusal_for(repo, name):
             continue
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            for n, raw in enumerate(fh, 1):
-                line = raw.strip()
-                if not line or line.startswith("#"):
-                    continue
-                text = re.sub(r"^(?:[-*+]\s|\d+[.)]\s|>\s)", "", line).strip()
-                if len(text) < 12:
-                    continue
-                out.append({"file": name, "line": n, "rule": text})
+        body = read_contained(repo, name)
+        if not body:
+            continue
+        for n, raw in enumerate(body.splitlines(), 1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            rule = re.sub(r"^(?:[-*+]\s|\d+[.)]\s|>\s)", "", line).strip()
+            if len(rule) < 12:
+                continue
+            out.append({"file": name, "line": n, "rule": rule})
     return out
 
 

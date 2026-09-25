@@ -838,6 +838,65 @@ def _instruction_candidates(repo_root: str, files: list[str] | None,
     return seen
 
 
+REFUSED_SYMLINK_REASON = "refused: symlink resolves outside the repo"
+
+
+def refusal_for(repo_root: str, rel: str) -> dict | None:
+    """The review refusal row when rel resolves outside repo_root, else None.
+
+    Same reason refused_instruction_files reports. The target is not opened.
+    A path that stays inside, including an in-repo symlink, returns None.
+    """
+    rel = (rel or "").strip().replace("\\", "/")
+    if rel.startswith("./"):
+        rel = rel[2:]
+    parts = [p for p in rel.split("/") if p not in ("", ".")]
+    if not parts or os.path.isabs(rel) or any(part == ".." for part in parts):
+        return None
+    rel = "/".join(parts)
+    if _symlink_leaves_repo(repo_root, rel):
+        return {"file": rel, "reason": REFUSED_SYMLINK_REASON}
+    return None
+
+
+def read_contained(repo_root: str, rel: str) -> str | None:
+    """Text of rel when its real path stays inside repo_root, else None.
+
+    An outside symlink is not opened. An in-repo file symlink is read at its
+    target. An in-repo directory symlink is read at the real path inside the
+    repo. Missing and unreadable paths return None.
+    """
+    if refusal_for(repo_root, rel):
+        return None
+    text = read_repo_text(repo_root, rel)
+    if text is not None:
+        return text
+    rel = (rel or "").strip().replace("\\", "/")
+    parts = [p for p in rel.split("/") if p not in ("", ".")]
+    if not parts or any(part == ".." for part in parts):
+        return None
+    root = os.path.realpath(repo_root)
+    candidate = os.path.join(root, *parts)
+    if not os.path.lexists(candidate):
+        return None
+    real = os.path.realpath(candidate)
+    try:
+        inside = os.path.commonpath([root, real]) == root
+    except ValueError:
+        inside = False
+    if not inside:
+        return None
+    resolved = os.path.relpath(real, root).replace(os.sep, "/")
+    if (
+        not resolved
+        or resolved == rel
+        or resolved.startswith("../")
+        or refusal_for(repo_root, resolved)
+    ):
+        return None
+    return read_repo_text(repo_root, resolved)
+
+
 def refused_instruction_files(repo_root: str, files: list[str] | None = None,
                               nested: bool = False) -> list[dict]:
     """Instruction symlinks whose target resolves outside the repo.
@@ -850,7 +909,7 @@ def refused_instruction_files(repo_root: str, files: list[str] | None = None,
         if os.path.islink(path) and _symlink_leaves_repo(repo_root, rel):
             out.append({
                 "file": rel,
-                "reason": "refused: symlink resolves outside the repo",
+                "reason": REFUSED_SYMLINK_REASON,
             })
     return out
 

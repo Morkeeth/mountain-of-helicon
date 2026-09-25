@@ -217,7 +217,16 @@ EVAL_PATH = os.path.join("data", "eval-latest.json")
 
 
 def _read_doc(repo_root: str, name: str) -> str:
-    return open(os.path.join(repo_root, name)).read()
+    from helicon.pointers import read_contained, refusal_for
+    if refusal_for(repo_root, name):
+        return ""
+    text = read_contained(repo_root, name)
+    if text is None:
+        path = os.path.join(repo_root, name)
+        if not os.path.lexists(path):
+            raise FileNotFoundError(path)
+        return ""
+    return text
 
 
 def _dig(blob: dict, path: str):

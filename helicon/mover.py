@@ -39,11 +39,18 @@ def read_items(path: str) -> list[dict]:
                     files.append(os.path.join(root, f))
     elif os.path.isfile(path):
         files = [path]
+    from helicon.pointers import read_contained, refusal_for
     items = []
+    root = path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path))
     for fp in files:
+        rel = os.path.relpath(fp, root).replace(os.sep, "/")
+        if rel.startswith("..") or refusal_for(root, rel):
+            continue
         try:
-            txt = open(fp, errors="ignore").read()
+            txt = read_contained(root, rel)
         except OSError:
+            txt = None
+        if not txt:
             continue
         bullets = [ln.strip()[2:].strip() for ln in txt.splitlines()
                    if ln.strip().startswith(("- ", "* ")) and len(ln.strip()) > 3]
