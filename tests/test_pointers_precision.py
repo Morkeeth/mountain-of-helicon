@@ -175,12 +175,19 @@ def test_bare_extension_is_not_a_path():
     assert _broken(d, "Copy `.env` before starting.") == [".env"]
 
 
-def test_fenced_code_examples_are_not_graded_and_prose_paths_still_are():
+def test_data_fences_are_skipped_and_shell_fences_stay_graded():
     d = _repo({"CLAUDE.md": "x"})
     text = textwrap.dedent("""\
         Format:
         ```json
         { "location": "src/auth.js:45" }
+        ```
+        ```bash
+        python scripts/missing_runner.py --all
+        cat docs/SETUP.md
+        ```
+        ```python
+        open("scripts/missing_helper.py").read()
         ```
         ```tsx
         import('./animation-frames.js')
@@ -201,11 +208,16 @@ def test_fenced_code_examples_are_not_graded_and_prose_paths_still_are():
         ```
         """)
     broken = _broken(d, text)
+    # A data sample is not an instruction.
     assert "src/auth.js" not in broken
-    assert "animation-frames.js" not in broken
-    assert "spec/spec_helper.rb" not in broken
-    assert "spec/examples.txt" not in broken
-    assert "app/index.tsx" not in broken
+    # A stale path inside a shell or source fence is still a miss.
+    assert "scripts/missing_runner.py" in broken
+    assert "docs/SETUP.md" in broken
+    assert "scripts/missing_helper.py" in broken
+    assert "animation-frames.js" in broken
+    assert "spec/spec_helper.rb" in broken
+    assert "spec/examples.txt" in broken
+    assert "app/index.tsx" in broken
     # Same shape in prose, in an untagged fence, and in a markdown fence.
     assert "src/missing.js" in broken
     assert "cli-tool/components/agents/development-team/react-expert.md" in broken

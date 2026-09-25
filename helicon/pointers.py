@@ -253,12 +253,12 @@ _PLACEHOLDER_SEG = re.compile(
     r"FileName|ModuleName|PageName|HookName)$"
 )
 _USE_CASE = re.compile(r"\bUse (?:kebab-case|snake_case|camelCase|PascalCase)\b")
+# Data and format samples. A path inside one is the sample, not an instruction.
+# Shell and source fences stay graded: a stale script inside ```bash is the
+# usual rot in an AGENTS.md. html and css stay graded too; no verified false
+# row in the stars sample sits in those fences.
 _CODE_FENCE_LANGS = {
-    "json", "javascript", "js", "jsx", "ts", "tsx", "typescript",
-    "ruby", "rb", "python", "py", "bash", "sh", "shell", "zsh",
-    "go", "rust", "rs", "java", "css", "html", "xml", "yaml", "yml",
-    "toml", "sql", "vue", "svelte", "php", "c", "cpp", "cs", "kt",
-    "kotlin", "swift", "scss", "less", "graphql",
+    "json", "jsonc", "yaml", "yml", "toml", "xml",
 }
 
 
@@ -289,10 +289,12 @@ def _naming_or_placeholder(tok: str, line: str) -> bool:
 
 
 def _code_example_lines(text: str) -> set[int]:
-    """Line numbers inside a fenced JSON or code example.
+    """Line numbers inside a fenced data or format example.
 
-    An untagged fence and a markdown fence stay graded. Those hold real
-    instruction paths (`review some/file.md`, `.loki/queue/pending.json`).
+    JSON, JSONC, YAML, TOML, and XML are samples of a format. Shell, Python,
+    and other source fences stay graded. An untagged fence and a markdown
+    fence stay graded too. Those hold real instruction paths
+    (`review some/file.md`, `.loki/queue/pending.json`).
     """
     inside = False
     skip = False
