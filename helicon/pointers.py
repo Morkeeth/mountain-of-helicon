@@ -851,15 +851,78 @@ def nested_instruction_files(repo_root: str) -> list[str]:
     return sorted(out)
 
 
+def _instruction_walk_dirs(files: list[str] | None) -> list[str]:
+    """Directories helicon walks while looking for instruction files.
+
+    .cursor and .cursor/rules are the Cursor rule walk. .clinerules is the
+    Cline directory walk, and only when that path is a directory. Parents of
+    the instruction files (so .github for copilot-instructions.md) are the
+    same kind of walk. This is not a list of new instruction file types.
+    """
+    dirs: list[str] = []
+
+    def add(rel: str) -> None:
+        rel = (rel or "").strip().replace("\\", "/").strip("/")
+        if rel and rel not in dirs:
+            dirs.append(rel)
+
+    add(".cursor")
+    add(".cursor/rules")
+    add(".clinerules")
+    sources = list(files) if files else list(DEFAULT_INSTRUCTION_FILES)
+    for rel in sources:
+        parts = [p for p in rel.replace("\\", "/").split("/") if p not in ("", ".")]
+        acc: list[str] = []
+        for part in parts[:-1]:
+            acc.append(part)
+            add("/".join(acc))
+    return dirs
+
+
+def _refused_directory_symlinks(repo_root: str, files: list[str] | None = None) -> list[dict]:
+    """Symlinked instruction directories whose target is outside the repo.
+
+    The refused row names the directory. Nothing inside it is listed or
+    opened. A .clinerules file is not this case: review does not grade that
+    file type. A directory that stays inside the repo is not refused.
+    """
+    out: list[dict] = []
+    blocked: list[str] = []
+    for rel in _instruction_walk_dirs(files):
+        if any(rel == parent or rel.startswith(parent + "/") for parent in blocked):
+            continue
+        path = os.path.join(repo_root, rel)
+        if not os.path.lexists(path) or not os.path.islink(path):
+            continue
+        # Stat the link target only to tell a directory from a file. Do not
+        # list or open anything inside it.
+        if rel == ".clinerules" and not os.path.isdir(path):
+            continue
+        if _symlink_leaves_repo(repo_root, rel):
+            out.append({"file": rel, "reason": REFUSED_SYMLINK_REASON})
+            blocked.append(rel)
+    return out
+
+
+def _blocked_by_refused_dir(rel: str, blocked: list[str]) -> bool:
+    return any(rel == parent or rel.startswith(parent + "/") for parent in blocked)
+
+
 def _instruction_candidates(repo_root: str, files: list[str] | None,
                            nested: bool) -> list[str]:
+    blocked = [row["file"] for row in _refused_directory_symlinks(repo_root, files)]
+
+    def present(rel: str) -> bool:
+        if _blocked_by_refused_dir(rel, blocked):
+            return False
+        return os.path.lexists(os.path.join(repo_root, rel))
+
     if files:
-        cands = [f for f in files if os.path.lexists(os.path.join(repo_root, f))]
+        cands = [f for f in files if present(f)]
     else:
-        cands = [f for f in DEFAULT_INSTRUCTION_FILES
-                 if os.path.lexists(os.path.join(repo_root, f))]
+        cands = [f for f in DEFAULT_INSTRUCTION_FILES if present(f)]
         if nested:
-            cands += nested_instruction_files(repo_root)
+            cands += [f for f in nested_instruction_files(repo_root) if present(f)]
     seen: list[str] = []
     for rel in cands:
         if rel not in seen:
@@ -930,9 +993,12 @@ def refused_instruction_files(repo_root: str, files: list[str] | None = None,
                               nested: bool = False) -> list[dict]:
     """Instruction symlinks whose target resolves outside the repo.
 
-    They are not read. reason contains 'refused' so a review can say so.
+    A symlinked instruction file and a symlinked instruction directory use
+    the same row shape. The directory is refused whole. Nothing inside it
+    is listed or opened. reason contains 'refused' so a review can say so.
     """
     out = []
+    seen: set[str] = set()
     for rel in _instruction_candidates(repo_root, files, nested):
         path = os.path.join(repo_root, rel)
         if os.path.islink(path) and _symlink_leaves_repo(repo_root, rel):
@@ -940,6 +1006,11 @@ def refused_instruction_files(repo_root: str, files: list[str] | None = None,
                 "file": rel,
                 "reason": REFUSED_SYMLINK_REASON,
             })
+            seen.add(rel)
+    for row in _refused_directory_symlinks(repo_root, files):
+        if row["file"] not in seen:
+            out.append(row)
+            seen.add(row["file"])
     return out
 
 
