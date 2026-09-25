@@ -35,7 +35,7 @@ import shlex
 import subprocess
 import sys
 
-from helicon.pointers import _NEGATION, instruction_files
+from helicon.pointers import _NEGATION, instruction_files, read_repo_text
 
 # Per-command verdicts (match probes.py vocabulary).
 UPHELD = "UPHELD"
@@ -174,9 +174,11 @@ def _npm_script_name(toks: list[str]) -> str | None:
 
 def _pkg_script_body(repo_root: str, name: str) -> str | None:
     import json
+    raw = read_repo_text(repo_root, "package.json")
+    if not raw:
+        return None
     try:
-        with open(os.path.join(repo_root, "package.json"), encoding="utf-8") as fh:
-            return (json.load(fh).get("scripts", {}) or {}).get(name)
+        return (json.loads(raw).get("scripts", {}) or {}).get(name)
     except Exception:
         return None
 
@@ -332,11 +334,10 @@ def check_execution(repo_root: str, files: list[str] | None = None, *,
     read_files: list[str] = []
     seen: set[str] = set()
     for rel in targets:
-        try:
-            with open(os.path.join(repo_root, rel), encoding="utf-8", errors="replace") as fh:
-                lines = fh.read().splitlines()
-        except OSError:
+        text = read_repo_text(repo_root, rel)
+        if text is None:
             continue
+        lines = text.splitlines()
         read_files.append(rel)
         for i, line in enumerate(lines, 1):
             for cmd in _claims_in_line(line):

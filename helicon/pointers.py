@@ -34,6 +34,8 @@ import os
 import re
 from dataclasses import dataclass
 
+from helicon.nofollow import SafeOpenError, open_nofollow
+
 # Files that are, by convention, instructions to an agent. Checked when no explicit
 # file list is given.
 DEFAULT_INSTRUCTION_FILES = (
@@ -170,7 +172,7 @@ def _suffix_prefixes(repo_root: str, rel: str) -> list[str]:
     # A fixture or vendored copy is not where this repo keeps the path. Without this
     # guard a stale root pointer goes green because tests/fixtures/ holds a copy.
     out = sorted({e[: -len(tail)] for e in (*dirs, *files) if e.endswith(tail)
-                  and not any(seg in _VENDORED or seg.startswith(".")
+                  and not any(_segment_excluded(seg)
                               for seg in e[: -len(tail)].split("/"))},
                  key=lambda x: (x.count("/"), x))
     return out
@@ -199,7 +201,8 @@ def _has_path_evidence(repo_root: str, rel: str, anchors: tuple[str, ...]) -> bo
     first = segs[0]
     if not _RE_PLAIN_SEGMENT.match(first):
         return False
-    return any(os.path.isdir(os.path.join(repo_root, a, first)) for a in anchors)
+    root = os.path.realpath(repo_root)
+    return any(_is_dir_inside(root, _join(a, first) if a else first) for a in anchors)
 
 
 def _resolve(repo_root: str, raw: str, file_dir: str = "",
@@ -232,7 +235,7 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         name = tok[1:]                                 # `/notebook-review` is a Claude Code command
         for cand in (f".claude/commands/{name}.md", f".claude/skills/{name}/SKILL.md",
                      f".claude/skills/{name}"):
-            if os.path.exists(os.path.join(repo_root, cand)):
+            if _exists(repo_root, cand):
                 return cand, True, BASE_ROOT
         return None                                    # built-in or harness command: not gradable here
     # Host paths are outside the repository population. Record their current host
@@ -246,20 +249,50 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         bases.append((file_dir, f"{BASE_OWN} {file_dir}/"))
     bases.append(("", BASE_ROOT))
     anchors = tuple(dict.fromkeys([file_dir, "", *learned]))
+
+    def placed(base: str) -> str | None:
+        combined = os.path.normpath(os.path.join(base, rel) if base else rel).replace(os.sep, "/")
+        if (not combined or combined in (".", "..") or combined.startswith("../")
+                or os.path.isabs(combined)):
+            return None
+        return combined
+
+    escaped = False
     if "*" in rel or "?" in rel:
         import glob as _glob                            # `contracts/src/FavourEscrowV2*.sol`
+        root = os.path.realpath(repo_root)
         for b, label in bases:
-            if _glob.glob(os.path.join(repo_root, b, rel)):
-                return rel, True, label
+            combined = placed(b)
+            if combined is None:
+                escaped = True
+                continue
+            for hit in _glob.glob(os.path.join(root, *combined.split("/"))):
+                rel_hit = os.path.relpath(hit, root).replace(os.sep, "/")
+                if not rel_hit.startswith("../") and _exists(repo_root, rel_hit):
+                    return rel, True, label
+        if escaped:
+            return rel, False, "outside the repo"
         if not _has_path_evidence(repo_root, rel, anchors):
             return None                                 # `rawResponseItem/*` is an event family
         return rel, False, ""
     for b, label in bases:
-        if _exists(repo_root, _join(b, rel) if b else rel):
+        combined = placed(b)
+        if combined is None:
+            escaped = True
+            continue
+        if _exists(repo_root, combined):
             return rel, True, label
+    if escaped:
+        return rel, False, "outside the repo"
     names, dirs, files = _tree(repo_root)
-    if "/" not in rel:                                 # `campaign-unlock.ts` names a file, not a root path
-        return rel, rel.lower() in names, "basename anywhere in tree"
+    if "/" not in rel:                                 # `config.py` is a root path, not a search
+        if _exists(repo_root, rel):
+            return rel, True, BASE_ROOT
+        hits = [f for f in files if "/" in f and os.path.basename(f).casefold() == rel.casefold()]
+        if hits:
+            hint = sorted(hits, key=lambda f: (f.count("/"), len(f), f))[0]
+            return rel, False, f"deeper {hint}"
+        return rel, False, ""
     if tok.startswith("/") and not rel.lower().endswith(_CODE_EXT):
         # `/api/escrow-v2` is route-shaped: resolved if any directory ends with it, else not gradable
         return (rel, True, "route suffix in tree") if any(
@@ -296,30 +329,29 @@ def workspace_dirs(repo_root: str) -> tuple[str, ...]:
     import glob as _glob
     import json as _json
     pats: list[str] = []
-    try:
-        with open(os.path.join(root, "package.json"), encoding="utf-8") as fh:
-            ws = _json.load(fh).get("workspaces")
-        if isinstance(ws, dict):
-            ws = ws.get("packages")
-        if isinstance(ws, list):
-            pats += [w for w in ws if isinstance(w, str)]
-    except (OSError, ValueError, AttributeError):
-        pass
-    try:
-        with open(os.path.join(root, "pnpm-workspace.yaml"), encoding="utf-8") as fh:
-            in_pkgs = False
-            for line in fh:
-                if re.match(r"^packages\s*:", line):
-                    in_pkgs = True
-                    continue
-                if in_pkgs:
-                    m = re.match(r"^\s+-\s*['\"]?([^'\"#]+?)['\"]?\s*(#.*)?$", line)
-                    if m:
-                        pats.append(m.group(1).strip())
-                    elif line.strip() and not line.startswith((" ", "\t")):
-                        in_pkgs = False
-    except OSError:
-        pass
+    raw = read_repo_text(root, "package.json")
+    if raw:
+        try:
+            ws = _json.loads(raw).get("workspaces")
+            if isinstance(ws, dict):
+                ws = ws.get("packages")
+            if isinstance(ws, list):
+                pats += [w for w in ws if isinstance(w, str)]
+        except (ValueError, AttributeError):
+            pass
+    raw = read_repo_text(root, "pnpm-workspace.yaml")
+    if raw:
+        in_pkgs = False
+        for line in raw.splitlines():
+            if re.match(r"^packages\s*:", line):
+                in_pkgs = True
+                continue
+            if in_pkgs:
+                m = re.match(r"^\s+-\s*['\"]?([^'\"#]+?)['\"]?\s*(#.*)?$", line)
+                if m:
+                    pats.append(m.group(1).strip())
+                elif line.strip() and not line.startswith((" ", "\t")):
+                    in_pkgs = False
     out: list[str] = []
     for pat in pats:
         if pat.startswith("!"):
@@ -338,7 +370,7 @@ def _package_bases(repo_root: str, learned: tuple[str, ...] = ()) -> list[str]:
     dot-directory package is not where this repo keeps its paths, the same guard the
     suffix rule applies."""
     ws = [w for w in workspace_dirs(repo_root)
-          if not any(seg in _VENDORED or seg.startswith(".") for seg in w.split("/"))]
+          if not any(_segment_excluded(seg) for seg in w.split("/"))]
     return list(dict.fromkeys([b for b in (*learned, *ws) if b]))
 
 
@@ -354,22 +386,20 @@ def _gitignore_rules(repo_root: str) -> list[tuple[bool, list[str], bool, bool]]
     if hit is not None:
         return hit
     rules: list[tuple[bool, list[str], bool, bool]] = []
-    try:
-        with open(os.path.join(root, ".gitignore"), encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                pat = line.strip()
-                if not pat or pat.startswith("#"):
-                    continue
-                negated = pat.startswith("!")
-                pat = pat[1:] if negated else pat
-                dir_only = pat.endswith("/")
-                pat = pat.rstrip("/")
-                anchored = "/" in pat
-                segs = [x for x in pat.lstrip("/").split("/") if x]
-                if segs:
-                    rules.append((negated, segs, dir_only, anchored))
-    except OSError:
-        pass
+    text = read_repo_text(root, ".gitignore")
+    if text:
+        for line in text.splitlines():
+            pat = line.strip()
+            if not pat or pat.startswith("#"):
+                continue
+            negated = pat.startswith("!")
+            pat = pat[1:] if negated else pat
+            dir_only = pat.endswith("/")
+            pat = pat.rstrip("/")
+            anchored = "/" in pat
+            segs = [x for x in pat.lstrip("/").split("/") if x]
+            if segs:
+                rules.append((negated, segs, dir_only, anchored))
     _IGNORE_CACHE[root] = rules
     return rules
 
@@ -382,7 +412,7 @@ def _segs_match(pat: list[str], path: list[str]) -> bool:
         return not path
     if pat[0] == "**":
         return any(_segs_match(pat[1:], path[i:]) for i in range(len(path) + 1))
-    return bool(path) and fnmatch.fnmatchcase(path[0], pat[0]) and _segs_match(pat[1:], path[1:])
+    return bool(path) and fnmatch.fnmatchcase(path[0].casefold(), pat[0].casefold()) and _segs_match(pat[1:], path[1:])
 
 
 def is_gitignored(repo_root: str, rel: str) -> bool:
@@ -439,20 +469,120 @@ def _expected_output(line: str, raw: str) -> bool:
     return bool(_WRITE_TARGET.search(prefix))
 
 
+def _stays_inside(root: str, path: str) -> bool:
+    """True when path, after resolving existing parents, is still under root.
+
+    root and path are absolute. The final component is not opened.
+    """
+    root = os.path.realpath(root)
+    parent = os.path.abspath(path)
+    while not os.path.exists(parent):
+        nxt = os.path.dirname(parent)
+        if nxt == parent:
+            break
+        parent = nxt
+    suffix = ""
+    ab = os.path.abspath(path)
+    if ab.startswith(parent):
+        suffix = ab[len(parent):]
+    canon = os.path.realpath(parent) + suffix
+    try:
+        return os.path.commonpath([root, canon]) == root
+    except ValueError:
+        return False
+
+
+def _walk_inside(root: str, rel: str, *, _depth: int = 0) -> str | None:
+    """Absolute path of rel under root, or None if it is missing or leaves root.
+
+    A symlink is followed only when its own target stays inside root. The
+    target file is not opened.
+    """
+    if _depth > 16:
+        return None
+    cur = root
+    parts = [p for p in rel.split("/") if p not in ("", ".")]
+    for i, part in enumerate(parts):
+        if part == "..":
+            return None
+        nxt = os.path.join(cur, part)
+        if not os.path.lexists(nxt):
+            return None
+        if os.path.islink(nxt):
+            raw = os.readlink(nxt)
+            target = os.path.normpath(raw if os.path.isabs(raw) else os.path.join(cur, raw))
+            if not _stays_inside(root, target):
+                return None
+            rest = "/".join(parts[i + 1:])
+            rel_target = os.path.relpath(os.path.abspath(target), root).replace(os.sep, "/")
+            if rel_target.startswith("../"):
+                return None
+            return _walk_inside(root, f"{rel_target}/{rest}" if rest else rel_target, _depth=_depth + 1)
+        cur = nxt
+    return cur
+
+
+def _is_dir_inside(root: str, rel: str) -> bool:
+    found = _walk_inside(root, rel)
+    return bool(found) and os.path.isdir(found)
+
+
 def _exists(repo_root: str, rel: str) -> bool:
     if not rel:
         return False
-    # Kept for direct callers. The repo review classifies host paths before this
-    # function and excludes them from its grade denominator.
+    # Host paths are classified before a repo grade. They are not repo pointers.
     if rel.startswith("~"):
         return os.path.exists(os.path.expanduser(rel))
     if os.path.isabs(rel):
         return os.path.exists(rel)
-    p = os.path.normpath(os.path.join(repo_root, rel))
-    # Stay inside the repo — a pointer that escapes the tree is not a repo pointer.
-    if os.path.commonpath([os.path.abspath(p), os.path.abspath(repo_root)]) != os.path.abspath(repo_root):
-        return os.path.exists(p)  # absolute/parent pointer: grade literally
-    return os.path.exists(p)
+    return _walk_inside(os.path.realpath(repo_root), rel) is not None
+
+
+def _symlink_leaves_repo(repo_root: str, rel: str) -> bool:
+    """True when rel is a symlink whose chain resolves outside repo_root.
+
+    Each hop is read with readlink. The target file is not opened.
+    """
+    root = os.path.realpath(repo_root)
+    path = os.path.join(root, rel)
+    seen: set[str] = set()
+    for _ in range(16):
+        if path in seen:
+            return True
+        seen.add(path)
+        if not os.path.islink(path):
+            return not _stays_inside(root, path)
+        raw = os.readlink(path)
+        path = os.path.normpath(raw if os.path.isabs(raw) else os.path.join(os.path.dirname(path), raw))
+        if not _stays_inside(root, path):
+            return True
+    return True
+
+
+def read_repo_text(repo_root: str, rel: str) -> str | None:
+    """Read a text file that stays inside repo_root.
+
+    A symlink that resolves outside is not read. A symlink that stays inside
+    is read at its in-repo target, so one file linked from a second name is
+    still graded. Returns None when the path cannot be read.
+    """
+    rel = (rel or "").strip().replace("\\", "/").lstrip("/")
+    if not rel or os.path.isabs(rel) or rel == ".." or rel.startswith("../"):
+        return None
+    path = os.path.join(repo_root, rel)
+    if os.path.islink(path):
+        if _symlink_leaves_repo(repo_root, rel):
+            return None
+        root = os.path.realpath(repo_root)
+        target = os.path.realpath(path)
+        rel = os.path.relpath(target, root).replace(os.sep, "/")
+        if not rel or rel.startswith("../"):
+            return None
+    try:
+        with open_nofollow(repo_root, rel) as fh:
+            return fh.read()
+    except (SafeOpenError, OSError, UnicodeDecodeError):
+        return None
 
 
 def _wikilink_resolves(repo_root: str, name: str) -> bool:
@@ -562,6 +692,15 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 )
             return
         target, ok, base = resolved
+        if base == "outside the repo":
+            add(kind, display, target, line_no, line, False,
+                f"{display} resolves outside the repo", base)
+            return
+        if not ok and base.startswith("deeper "):
+            hint = base[len("deeper "):]
+            add(kind, display, target, line_no, line, False,
+                f"{display} is not at the stated path; deeper candidate {hint}", base)
+            return
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,
@@ -629,6 +768,15 @@ _VENDORED = {"vendor", "third_party", "third-party", "node_modules", "site-packa
              # Sample repos: test fixtures and bench repos are broken on purpose
              # (Helicon's own bench/repos/stale-paths/CLAUDE.md is one).
              "fixtures", "testdata", "bench", "benchmarks", "examples", "samples"}
+_VENDORED_CF = frozenset(name.casefold() for name in _VENDORED)
+
+
+def _segment_excluded(seg: str) -> bool:
+    """A vendored, sample, or dot directory is not where this repo keeps its paths.
+
+    The name matches regardless of case, so Vendor/ is the same exclusion as vendor/.
+    """
+    return seg.startswith(".") or seg.casefold() in _VENDORED_CF
 
 
 def nested_instruction_files(repo_root: str) -> list[str]:
@@ -638,10 +786,43 @@ def nested_instruction_files(repo_root: str) -> list[str]:
     for f in files:
         if "/" not in f or os.path.basename(f).lower() not in _NESTED_NAMES:
             continue
-        if any(seg in _VENDORED or seg.startswith(".") for seg in f.split("/")[:-1]):
+        if any(_segment_excluded(seg) for seg in f.split("/")[:-1]):
             continue
         out.append(f)
     return sorted(out)
+
+
+def _instruction_candidates(repo_root: str, files: list[str] | None,
+                           nested: bool) -> list[str]:
+    if files:
+        cands = [f for f in files if os.path.lexists(os.path.join(repo_root, f))]
+    else:
+        cands = [f for f in DEFAULT_INSTRUCTION_FILES
+                 if os.path.lexists(os.path.join(repo_root, f))]
+        if nested:
+            cands += nested_instruction_files(repo_root)
+    seen: list[str] = []
+    for rel in cands:
+        if rel not in seen:
+            seen.append(rel)
+    return seen
+
+
+def refused_instruction_files(repo_root: str, files: list[str] | None = None,
+                              nested: bool = False) -> list[dict]:
+    """Instruction symlinks whose target resolves outside the repo.
+
+    They are not read. reason contains 'refused' so a review can say so.
+    """
+    out = []
+    for rel in _instruction_candidates(repo_root, files, nested):
+        path = os.path.join(repo_root, rel)
+        if os.path.islink(path) and _symlink_leaves_repo(repo_root, rel):
+            out.append({
+                "file": rel,
+                "reason": "refused: symlink resolves outside the repo",
+            })
+    return out
 
 
 def instruction_files(repo_root: str, files: list[str] | None = None,
@@ -651,14 +832,13 @@ def instruction_files(repo_root: str, files: list[str] | None = None,
     zod ships CLAUDE.md and .cursorrules as symlinks to AGENTS.md. Graded as three files,
     every finding printed three times and the grade counted each claim three times. Files
     in the same directory are deduped by resolved real path. The canonical name is the entry that is not a
-    symlink (else the first seen); the others are returned as its aliases."""
-    if files:
-        cands = [f for f in files if os.path.exists(os.path.join(repo_root, f))]
-    else:
-        cands = [f for f in DEFAULT_INSTRUCTION_FILES
-                 if os.path.exists(os.path.join(repo_root, f))]
-        if nested:
-            cands += nested_instruction_files(repo_root)
+    symlink (else the first seen); the others are returned as its aliases.
+
+    A symlink that resolves outside the repo is not a candidate. It is reported
+    by refused_instruction_files and is not read.
+    """
+    refused = {row["file"] for row in refused_instruction_files(repo_root, files, nested)}
+    cands = [f for f in _instruction_candidates(repo_root, files, nested) if f not in refused]
     # Key on (directory, real file). Paths resolve from the file's own directory, so
     # one file linked into two directories is two different sets of claims.
     def key(f: str) -> tuple[str, str]:
@@ -690,15 +870,14 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     green (a repo with no pointers to grade is not the same as a clean repo).
     """
     targets, aliases = instruction_files(repo_root, files, nested=True)
+    refused = refused_instruction_files(repo_root, files, nested=True)
 
     pointers: list[Pointer] = []
     unverified_paths: list[dict] = []
     read_files: list[str] = []
     for rel in targets:
-        try:
-            with open(os.path.join(repo_root, rel), encoding="utf-8", errors="replace") as fh:
-                text = fh.read()
-        except OSError:
+        text = read_repo_text(repo_root, rel)
+        if text is None:
             continue
         read_files.append(rel)
         extracted, unverified = _extract(text, repo_root, os.path.dirname(rel))
@@ -734,6 +913,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
         "unverified_paths": unverified_paths,
         "bases": bases,
         "aliases": aliases,
+        "refused": refused,
     }
 
 
