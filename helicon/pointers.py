@@ -98,12 +98,26 @@ class Pointer:
     base: str = ""     # which directory the path resolved against (own dir / repo root / under X/)
 
 
+def _is_bare_extension(tok: str) -> bool:
+    """`.js` or `.ts` names a kind of file. `.env` is a filename and stays a path."""
+    t = tok.strip()
+    if not re.fullmatch(r"\.[A-Za-z0-9]+", t):
+        return False
+    if t.lower() == ".env":
+        return False
+    return t.lower() in _CODE_EXT
+
+
 def _looks_like_path(tok: str) -> bool:
     tok = tok.strip()
     if not tok or _SCHEME.match(tok):
         return False
     if tok.startswith(("#", "mailto:", "tel:")):
         return False
+    if tok == "process.env":
+        return False                                   # Node member access, not a `.env` file
+    if _is_bare_extension(tok):
+        return False                                   # `.js` / `.tsx` with no stem is not a path
     if not re.search(r"\w", tok):
         return False                                   # `//` is a comment marker, not a path
     if "/" in tok:
@@ -191,7 +205,11 @@ def _has_path_evidence(repo_root: str, rel: str, anchors: tuple[str, ...]) -> bo
         return False
     segs = body.split("/")
     if _RE_FILE_EXT.search(segs[-1]) and "*" not in segs[0]:
-        return True                                    # `.fleet/ACK.jsonl`, `src/protocol/v2.rs`
+        ext = os.path.splitext(segs[-1])[1].lower()
+        # `react-dom/server.node` is an npm package subpath. A real `.node` file
+        # under a directory that exists still counts, via the directory test below.
+        if ext != ".node":
+            return True                                # `.fleet/ACK.jsonl`, `src/protocol/v2.rs`
     if segs[0].startswith(".") and _RE_PLAIN_SEGMENT.match(segs[0]):
         return True                                    # `.github/workflows`: dot-dirs are paths
     if rel.endswith("/") and all(_RE_PLAIN_SEGMENT.match(s) for s in segs):
@@ -200,6 +218,121 @@ def _has_path_evidence(repo_root: str, rel: str, anchors: tuple[str, ...]) -> bo
     if not _RE_PLAIN_SEGMENT.match(first):
         return False
     return any(os.path.isdir(os.path.join(repo_root, a, first)) for a in anchors)
+
+
+def _glob_suffix_base(repo_root: str, rel: str) -> str | None:
+    """Prefix of a non-vendored file whose tail matches *rel* as a glob, or None.
+    Empty string means the glob matches at the repo root. A vendored or dot-directory
+    copy does not count, the same guard the concrete suffix rule uses."""
+    parts = [p for p in rel.rstrip("/").split("/") if p]
+    if not parts:
+        return None
+    _names, _dirs, files = _tree(repo_root)
+    prefixes: list[str] = []
+    for f in files:
+        segs = f.split("/")
+        if len(segs) < len(parts) or not _segs_match(parts, segs[-len(parts):]):
+            continue
+        prefix = segs[:-len(parts)]
+        if any(seg in _VENDORED or seg.startswith(".") for seg in prefix):
+            continue
+        prefixes.append("/".join(prefix))
+    if not prefixes:
+        return None
+    prefixes.sort(key=lambda x: (x.count("/"), x))
+    return prefixes[0]
+
+
+_CASE_STEM = re.compile(
+    r"^(?:kebab-case|snake_case|camelCase|PascalCase|SCREAMING_SNAKE_CASE|"
+    r"UPPER_SNAKE_CASE|TitleCase)$"
+)
+_PLACEHOLDER_SEG = re.compile(
+    r"^(?:agent-name|category-name|component-name|file-name|class-name|module-name|"
+    r"hook-name|page-name|your-name|example-name|placeholder|ComponentName|ClassName|"
+    r"FileName|ModuleName|PageName|HookName)$"
+)
+_USE_CASE = re.compile(r"\bUse (?:kebab-case|snake_case|camelCase|PascalCase)\b")
+_CODE_FENCE_LANGS = {
+    "json", "javascript", "js", "jsx", "ts", "tsx", "typescript",
+    "ruby", "rb", "python", "py", "bash", "sh", "shell", "zsh",
+    "go", "rust", "rs", "java", "css", "html", "xml", "yaml", "yml",
+    "toml", "sql", "vue", "svelte", "php", "c", "cpp", "cs", "kt",
+    "kotlin", "swift", "scss", "less", "graphql",
+}
+
+
+def _stem(part: str) -> str:
+    return part.rsplit(".", 1)[0] if "." in part else part
+
+
+def _naming_or_placeholder(tok: str, line: str) -> bool:
+    """True when *tok* is a naming pattern or a placeholder, not a repo path.
+
+    `kebab-case.js` and `ComponentName/ComponentName.tsx` are the pattern itself.
+    `Use snake_case (`user_profile.py`)` is an illustration, and only when the
+    token has no directory: `src/user_profile.py` on that line is still a path.
+    """
+    body = tok.strip().strip("`").strip("'\"")
+    if not body or " " in body:
+        return False
+    parts = [p for p in body.rstrip("/").split("/") if p]
+    if not parts:
+        return False
+    if any(_PLACEHOLDER_SEG.fullmatch(_stem(p)) for p in parts):
+        return True
+    if _CASE_STEM.fullmatch(_stem(parts[-1])):
+        return True
+    if "/" not in body and _USE_CASE.search(line):
+        return True
+    return False
+
+
+def _code_example_lines(text: str) -> set[int]:
+    """Line numbers inside a fenced JSON or code example.
+
+    An untagged fence and a markdown fence stay graded. Those hold real
+    instruction paths (`review some/file.md`, `.loki/queue/pending.json`).
+    """
+    inside = False
+    skip = False
+    out: set[int] = set()
+    for i, line in enumerate(text.splitlines(), 1):
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            if not inside:
+                info = stripped[3:].strip().split()
+                lang = info[0].lower().split("{", 1)[0] if info else ""
+                skip = lang in _CODE_FENCE_LANGS
+                inside = True
+            else:
+                inside = False
+                skip = False
+            continue
+        if inside and skip:
+            out.add(i)
+    return out
+
+
+def _parent_relative(line: str, raw: str, repo_root: str, file_dir: str,
+                     learned: tuple[str, ...]) -> tuple[str, bool, str] | None:
+    """Resolve a directory listed inside parentheses against a parent directory
+    named earlier on the same line. `src/` (`cli/`, `config/`) means `src/cli`.
+    A child that does not exist under that parent stays unresolved."""
+    child = raw.strip().strip("`").strip("'\"")
+    if not re.fullmatch(r"[\w.-]+/", child):
+        return None
+    pos = line.find(f"`{child}`")
+    if pos < 0:
+        return None
+    before = line[:pos]
+    open_paren = before.rfind("(")
+    if open_paren < 0 or before.rfind(")") > open_paren:
+        return None
+    parents = re.findall(r"`([\w.-]+/)`", line[:open_paren])
+    if not parents:
+        return None
+    return _resolve(repo_root, parents[-1] + child, file_dir, learned)
 
 
 def _resolve(repo_root: str, raw: str, file_dir: str = "",
@@ -224,6 +357,8 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         return None                                    # `//` normalizes to nothing: no target to grade
     if tok.startswith("/*") or tok.endswith("*/"):
         return None                                    # `/*param_name*/` is a code comment
+    if re.search(r"\$[A-Za-z_]", tok):
+        return None                                    # `$SUPERSET_HOME_DIR/plugins/...` is not a repo path
     if tok.startswith("@") and not tok.lower().endswith(_CODE_EXT) and not _exists(repo_root, _norm(tok[1:])):
         return None                                    # `@typescript-eslint/no-explicit-any` is an npm scope
     if _RE_HOSTNAME.match(tok.split("/", 1)[0]) and not tok.split("/", 1)[0].lower().endswith(_CODE_EXT):
@@ -251,6 +386,11 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         for b, label in bases:
             if _glob.glob(os.path.join(repo_root, b, rel)):
                 return rel, True, label
+        suffix = _glob_suffix_base(repo_root, rel)
+        if suffix is not None:
+            where = f"{suffix}/" if suffix else "repo root"
+            # Not "under": that label is learned as an anchor and would grade new tokens.
+            return rel, True, f"glob suffix {where}"
         if not _has_path_evidence(repo_root, rel, anchors):
             return None                                 # `rawResponseItem/*` is an event family
         return rel, False, ""
@@ -562,6 +702,10 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 )
             return
         target, ok, base = resolved
+        if not ok:
+            adopted = _parent_relative(line, raw, repo_root, file_dir, learned)
+            if adopted and adopted[1]:
+                target, ok, base = adopted
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,
@@ -579,7 +723,10 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             f"resolved from {base}" if ok else miss_msg.format(target=target) + f" (tried {tried})",
             base)
 
+    code_lines = _code_example_lines(text)
     for i, line in enumerate(text.splitlines(), 1):
+        if i in code_lines:
+            continue
         for m in _RE_IMPORT.finditer(line):
             raw = m.group(1)
             if _inside_flag(line, m.start()):
@@ -606,6 +753,8 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
         for m in _RE_BACKTICK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and " " not in raw.strip():
+                if _naming_or_placeholder(raw, line):
+                    continue
                 grade_path("BACKTICK", raw, f"`{raw}`", i, line,
                            "path in code font not in repo: {target}")
         # Code spans were graded above; scanning them again as bare prose is how
@@ -616,6 +765,8 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             if _inside_flag(bare_line, m.start()):
                 continue                               # `--out=dist/x.js` is a flag value
             if _looks_like_path(raw) and raw.lower().endswith(_CODE_EXT):
+                if _naming_or_placeholder(raw, line):
+                    continue
                 grade_path("BARE", raw, raw, i, line,
                            "bare path not in repo: {target}")
     return out, unverified
