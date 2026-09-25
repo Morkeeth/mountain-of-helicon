@@ -17,10 +17,9 @@ Run standalone:  python3 -m helicon.versions <repo_root> [instruction_file ...]
 from __future__ import annotations
 
 import json
-import os
 import re
 
-from helicon.pointers import _NEGATION, instruction_files
+from helicon.pointers import _NEGATION, instruction_files, read_repo_text
 
 UPHELD = "UPHELD"
 CONTRADICTED = "CONTRADICTED"
@@ -42,11 +41,7 @@ _RE_NODE = re.compile(r"\bNode(?:\.js|JS)?\s*v?(\d{1,3})\b", re.I)
 
 
 def _read(repo_root: str, rel: str) -> str | None:
-    try:
-        with open(os.path.join(repo_root, rel), encoding="utf-8", errors="replace") as fh:
-            return fh.read()
-    except OSError:
-        return None
+    return read_repo_text(repo_root, rel)
 
 
 def _pkg_json(repo_root: str) -> dict:

@@ -346,9 +346,17 @@ def cmd_fix(args):
 
     Dry run unless --apply is passed. Does not guess among several matches."""
     from helicon.fix import FixApplyError, apply_fixes, format_plan, render_diff
+    from helicon.pointers import refused_instruction_files
 
     repo = os.path.abspath(getattr(args, "repo", None) or ".")
     try:
+        if args.apply:
+            refused = refused_instruction_files(repo, nested=True)
+            if refused:
+                names = ", ".join(row["file"] for row in refused)
+                raise FixApplyError(
+                    f"refusing to rewrite {names}: symlink resolves outside the repo"
+                )
         planned = apply_fixes(repo, apply=bool(args.apply))
     except FixApplyError as exc:
         print(exc, file=sys.stderr)
