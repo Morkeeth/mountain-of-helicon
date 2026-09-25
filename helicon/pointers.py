@@ -53,7 +53,7 @@ _CODE_EXT = (
 _SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*://", re.I)
 
 # Extraction patterns.
-_RE_IMPORT = re.compile(r"(?<![`\w])@([\w./-]+)")
+_RE_IMPORT = re.compile(r"(?<![`\w])@([~\w./-]+)")
 _RE_MDLINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 _RE_WIKILINK = re.compile(r"\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]")
 _RE_BACKTICK = re.compile(r"`([^`\n]+)`")
@@ -443,6 +443,29 @@ def is_gitignored(repo_root: str, rel: str) -> bool:
     return ignored
 
 
+def _import_outside_target(raw: str, file_dir: str) -> str | None:
+    """Lexical @import target when it leaves the repo, else None.
+
+    '~' and a leading '/' are outside without expansion: expanding or stating
+    them would read a host file. A relative target, including one that starts
+    with '../', is outside only after it is joined to the instruction file's
+    directory and normalized. An npm scope has none of these shapes.
+    This function does not expand '~' and does not stat.
+    """
+    tok = raw.strip().strip("'\"")
+    if not tok:
+        return None
+    if tok.startswith("~") or tok.startswith("/") or os.path.isabs(tok):
+        return tok
+    file_dir = file_dir.strip().strip("/")
+    body = tok[2:] if tok.startswith("./") else tok
+    combined = os.path.normpath(os.path.join(file_dir, body) if file_dir else body)
+    combined = combined.replace(os.sep, "/")
+    if combined == ".." or combined.startswith("../") or os.path.isabs(combined):
+        return combined
+    return None
+
+
 def _machine_local(tok: str) -> bool:
     """Whether *tok* names a host path rather than a repository path or URL route."""
     target = tok.strip().strip("'\"")
@@ -725,7 +748,14 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 continue                               # `--conditions=@zod/source` is a flag value
             # An @import is a file. `@typescript-eslint/no-explicit-any` is an npm scope:
             # no extension and nothing on disk → not an import, not graded.
+            # That skip must not hide a target that leaves the repo. Report the
+            # escape first, whatever the extension, and do not stat the outside file.
             if _looks_like_path(raw):
+                outside = _import_outside_target(raw, file_dir)
+                if outside is not None:
+                    add("IMPORT", "@" + raw, outside, i, line, False,
+                        f"@import leaves the repo: {outside}", "outside the repo")
+                    continue
                 r = _resolve(repo_root, raw, file_dir, learned)
                 if r is None or (not r[1] and not raw.lower().endswith(_CODE_EXT)):
                     continue

@@ -7,6 +7,7 @@ a missing local link docs/GUIDE.md, and `../outside/OUT.md`.
 import builtins
 import os
 
+from helicon import doorway
 from helicon import pointers as P
 from helicon.review import format_review, review, review_summary
 
@@ -151,3 +152,156 @@ def test_vendored_exclusion_ignores_case(tmp_path):
     res = P.check_pointers(str(repo))
     assert res["broken"] == 1
     assert any("pkg/src/only.py" in r["raw"] for r in res["receipts"])
+
+
+def _guard_paths(monkeypatch, banned: set[str]):
+    """Record open/stat of banned paths and still perform the real call."""
+    touched: list[str] = []
+    banned_abs = {os.path.abspath(p) for p in banned}
+
+    def _hit(path) -> str | None:
+        if isinstance(path, int):
+            return None
+        try:
+            sp = os.fspath(path)
+        except TypeError:
+            return None
+        if not isinstance(sp, str) or not os.path.isabs(sp):
+            return None
+        ab = os.path.abspath(sp)
+        if ab in banned_abs:
+            return ab
+        return None
+
+    real_stat = os.stat
+    real_lstat = os.lstat
+    real_open = os.open
+    real_builtin = builtins.open
+
+    def guarded_stat(path, *args, **kwargs):
+        hit = _hit(path)
+        if hit:
+            touched.append(hit)
+        return real_stat(path, *args, **kwargs)
+
+    def guarded_lstat(path, *args, **kwargs):
+        hit = _hit(path)
+        if hit:
+            touched.append(hit)
+        return real_lstat(path, *args, **kwargs)
+
+    def guarded_os_open(path, flags, *args, **kwargs):
+        hit = _hit(path)
+        if hit:
+            touched.append(hit)
+        return real_open(path, flags, *args, **kwargs)
+
+    def guarded_builtin(file, *args, **kwargs):
+        hit = _hit(file)
+        if hit:
+            touched.append(hit)
+        return real_builtin(file, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", guarded_stat)
+    monkeypatch.setattr(os, "lstat", guarded_lstat)
+    monkeypatch.setattr(os, "open", guarded_os_open)
+    monkeypatch.setattr(builtins, "open", guarded_builtin)
+    return touched
+
+
+def test_extensionless_parent_import_is_reported(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True)
+    secret = outside / "secret"
+    notes = outside / "notes.md"
+    secret.write_text("SECRET-BODY\n", encoding="utf-8")
+    notes.write_text("NOTES-BODY\n", encoding="utf-8")
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text(
+        "@../outside/secret\n@../outside/notes.md\n",
+        encoding="utf-8",
+    )
+    touched = _guard_paths(monkeypatch, {str(secret), str(notes)})
+    res, out = _review(repo)
+    raws = [r["raw"] for r in res["pointers"]["receipts"]]
+    secret_hit = next(r for r in res["pointers"]["receipts"] if r["raw"] == "@../outside/secret")
+    assert "leaves the repo" in secret_hit["receipt"]
+    assert "@../outside/notes.md" in raws
+    assert "SECRET-BODY" not in out and "NOTES-BODY" not in out
+    assert touched == []
+
+
+def test_tilde_import_is_reported_and_not_read(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    secret = home / "secret"
+    secret_md = home / "secret.md"
+    secret.write_text("TILDE-SECRET\n", encoding="utf-8")
+    secret_md.write_text("TILDE-SECRET-MD\n", encoding="utf-8")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text("@~/secret\n@~/secret.md\n", encoding="utf-8")
+
+    real_expanduser = os.path.expanduser
+
+    def expanduser(path):
+        if isinstance(path, str) and path == "~":
+            return str(home)
+        if isinstance(path, str) and path.startswith("~/"):
+            return str(home / path[2:])
+        return real_expanduser(path)
+
+    monkeypatch.setattr(os.path, "expanduser", expanduser)
+    touched = _guard_paths(monkeypatch, {str(secret), str(secret_md)})
+    res, out = _review(repo)
+    raws = {r["raw"] for r in res["pointers"]["receipts"]}
+    assert "@~/secret" in raws
+    assert "@~/secret.md" in raws
+    for row in res["pointers"]["receipts"]:
+        if row["raw"] in {"@~/secret", "@~/secret.md"}:
+            assert "leaves the repo" in row["receipt"]
+    assert "TILDE-SECRET" not in out
+    load = doorway.repo_load(str(repo))
+    loaded = {d["file"] for d in load["docs"]}
+    assert "CLAUDE.md" in loaded
+    assert not any("secret" in f for f in loaded)
+    assert touched == []
+
+
+def test_relative_import_that_normalizes_outside_is_reported(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True)
+    secret = outside / "secret"
+    secret.write_text("NORM-SECRET\n", encoding="utf-8")
+    (repo / "docs").mkdir(parents=True)
+    (repo / "README.md").write_text("# Readme\n", encoding="utf-8")
+    (repo / "docs" / "CLAUDE.md").write_text(
+        "@../../outside/secret\n@../README.md\n",
+        encoding="utf-8",
+    )
+    touched = _guard_paths(monkeypatch, {str(secret)})
+    res, out = _review(repo)
+    secret_hit = next(r for r in res["pointers"]["receipts"] if "outside/secret" in r["raw"])
+    assert secret_hit["raw"] == "@../../outside/secret"
+    assert "leaves the repo" in secret_hit["receipt"]
+    assert not any(r["raw"] == "@../README.md" for r in res["pointers"]["receipts"])
+    assert "NORM-SECRET" not in out
+    assert touched == []
+
+
+def test_npm_scope_is_not_graded_as_an_import(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "CLAUDE.md").write_text(
+        "Many lint errors (`@typescript-eslint/no-explicit-any`) pre-exist.\n"
+        "Also @typescript-eslint/no-explicit-any in prose.\n",
+        encoding="utf-8",
+    )
+    res, _out = _review(repo)
+    blob = " ".join(r["raw"] for r in res["pointers"]["receipts"])
+    blob += " ".join(g.get("raw", "") for g in res["pointers"]["unverified_paths"])
+    assert "typescript-eslint" not in blob
+    assert "no-explicit-any" not in blob
+    assert res["pointers"]["broken"] == 0
