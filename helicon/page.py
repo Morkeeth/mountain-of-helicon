@@ -5,7 +5,7 @@ import html
 import os
 
 from helicon.fix import plan_fixes
-from helicon.nofollow import SafeOpenError, open_nofollow
+from helicon.nofollow import SafeOpenError, open_nofollow, open_nofollow_leaf
 
 _TIER_RANK = {"version": 0, "command": 1, "pointer": 2, "execution": 3}
 
@@ -181,6 +181,33 @@ class PageWriteError(Exception):
     """The page was not written. The message is one line for the CLI."""
 
 
+def _relative_inside(path: str, root: str) -> str | None:
+    """Repo-relative path when path is lexically inside root, else None.
+
+    path and root are compared as given. Symlinks are not resolved here.
+    """
+    path = os.path.normpath(path)
+    root = os.path.normpath(root)
+    prefix = root.rstrip(os.sep) + os.sep
+    if path.startswith(prefix):
+        return path[len(prefix):]
+    return None
+
+
+def _write_outside(path: str, content: str) -> None:
+    """Write path outside the repo. The parent is the caller's choice.
+
+    The parent is resolved, then the leaf is opened with O_NOFOLLOW so a
+    symlink at the leaf is still refused.
+    """
+    parent = os.path.dirname(path)
+    leaf = os.path.basename(path)
+    parent_real = os.path.realpath(parent)
+    os.makedirs(parent_real, exist_ok=True)
+    with open_nofollow_leaf(parent_real, leaf, write=True) as fh:
+        fh.write(content)
+
+
 def write_page(repo_root: str, summary: dict, path: str, *, default: bool = False) -> str:
     path = os.path.abspath(path)
     content = render_page(repo_root, summary)
@@ -191,12 +218,18 @@ def write_page(repo_root: str, summary: dict, path: str, *, default: bool = Fals
             with open_nofollow(repo_root, "helicon-review.html", write=True) as fh:
                 fh.write(content)
         else:
-            # Walk the caller's path from '/'. A symlink in any component is
-            # refused, including a parent directory. Missing parents are
-            # created only on this explicit path, through the same walk.
-            relative = path[len(os.sep):] if path.startswith(os.sep) else path
-            with open_nofollow(os.sep, relative, write=True, create_parents=True) as fh:
-                fh.write(content)
+            relative = _relative_inside(path, os.path.abspath(repo_root))
+            if relative is None:
+                relative = _relative_inside(path, os.path.realpath(repo_root))
+            if relative is not None:
+                # Lexically inside the repo, including a relative path whose
+                # abspath landed here. A symlink the repo planted is refused.
+                with open_nofollow(
+                    repo_root, relative, write=True, create_parents=True,
+                ) as fh:
+                    fh.write(content)
+            else:
+                _write_outside(path, content)
     except SafeOpenError as exc:
         raise PageWriteError(f"refusing to write {path}: {exc.reason}") from exc
     return path

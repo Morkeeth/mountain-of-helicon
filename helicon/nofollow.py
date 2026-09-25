@@ -91,6 +91,35 @@ def _open_leaf(parent: int, name: str, *, write: bool) -> int:
 
 
 @contextmanager
+def open_nofollow_leaf(directory: str, name: str, *, write: bool = False):
+    """Yield name inside directory. directory is opened as a directory fd.
+
+    name is one component. It is opened with O_NOFOLLOW, so a symlink at
+    name is refused. directory itself is not walked: the caller resolved it.
+    """
+    if not name or name in (".", "..") or "/" in name:
+        raise SafeOpenError("the path is empty")
+    dir_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        leaf_fd = _open_leaf(dir_fd, name, write=write)
+    except Exception:
+        os.close(dir_fd)
+        raise
+    try:
+        fileobj = os.fdopen(leaf_fd, "w" if write else "r", encoding="utf-8")
+    except Exception:
+        os.close(leaf_fd)
+        os.close(dir_fd)
+        raise
+    try:
+        yield fileobj
+    finally:
+        if not fileobj.closed:
+            fileobj.close()
+        os.close(dir_fd)
+
+
+@contextmanager
 def open_nofollow(root: str, relative: str, *, write: bool = False, create_parents: bool = False):
     """Yield a text file for relative under root.
 
