@@ -126,9 +126,11 @@ def format_review(repo_root: str, res: dict) -> str:
             where, _, fact = r["receipt"].partition(" — ")
             # fact reads "<kind desc>: <thing>" — show just the <thing> + "not here".
             thing = fact.rsplit(": ", 1)[-1].strip() if ": " in fact else fact.strip()
+            thing, _, tried = thing.partition(" (tried ")
+            tail = f"  — not in this repo (tried {tried}" if tried else "  — not in this repo"
             L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
                      + "  " + _p(f"{verb} ", "b") + _p(thing, "b", "red")
-                     + _p("  — not in this repo", "dim"))
+                     + _p(tail, "dim"))
 
     if p["broken"]:
         rows(p, "points at")
@@ -141,6 +143,12 @@ def format_review(repo_root: str, res: dict) -> str:
             L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
                      + "  " + _p("declares ", "b") + _p(r["raw"], "b", "red")
                      + _p(f"  — {fact.strip()}", "dim"))
+    # Say which base each resolved path matched. A path found under codex-rs/ instead
+    # of the file's own directory is a resolution choice the reader should see.
+    moved = {b: n for b, n in (p.get("bases") or {}).items() if b != "repo root"}
+    if moved:
+        desc = ", ".join(f"{b} ×{n}" for b, n in sorted(moved.items(), key=lambda kv: -kv[1]))
+        L.append("    " + _p("·", "dim") + " " + _p(f"paths resolved from: {desc}", "dim"))
     if unverified:
         L.append("    " + _p("·", "dim") + " "
                  + _p(f"{len(unverified)} external or generated path"
