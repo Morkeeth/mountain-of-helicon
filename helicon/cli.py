@@ -345,10 +345,14 @@ def cmd_fix(args):
     """Rewrite broken pointers when exactly one file in the repo has that name.
 
     Dry run unless --apply is passed. Does not guess among several matches."""
-    from helicon.fix import apply_fixes, format_plan, render_diff
+    from helicon.fix import FixApplyError, apply_fixes, format_plan, render_diff
 
     repo = os.path.abspath(getattr(args, "repo", None) or ".")
-    planned = apply_fixes(repo, apply=bool(args.apply))
+    try:
+        planned = apply_fixes(repo, apply=bool(args.apply))
+    except FixApplyError as exc:
+        print(exc, file=sys.stderr)
+        raise SystemExit(1)
     print(format_plan(planned, apply=bool(args.apply)))
     if not args.apply:
         diff = render_diff(repo, planned)
