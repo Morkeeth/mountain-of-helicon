@@ -2,6 +2,7 @@
 import os
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -153,6 +154,22 @@ def test_explicit_html_symlink_is_refused(tmp_path, capsys):
     assert "\n" not in error
 
 
+def _spell_through_system_symlink(path: Path) -> Path:
+    """Use the /var or /tmp symlink when path already sits under its target.
+
+    pytest's tmp_path is realpath'd to /private/var on macOS, so a test that
+    uses it directly never walks the /var symlink. tempfile.mkdtemp does.
+    """
+    text = os.path.abspath(path)
+    for link in ("/var", "/tmp"):
+        if not os.path.islink(link):
+            continue
+        real = os.path.realpath(link)
+        if text == real or text.startswith(real + os.sep):
+            return Path(link + text[len(real):])
+    return Path(text)
+
+
 def test_explicit_html_outside_the_repo_is_written(tmp_path):
     repo = _clean_repo(tmp_path)
     dest = tmp_path / "out" / "page.html"
@@ -163,6 +180,36 @@ def test_explicit_html_outside_the_repo_is_written(tmp_path):
     assert dest.is_file()
     assert not dest.is_symlink()
     assert "<!DOCTYPE html>" in dest.read_text()
+
+
+def test_explicit_html_under_tmp_path_is_written(tmp_path):
+    repo = _clean_repo(tmp_path)
+    dest = _spell_through_system_symlink(tmp_path / "out" / "page.html")
+    if os.path.islink("/var"):
+        assert str(dest).startswith("/var" + os.sep)
+
+    code = review_main([str(repo), "--html", str(dest)])
+
+    assert code == 0
+    written = Path(os.path.realpath(dest))
+    assert written.is_file()
+    assert not written.is_symlink()
+    assert "<!DOCTYPE html>" in written.read_text()
+
+
+def test_explicit_html_under_slash_tmp_is_written(tmp_path):
+    repo = _clean_repo(tmp_path)
+    dest = f"/tmp/helicon-review-{os.getpid()}-{uuid.uuid4().hex}.html"
+    try:
+        code = review_main([str(repo), "--html", dest])
+        assert code == 0
+        assert os.path.isfile(dest)
+        assert not os.path.islink(dest)
+        assert "<!DOCTYPE html>" in Path(dest).read_text()
+    finally:
+        if os.path.lexists(dest):
+            os.remove(dest)
+        assert not os.path.lexists(dest)
 
 
 def test_default_html_on_a_clean_repo_is_written_inside_it(tmp_path):
@@ -265,13 +312,13 @@ def test_apply_refuses_a_file_under_a_directory_symlink(tmp_path, capsys, monkey
     assert (repo / "sub").is_symlink()
 
 
-def test_explicit_html_parent_symlink_is_refused(tmp_path, capsys):
+def test_explicit_html_inside_repo_parent_symlink_is_refused(tmp_path, capsys):
     repo = _clean_repo(tmp_path)
     outside = tmp_path / "outside"
     outside.mkdir()
     marker = outside / "keep.txt"
     marker.write_bytes(b"keep\n")
-    link_parent = tmp_path / "via-link"
+    link_parent = repo / "via-link"
     link_parent.symlink_to(outside, target_is_directory=True)
     dest = link_parent / "page.html"
 
@@ -280,6 +327,7 @@ def test_explicit_html_parent_symlink_is_refused(tmp_path, capsys):
     assert code != 0
     assert not (outside / "page.html").exists()
     assert marker.read_bytes() == b"keep\n"
+    assert link_parent.is_symlink()
     error = capsys.readouterr().err.strip()
     assert error
     assert "\n" not in error
