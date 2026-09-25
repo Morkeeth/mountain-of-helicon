@@ -10,8 +10,8 @@ pip install mountain-of-helicon
 helicon review .
 ```
 
-Needs Python 3.10 or newer. A stock Mac ships Python 3.9, and its pip then says only
-`No matching distribution found`. On a Mac, run `brew install python@3.12`, then
+Needs Python 3.10 or newer. On a Mac, the `python3` that Apple's Command Line Tools
+install is 3.9, and its pip then says only `No matching distribution found`. On a Mac, run `brew install python@3.12`, then
 `python3.12 -m pip install mountain-of-helicon`. Or run `uv tool install mountain-of-helicon`,
 which fetches a matching Python for you.
 
