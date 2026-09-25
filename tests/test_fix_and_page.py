@@ -154,44 +154,20 @@ def test_explicit_html_symlink_is_refused(tmp_path, capsys):
     assert "\n" not in error
 
 
-def _spell_through_system_symlink(path: Path) -> Path:
-    """Use the /var or /tmp symlink when path already sits under its target.
-
-    pytest's tmp_path is realpath'd to /private/var on macOS, so a test that
-    uses it directly never walks the /var symlink. tempfile.mkdtemp does.
-    """
-    text = os.path.abspath(path)
-    for link in ("/var", "/tmp"):
-        if not os.path.islink(link):
-            continue
-        real = os.path.realpath(link)
-        if text == real or text.startswith(real + os.sep):
-            return Path(link + text[len(real):])
-    return Path(text)
-
-
-def test_explicit_html_outside_the_repo_is_written(tmp_path):
-    repo = _clean_repo(tmp_path)
-    dest = tmp_path / "out" / "page.html"
-
-    code = review_main([str(repo), "--html", str(dest)])
-
-    assert code == 0
-    assert dest.is_file()
-    assert not dest.is_symlink()
-    assert "<!DOCTYPE html>" in dest.read_text()
-
-
 def test_explicit_html_under_tmp_path_is_written(tmp_path):
+    """An explicit path outside the repo is the user's own choice, so a symlinked
+    parent directory on it is followed. The test builds its own symlinked parent,
+    so it checks the rule on every OS, not only where /var or /tmp is a link."""
     repo = _clean_repo(tmp_path)
-    dest = _spell_through_system_symlink(tmp_path / "out" / "page.html")
-    if os.path.islink("/var"):
-        assert str(dest).startswith("/var" + os.sep)
+    real_dir = tmp_path / "real"
+    real_dir.mkdir()
+    (tmp_path / "linked").symlink_to(real_dir, target_is_directory=True)
+    dest = tmp_path / "linked" / "out" / "page.html"
 
     code = review_main([str(repo), "--html", str(dest)])
 
     assert code == 0
-    written = Path(os.path.realpath(dest))
+    written = real_dir / "out" / "page.html"
     assert written.is_file()
     assert not written.is_symlink()
     assert "<!DOCTYPE html>" in written.read_text()
