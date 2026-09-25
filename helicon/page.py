@@ -1,6 +1,7 @@
 """One HTML page for a human: the grade, the three worst problems, a copyable fix."""
 from __future__ import annotations
 
+import errno
 import html
 import os
 
@@ -176,9 +177,48 @@ def render_page(repo_root: str, summary: dict | None = None, fixes: list[dict] |
 """
 
 
-def write_page(repo_root: str, summary: dict, path: str) -> str:
+class PageWriteError(Exception):
+    """The page was not written. The message is one line for the CLI."""
+
+
+def _refuse_symlink(path: str) -> None:
+    raise PageWriteError(f"refusing to write {path}: it is a symlink")
+
+
+def _open_without_following(path: str) -> int:
+    """Create or truncate path. A symlink at the final component is an error."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
+    try:
+        return os.open(path, flags, 0o644)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP or os.path.islink(path):
+            _refuse_symlink(path)
+        raise
+
+
+def write_page(repo_root: str, summary: dict, path: str, *, default: bool = False) -> str:
     path = os.path.abspath(path)
+    # A cloned repo can commit the default filename as a symlink to a file
+    # outside the repo. Refuse that leaf for every caller, before any write.
+    if os.path.islink(path):
+        _refuse_symlink(path)
+    if default:
+        real_repo = os.path.realpath(repo_root)
+        real_parent = os.path.realpath(os.path.dirname(path))
+        if real_parent != real_repo:
+            raise PageWriteError(
+                f"refusing to write {path}: the default report resolves outside the repo"
+            )
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(render_page(repo_root, summary))
+    if os.path.islink(path):
+        _refuse_symlink(path)
+    content = render_page(repo_root, summary)
+    fd = _open_without_following(path)
+    try:
+        fh = os.fdopen(fd, "w", encoding="utf-8")
+    except Exception:
+        os.close(fd)
+        raise
+    with fh:
+        fh.write(content)
     return path
