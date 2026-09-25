@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 
+from helicon.nofollow import SafeOpenError, open_nofollow
 from helicon.pointers import _VENDORED, _tree, check_pointers
 
 _SKIP_DIRS = _VENDORED | {".git", "node_modules", "__pycache__", ".venv", "venv"}
@@ -63,6 +64,63 @@ def plan_fixes(repo_root: str) -> list[dict]:
     return planned
 
 
+class FixApplyError(Exception):
+    """The rewrite was not written. The message is one line for the CLI."""
+
+
+def _target_rel(repo_root: str, file_rel: str) -> str:
+    """Repo-relative path to read and write.
+
+    When the instruction file itself is a symlink, resolve that link with
+    realpath and keep the target only if it stays inside the repo. A parent
+    directory that is a symlink is not resolved here. The no-follow walk
+    refuses it.
+    """
+    parts = file_rel.split("/") if file_rel else []
+    if not file_rel or os.path.isabs(file_rel) or any(part == ".." for part in parts):
+        raise FixApplyError(f"refusing to rewrite {file_rel}: the path leaves the repo")
+    root = os.path.realpath(repo_root)
+    candidate = os.path.join(root, *parts)
+    if not os.path.islink(candidate):
+        return file_rel
+    target = os.path.realpath(candidate)
+    try:
+        inside = os.path.commonpath([root, target]) == root
+    except ValueError:
+        inside = False
+    rel = os.path.relpath(target, root).replace(os.sep, "/")
+    if (
+        not inside
+        or rel == "."
+        or rel.startswith("../")
+        or any(part == ".." for part in rel.split("/"))
+    ):
+        raise FixApplyError(
+            f"refusing to rewrite {file_rel}: symlink target is outside the repo"
+        )
+    return rel
+
+
+def _read_under(repo_root: str, rel: str, display: str) -> str:
+    try:
+        with open_nofollow(repo_root, rel) as fh:
+            return fh.read()
+    except SafeOpenError as exc:
+        raise FixApplyError(f"refusing to rewrite {display}: {exc.reason}") from exc
+    except OSError as exc:
+        raise FixApplyError(f"refusing to rewrite {display}: {exc.strerror}") from exc
+
+
+def _write_under(repo_root: str, rel: str, display: str, text: str) -> None:
+    try:
+        with open_nofollow(repo_root, rel, write=True) as fh:
+            fh.write(text)
+    except SafeOpenError as exc:
+        raise FixApplyError(f"refusing to rewrite {display}: {exc.reason}") from exc
+    except OSError as exc:
+        raise FixApplyError(f"refusing to rewrite {display}: {exc.strerror}") from exc
+
+
 def _rewrite_line(line: str, raw: str, replacement: str) -> str | None:
     """Replace the pointer token once. None when the line does not contain it exactly once."""
     if not raw or line.count(raw) != 1:
@@ -90,12 +148,15 @@ def apply_fixes(repo_root: str, planned: list[dict] | None = None, apply: bool =
     for row in planned:
         by_file.setdefault(row["file"], []).append(row)
 
+    # Resolve and read every file before the first write, so a refusal
+    # leaves the tree untouched.
+    prepared: list[tuple[str, str, list[dict], list[str]]] = []
     for file_rel, rows in by_file.items():
-        path = os.path.join(repo_root, file_rel)
-        if not os.path.realpath(path).startswith(os.path.realpath(repo_root) + os.sep):
-            continue
-        with open(path, encoding="utf-8") as fh:
-            lines = fh.read().splitlines(keepends=True)
+        rel = _target_rel(repo_root, file_rel)
+        text = _read_under(repo_root, rel, file_rel)
+        prepared.append((file_rel, rel, rows, text.splitlines(keepends=True)))
+
+    for file_rel, rel, rows, lines in prepared:
         for row in rows:
             idx = row["line_no"] - 1
             if idx < 0 or idx >= len(lines):
@@ -115,8 +176,7 @@ def apply_fixes(repo_root: str, planned: list[dict] | None = None, apply: bool =
                 continue
             lines[idx] = updated + newline
             row["written"] = True
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write("".join(lines))
+        _write_under(repo_root, rel, file_rel, "".join(lines))
     return planned
 
 
@@ -128,13 +188,11 @@ def render_diff(repo_root: str, planned: list[dict]) -> str:
     for row in planned:
         by_file.setdefault(row["file"], []).append(row)
     chunks: list[str] = []
-    root_real = os.path.realpath(repo_root)
     for rel, rows in by_file.items():
-        path = os.path.join(repo_root, rel)
-        if not os.path.realpath(path).startswith(root_real + os.sep):
+        try:
+            original = _read_under(repo_root, _target_rel(repo_root, rel), rel)
+        except FixApplyError:
             continue
-        with open(path, encoding="utf-8") as fh:
-            original = fh.read()
         lines = original.splitlines(keepends=True)
         for row in rows:
             idx = row["line_no"] - 1

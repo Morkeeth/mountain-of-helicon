@@ -4,6 +4,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from helicon.fix import apply_fixes, plan_fixes, render_diff
 from helicon.page import render_page
 from helicon.pointers import _TREE_CACHE
@@ -174,6 +176,151 @@ def test_default_html_on_a_clean_repo_is_written_inside_it(tmp_path):
     assert not dest.is_symlink()
     assert dest.resolve().parent == repo.resolve()
     assert "<!DOCTYPE html>" in dest.read_text()
+
+
+def _one_line(capsys) -> str:
+    captured = capsys.readouterr()
+    text = f"{captured.out}{captured.err}".strip()
+    assert text
+    assert "\n" not in text
+    return text
+
+
+def test_apply_refuses_a_symlink_to_a_file_outside_the_repo(tmp_path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    (repo / "notes").mkdir(parents=True)
+    (repo / "notes" / "old.md").write_text("moved\n")
+    outside = tmp_path / "outside.md"
+    original = b"See `docs/old.md` before you edit.\n"
+    outside.write_bytes(original)
+    (repo / "AGENTS.md").symlink_to(outside)
+    _TREE_CACHE.clear()
+
+    monkeypatch.setattr("sys.argv", ["helicon", "fix", "--apply", str(repo)])
+    from helicon.cli import main
+    with pytest.raises(SystemExit) as caught:
+        main()
+    assert caught.value.code not in (0, None)
+    assert "refus" in _one_line(capsys).lower()
+    assert outside.read_bytes() == original
+    assert (repo / "AGENTS.md").is_symlink()
+
+
+def test_apply_rewrites_the_in_repo_target_of_claude_symlink(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    (repo / "notes").mkdir(parents=True)
+    (repo / "notes" / "old.md").write_text("moved\n")
+    (repo / "AGENTS.md").write_text("See `docs/old.md` before you edit.\n")
+    (repo / "CLAUDE.md").symlink_to("AGENTS.md")
+    _TREE_CACHE.clear()
+
+    monkeypatch.setattr("sys.argv", ["helicon", "fix", "--apply", str(repo)])
+    from helicon.cli import main
+    main()
+    assert (repo / "AGENTS.md").read_text() == "See `notes/old.md` before you edit.\n"
+    assert (repo / "CLAUDE.md").is_symlink()
+    assert os.readlink(repo / "CLAUDE.md") == "AGENTS.md"
+
+    # The row can name the symlink. The write still lands on the in-repo target.
+    other = tmp_path / "named-link"
+    (other / "notes").mkdir(parents=True)
+    (other / "notes" / "old.md").write_text("moved\n")
+    (other / "AGENTS.md").write_text("See `docs/old.md` before you edit.\n")
+    (other / "CLAUDE.md").symlink_to("AGENTS.md")
+    _TREE_CACHE.clear()
+    apply_fixes(str(other), planned=[{
+        "file": "CLAUDE.md",
+        "line_no": 1,
+        "raw": "`docs/old.md`",
+        "replacement": "notes/old.md",
+        "line": "",
+    }], apply=True)
+    assert (other / "AGENTS.md").read_text() == "See `notes/old.md` before you edit.\n"
+    assert os.readlink(other / "CLAUDE.md") == "AGENTS.md"
+
+
+def test_apply_refuses_a_file_under_a_directory_symlink(tmp_path, capsys, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    original = b"See `docs/old.md` before you edit.\n"
+    (outside / "AGENTS.md").write_bytes(original)
+    (repo / "sub").symlink_to(outside, target_is_directory=True)
+    _TREE_CACHE.clear()
+    monkeypatch.setattr("helicon.fix.plan_fixes", lambda repo_root: [{
+        "file": "sub/AGENTS.md",
+        "line_no": 1,
+        "raw": "`docs/old.md`",
+        "replacement": "notes/old.md",
+        "line": "",
+    }])
+    monkeypatch.setattr("sys.argv", ["helicon", "fix", "--apply", str(repo)])
+    from helicon.cli import main
+    with pytest.raises(SystemExit) as caught:
+        main()
+    assert caught.value.code not in (0, None)
+    assert "refus" in _one_line(capsys).lower()
+    assert (outside / "AGENTS.md").read_bytes() == original
+    assert (repo / "sub").is_symlink()
+
+
+def test_explicit_html_parent_symlink_is_refused(tmp_path, capsys):
+    repo = _clean_repo(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    marker = outside / "keep.txt"
+    marker.write_bytes(b"keep\n")
+    link_parent = tmp_path / "via-link"
+    link_parent.symlink_to(outside, target_is_directory=True)
+    dest = link_parent / "page.html"
+
+    code = review_main([str(repo), "--html", str(dest)])
+
+    assert code != 0
+    assert not (outside / "page.html").exists()
+    assert marker.read_bytes() == b"keep\n"
+    error = capsys.readouterr().err.strip()
+    assert error
+    assert "\n" not in error
+    assert "refus" in error.lower()
+
+
+def test_swapping_a_parent_after_the_walk_does_not_redirect_the_write(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    sub = repo / "sub"
+    sub.mkdir(parents=True)
+    (sub / "note.txt").write_text("before\n")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "note.txt").write_bytes(b"outside\n")
+
+    import helicon.nofollow as nofollow
+    real_open = os.open
+    swapped = {"done": False}
+
+    def swapping_open(path, flags, *args, **kwargs):
+        fd = real_open(path, flags, *args, **kwargs)
+        if (
+            not swapped["done"]
+            and path == "sub"
+            and kwargs.get("dir_fd") is not None
+            and flags & os.O_DIRECTORY
+        ):
+            swapped["done"] = True
+            os.rename(sub, repo / "sub.real")
+            sub.symlink_to(outside, target_is_directory=True)
+        return fd
+
+    monkeypatch.setattr(nofollow.os, "open", swapping_open)
+    with nofollow.open_nofollow(str(repo), "sub/note.txt", write=True) as fh:
+        fh.write("rewritten\n")
+
+    assert swapped["done"]
+    assert (outside / "note.txt").read_bytes() == b"outside\n"
+    assert not (outside / "note.txt").is_symlink()
+    assert (repo / "sub.real" / "note.txt").read_text() == "rewritten\n"
+    assert (repo / "sub").is_symlink()
 
 
 def test_fix_needs_no_config(capsys, monkeypatch):

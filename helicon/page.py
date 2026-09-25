@@ -1,11 +1,11 @@
 """One HTML page for a human: the grade, the three worst problems, a copyable fix."""
 from __future__ import annotations
 
-import errno
 import html
 import os
 
 from helicon.fix import plan_fixes
+from helicon.nofollow import SafeOpenError, open_nofollow
 
 _TIER_RANK = {"version": 0, "command": 1, "pointer": 2, "execution": 3}
 
@@ -181,44 +181,22 @@ class PageWriteError(Exception):
     """The page was not written. The message is one line for the CLI."""
 
 
-def _refuse_symlink(path: str) -> None:
-    raise PageWriteError(f"refusing to write {path}: it is a symlink")
-
-
-def _open_without_following(path: str) -> int:
-    """Create or truncate path. A symlink at the final component is an error."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW
-    try:
-        return os.open(path, flags, 0o644)
-    except OSError as exc:
-        if exc.errno == errno.ELOOP or os.path.islink(path):
-            _refuse_symlink(path)
-        raise
-
-
 def write_page(repo_root: str, summary: dict, path: str, *, default: bool = False) -> str:
     path = os.path.abspath(path)
-    # A cloned repo can commit the default filename as a symlink to a file
-    # outside the repo. Refuse that leaf for every caller, before any write.
-    if os.path.islink(path):
-        _refuse_symlink(path)
-    if default:
-        real_repo = os.path.realpath(repo_root)
-        real_parent = os.path.realpath(os.path.dirname(path))
-        if real_parent != real_repo:
-            raise PageWriteError(
-                f"refusing to write {path}: the default report resolves outside the repo"
-            )
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    if os.path.islink(path):
-        _refuse_symlink(path)
     content = render_page(repo_root, summary)
-    fd = _open_without_following(path)
     try:
-        fh = os.fdopen(fd, "w", encoding="utf-8")
-    except Exception:
-        os.close(fd)
-        raise
-    with fh:
-        fh.write(content)
+        if default:
+            # The default name is one component under the repo root fd.
+            # realpath on the repo root itself is intentional.
+            with open_nofollow(repo_root, "helicon-review.html", write=True) as fh:
+                fh.write(content)
+        else:
+            # Walk the caller's path from '/'. A symlink in any component is
+            # refused, including a parent directory. Missing parents are
+            # created only on this explicit path, through the same walk.
+            relative = path[len(os.sep):] if path.startswith(os.sep) else path
+            with open_nofollow(os.sep, relative, write=True, create_parents=True) as fh:
+                fh.write(content)
+    except SafeOpenError as exc:
+        raise PageWriteError(f"refusing to write {path}: {exc.reason}") from exc
     return path
