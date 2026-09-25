@@ -846,6 +846,7 @@ def _diff_manifest(repo, base):
     a content hash + observation time (a path+mtime is never proof on its own)."""
     import hashlib
     from helicon.capture import _git
+    from helicon.pointers import refusal_for
     from helicon.taskrun import _now
     files = []
     if base:
@@ -863,7 +864,14 @@ def _diff_manifest(repo, base):
         seen.add(p)
         full = os.path.join(repo, p)
         h = None
-        if os.path.isfile(full):
+        rel = p.replace("\\", "/")
+        leaves = (
+            not rel
+            or rel.startswith("../")
+            or "/../" in f"/{rel}/"
+            or bool(refusal_for(repo, rel))
+        )
+        if not leaves and os.path.isfile(full):
             try:
                 h = hashlib.sha256(open(full, "rb").read()).hexdigest()[:16]
             except OSError:

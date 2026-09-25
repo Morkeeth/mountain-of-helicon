@@ -219,11 +219,28 @@ def _build_supersession(records: list[dict]) -> dict:
     return bans
 
 
-def _read_markdown(fp: str) -> dict | None:
-    try:
-        text = open(fp, encoding="utf-8", errors="replace").read()
-    except OSError:
-        return None
+_INSTRUCTION_BASENAMES = {
+    "CLAUDE.md", "CLAUDE.local.md", "AGENTS.md", "AGENT.md", "GEMINI.md",
+    ".cursorrules", ".clinerules", ".windsurfrules",
+}
+
+
+def _read_markdown(fp: str, root: str | None = None) -> dict | None:
+    from helicon.pointers import read_contained, refusal_for
+    rel = None
+    if root is not None:
+        rel = os.path.relpath(fp, root).replace(os.sep, "/")
+        if rel.startswith("..") or refusal_for(root, rel):
+            return None
+    if rel is not None and os.path.basename(fp) in _INSTRUCTION_BASENAMES:
+        text = read_contained(root, rel)
+        if not text:
+            return None
+    else:
+        try:
+            text = open(fp, encoding="utf-8", errors="replace").read()
+        except OSError:
+            return None
     fm, body, _ = _parse_frontmatter(text)
     try:
         mtime = datetime.fromtimestamp(os.path.getmtime(fp))
@@ -303,20 +320,24 @@ def scan_store(path: str, today: date | None = None, include_archive: bool = Fal
 
     # index file (MEMORY.md / README / AGENTS.md) for orphan context, if present
     index_text = ""
+    from helicon.pointers import read_contained, refusal_for
     for idx_name in ("MEMORY.md", "AGENTS.md", "index.md", "README.md"):
         idxp = os.path.join(base, idx_name)
-        if os.path.isfile(idxp):
-            try:
-                index_text += "\n" + open(idxp, encoding="utf-8", errors="replace").read()
-            except OSError:
-                pass
+        if not os.path.lexists(idxp) or refusal_for(base, idx_name):
+            continue
+        try:
+            text = read_contained(base, idx_name)
+        except OSError:
+            text = None
+        if text:
+            index_text += "\n" + text
 
     # -- load records --
     records: list[dict] = []
     for fp in md_files:
         if os.path.basename(fp) in ("MEMORY.md", "AGENTS.md"):
             continue
-        rec = _read_markdown(fp)
+        rec = _read_markdown(fp, root=base)
         if rec:
             records.append(rec)
     jsonl_records: list[dict] = []
