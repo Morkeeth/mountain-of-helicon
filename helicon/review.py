@@ -293,9 +293,16 @@ def main(argv=None) -> int:
     else:
         print(format_review(repo, res))
     if html_path is not None:
-        from helicon.page import write_page
+        from helicon.page import PageWriteError, write_page
         dest = html_path or os.path.join(repo, "helicon-review.html")
-        print(f"page: {write_page(repo, review_summary(repo, res), dest)}")
+        try:
+            written = write_page(
+                repo, review_summary(repo, res), dest, default=not html_path,
+            )
+        except PageWriteError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        print(f"page: {written}")
     broken = (res["pointers"]["broken"] + res["commands"]["broken"]
               + res["versions"]["broken"] + res["execution"]["broken"])
     checked = (res["pointers"]["checked"] + res["commands"]["checked"]

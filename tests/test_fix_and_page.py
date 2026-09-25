@@ -103,6 +103,79 @@ def test_review_html_writes_a_file(capsys):
     shutil.rmtree(root)
 
 
+def _clean_repo(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "docs" / "SETUP.md").write_text("# setup\n")
+    (repo / "CLAUDE.md").write_text("Read `docs/SETUP.md`.\n")
+    _TREE_CACHE.clear()
+    return repo
+
+
+def test_default_html_refuses_a_symlink_and_leaves_the_outside_file(tmp_path, capsys):
+    repo = _clean_repo(tmp_path)
+    outside = tmp_path / "home" / ".zshrc"
+    outside.parent.mkdir()
+    original = b"# leave this file alone\n"
+    outside.write_bytes(original)
+    link = repo / "helicon-review.html"
+    link.symlink_to(outside)
+
+    code = review_main([str(repo), "--html"])
+
+    captured = capsys.readouterr()
+    assert code != 0
+    assert outside.read_bytes() == original
+    assert link.is_symlink()
+    error = captured.err.strip()
+    assert error
+    assert "\n" not in error
+
+
+def test_explicit_html_symlink_is_refused(tmp_path, capsys):
+    repo = _clean_repo(tmp_path)
+    target = tmp_path / "secret.txt"
+    original = b"do not overwrite\n"
+    target.write_bytes(original)
+    link = tmp_path / "linked.html"
+    link.symlink_to(target)
+
+    code = review_main([str(repo), "--html", str(link)])
+
+    captured = capsys.readouterr()
+    assert code != 0
+    assert target.read_bytes() == original
+    assert link.is_symlink()
+    error = captured.err.strip()
+    assert error
+    assert "\n" not in error
+
+
+def test_explicit_html_outside_the_repo_is_written(tmp_path):
+    repo = _clean_repo(tmp_path)
+    dest = tmp_path / "out" / "page.html"
+
+    code = review_main([str(repo), "--html", str(dest)])
+
+    assert code == 0
+    assert dest.is_file()
+    assert not dest.is_symlink()
+    assert "<!DOCTYPE html>" in dest.read_text()
+
+
+def test_default_html_on_a_clean_repo_is_written_inside_it(tmp_path):
+    repo = _clean_repo(tmp_path)
+
+    code = review_main([str(repo), "--html"])
+
+    dest = repo / "helicon-review.html"
+    assert code == 0
+    assert dest.is_file()
+    assert not dest.is_symlink()
+    assert dest.resolve().parent == repo.resolve()
+    assert "<!DOCTYPE html>" in dest.read_text()
+
+
 def test_fix_needs_no_config(capsys, monkeypatch):
     root = _repo({
         "AGENTS.md": "See `docs/old.md`.\n",
