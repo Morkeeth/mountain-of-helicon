@@ -95,6 +95,7 @@ class Pointer:
     line: str          # the source line, trimmed
     resolved: bool     # did it resolve in the repo
     receipt: str       # why it passed or failed
+    base: str = ""     # which directory the path resolved against (own dir / repo root / under X/)
 
 
 def _looks_like_path(tok: str) -> bool:
@@ -139,14 +140,83 @@ def _tree(repo_root: str) -> tuple[set[str], list[str], list[str]]:
     return _TREE_CACHE[root]
 
 
-def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
-    """Classify a path-shaped token. Returns (target, resolved) or None when the token
-    is not something a repo tree can grade — a slash command that is not a file, an npm
-    scope, a URL route, a hostname, a template. Each skip is a class the 2026-09-03 run on
-    the author's own repos graded as a dead pointer while the thing it named existed."""
+# Where a relative path was found. Recorded on every pointer so a reader can see
+# which directory the check resolved against, not just that it resolved.
+BASE_OWN = "own dir"        # the directory holding the instruction file
+BASE_ROOT = "repo root"     # fallback when the own dir does not have it
+BASE_SUFFIX = "under"       # found as a suffix of a real tree path, e.g. under codex-rs/
+
+# `/*param_name*/` is a Rust/C comment, not a path. Neither is a glob whose first
+# segment is not a plain name.
+_RE_PLAIN_SEGMENT = re.compile(r"^[\w.-]+$")
+_RE_FILE_EXT = re.compile(r"[\w-]\.[A-Za-z][A-Za-z0-9]{0,7}$")
+
+
+def _join(*parts: str) -> str:
+    return "/".join(p.strip("/") for p in parts if p and p.strip("/"))
+
+
+def _suffix_prefixes(repo_root: str, rel: str) -> list[str]:
+    """Tree prefixes P such that P/rel exists. Only multi-segment paths qualify: a
+    single name matching somewhere is the basename rule, not a location."""
+    rel = rel.rstrip("/")
+    if "/" not in rel:
+        return []
+    _names, dirs, files = _tree(repo_root)
+    tail = "/" + rel
+    # A fixture or vendored copy is not where this repo keeps the path. Without this
+    # guard a stale root pointer goes green because tests/fixtures/ holds a copy.
+    out = sorted({e[: -len(tail)] for e in (*dirs, *files) if e.endswith(tail)
+                  and not any(seg in _VENDORED or seg.startswith(".")
+                              for seg in e[: -len(tail)].split("/"))},
+                 key=lambda x: (x.count("/"), x))
+    return out
+
+
+def _has_path_evidence(repo_root: str, rel: str, anchors: tuple[str, ...]) -> bool:
+    """Is an UNRESOLVED slash token a path at all? `thread/read` and `app/list` are
+    RPC method names; `rawResponseItem/*` is an event family. Grade a miss only when
+    the token carries evidence of being a path:
+      - a known code extension (`src/protocol/v2.rs`),
+      - a trailing slash on plain names (`docs/old/`),
+      - its first segment is a real directory under an anchor (the file's own dir,
+        the repo root, or a base another pointer in the same file resolved under).
+    Anchored, never anywhere-in-tree: codex has `codex-rs/tui/src/app`, and an
+    anywhere rule would keep `app/list` red."""
+    body = rel.rstrip("/")
+    if not body:
+        return False
+    segs = body.split("/")
+    if _RE_FILE_EXT.search(segs[-1]) and "*" not in segs[0]:
+        return True                                    # `.fleet/ACK.jsonl`, `src/protocol/v2.rs`
+    if segs[0].startswith(".") and _RE_PLAIN_SEGMENT.match(segs[0]):
+        return True                                    # `.github/workflows`: dot-dirs are paths
+    if rel.endswith("/") and all(_RE_PLAIN_SEGMENT.match(s) for s in segs):
+        return True
+    first = segs[0]
+    if not _RE_PLAIN_SEGMENT.match(first):
+        return False
+    return any(os.path.isdir(os.path.join(repo_root, a, first)) for a in anchors)
+
+
+def _resolve(repo_root: str, raw: str, file_dir: str = "",
+             learned: tuple[str, ...] = ()) -> tuple[str, bool, str] | None:
+    """Classify a path-shaped token. Returns (target, resolved, base) or None when the
+    token is not something a repo tree can grade — a slash command that is not a file,
+    an npm scope, a URL route, a hostname, a template, an RPC name, a comment. Each skip
+    is a class a real run graded as a dead pointer while the thing it named existed.
+
+    Resolution order (2026-09-24, openai/codex false positives):
+      1. the instruction file's own directory,
+      2. the repo root,
+      3. a suffix of a real tree path (`app-server-protocol/src/protocol/v2/` under
+         `codex-rs/`, where the root AGENTS.md says "In the codex-rs folder").
+    `base` names which one matched."""
     tok = raw.strip().strip("'\"")
     if not tok or any(m in tok for m in _PLACEHOLDER):
         return None                                    # `<username>/<feature>` is a template
+    if tok.startswith("/*") or tok.endswith("*/"):
+        return None                                    # `/*param_name*/` is a code comment
     if tok.startswith("@") and not tok.lower().endswith(_CODE_EXT) and not _exists(repo_root, _norm(tok[1:])):
         return None                                    # `@typescript-eslint/no-explicit-any` is an npm scope
     if _RE_HOSTNAME.match(tok.split("/", 1)[0]) and not tok.split("/", 1)[0].lower().endswith(_CODE_EXT):
@@ -156,25 +226,45 @@ def _resolve(repo_root: str, raw: str) -> tuple[str, bool] | None:
         for cand in (f".claude/commands/{name}.md", f".claude/skills/{name}/SKILL.md",
                      f".claude/skills/{name}"):
             if os.path.exists(os.path.join(repo_root, cand)):
-                return cand, True
+                return cand, True, BASE_ROOT
         return None                                    # built-in or harness command: not gradable here
-    rel = _norm(tok)
-    if "*" in rel or "?" in rel:
-        import glob as _glob                            # `contracts/src/FavourEscrowV2*.sol`
-        return rel, bool(_glob.glob(os.path.join(repo_root, rel)))
     # Host paths are outside the repository population. Record their current host
     # status separately, but never let them change the repo grade's denominator.
     if _machine_local(tok):
         return None
-    if _exists(repo_root, rel):
-        return rel, True
+    rel = _norm(tok)
+    file_dir = file_dir.strip("/")
+    bases: list[tuple[str, str]] = []
+    if file_dir:
+        bases.append((file_dir, f"{BASE_OWN} {file_dir}/"))
+    bases.append(("", BASE_ROOT))
+    anchors = tuple(dict.fromkeys([file_dir, "", *learned]))
+    if "*" in rel or "?" in rel:
+        import glob as _glob                            # `contracts/src/FavourEscrowV2*.sol`
+        for b, label in bases:
+            if _glob.glob(os.path.join(repo_root, b, rel)):
+                return rel, True, label
+        if not _has_path_evidence(repo_root, rel, anchors):
+            return None                                 # `rawResponseItem/*` is an event family
+        return rel, False, ""
+    for b, label in bases:
+        if _exists(repo_root, _join(b, rel) if b else rel):
+            return rel, True, label
     names, dirs, files = _tree(repo_root)
     if "/" not in rel:                                 # `campaign-unlock.ts` names a file, not a root path
-        return rel, rel.lower() in names
+        return rel, rel.lower() in names, "basename anywhere in tree"
     if tok.startswith("/") and not rel.lower().endswith(_CODE_EXT):
         # `/api/escrow-v2` is route-shaped: resolved if any directory ends with it, else not gradable
-        return (rel, True) if any(d == rel or d.endswith("/" + rel) for d in dirs) else None
-    return rel, False
+        return (rel, True, "route suffix in tree") if any(
+            d == rel or d.endswith("/" + rel) for d in dirs) else None
+    prefixes = _suffix_prefixes(repo_root, rel)
+    if prefixes:
+        own = [p for p in prefixes if not file_dir or p == file_dir or p.startswith(file_dir + "/")]
+        pick = (own or prefixes)[0]
+        return rel, True, f"{BASE_SUFFIX} {pick}/"
+    if not _has_path_evidence(repo_root, rel, anchors):
+        return None                                    # `thread/read` is an RPC name, not a path
+    return rel, False, ""
 
 
 def _machine_local(tok: str) -> bool:
@@ -236,19 +326,43 @@ def _wikilink_resolves(repo_root: str, name: str) -> bool:
     return False
 
 
-def extract_pointers(text: str, repo_root: str) -> list[Pointer]:
+def extract_pointers(text: str, repo_root: str, file_dir: str = "") -> list[Pointer]:
     """Return only paths that can be graded against this repo or current host."""
-    pointers, _unverified = _extract(text, repo_root)
+    pointers, _unverified = _extract(text, repo_root, file_dir)
     return pointers
 
 
-def extract_unverified_paths(text: str, repo_root: str) -> list[dict]:
+def extract_unverified_paths(text: str, repo_root: str, file_dir: str = "") -> list[dict]:
     """Return absent external and create-on-demand paths excluded from the grade."""
-    _pointers, unverified = _extract(text, repo_root)
+    _pointers, unverified = _extract(text, repo_root, file_dir)
     return unverified
 
 
-def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
+def _learned_bases(text: str, repo_root: str, file_dir: str) -> tuple[str, ...]:
+    """Directories this file's own resolvable paths live under. codex's root AGENTS.md
+    opens "In the codex-rs folder"; its `app-server-protocol/src/protocol/v2/` resolves
+    only under codex-rs/, so codex-rs/ becomes an anchor for the path-evidence test of
+    every other token in the same file (`core/context` then counts as a path, because
+    codex-rs/core is a real directory, and is still graded)."""
+    learned: list[str] = []
+    for line in text.splitlines():
+        toks = [m.group(1) for m in _RE_BACKTICK.finditer(line)]
+        toks += [m.group(1) for m in _RE_MDLINK.finditer(line)]
+        toks += [m.group(1).rstrip(".-") for m in _RE_BARE.finditer(_RE_CODESPAN.sub(" ", line))]
+        for tok in toks:
+            tok = tok.strip()
+            if "/" not in tok or " " in tok or _SCHEME.match(tok):
+                continue
+            r = _resolve(repo_root, tok, file_dir)
+            if r and r[1] and r[2].startswith(BASE_SUFFIX + " ") and r[2].endswith("/"):
+                base = r[2][len(BASE_SUFFIX) + 1:].rstrip("/")
+                if base and base not in learned:
+                    learned.append(base)
+    return tuple(learned)
+
+
+def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointer], list[dict]]:
+    learned = _learned_bases(text, repo_root, file_dir)
     out: list[Pointer] = []
     unverified: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -267,7 +381,8 @@ def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
             "reason": reason,
         })
 
-    def add(kind: str, raw: str, target: str, line_no: int, line: str, resolved: bool, receipt: str):
+    def add(kind: str, raw: str, target: str, line_no: int, line: str, resolved: bool, receipt: str,
+            base: str = ""):
         key = (kind, raw)
         if key in seen:
             return
@@ -280,10 +395,10 @@ def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
             if _NEGATION.search(prose):
                 return
         seen.add(key)
-        out.append(Pointer(kind, raw, target, line_no, line.strip()[:160], resolved, receipt))
+        out.append(Pointer(kind, raw, target, line_no, line.strip()[:160], resolved, receipt, base))
 
     def grade_path(kind: str, raw: str, display: str, line_no: int, line: str, miss_msg: str):
-        resolved = _resolve(repo_root, raw)
+        resolved = _resolve(repo_root, raw, file_dir, learned)
         if resolved is None:
             if _machine_local(raw):
                 host = raw.strip().strip("'\"")
@@ -294,15 +409,17 @@ def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
                     f"external path {state} on this host; repo claim not graded",
                 )
             return
-        target, ok = resolved
+        target, ok, base = resolved
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,
                 "instruction creates this path; pre-run absence not graded",
             )
             return
+        tried = (f"own dir {file_dir}/, repo root" if file_dir else "repo root") + ", tree suffix"
         add(kind, display, target, line_no, line, ok,
-            "resolved" if ok else miss_msg.format(target=target))
+            f"resolved from {base}" if ok else miss_msg.format(target=target) + f" (tried {tried})",
+            base)
 
     for i, line in enumerate(text.splitlines(), 1):
         for m in _RE_IMPORT.finditer(line):
@@ -310,12 +427,12 @@ def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
             # An @import is a file. `@typescript-eslint/no-explicit-any` is an npm scope:
             # no extension and nothing on disk → not an import, not graded.
             if _looks_like_path(raw):
-                r = _resolve(repo_root, raw)
+                r = _resolve(repo_root, raw, file_dir, learned)
                 if r is None or (not r[1] and not raw.lower().endswith(_CODE_EXT)):
                     continue
-                rel, ok = r
+                rel, ok, base = r
                 add("IMPORT", "@" + raw, rel, i, line, ok,
-                    "resolved" if ok else f"@import target not in repo: {rel}")
+                    f"resolved from {base}" if ok else f"@import target not in repo: {rel}", base)
         for m in _RE_MDLINK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and not _SCHEME.match(raw.strip()):
@@ -341,6 +458,29 @@ def _extract(text: str, repo_root: str) -> tuple[list[Pointer], list[dict]]:
     return out, unverified
 
 
+# Directory-scoped instruction files. AGENTS.md and CLAUDE.md apply to the folder that
+# holds them (codex-rs/tui/src/bottom_pane/AGENTS.md), so their paths are relative to
+# that folder. Vendored trees are someone else's instructions.
+_NESTED_NAMES = {"agents.md", "claude.md"}
+_VENDORED = {"vendor", "third_party", "third-party", "node_modules", "site-packages", "dist", "build",
+             # Sample repos: test fixtures and bench repos are broken on purpose
+             # (Helicon's own bench/repos/stale-paths/CLAUDE.md is one).
+             "fixtures", "testdata", "bench", "benchmarks", "examples", "samples"}
+
+
+def nested_instruction_files(repo_root: str) -> list[str]:
+    """AGENTS.md / CLAUDE.md below the repo root, outside vendored trees."""
+    _names, _dirs, files = _tree(repo_root)
+    out = []
+    for f in files:
+        if "/" not in f or os.path.basename(f).lower() not in _NESTED_NAMES:
+            continue
+        if any(seg in _VENDORED or seg.startswith(".") for seg in f.split("/")[:-1]):
+            continue
+        out.append(f)
+    return sorted(out)
+
+
 def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     """Grade every pointer in the repo's instruction files against the live tree.
 
@@ -355,6 +495,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     else:
         targets = [f for f in DEFAULT_INSTRUCTION_FILES
                    if os.path.exists(os.path.join(repo_root, f))]
+        targets += nested_instruction_files(repo_root)
 
     pointers: list[Pointer] = []
     unverified_paths: list[dict] = []
@@ -366,7 +507,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
         except OSError:
             continue
         read_files.append(rel)
-        extracted, unverified = _extract(text, repo_root)
+        extracted, unverified = _extract(text, repo_root, os.path.dirname(rel))
         for p in extracted:
             p.receipt = f"{rel}:{p.line_no} — {p.receipt}"
             pointers.append(p)
@@ -375,6 +516,10 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
             unverified_paths.append(gap)
 
     broken = [p for p in pointers if not p.resolved]
+    bases: dict[str, int] = {}
+    for p in pointers:
+        if p.resolved and p.base:
+            bases[p.base] = bases.get(p.base, 0) + 1
     if not read_files or not pointers:
         verdict = "UNMEASURED"
     else:
@@ -393,6 +538,7 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
             for p in broken
         ],
         "unverified_paths": unverified_paths,
+        "bases": bases,
     }
 
 
