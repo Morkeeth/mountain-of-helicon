@@ -172,13 +172,13 @@ def static_checks(root: Path) -> list[Check]:
             "Package metadata has the ruled name, version, entry point, and source URL",
             (
                 re.search(r'(?m)^name = "mountain-of-helicon"$', pyproject) is not None
-                and re.search(r'(?m)^version = "0\.2\.1"$', pyproject) is not None
+                and re.search(r'(?m)^version = "0\.2\.2"$', pyproject) is not None
                 and re.search(
                     r'(?m)^helicon = "helicon\.cli:main"$', pyproject
                 ) is not None
                 and "https://github.com/Morkeeth/mountain-of-helicon" in pyproject
             ),
-            "mountain-of-helicon 0.2.1 · helicon.cli:main · canonical source URL",
+            "mountain-of-helicon 0.2.2 · helicon.cli:main · canonical source URL",
         ),
         Check(
             "roadmap",

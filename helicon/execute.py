@@ -35,7 +35,7 @@ import shlex
 import subprocess
 import sys
 
-from helicon.pointers import DEFAULT_INSTRUCTION_FILES, _NEGATION
+from helicon.pointers import _NEGATION, instruction_files
 
 # Per-command verdicts (match probes.py vocabulary).
 UPHELD = "UPHELD"
@@ -326,8 +326,7 @@ def check_execution(repo_root: str, files: list[str] | None = None, *,
     execute=False (default) runs NOTHING and reports every found claim UNVERIFIABLE — a
     stranger's repo is never executed without an explicit opt-in.
     """
-    targets = [f for f in (files or DEFAULT_INSTRUCTION_FILES)
-               if os.path.exists(os.path.join(repo_root, f))]
+    targets, _aliases = instruction_files(repo_root, files)
 
     receipts: list[dict] = []
     read_files: list[str] = []
