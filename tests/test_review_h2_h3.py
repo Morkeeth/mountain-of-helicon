@@ -17,6 +17,10 @@ _CASES = Path(
     "/private/tmp/claude-501/-Users-morkeeth/7a280f02-767c-40d2-a4f8-dc5ca75fca8a"
     "/scratchpad/cold-review/cases"
 )
+_CASES2 = Path(
+    "/private/tmp/claude-501/-Users-morkeeth/7a280f02-767c-40d2-a4f8-dc5ca75fca8a"
+    "/scratchpad/cold-review-2/cases"
+)
 
 
 def _fixture(tmp_path):
@@ -365,3 +369,133 @@ def test_in_repo_import_is_scanned_only_for_references_that_leave(tmp_path, monk
                    for r in res["pointers"]["receipts"])
     assert "MARKER_CASE08_HELICON_LEAK" not in out
     assert touched == []
+
+
+def _copy_cursor_dir_symlink(tmp_path):
+    """case09: repo/.cursor -> ../../canary-09/.cursor, which holds the canary."""
+    src = _CASES2 / "case09-cursor-dir-symlink"
+    dest = tmp_path / "case09-cursor-dir-symlink"
+    shutil.copytree(src / "repo", dest / "repo", symlinks=True)
+    shutil.copytree(_CASES2 / "canary-09", tmp_path / "canary-09", symlinks=True)
+    return dest / "repo"
+
+
+def test_symlinked_cursor_directory_is_refused_and_not_read(tmp_path, monkeypatch):
+    repo = _copy_cursor_dir_symlink(tmp_path)
+    canary = tmp_path / "canary-09" / ".cursor" / "rules" / "secret.mdc"
+    assert (repo / ".cursor").is_symlink()
+    assert repo.resolve() not in canary.resolve().parents
+    touched = _guard_paths(monkeypatch, {str(canary)})
+    res, out = _review(repo)
+    blob = out + "\n" + str(res)
+    refused = res["pointers"]["refused"]
+    assert any(row["file"] == ".cursor" and "refused" in row["reason"] for row in refused)
+    assert ".cursor refused" in out
+    assert "CANARY_MARKER_09_CURSOR_DIR" not in blob
+    assert touched == []
+
+
+def test_in_repo_cursor_directory_is_not_refused(tmp_path):
+    repo = tmp_path / "repo"
+    rules = repo / ".cursor" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "style.mdc").write_text(
+        "See `missing/from-cursor.mdc`.\nCANARY_IN_REPO_MDC\n",
+        encoding="utf-8",
+    )
+    (repo / "AGENTS.md").write_text("Config lives in `src/app.py`.\n", encoding="utf-8")
+    (repo / "src").mkdir()
+    (repo / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    res, out = _review(repo)
+    assert res["pointers"]["refused"] == []
+    assert "AGENTS.md" in res["pointers"]["files"]
+    assert res["pointers"]["broken"] == 0
+    assert ".cursor/rules/style.mdc" not in res["pointers"]["files"]
+    assert "missing/from-cursor.mdc" not in out
+    assert "CANARY_IN_REPO_MDC" not in out
+
+
+def test_symlinked_cursor_rules_directory_is_refused_and_not_read(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    canary = outside / "secret.mdc"
+    canary.write_text("CANARY_CURSOR_RULES_DIR\nSee `missing-rules.md`.\n", encoding="utf-8")
+    (repo / ".cursor").mkdir(parents=True)
+    (repo / ".cursor" / "rules").symlink_to(outside, target_is_directory=True)
+    (repo / "AGENTS.md").write_text("# ok\n", encoding="utf-8")
+    touched = _guard_paths(monkeypatch, {str(canary)})
+    res, out = _review(repo)
+    refused = res["pointers"]["refused"]
+    assert any(row["file"] == ".cursor/rules" and "refused" in row["reason"] for row in refused)
+    assert ".cursor/rules refused" in out
+    assert ".cursor" not in {row["file"] for row in refused}
+    assert "CANARY_CURSOR_RULES_DIR" not in out
+    assert "missing-rules.md" not in out
+    assert touched == []
+
+
+def test_symlinked_github_directory_is_refused_and_not_read(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside-gh"
+    (outside).mkdir()
+    canary = outside / "copilot-instructions.md"
+    canary.write_text("CANARY_GITHUB_DIR\nSee `missing-copilot.py`.\n", encoding="utf-8")
+    repo.mkdir()
+    (repo / ".github").symlink_to(outside, target_is_directory=True)
+    (repo / "AGENTS.md").write_text("# ok\n", encoding="utf-8")
+    touched = _guard_paths(monkeypatch, {str(canary)})
+    res, out = _review(repo)
+    refused = res["pointers"]["refused"]
+    assert any(row["file"] == ".github" and "refused" in row["reason"] for row in refused)
+    assert ".github refused" in out
+    assert ".github/copilot-instructions.md" not in res["pointers"]["files"]
+    assert "CANARY_GITHUB_DIR" not in out
+    assert "missing-copilot.py" not in out
+    assert touched == []
+
+
+def test_in_repo_github_instructions_still_grade(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".github").mkdir(parents=True)
+    (repo / ".github" / "copilot-instructions.md").write_text(
+        "See `src/app.py`.\n", encoding="utf-8",
+    )
+    (repo / "src").mkdir()
+    (repo / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    res, _out = _review(repo)
+    assert res["pointers"]["refused"] == []
+    assert ".github/copilot-instructions.md" in res["pointers"]["files"]
+    assert res["pointers"]["broken"] == 0
+
+
+def test_symlinked_clinerules_directory_is_refused_and_not_read(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside-cline"
+    outside.mkdir()
+    canary = outside / "rule.md"
+    canary.write_text("CANARY_CLINE_DIR\nSee `missing-cline.md`.\n", encoding="utf-8")
+    repo.mkdir()
+    (repo / ".clinerules").symlink_to(outside, target_is_directory=True)
+    (repo / "AGENTS.md").write_text("# ok\n", encoding="utf-8")
+    touched = _guard_paths(monkeypatch, {str(canary)})
+    res, out = _review(repo)
+    refused = res["pointers"]["refused"]
+    assert any(row["file"] == ".clinerules" and "refused" in row["reason"] for row in refused)
+    assert ".clinerules refused" in out
+    assert "CANARY_CLINE_DIR" not in out
+    assert "missing-cline.md" not in out
+    assert ".clinerules" not in res["pointers"]["files"]
+    assert touched == []
+
+
+def test_clinerules_file_is_not_a_review_instruction_type(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".clinerules").write_text("See `missing-cline.py`.\nCLINE_FILE_BODY\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("# ok\n", encoding="utf-8")
+    res, out = _review(repo)
+    assert res["pointers"]["refused"] == []
+    assert ".clinerules" not in res["pointers"]["files"]
+    assert "missing-cline.py" not in out
+    assert "CLINE_FILE_BODY" not in out
