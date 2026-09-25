@@ -1,7 +1,7 @@
 """Every release script, CI artifact name and served version matches pyproject.toml.
 
-0.2.3 was first staged with three release scripts still naming 0.2.2. The package
-tests passed, because none of them read the scripts that build and check the release.
+A release was once staged with three release scripts still naming the previous
+version. The package tests passed, because none of them read the scripts that build and check the release.
 """
 from __future__ import annotations
 
