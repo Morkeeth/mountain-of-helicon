@@ -391,3 +391,23 @@ def test_self_configuring_commands_are_declared():
     from helicon import cli
     src = inspect.getsource(cli.main)
     assert '"ci"' in src.split("SELF_CONFIGURING")[1].split(")")[0]
+
+
+def test_context_findings_reads_a_dotfiles_symlink(tmp_path, monkeypatch):
+    """~/.claude/CLAUDE.md often points at a dotfiles checkout. That file is the
+    user's own config, and helicon stack reads it on purpose."""
+    import os
+    from helicon.stackwatch import context_findings
+
+    home = tmp_path / "home"
+    dotfiles = tmp_path / "dotfiles"
+    (home / ".claude").mkdir(parents=True)
+    dotfiles.mkdir()
+    target = dotfiles / "CLAUDE.md"
+    target.write_text("x" * 25000, encoding="utf-8")
+    link = home / ".claude" / "CLAUDE.md"
+    link.symlink_to("../../dotfiles/CLAUDE.md")
+    monkeypatch.setenv("HOME", str(home))
+    got = context_findings()
+    assert any(item["key"].endswith("/.claude/CLAUDE.md") for item in got)
+    assert any("25,000 chars" in item["evidence"] for item in got)

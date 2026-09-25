@@ -6,10 +6,17 @@ a missing local link docs/GUIDE.md, and `../outside/OUT.md`.
 """
 import builtins
 import os
+import shutil
+from pathlib import Path
 
 from helicon import doorway
 from helicon import pointers as P
 from helicon.review import format_review, review, review_summary
+
+_CASES = Path(
+    "/private/tmp/claude-501/-Users-morkeeth/7a280f02-767c-40d2-a4f8-dc5ca75fca8a"
+    "/scratchpad/cold-review/cases"
+)
 
 
 def _fixture(tmp_path):
@@ -305,3 +312,56 @@ def test_npm_scope_is_not_graded_as_an_import(tmp_path):
     assert "typescript-eslint" not in blob
     assert "no-explicit-any" not in blob
     assert res["pointers"]["broken"] == 0
+
+
+def _copy_case(tmp_path, name):
+    src = _CASES / name
+    dest = tmp_path / name
+    shutil.copytree(src / "repo", dest / "repo", symlinks=True)
+    shutil.copytree(src / "canary", dest / "canary", symlinks=True)
+    return dest / "repo", dest / "canary"
+
+
+def test_negated_line_still_reports_a_reference_that_leaves_the_repo(tmp_path, monkeypatch):
+    repo, canary = _copy_case(tmp_path, "case16-negation")
+    secret = canary / "no.md"
+    touched = _guard_paths(monkeypatch, {str(secret)})
+    res, out = _review(repo)
+    hit = next(r for r in res["pointers"]["receipts"] if "canary/no.md" in r["raw"])
+    assert "outside" in hit["receipt"]
+    assert "MARKER_CASE16_HELICON_LEAK" not in out
+    assert touched == []
+
+
+def test_hostname_with_parent_segments_is_reported_when_it_leaves_the_repo(tmp_path, monkeypatch):
+    repo, canary = _copy_case(tmp_path, "case15-hostname")
+    secret = canary / "h.md"
+    touched = _guard_paths(monkeypatch, {str(secret)})
+    res, out = _review(repo)
+    hit = next(
+        r for r in res["pointers"]["receipts"]
+        if "evil.example.com" in r["raw"] or "canary/h.md" in r["raw"]
+    )
+    assert "outside" in hit["receipt"]
+    assert "MARKER_CASE15_HELICON_LEAK" not in out
+    assert touched == []
+
+
+def test_in_repo_import_is_scanned_only_for_references_that_leave(tmp_path, monkeypatch):
+    repo, canary = _copy_case(tmp_path, "case08-import-chain")
+    helper = repo / "docs" / "helper.md"
+    helper.write_text(
+        helper.read_text(encoding="utf-8").rstrip("\n")
+        + "\nSee `docs/not-here.md` for the local note.\n",
+        encoding="utf-8",
+    )
+    secret = canary / "hidden.md"
+    touched = _guard_paths(monkeypatch, {str(secret)})
+    res, out = _review(repo)
+    hit = next(r for r in res["pointers"]["receipts"] if "canary/hidden.md" in r["raw"])
+    assert "helper.md:" in hit["receipt"]
+    assert "outside" in hit["receipt"]
+    assert not any("not-here.md" in r["raw"] or "not-here.md" in r["receipt"]
+                   for r in res["pointers"]["receipts"])
+    assert "MARKER_CASE08_HELICON_LEAK" not in out
+    assert touched == []

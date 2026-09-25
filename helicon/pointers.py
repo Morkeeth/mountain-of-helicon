@@ -229,6 +229,12 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         return None                                    # `/*param_name*/` is a code comment
     if tok.startswith("@") and not tok.lower().endswith(_CODE_EXT) and not _exists(repo_root, _norm(tok[1:])):
         return None                                    # `@typescript-eslint/no-explicit-any` is an npm scope
+    # `evil.example.com/../../../canary/h.md` matches a hostname and would be
+    # dropped before the escape is noticed. A `..` segment that normalizes
+    # outside the repo is reported first.
+    outside = _lexical_escape(tok, file_dir)
+    if outside is not None:
+        return outside, False, "outside the repo"
     if _RE_HOSTNAME.match(tok.split("/", 1)[0]) and not tok.split("/", 1)[0].lower().endswith(_CODE_EXT):
         return None                                    # relay.vercel.app/api/… is a URL
     if _RE_SLASH_COMMAND.match(tok):
@@ -466,6 +472,21 @@ def _import_outside_target(raw: str, file_dir: str) -> str | None:
     return None
 
 
+def _lexical_escape(token: str, file_dir: str = "") -> str | None:
+    """Relative token with a `..` segment that normalizes outside the repo.
+
+    '~' and an absolute path are host paths, handled elsewhere. This does not stat.
+    """
+    tok = (token or "").strip().strip("'\"`")
+    if tok.startswith("@"):
+        tok = tok[1:]
+    if not tok or tok.startswith("~") or os.path.isabs(tok):
+        return None
+    if ".." not in tok.replace("\\", "/").split("/"):
+        return None
+    return _import_outside_target(tok, file_dir)
+
+
 def _machine_local(tok: str) -> bool:
     """Whether *tok* names a host path rather than a repository path or URL route."""
     target = tok.strip().strip("'\"")
@@ -695,10 +716,18 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
         # a resolved pointer on a negating line is still a real, present path. Check the
         # negation in the PROSE AROUND the pointer, not the pointer itself: a file named
         # `missing.yml` or a note `[[Missing Note]]` must not self-trigger the guard.
+        # A reference that leaves the repo is reported even on a negating line.
+        # "We never use `../canary/no.md` anymore" still leaves.
         if not resolved:
-            prose = line.replace(raw, " ").replace(target, " ")
-            if _NEGATION.search(prose):
-                return
+            leaves = (
+                base == "outside the repo"
+                or _lexical_escape(target, file_dir) is not None
+                or _lexical_escape(raw, file_dir) is not None
+            )
+            if not leaves:
+                prose = line.replace(raw, " ").replace(target, " ")
+                if _NEGATION.search(prose):
+                    return
         seen.add(key)
         out.append(Pointer(kind, raw, target, line_no, line.strip()[:160], resolved, receipt, base))
 
@@ -950,6 +979,79 @@ def instruction_files(repo_root: str, files: list[str] | None = None,
     return out, aliases
 
 
+def _read_in_repo_import(repo_root: str, token: str, file_dir: str) -> tuple[str, str] | None:
+    """Text of an @import target that stays inside the repo, read contained.
+
+    A target that leaves the repo is not opened. Returns (relative path, text).
+    """
+    tok = token.strip().strip("'\"")
+    if tok.startswith("@"):
+        tok = tok[1:]
+    if not tok or _lexical_escape(tok, file_dir) is not None:
+        return None
+    if _import_outside_target(tok, file_dir) is not None:
+        return None
+    file_dir = file_dir.strip().strip("/")
+    body = tok[2:] if tok.startswith("./") else tok
+    cands: list[str] = []
+    if file_dir:
+        cands.append(os.path.normpath(os.path.join(file_dir, body)).replace(os.sep, "/"))
+    cands.append(os.path.normpath(body).replace(os.sep, "/"))
+    tried: set[str] = set()
+    for cand in cands:
+        if cand in tried:
+            continue
+        tried.add(cand)
+        if (
+            not cand
+            or cand in (".", "..")
+            or cand.startswith("../")
+            or os.path.isabs(cand)
+            or any(part == ".." for part in cand.split("/"))
+        ):
+            continue
+        text = read_contained(repo_root, cand)
+        if text is None:
+            continue
+        return cand, text
+    return None
+
+
+def _outward_import_pointers(repo_root: str, extracted: list[Pointer], file_dir: str,
+                             skip: set[str], seen: set[str]) -> list[Pointer]:
+    """References that leave the repo, found inside an in-repo @import.
+
+    One level. Ordinary in-repo pointers in the imported file are not graded,
+    so a helper that names a local file does not change the repo grade.
+    The receipt cites the imported file and line.
+    """
+    out: list[Pointer] = []
+    for p in extracted:
+        if p.kind != "IMPORT" or not p.resolved:
+            continue
+        tok = p.raw[1:] if p.raw.startswith("@") else p.target
+        found = _read_in_repo_import(repo_root, tok, file_dir)
+        if found is None:
+            continue
+        imp, body = found
+        if imp in skip or imp in seen:
+            continue
+        seen.add(imp)
+        imp_dir = os.path.dirname(imp)
+        sub, _unverified = _extract(body, repo_root, imp_dir)
+        for sp in sub:
+            leaves = (
+                sp.base == "outside the repo"
+                or _lexical_escape(sp.target, imp_dir) is not None
+                or _lexical_escape(sp.raw, imp_dir) is not None
+            )
+            if not leaves:
+                continue
+            sp.receipt = f"{imp}:{sp.line_no} — {sp.receipt}"
+            out.append(sp)
+    return out
+
+
 def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     """Grade every pointer in the repo's instruction files against the live tree.
 
@@ -964,12 +1066,18 @@ def check_pointers(repo_root: str, files: list[str] | None = None) -> dict:
     pointers: list[Pointer] = []
     unverified_paths: list[dict] = []
     read_files: list[str] = []
+    seen_imports: set[str] = set()
+    instruction_set = set(targets)
     for rel in targets:
         text = read_repo_text(repo_root, rel)
         if text is None:
             continue
         read_files.append(rel)
-        extracted, unverified = _extract(text, repo_root, os.path.dirname(rel))
+        file_dir = os.path.dirname(rel)
+        extracted, unverified = _extract(text, repo_root, file_dir)
+        pointers.extend(_outward_import_pointers(
+            repo_root, extracted, file_dir, instruction_set, seen_imports,
+        ))
         for p in extracted:
             p.receipt = f"{rel}:{p.line_no} — {p.receipt}"
             pointers.append(p)
