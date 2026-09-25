@@ -4,7 +4,9 @@
   problems, and a button that copies each fix. The default page is
   `helicon-review.html` inside the reviewed repo. `--html PATH` writes it where you choose.
 - New: `helicon fix` prints safe rewrites for a path that moved. A rewrite is safe only when
-  exactly one file in the repo has that name. It is a dry run. It writes only with `--apply`.
+  exactly one file with that name exists outside vendored, sample, hidden and virtual
+  environment folders. Two matches, or none, are left for a person. It is a dry run. It
+  writes only with `--apply`.
 - Neither command writes through a symlink it did not expect.
   - `helicon fix --apply` and the default page open every file from a directory handle
     on the repo root, and refuse a link at any step. A repo that plants
