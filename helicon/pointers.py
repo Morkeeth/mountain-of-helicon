@@ -252,7 +252,30 @@ _PLACEHOLDER_SEG = re.compile(
     r"hook-name|page-name|your-name|example-name|placeholder|ComponentName|ClassName|"
     r"FileName|ModuleName|PageName|HookName)$"
 )
-_USE_CASE = re.compile(r"\bUse (?:kebab-case|snake_case|camelCase|PascalCase)\b")
+_CASE_WORD = re.compile(
+    r"\b(?:kebab-case|snake_case|camelCase|PascalCase|SCREAMING_SNAKE_CASE|"
+    r"UPPER_SNAKE_CASE|TitleCase)\b"
+)
+# The example sits next to the case-style word. Anything else on the line is a path.
+#   Use snake_case (`user_profile.py`)
+#   snake_case, e.g. `user_profile.py`
+#   snake_case: `user_profile.py`
+# `Use snake_case for DB columns; mirror in `user_profile.py`` is not an example.
+_EXAMPLE_GAP = re.compile(
+    r"""
+    \A
+    [\s*_]*
+    ,?
+    \s*
+    (?:
+        \([^)]*
+      | e\.?g\.?\s*,?\s*`?\s*
+      | :\s*`?\s*
+    )
+    \Z
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
 # Data and format samples. A path inside one is the sample, not an instruction.
 # Shell and source fences stay graded: a stale script inside ```bash is the
 # usual rot in an AGENTS.md. html and css stay graded too; no verified false
@@ -266,12 +289,39 @@ def _stem(part: str) -> str:
     return part.rsplit(".", 1)[0] if "." in part else part
 
 
-def _naming_or_placeholder(tok: str, line: str) -> bool:
+def _token_start(line: str, body: str) -> int | None:
+    quoted = re.search(r"`" + re.escape(body) + r"`", line)
+    if quoted:
+        return quoted.start(1)
+    bare = re.search(r"(?<![\w`./-])" + re.escape(body) + r"(?![\w`./-])", line)
+    if bare:
+        return bare.start()
+    return None
+
+
+def _beside_case_style(line: str, body: str, at: int | None) -> bool:
+    """True when *body* is the example attached to a case-style word.
+
+    Attached means inside parentheses that open right after the word, or
+    immediately after an "e.g." or ":" that follows the word. A file named
+    later on the same line is not attached.
+    """
+    if at is None:
+        at = _token_start(line, body)
+    if at is None:
+        return False
+    return any(
+        _EXAMPLE_GAP.fullmatch(line[case.end():at])
+        for case in _CASE_WORD.finditer(line[:at])
+    )
+
+
+def _naming_or_placeholder(tok: str, line: str, at: int | None = None) -> bool:
     """True when *tok* is a naming pattern or a placeholder, not a repo path.
 
     `kebab-case.js` and `ComponentName/ComponentName.tsx` are the pattern itself.
-    `Use snake_case (`user_profile.py`)` is an illustration, and only when the
-    token has no directory: `src/user_profile.py` on that line is still a path.
+    `Use snake_case (`user_profile.py`)` is the example in parentheses right
+    after the case-style word. `user_profile.py` later on that line is a path.
     """
     body = tok.strip().strip("`").strip("'\"")
     if not body or " " in body:
@@ -283,7 +333,7 @@ def _naming_or_placeholder(tok: str, line: str) -> bool:
         return True
     if _CASE_STEM.fullmatch(_stem(parts[-1])):
         return True
-    if "/" not in body and _USE_CASE.search(line):
+    if _beside_case_style(line, body, at):
         return True
     return False
 
@@ -755,7 +805,7 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
         for m in _RE_BACKTICK.finditer(line):
             raw = m.group(1)
             if _looks_like_path(raw) and " " not in raw.strip():
-                if _naming_or_placeholder(raw, line):
+                if _naming_or_placeholder(raw, line, m.start(1)):
                     continue
                 grade_path("BACKTICK", raw, f"`{raw}`", i, line,
                            "path in code font not in repo: {target}")
