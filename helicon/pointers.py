@@ -483,14 +483,10 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
     if escaped:
         return rel, False, "outside the repo"
     names, dirs, files = _tree(repo_root)
-    if "/" not in rel:                                 # `config.py` is a root path, not a search
-        if _exists(repo_root, rel):
-            return rel, True, BASE_ROOT
-        hits = [f for f in files if "/" in f and os.path.basename(f).casefold() == rel.casefold()]
-        if hits:
-            hint = sorted(hits, key=lambda f: (f.count("/"), len(f), f))[0]
-            return rel, False, f"deeper {hint}"
-        return rel, False, ""
+    if "/" not in rel:                                 # `campaign-unlock.ts` names a file, not a root path
+        # A bare basename found deeper passes, as in 0.2.3. Flagging it cost 49 false
+        # flags on 13 public repos (`Cargo.toml` in codex lives at codex-rs/Cargo.toml).
+        return rel, rel.lower() in names, "basename anywhere in tree"
     if tok.startswith("/") and not rel.lower().endswith(_CODE_EXT):
         # `/api/escrow-v2` is route-shaped: resolved if any directory ends with it, else not gradable
         return (rel, True, "route suffix in tree") if any(
@@ -641,6 +637,12 @@ def is_gitignored(repo_root: str, rel: str) -> bool:
     return ignored
 
 
+_HOST_TOP_DIRS = frozenset({
+    "Users", "home", "private", "tmp", "var", "etc", "opt", "usr", "root", "mnt",
+    "Volumes", "Library", "System", "Applications", "srv", "media", "nix",
+})
+
+
 def _import_outside_target(raw: str, file_dir: str) -> str | None:
     """Lexical @import target when it leaves the repo, else None.
 
@@ -653,8 +655,13 @@ def _import_outside_target(raw: str, file_dir: str) -> str | None:
     tok = raw.strip().strip("'\"")
     if not tok:
         return None
-    if tok.startswith("~") or tok.startswith("/") or os.path.isabs(tok):
+    if tok.startswith("~"):
         return tok
+    if tok.startswith("/") or os.path.isabs(tok):
+        # `@/lib/swr` is a TypeScript path alias, not a host path. Only a first segment
+        # that names a host top-level directory is outside. Lexical: nothing is stated.
+        first = tok.lstrip("/").split("/", 1)[0]
+        return tok if first in _HOST_TOP_DIRS else None
     file_dir = file_dir.strip().strip("/")
     body = tok[2:] if tok.startswith("./") else tok
     combined = os.path.normpath(os.path.join(file_dir, body) if file_dir else body)
@@ -945,11 +952,6 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             adopted = _parent_relative(line, raw, repo_root, file_dir, learned)
             if adopted and adopted[1]:
                 target, ok, base = adopted
-        if not ok and base.startswith("deeper "):
-            hint = base[len("deeper "):]
-            add(kind, display, target, line_no, line, False,
-                f"{display} is not at the stated path; deeper candidate {hint}", base)
-            return
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,
