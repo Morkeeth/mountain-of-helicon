@@ -30,5 +30,4 @@ Known limits:
 - An absolute path to a file outside the repo, written in plain prose, is not
   reported.
 - A real path inside a JSON, YAML, TOML or XML code block is not checked. The same
-  shape is usually an
-  example.
+  shape is usually an example.
