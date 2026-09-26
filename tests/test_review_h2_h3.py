@@ -497,3 +497,60 @@ def test_clinerules_file_is_not_a_review_instruction_type(tmp_path):
     assert ".clinerules" not in res["pointers"]["files"]
     assert "missing-cline.py" not in out
     assert "CLINE_FILE_BODY" not in out
+
+
+def test_nested_gitignore_covers_its_own_directory(tmp_path):
+    # anthropics/anthropic-cookbook @ 813fbee: skills/.gitignore says `outputs/` and
+    # skills/CLAUDE.md:190 says "Verify file in `outputs/` directory". 0.2.4 read only
+    # the root .gitignore and graded that generated directory as a missing path.
+    repo = tmp_path / "repo"
+    (repo / "skills").mkdir(parents=True)
+    (repo / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+    (repo / "skills" / ".gitignore").write_text("# Generated outputs\noutputs/\n", encoding="utf-8")
+    (repo / "skills" / "CLAUDE.md").write_text(
+        "# Skills\n\n4. Verify file in `outputs/` directory\n", encoding="utf-8")
+    P._TREE_CACHE.clear()
+    P._IGNORE_CACHE.clear()
+    assert P.is_gitignored(str(repo), "skills/outputs/")
+    assert P.is_gitignored(str(repo), "skills/outputs/report.xlsx")
+    res = P.check_pointers(str(repo))
+    assert res["broken"] == 0
+    assert any("outputs/" in g["raw"] and g["reason"].startswith("gitignored")
+               for g in res["unverified_paths"])
+
+
+def test_nested_gitignore_does_not_reach_outside_its_directory(tmp_path):
+    # The same rule must not excuse a truly missing `outputs/` named at the repo root,
+    # or under a sibling directory. Git scopes a nested .gitignore to its own subtree.
+    repo = tmp_path / "repo"
+    (repo / "skills").mkdir(parents=True)
+    (repo / "other").mkdir()
+    (repo / "skills" / ".gitignore").write_text("outputs/\n", encoding="utf-8")
+    (repo / "AGENTS.md").write_text("Results land in `outputs/`.\n", encoding="utf-8")
+    (repo / "other" / "CLAUDE.md").write_text("Results land in `outputs/`.\n", encoding="utf-8")
+    P._TREE_CACHE.clear()
+    P._IGNORE_CACHE.clear()
+    assert not P.is_gitignored(str(repo), "outputs/")
+    assert not P.is_gitignored(str(repo), "other/outputs/")
+    res = P.check_pointers(str(repo))
+    assert res["broken"] == 2
+
+
+def test_nested_gitignore_negation_wins_over_root(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    (repo / ".gitignore").write_text("*.md\n", encoding="utf-8")
+    (repo / "docs" / ".gitignore").write_text("!KEEP.md\n", encoding="utf-8")
+    P._IGNORE_CACHE.clear()
+    assert P.is_gitignored(str(repo), "docs/OTHER.md")
+    assert not P.is_gitignored(str(repo), "docs/KEEP.md")
+
+
+def test_review_of_a_missing_path_names_the_path_not_a_missing_agents_file(tmp_path):
+    # A typo in the path must not read as "add AGENTS.md": there is no repo to add it to.
+    missing = tmp_path / "no-such-repo"
+    res, text = _review(missing)
+    assert res["pointers"]["broken"] == 0 and res["pointers"]["checked"] == 0
+    assert "does not exist" in text
+    assert "Add AGENTS.md" not in text
+    assert "GRADE A" not in text and "PASS" not in text
