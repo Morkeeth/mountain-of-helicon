@@ -571,16 +571,19 @@ def _package_bases(repo_root: str, learned: tuple[str, ...] = ()) -> list[str]:
 _IGNORE_CACHE: dict[str, list[tuple[bool, list[str], bool, bool]]] = {}
 
 
-def _gitignore_rules(repo_root: str) -> list[tuple[bool, list[str], bool, bool]]:
-    """(negated, segments, dir_only, anchored) from the repo's root .gitignore, in file
-    order. A small parser, not git: a fixture checked in under another repo must be
-    judged by its own .gitignore."""
+def _gitignore_rules(repo_root: str, subdir: str = "") -> list[tuple[bool, list[str], bool, bool]]:
+    """(negated, segments, dir_only, anchored) from one .gitignore, in file order.
+    *subdir* names the directory that holds the file (``""`` is the repo root); its
+    patterns are relative to that directory, as git reads them. A small parser, not
+    git: a fixture checked in under another repo must be judged by its own .gitignore."""
     root = os.path.abspath(repo_root)
-    hit = _IGNORE_CACHE.get(root)
+    subdir = subdir.strip("/")
+    key = root if not subdir else f"{root}\0{subdir}"
+    hit = _IGNORE_CACHE.get(key)
     if hit is not None:
         return hit
     rules: list[tuple[bool, list[str], bool, bool]] = []
-    text = read_repo_text(root, ".gitignore")
+    text = read_repo_text(root, f"{subdir}/.gitignore" if subdir else ".gitignore")
     if text:
         for line in text.splitlines():
             pat = line.strip()
@@ -594,31 +597,15 @@ def _gitignore_rules(repo_root: str) -> list[tuple[bool, list[str], bool, bool]]
             segs = [x for x in pat.lstrip("/").split("/") if x]
             if segs:
                 rules.append((negated, segs, dir_only, anchored))
-    _IGNORE_CACHE[root] = rules
+    _IGNORE_CACHE[key] = rules
     return rules
 
 
-def _segs_match(pat: list[str], path: list[str]) -> bool:
-    """Match path segments against pattern segments. `*` never crosses a `/`;
-    `**` matches any number of segments."""
-    import fnmatch
-    if not pat:
-        return not path
-    if pat[0] == "**":
-        return any(_segs_match(pat[1:], path[i:]) for i in range(len(path) + 1))
-    return bool(path) and fnmatch.fnmatchcase(path[0].casefold(), pat[0].casefold()) and _segs_match(pat[1:], path[1:])
-
-
-def is_gitignored(repo_root: str, rel: str) -> bool:
-    """Does the repo's root .gitignore cover *rel* or one of its parent directories?
-    A gitignored path is created on demand; a fresh clone never has it. The last
-    matching rule wins, so `!docs/GONE.md` re-includes a path and keeps it graded."""
-    is_dir = rel.endswith("/")
-    segs = [x for x in rel.strip("/").split("/") if x]
-    if not segs:
-        return False
-    ignored = False
-    for negated, pat, dir_only, anchored in _gitignore_rules(repo_root):
+def _rules_cover(rules: list[tuple[bool, list[str], bool, bool]], segs: list[str], is_dir: bool) -> bool | None:
+    """Apply one .gitignore's rules to *segs* (relative to that file's directory).
+    Returns True (ignored), False (re-included by a `!` rule) or None (no rule spoke)."""
+    verdict: bool | None = None
+    for negated, pat, dir_only, anchored in rules:
         hit = False
         for i in range(1, len(segs) + 1):
             # A dir-only rule (`build/`) matches a parent directory, or the target
@@ -633,7 +620,43 @@ def is_gitignored(repo_root: str, rel: str) -> bool:
             if hit:
                 break
         if hit:
-            ignored = not negated
+            verdict = not negated
+    return verdict
+
+
+def _segs_match(pat: list[str], path: list[str]) -> bool:
+    """Match path segments against pattern segments. `*` never crosses a `/`;
+    `**` matches any number of segments."""
+    import fnmatch
+    if not pat:
+        return not path
+    if pat[0] == "**":
+        return any(_segs_match(pat[1:], path[i:]) for i in range(len(path) + 1))
+    return bool(path) and fnmatch.fnmatchcase(path[0].casefold(), pat[0].casefold()) and _segs_match(pat[1:], path[1:])
+
+
+def is_gitignored(repo_root: str, rel: str) -> bool:
+    """Does a .gitignore cover *rel* or one of its parent directories?
+    A gitignored path is created on demand; a fresh clone never has it. The last
+    matching rule wins, so `!docs/GONE.md` re-includes a path and keeps it graded.
+
+    Every .gitignore on the way down is read, as git does: the root file, then
+    `a/.gitignore` for a path under `a/`, and so on. A nested file's patterns are
+    relative to its own directory, and a deeper file overrides a shallower one.
+    So `skills/.gitignore` saying `outputs/` covers `skills/outputs/` and nothing
+    outside `skills/`."""
+    is_dir = rel.endswith("/")
+    segs = [x for x in rel.strip("/").split("/") if x]
+    if not segs:
+        return False
+    ignored = False
+    for depth in range(len(segs)):
+        if depth and segs[depth - 1] == "..":
+            break
+        subdir = "/".join(segs[:depth])
+        verdict = _rules_cover(_gitignore_rules(repo_root, subdir), segs[depth:], is_dir)
+        if verdict is not None:
+            ignored = verdict
     return ignored
 
 
@@ -958,7 +981,12 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 "instruction creates this path; pre-run absence not graded",
             )
             return
-        if not ok and is_gitignored(repo_root, _join(file_dir, target) if file_dir else target):
+        # Keep the trailing slash: a dir-only rule (`outputs/`) only covers the target
+        # itself when the doc writes it as a directory, and _join would strip it.
+        rel_for_ignore = _join(file_dir, target) if file_dir else target
+        if file_dir and target.endswith("/"):
+            rel_for_ignore += "/"
+        if not ok and is_gitignored(repo_root, rel_for_ignore):
             note_unverified(
                 kind, display, line_no, line,
                 "gitignored: created on demand, not graded",
