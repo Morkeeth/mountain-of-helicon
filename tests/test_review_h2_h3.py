@@ -120,13 +120,11 @@ def test_parent_path_outside_the_repo_is_reported_not_a_pass(tmp_path):
     assert any("../outside/OUT.md" in f["raw"] for f in summary["findings"])
 
 
-def test_basename_found_only_deeper_is_not_a_pass(tmp_path):
+def test_bare_basename_found_deeper_is_not_a_contradiction(tmp_path):
+    # Ruled 26 Sep: a bare name found only deeper passes, as in 0.2.3.
     repo, _outside = _fixture(tmp_path)
-    res, out = _review(repo)
-    hit = next(r for r in res["pointers"]["receipts"] if "config.py" in r["raw"])
-    assert "not at the stated path" in hit["receipt"]
-    assert "src/deep/config.py" in hit["receipt"]
-    assert "basename anywhere" not in out
+    res, _out = _review(repo)
+    assert not any("config.py" in r["raw"] for r in res["pointers"]["receipts"])
 
 
 def test_broken_local_markdown_link_is_a_contradiction(tmp_path):
