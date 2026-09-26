@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mountain-of-helicon"
-version = "0.2.3"
+version = "0.2.4"
 description = "Check AGENTS.md and CLAUDE.md claims against the repository on disk"
 readme = "README.md"
 license = "MIT"
