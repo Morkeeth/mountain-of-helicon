@@ -53,12 +53,12 @@ for run in first second; do
         "$python_bin" -m build --sdist --wheel --outdir "$build_dir"
     )
     normalize_sdist \
-        "$build_dir/mountain_of_helicon-0.2.3.tar.gz" \
+        "$build_dir/mountain_of_helicon-0.2.4.tar.gz" \
         "$work/unpack-$run"
     "$python_bin" -m twine check "$build_dir"/*
 done
 
-for artifact in mountain_of_helicon-0.2.3.tar.gz mountain_of_helicon-0.2.3-py3-none-any.whl; do
+for artifact in mountain_of_helicon-0.2.4.tar.gz mountain_of_helicon-0.2.4-py3-none-any.whl; do
     first="$work/build-first/$artifact"
     second="$work/build-second/$artifact"
     if ! cmp -s "$first" "$second"; then
@@ -73,5 +73,5 @@ mkdir -p "$output"
 cp "$work/build-first/"* "$output/"
 
 echo "Reproducible release artifacts:"
-sha256sum "$output/mountain_of_helicon-0.2.3.tar.gz" \
-    "$output/mountain_of_helicon-0.2.3-py3-none-any.whl"
+sha256sum "$output/mountain_of_helicon-0.2.4.tar.gz" \
+    "$output/mountain_of_helicon-0.2.4-py3-none-any.whl"
