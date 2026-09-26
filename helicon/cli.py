@@ -346,9 +346,17 @@ def cmd_fix(args):
 
     Dry run unless --apply is passed. Does not guess among several matches."""
     from helicon.fix import FixApplyError, apply_fixes, format_plan, render_diff
+    from helicon.pointers import refused_instruction_files
 
     repo = os.path.abspath(getattr(args, "repo", None) or ".")
     try:
+        if args.apply:
+            refused = refused_instruction_files(repo, nested=True)
+            if refused:
+                names = ", ".join(row["file"] for row in refused)
+                raise FixApplyError(
+                    f"refusing to rewrite {names}: symlink resolves outside the repo"
+                )
         planned = apply_fixes(repo, apply=bool(args.apply))
     except FixApplyError as exc:
         print(exc, file=sys.stderr)
@@ -838,6 +846,7 @@ def _diff_manifest(repo, base):
     a content hash + observation time (a path+mtime is never proof on its own)."""
     import hashlib
     from helicon.capture import _git
+    from helicon.pointers import refusal_for
     from helicon.taskrun import _now
     files = []
     if base:
@@ -855,7 +864,14 @@ def _diff_manifest(repo, base):
         seen.add(p)
         full = os.path.join(repo, p)
         h = None
-        if os.path.isfile(full):
+        rel = p.replace("\\", "/")
+        leaves = (
+            not rel
+            or rel.startswith("../")
+            or "/../" in f"/{rel}/"
+            or bool(refusal_for(repo, rel))
+        )
+        if not leaves and os.path.isfile(full):
             try:
                 h = hashlib.sha256(open(full, "rb").read()).hexdigest()[:16]
             except OSError:

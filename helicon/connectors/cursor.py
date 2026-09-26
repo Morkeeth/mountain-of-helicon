@@ -53,9 +53,14 @@ def _scan_rules_files(workspace_path: str) -> list[ConnectorResult]:
     results = []
     rules_files = glob(os.path.join(workspace_path, "**", ".cursorrules"), recursive=True)
 
+    from helicon.pointers import read_contained, refusal_for
     for rules_file in rules_files[:10]:
-        with open(rules_file) as f:
-            content = f.read()
+        rel = os.path.relpath(rules_file, workspace_path).replace(os.sep, "/")
+        if rel.startswith("..") or refusal_for(workspace_path, rel):
+            continue
+        content = read_contained(workspace_path, rel)
+        if content is None:
+            continue
 
         project = os.path.basename(os.path.dirname(rules_file))
         mtime = os.path.getmtime(rules_file)

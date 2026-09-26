@@ -97,3 +97,65 @@ def test_root_resolution_prefers_arg_then_env(tmp_path, monkeypatch):
     assert doorway.resolve_root(None).endswith("from-env")
     monkeypatch.delenv("HELICON_CODE_ROOT")
     assert doorway.resolve_root(None, {"code_root": str(tmp_path / "from-cfg")}).endswith("from-cfg")
+
+
+def _joined_text(docs) -> str:
+    return "\n".join(d.get("text", "") for d in docs)
+
+
+def test_loaded_docs_refuses_a_root_symlink_outside_the_repo(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "out"
+    outside.write_text("SENTINEL-OUTSIDE-ROOT\n")
+    (repo / "CLAUDE.md").symlink_to("../out")
+    docs = doorway.loaded_docs(str(repo))
+    assert "SENTINEL-OUTSIDE-ROOT" not in _joined_text(docs)
+    refused = [d for d in docs if "refused" in d.get("reason", "")]
+    assert any(d["file"] == "CLAUDE.md" for d in refused)
+    assert all("SENTINEL-OUTSIDE-ROOT" not in d.get("reason", "") for d in refused)
+
+
+def test_loaded_docs_in_repo_symlink_loads_once(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    body = "# Agents\nhello agents unique\n"
+    (repo / "AGENTS.md").write_text(body)
+    (repo / "CLAUDE.md").symlink_to("AGENTS.md")
+    docs = doorway.loaded_docs(str(repo))
+    loaded = [d for d in docs if "hello agents unique" in d.get("text", "")]
+    assert len(loaded) == 1
+    assert loaded[0]["text"] == body
+
+
+def test_import_chain_through_symlinked_directory_is_refused(tmp_path):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.md").write_text("SENTINEL-CHAIN-DIR\n")
+    repo.mkdir()
+    (repo / "linked").symlink_to(outside, target_is_directory=True)
+    (repo / "notes").mkdir()
+    (repo / "notes" / "inner.md").write_text("inner stays\n@../linked/secret.md\n")
+    (repo / "CLAUDE.md").write_text("root\n@notes/inner.md\n")
+    docs = doorway.loaded_docs(str(repo))
+    assert "SENTINEL-CHAIN-DIR" not in _joined_text(docs)
+    assert any("inner stays" in d.get("text", "") for d in docs)
+    refused = [d for d in docs if "refused" in d.get("reason", "")]
+    assert any(d["file"].endswith("secret.md") and "refused" in d["reason"] for d in refused)
+    assert all("SENTINEL-CHAIN-DIR" not in d.get("reason", "") for d in refused)
+
+
+def test_cursor_rules_directory_symlink_is_refused(tmp_path):
+    repo = tmp_path / "repo"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "evil.mdc").write_text("SENTINEL-MDC\n")
+    repo.mkdir()
+    (repo / ".cursor").mkdir()
+    (repo / ".cursor" / "rules").symlink_to(outside, target_is_directory=True)
+    (repo / "CLAUDE.md").write_text("# ok\n")
+    docs = doorway.loaded_docs(str(repo))
+    assert "SENTINEL-MDC" not in _joined_text(docs)
+    refused = [d for d in docs if "refused" in d.get("reason", "")]
+    assert any(d["file"] == ".cursor/rules" for d in refused)

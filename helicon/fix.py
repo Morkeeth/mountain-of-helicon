@@ -12,6 +12,7 @@ from helicon.nofollow import SafeOpenError, open_nofollow
 from helicon.pointers import _VENDORED, _tree, check_pointers
 
 _SKIP_DIRS = _VENDORED | {".git", "node_modules", "__pycache__", ".venv", "venv"}
+_SKIP_CF = frozenset(name.casefold() for name in _SKIP_DIRS)
 
 
 def _token(raw: str) -> str:
@@ -20,7 +21,7 @@ def _token(raw: str) -> str:
 
 def _kept(rel: str) -> bool:
     parts = rel.split("/")[:-1]
-    return not any(seg in _SKIP_DIRS or seg.startswith(".") for seg in parts)
+    return not any(seg.casefold() in _SKIP_CF or seg.startswith(".") for seg in parts)
 
 
 def safe_replacement(repo_root: str, raw: str) -> str | None:

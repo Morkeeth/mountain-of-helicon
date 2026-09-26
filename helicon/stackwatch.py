@@ -461,7 +461,11 @@ def output_findings(conn: sqlite3.Connection, since_days: int = 2,
 
 
 def context_findings() -> list[dict]:
-    """Standing context weight vs the measured completion tax."""
+    """Standing context weight vs the measured completion tax.
+
+    Both files are the user's own standing context. A symlink from
+    ~/.claude/CLAUDE.md into a dotfiles checkout is a normal setup and is read.
+    """
     out = []
     for path in (os.path.expanduser("~/.claude/CLAUDE.md"),
                  os.path.abspath("CLAUDE.md")):

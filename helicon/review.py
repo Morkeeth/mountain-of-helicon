@@ -113,6 +113,8 @@ def format_review(repo_root: str, res: dict) -> str:
     elif instruction_files:
         L.append("  " + _p("· No gradeable repo-local claim found in the instruction files.",
                            "dim"))
+    elif p.get("refused"):
+        L.append("  " + _p("· An instruction file was refused.", "dim"))
     else:
         L.append("  " + _p("· No agent instruction file found in this repo.", "dim"))
         looked = ", ".join(DEFAULT_INSTRUCTION_FILES[:4]) + ", …"
@@ -127,7 +129,10 @@ def format_review(repo_root: str, res: dict) -> str:
             # fact reads "<kind desc>: <thing>" — show just the <thing> + "not here".
             thing = fact.rsplit(": ", 1)[-1].strip() if ": " in fact else fact.strip()
             thing, _, tried = thing.partition(" (tried ")
-            tail = f"  — not in this repo (tried {tried}" if tried else "  — not in this repo"
+            if "not at the stated path" in fact or "resolves outside the repo" in fact:
+                tail = ""
+            else:
+                tail = f"  — not in this repo (tried {tried}" if tried else "  — not in this repo"
             L.append("    " + _p("✗", "red") + " " + _p(where.strip(), "dim")
                      + "  " + _p(f"{verb} ", "b") + _p(thing, "b", "red")
                      + _p(tail, "dim"))
@@ -151,6 +156,9 @@ def format_review(repo_root: str, res: dict) -> str:
         L.append("    " + _p("·", "dim") + " "
                  + _p(f"{', '.join(links)} {'is a link' if len(links) == 1 else 'are links'}"
                       f" to {canon}, graded once", "dim"))
+    for item in p.get("refused") or []:
+        L.append("    " + _p("·", "dim") + " "
+                 + _p(f"{item['file']} {item['reason']}", "dim"))
     moved = {b: n for b, n in (p.get("bases") or {}).items() if b != "repo root"}
     if moved:
         desc = ", ".join(f"{b} ×{n}" for b, n in sorted(moved.items(), key=lambda kv: -kv[1]))
