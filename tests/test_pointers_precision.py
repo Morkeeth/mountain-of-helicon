@@ -146,14 +146,18 @@ def test_parent_dir_on_the_same_line_resolves_listed_children():
 def test_naming_pattern_and_placeholder_are_not_paths():
     d = _repo({"src/index.ts": "x"})
     assert _broken(d, "- Files: `kebab-case.js`, `PascalCase.js` (for classes)") == []
-    assert _broken(d, "- **Files**: Use kebab-case for file names (`user-profile.component.ts`)") == []
+    # The example is the token in parentheses that open right after the case-style word,
+    # or the token right after "e.g." or ":" that follows that word.
     assert _broken(d, "- **Files/Modules**: Use snake_case (`user_profile.py`)") == []
     assert _broken(d, "- **Files/Modules**: Use snake_case (`user_profile.rb`)") == []
+    assert _broken(d, "Name files in snake_case, e.g. `user_profile.py`.") == []
+    assert _broken(d, "DB columns are snake_case: `user_profile.py`.") == []
     assert _broken(
         d, "1. **One folder per component**: `ComponentName/ComponentName.tsx` + `index.ts`"
     ) == []
     assert _broken(d, '"path": "agents/category/agent-name.md",') == []
-    # Same shapes, said as real paths, are still misses.
+    # Same shapes, said as real paths, are still misses. A case-style word earlier
+    # on the line does not hide them, including when a phrase sits before the parens.
     assert _broken(d, "Update `user_profile.py` before release.") == ["user_profile.py"]
     assert _broken(d, "See `Button/Button.tsx` for the widget.") == ["Button/Button.tsx"]
     assert _broken(
@@ -162,6 +166,15 @@ def test_naming_pattern_and_placeholder_are_not_paths():
     assert _broken(
         d, "Use snake_case in new modules, and fix `src/user_profile.py`."
     ) == ["src/user_profile.py"]
+    assert _broken(
+        d, "Use snake_case for DB columns; mirror in `user_profile.py`."
+    ) == ["user_profile.py"]
+    assert _broken(
+        d, "- **Files**: Use kebab-case for file names (`user-profile.component.ts`)"
+    ) == ["user-profile.component.ts"]
+    assert _broken(
+        d, "Use snake_case (`rows.py`) and then fix `user_profile.py`."
+    ) == ["user_profile.py"]
 
 
 def test_bare_extension_is_not_a_path():
