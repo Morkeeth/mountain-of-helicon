@@ -4308,6 +4308,23 @@ _HELICON_HELP_GROUPS = (
 )
 
 
+def _package_version() -> str:
+    """The version a stranger has. A source checkout reads its own pyproject.toml,
+    so an older installed copy on the same machine cannot answer for it."""
+    import re
+    from pathlib import Path
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    if pyproject.is_file():
+        m = re.search(r'(?m)^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"))
+        if m:
+            return m.group(1)
+    try:
+        from importlib.metadata import version
+        return version("mountain-of-helicon")
+    except Exception:
+        return "unknown"
+
+
 class _HeliconArgumentParser(argparse.ArgumentParser):
     """Group subcommands for strangers; everything else stays registered."""
 
@@ -4364,6 +4381,7 @@ def main():
         usage="helicon [-h] <command> ...",
         description=_PRODUCT_LINE,
     )
+    parser.add_argument("--version", action="version", version=f"helicon {_package_version()}")
     sub = parser.add_subparsers(dest="command")
 
     init_p = sub.add_parser("init", help="Auto-detect AI tools and create config")
