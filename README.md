@@ -190,7 +190,8 @@ or MCP.
 **What it does not do:** it settles what the filesystem can settle — a named path
 that is gone, a quoted command's output, a retired capability. It cannot tell you
 whether a sentence is *true*. Silence is not a clean bill of health; it means no
-executable probe could bind.
+executable probe could bind. `helicon review` does not read `.clinerules` yet, so
+paths and `@imports` in that file are not checked.
 
 ## The measured finding
 

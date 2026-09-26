@@ -97,9 +97,16 @@ def test_npm_scope_is_not_an_import():
     assert _broken(d, "Read @docs/setup.md before starting.") == ["docs/setup.md"]
 
 
-def test_bare_basename_resolves_anywhere_in_the_tree():
+def test_bare_basename_deeper_in_the_tree_is_not_a_pass():
+    # A name found only under a deeper directory used to pass as
+    # "basename anywhere in tree". The written path is the repo root, and
+    # src/lib/campaign-unlock.ts is not that path.
     d = _repo({"src/lib/campaign-unlock.ts": "x"})
-    assert _broken(d, "ERC-20 transfer (`campaign-unlock.ts`) is the only path.") == []
+    text = "ERC-20 transfer (`campaign-unlock.ts`) is the only path."
+    assert _broken(d, text) == ["campaign-unlock.ts"]
+    got = next(p for p in P.extract_pointers(text, d) if p.target == "campaign-unlock.ts")
+    assert "not at the stated path" in got.receipt
+    assert "src/lib/campaign-unlock.ts" in got.receipt
     assert _broken(d, "rows in `todo.md`") == ["todo.md"]
 
 

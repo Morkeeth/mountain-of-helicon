@@ -19,10 +19,9 @@ Run standalone:  python3 -m helicon.commands <repo_root> [instruction_file ...]
 from __future__ import annotations
 
 import json
-import os
 import re
 
-from helicon.pointers import _NEGATION, instruction_files
+from helicon.pointers import _NEGATION, _exists, instruction_files, read_repo_text
 
 # Command references inside inline code spans. Each group 1 = the token we resolve.
 _RE_NPM = re.compile(r"`(?:npm run|yarn|pnpm(?: run)?)\s+([\w:.-]+)`")
@@ -32,10 +31,11 @@ _RE_SCRIPT = re.compile(r"`(?:bash|sh|\./)\s*([\w./-]+\.(?:sh|bash|py|js|ts))`")
 
 
 def _pkg_scripts(repo_root: str) -> set[str]:
-    p = os.path.join(repo_root, "package.json")
+    raw = read_repo_text(repo_root, "package.json")
+    if not raw:
+        return set()
     try:
-        with open(p, encoding="utf-8") as fh:
-            return set(json.load(fh).get("scripts", {}) or {})
+        return set(json.loads(raw).get("scripts", {}) or {})
     except Exception:
         return set()
 
@@ -43,15 +43,13 @@ def _pkg_scripts(repo_root: str) -> set[str]:
 def _make_targets(repo_root: str) -> set[str]:
     out: set[str] = set()
     for name in ("Makefile", "makefile", "GNUmakefile"):
-        p = os.path.join(repo_root, name)
-        try:
-            with open(p, encoding="utf-8") as fh:
-                for line in fh:
-                    m = re.match(r"^([A-Za-z0-9_.-]+)\s*:(?!=)", line)
-                    if m:
-                        out.add(m.group(1))
-        except Exception:
+        text = read_repo_text(repo_root, name)
+        if not text:
             continue
+        for line in text.splitlines():
+            m = re.match(r"^([A-Za-z0-9_.-]+)\s*:(?!=)", line)
+            if m:
+                out.add(m.group(1))
     return out
 
 
@@ -59,14 +57,13 @@ def _file_in_repo(repo_root: str, rel: str) -> bool:
     rel = rel.strip().lstrip("./")
     if not rel:
         return False
-    return os.path.exists(os.path.normpath(os.path.join(repo_root, rel)))
+    return _exists(repo_root, rel)
 
 
 def _module_in_repo(repo_root: str, mod: str) -> bool:
     # a.b.c -> a/b/c.py or a/b/c/__init__.py
-    parts = mod.split(".")
-    base = os.path.join(repo_root, *parts)
-    return os.path.exists(base + ".py") or os.path.isdir(base)
+    rel = "/".join(mod.split("."))
+    return _exists(repo_root, rel + ".py") or _exists(repo_root, rel)
 
 
 def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
@@ -77,11 +74,10 @@ def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
     checked: list[dict] = []
     read_files: list[str] = []
     for rel in targets:
-        try:
-            with open(os.path.join(repo_root, rel), encoding="utf-8", errors="replace") as fh:
-                lines = fh.read().splitlines()
-        except OSError:
+        text = read_repo_text(repo_root, rel)
+        if text is None:
             continue
+        lines = text.splitlines()
         read_files.append(rel)
         for i, line in enumerate(lines, 1):
             for m in _RE_NPM.finditer(line):

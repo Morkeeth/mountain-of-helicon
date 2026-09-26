@@ -32,6 +32,12 @@ from datetime import datetime, timezone
 from glob import glob
 
 from helicon.connectors.agent_rules import KNOWN_RULE_FILES, KNOWN_RULE_PATHS
+from helicon.pointers import (
+    REFUSED_SYMLINK_REASON,
+    instruction_files,
+    read_contained,
+    refusal_for,
+)
 
 DEFAULT_ROOT = "~/CODE"
 
@@ -57,77 +63,212 @@ def estimate_tokens(text: str) -> int:
     return len(text or "") // 4
 
 
-def _read(path: str) -> str:
-    try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            return fh.read(_READ_CAP)
-    except OSError:
+def _read_inside(repo: str, rel: str) -> str:
+    """Read a path already shown to stay inside repo. Does not follow a symlink."""
+    text = read_contained(repo, rel)
+    if not text:
         return ""
+    return text[:_READ_CAP]
+
+
+def _add_seed(seeds: list[str], seen: set[str], rel: str) -> None:
+    rel = rel.replace(os.sep, "/")
+    if rel not in seen:
+        seen.add(rel)
+        seeds.append(rel)
 
 
 def _seed_docs(repo: str) -> list[str]:
-    """The rule files an agent loads at the root of its session, before imports."""
-    seeds = []
-    for name in KNOWN_RULE_FILES:
-        if os.path.isfile(os.path.join(repo, name)):
-            seeds.append(name)
-    # Claude Code also loads a project-local override if present.
-    if os.path.isfile(os.path.join(repo, "CLAUDE.local.md")):
-        seeds.append("CLAUDE.local.md")
+    """The rule files an agent loads at the root of its session, before imports.
+
+    Names are lexical. A symlink is not opened here. A directory symlink that
+    resolves outside the repo is returned as itself and its children are not
+    listed, so a later read can refuse it before opening anything outside.
+    """
+    seeds: list[str] = []
+    seen: set[str] = set()
+    for name in list(KNOWN_RULE_FILES) + ["CLAUDE.local.md"]:
+        if os.path.lexists(os.path.join(repo, name)):
+            _add_seed(seeds, seen, name)
     for rel in KNOWN_RULE_PATHS:
-        if os.path.isfile(os.path.join(repo, rel)):
-            seeds.append(rel)
-    for mdc in sorted(glob(os.path.join(repo, ".cursor", "rules", "*.mdc"))):
-        seeds.append(os.path.relpath(mdc, repo))
-    # de-dup, preserve order
-    out, seen = [], set()
-    for s in seeds:
-        if s not in seen:
-            seen.add(s)
-            out.append(s)
-    return out
+        if os.path.lexists(os.path.join(repo, rel)):
+            _add_seed(seeds, seen, rel)
+    cursor = os.path.join(repo, ".cursor")
+    rules = os.path.join(repo, ".cursor", "rules")
+    # Check the symlink itself before listing children. lexists/islink on
+    # `.cursor` does not follow it into another directory.
+    if os.path.lexists(cursor) and refusal_for(repo, ".cursor"):
+        _add_seed(seeds, seen, ".cursor")
+    elif os.path.lexists(rules) and refusal_for(repo, ".cursor/rules"):
+        _add_seed(seeds, seen, ".cursor/rules")
+    elif os.path.isdir(rules):
+        for mdc in sorted(glob(os.path.join(rules, "*.mdc"))):
+            _add_seed(seeds, seen, os.path.relpath(mdc, repo))
+    return seeds
 
 
-def _resolve_import(repo: str, importer_rel: str, target: str) -> str | None:
-    """Resolve an @import the way an agent would: relative to the importing
-    file's directory, then to the repo root, then '~'. Contained to the repo."""
-    cands = []
-    if target.startswith("~"):
-        cands.append(os.path.expanduser(target))
-    base_dir = os.path.dirname(os.path.join(repo, importer_rel))
-    cands.append(os.path.normpath(os.path.join(base_dir, target)))
-    cands.append(os.path.normpath(os.path.join(repo, target.lstrip("./"))))
-    repo_real = os.path.realpath(repo)
-    for c in cands:
-        cr = os.path.realpath(c)
-        # only follow imports that stay inside the repo (a doorway maps THIS repo)
-        if (cr == repo_real or cr.startswith(repo_real + os.sep)) and os.path.isfile(cr):
-            return os.path.relpath(cr, repo)
+def _under_repo(repo_ab: str, path: str) -> bool:
+    """True when path is lexically inside repo_ab. Does not stat."""
+    try:
+        return os.path.commonpath([repo_ab, os.path.abspath(path)]) == repo_ab
+    except ValueError:
+        return False
+
+
+def _file_inside(repo_ab: str, path: str, _depth: int = 0) -> str | None:
+    """Absolute path of an existing file inside repo_ab, or None.
+
+    A path that is already outside is not stated. A symlink is followed only
+    when its own target stays inside; the outside target is not opened.
+    """
+    if _depth > 16 or not _under_repo(repo_ab, path):
+        return None
+    rel = os.path.relpath(os.path.abspath(path), repo_ab)
+    cur = repo_ab
+    parts = [p for p in rel.split(os.sep) if p not in ("", ".")]
+    for i, part in enumerate(parts):
+        if part == "..":
+            return None
+        nxt = os.path.join(cur, part)
+        if not os.path.lexists(nxt):
+            return None
+        if os.path.islink(nxt):
+            raw = os.readlink(nxt)
+            target = os.path.normpath(raw if os.path.isabs(raw) else os.path.join(cur, raw))
+            if not _under_repo(repo_ab, target):
+                return None
+            rest = parts[i + 1:]
+            followed = os.path.join(target, *rest) if rest else target
+            return _file_inside(repo_ab, followed, _depth + 1)
+        cur = nxt
+    if parts and os.path.isfile(cur):
+        return cur
     return None
+
+
+def _resolve_import(repo: str, importer_rel: str, target: str) -> tuple[str | None, str | None]:
+    """Resolve an @import relative to the importing file, then the repo root.
+
+    Returns (inside relative path, refused relative path). A missing target is
+    (None, None). A symlink whose real path is outside the repo is
+    (None, rel) and is not opened. '~' and an absolute target are not expanded
+    and not opened.
+    """
+    repo_ab = os.path.abspath(repo)
+    if target.startswith("~") or os.path.isabs(target):
+        return None, None
+    base_dir = os.path.dirname(os.path.join(repo_ab, importer_rel))
+    cands = [
+        os.path.normpath(os.path.join(base_dir, target)),
+        os.path.normpath(os.path.join(repo_ab, target.lstrip("./"))),
+    ]
+    seen: set[str] = set()
+    refused_rel = None
+    for c in cands:
+        if c in seen:
+            continue
+        seen.add(c)
+        if not _under_repo(repo_ab, c):
+            continue
+        rel = os.path.relpath(os.path.abspath(c), repo_ab).replace(os.sep, "/")
+        if rel.startswith("../"):
+            continue
+        if refusal_for(repo_ab, rel):
+            refused_rel = rel
+            continue
+        found = _file_inside(repo_ab, c)
+        if not found:
+            continue
+        resolved = os.path.relpath(found, repo_ab).replace(os.sep, "/")
+        if resolved.startswith("../") or refusal_for(repo_ab, resolved):
+            refused_rel = rel
+            continue
+        return resolved, None
+    return None, refused_rel
+
+
+def _resolved_rel(repo: str, rel: str) -> str | None:
+    """In-repo relative path, following a symlink only while it stays inside."""
+    repo_ab = os.path.abspath(repo)
+    if refusal_for(repo_ab, rel):
+        return None
+    found = _file_inside(repo_ab, os.path.join(repo_ab, rel))
+    if not found:
+        return None
+    out = os.path.relpath(found, repo_ab).replace(os.sep, "/")
+    if not out or out == ".." or out.startswith("../") or refusal_for(repo_ab, out):
+        return None
+    return out
 
 
 def loaded_docs(repo: str) -> list[dict]:
     """Every file this repo loads into an agent, with its text and how it was
-    reached. BFS over @imports from the seed rule files, bounded and de-duped."""
+    reached. BFS over @imports from the seed rule files, bounded and de-duped.
+
+    A symlink whose real path is outside the repo is not opened. It is returned
+    as {file, reason} with the same reason a review reports, and no text.
+    An in-repo link such as CLAUDE.md -> AGENTS.md is loaded once, under the
+    real file's name.
+    """
     repo = os.path.abspath(os.path.expanduser(repo))
-    out, seen = [], set()
-    queue = [(rel, None) for rel in _seed_docs(repo)]
+    refused: list[dict] = []
+    kept: list[str] = []
+    for rel in _seed_docs(repo):
+        row = refusal_for(repo, rel)
+        if row:
+            refused.append(row)
+        else:
+            kept.append(rel)
+    canon, aliases = instruction_files(repo, files=kept) if kept else ([], {})
+    out: list[dict] = []
+    seen: set[str] = set()
+    for names in aliases.values():
+        seen.update(names)
+    for row in refused:
+        seen.add(row["file"])
+    queue = [(rel, None) for rel in canon]
     while queue and len(out) < _MAX_DOCS:
         rel, via = queue.pop(0)
         if rel in seen:
             continue
         seen.add(rel)
-        text = _read(os.path.join(repo, rel))
+        row = refusal_for(repo, rel)
+        if row:
+            if via:
+                row = {**row, "via_import": via}
+            refused.append(row)
+            continue
+        resolved = _resolved_rel(repo, rel) or rel
+        if resolved != rel:
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+        if refusal_for(repo, resolved):
+            rec = refusal_for(repo, resolved)
+            if via and rec:
+                rec = {**rec, "via_import": via}
+            if rec:
+                refused.append(rec)
+            continue
+        text = _read_inside(repo, resolved)
         if not text.strip():
             continue
-        out.append({"file": rel, "text": text, "via_import": via,
+        out.append({"file": resolved, "text": text, "via_import": via,
                     "tokens": estimate_tokens(text),
                     "lines": text.count("\n") + 1})
         for m in _IMPORT.finditer(text):
-            tgt = _resolve_import(repo, rel, m.group(1))
+            tgt, refused_rel = _resolve_import(repo, resolved, m.group(1))
+            if refused_rel and refused_rel not in seen:
+                seen.add(refused_rel)
+                rec = refusal_for(repo, refused_rel) or {
+                    "file": refused_rel,
+                    "reason": REFUSED_SYMLINK_REASON,
+                }
+                refused.append({**rec, "via_import": resolved})
+                continue
             if tgt and tgt not in seen:
-                queue.append((tgt, rel))
-    return out
+                queue.append((tgt, resolved))
+    return out + refused
 
 
 def repo_load(repo: str, cold: set | None = None) -> dict:
@@ -135,7 +276,9 @@ def repo_load(repo: str, cold: set | None = None) -> dict:
     human demoted; cold docs count zero loaded tokens (kept, but not loaded)."""
     repo = os.path.abspath(os.path.expanduser(repo))
     cold = cold or set()
-    docs = loaded_docs(repo)
+    loaded_rows = loaded_docs(repo)
+    refused = [d for d in loaded_rows if d.get("reason")]
+    docs = [d for d in loaded_rows if not d.get("reason")]
     rows, loaded, kept_cold = [], 0, 0
     for d in docs:
         is_cold = d["file"] in cold
@@ -147,7 +290,8 @@ def repo_load(repo: str, cold: set | None = None) -> dict:
             loaded += d["tokens"]
     return {"name": os.path.basename(os.path.normpath(repo)), "path": repo,
             "docs": rows, "doc_count": len(rows),
-            "loaded_tokens": loaded, "cold_tokens": kept_cold}
+            "loaded_tokens": loaded, "cold_tokens": kept_cold,
+            "refused": refused}
 
 
 def _is_repo(path: str) -> bool:
@@ -311,7 +455,9 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
     from helicon import probes
     repo = os.path.abspath(os.path.expanduser(repo_path))
     name = os.path.basename(os.path.normpath(repo))
-    docs = loaded_docs(repo)
+    loaded_rows = loaded_docs(repo)
+    refused = [d for d in loaded_rows if d.get("reason")]
+    docs = [d for d in loaded_rows if not d.get("reason")]
     try:
         # `strict` has to be handed on here or the profile split does nothing.
         # It was threaded verdict -> contradicted_lines -> repo_detail and then
@@ -371,7 +517,8 @@ def repo_detail(conn, repo_path: str, config: dict | None = None,
             "loaded_tokens": loaded_total, "doc_count": len(doc_out),
             "verdict_counts": counts,
             "contradicted": counts[probes.CONTRADICTED],
-            "cold_tokens": sum(cold.values())}
+            "cold_tokens": sum(cold.values()),
+            "refused": refused}
 
 
 def format_detail(detail: dict) -> str:
@@ -384,6 +531,8 @@ def format_detail(detail: dict) -> str:
              f"  {c.get(probes.CONTRADICTED, 0)} contradicted · "
              f"{c.get(probes.UNVERIFIABLE, 0)} unverifiable · "
              f"{c.get(probes.UPHELD, 0)} upheld", ""]
+    for item in detail.get("refused") or []:
+        lines.append(f"  {item['file']} {item['reason']}")
     for doc in detail["docs"]:
         tag = " (cold — loads nothing)" if doc["cold"] else ""
         lines.append(f"  {doc['file']}  [{doc['loaded_tokens']:,} tok]{tag}")
@@ -456,7 +605,11 @@ def fingerprint(conn, repo: str) -> str:
     repo = os.path.abspath(os.path.expanduser(repo))
     parts = [_git_head(repo)]
     for d in _seed_docs(repo) or []:
-        p = os.path.join(repo, d)
+        if refusal_for(repo, d):
+            parts.append(f"{d}:refused")
+            continue
+        resolved = _resolved_rel(repo, d) or d
+        p = os.path.join(repo, resolved)
         try:
             st = os.stat(p)
             parts.append(f"{d}:{st.st_size}:{st.st_mtime_ns}")
