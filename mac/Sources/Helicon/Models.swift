@@ -386,6 +386,7 @@ struct WorkCard: Decodable, Identifiable {
     let contextItems: Int
     let evidenceCount: Int
     let nextAction: String?
+    let openedAt: String?
 
     enum CodingKeys: String, CodingKey {
         case id, intent, beneficiary, outcome, status, model, harness
@@ -393,6 +394,7 @@ struct WorkCard: Decodable, Identifiable {
         case contextItems = "context_items"
         case evidenceCount = "evidence_count"
         case nextAction = "next_action"
+        case openedAt = "opened_at"
     }
 }
 
@@ -459,14 +461,33 @@ struct WorkTrace: Decodable {
 struct TraceCard: Decodable {
     let intent: String
     let beneficiary: String
+    let observableChange: String?
+    let evidenceContract: String?
+    let killCondition: String?
     let outcome: String?
+    let status: String?
+    let openedAt: String?
+    enum CodingKeys: String, CodingKey {
+        case intent, beneficiary, outcome, status
+        case observableChange = "observable_change"
+        case evidenceContract = "evidence_contract"
+        case killCondition = "kill_condition"
+        case openedAt = "opened_at"
+    }
 }
 
 struct TraceRun: Decodable {
+    let id: String?
     let model: String?
     let harness: String?
+    let status: String?
     let verificationOutcome: String?
-    enum CodingKeys: String, CodingKey { case model, harness; case verificationOutcome = "verification_outcome" }
+    let acceptanceTest: String?
+    enum CodingKeys: String, CodingKey {
+        case id, model, harness, status
+        case verificationOutcome = "verification_outcome"
+        case acceptanceTest = "acceptance_test"
+    }
 }
 
 struct TracePacket: Decodable {
@@ -474,10 +495,29 @@ struct TracePacket: Decodable {
     let includedMemoryItems: [TraceMemory]
     enum CodingKeys: String, CodingKey { case tokenEstimate = "token_estimate", includedMemoryItems = "included_memory_items" }
 }
-struct TraceMemory: Decodable { let cubeID: String; enum CodingKeys: String, CodingKey { case cubeID = "cube_id" } }
+struct TraceMemory: Decodable {
+    let cubeID: String
+    let provenance: String?
+    let freshness: String?
+    let selectionReason: String?
+    enum CodingKeys: String, CodingKey {
+        case cubeID = "cube_id"
+        case provenance, freshness
+        case selectionReason = "selection_reason"
+    }
+}
 
 struct TraceSkillReview: Decodable { let skillVersion: String; enum CodingKeys: String, CodingKey { case skillVersion = "skill_version" } }
-struct TraceEvidence: Decodable { let kind: String; let reference: String }
+struct TraceEvidence: Decodable {
+    let kind: String
+    let reference: String
+    let note: String?
+    let observedAt: String?
+    enum CodingKeys: String, CodingKey {
+        case kind, reference, note
+        case observedAt = "observed_at"
+    }
+}
 struct TraceEvent: Decodable, Identifiable { var id: String { "\(at)-\(kind)-\(label)" }; let at: String; let kind: String; let label: String }
 
 struct WorkLearning: Decodable {
@@ -489,6 +529,17 @@ struct WorkLearning: Decodable {
         case resolvedWorkCards = "resolved_work_cards"
         case recommendationsWithheld = "recommendations_withheld"
     }
+}
+
+struct GoldPayload: Decodable {
+    let markdown: String
+    let history: [GoldCompile]
+}
+
+struct GoldCompile: Decodable, Identifiable {
+    let ts: String
+    let total: Int
+    var id: String { "\(ts)-\(total)" }
 }
 
 // MARK: - the morning brief (GET /api/brief)

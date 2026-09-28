@@ -9,11 +9,11 @@ struct HeliconApp: App {
         // The ambient sentry is the whole SwiftUI scene graph. `.window` style =
         // a real panel, not an NSMenu.
         //
-        // The cockpit is deliberately NOT a SwiftUI `Window` scene: on macOS 14
+        // The product window is deliberately NOT a SwiftUI `Window` scene: on macOS 14
         // a Window scene in a MenuBarExtra app does not present at launch and
         // can only be opened via `openWindow` from an existing view, which a
         // menu-bar-only app does not have until the panel is first opened.
-        // Cockpit owns an NSWindow instead, so it can be opened from the panel,
+        // HeliconWindow owns an NSWindow instead, so it can be opened from the panel,
         // from the launch flag, or from the Dock icon, all through one path.
         MenuBarExtra {
             SentryPanel()
@@ -38,68 +38,54 @@ struct SentryLabel: View {
     }
 }
 
-/// The cockpit window, owned by AppKit so any entry point can open it.
+/// The one native product window. All normal entry points select a destination
+/// inside this shell instead of creating a second disconnected window.
+@MainActor
+final class HeliconWindow {
+    static let shared = HeliconWindow()
+    private var window: NSWindow?
+
+    func show(_ destination: HeliconDestination? = nil) {
+        if let destination { RootNavigation.shared.selection = destination }
+        if let window {
+            window.title = "Helicon · \(RootNavigation.shared.selection.title)"
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let host = NSHostingController(
+            rootView: NavigationShell().environmentObject(Store.shared)
+        )
+        let w = NSWindow(contentViewController: host)
+        w.title = "Helicon · \(RootNavigation.shared.selection.title)"
+        w.setContentSize(NSSize(width: 1420, height: 860))
+        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        w.titlebarAppearsTransparent = true
+        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
+        w.isReleasedWhenClosed = false
+        w.center()
+        window = w
+        w.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+/// Compatibility entry points for the menu sentry and existing launch flags.
+/// Both route into the same shell and therefore keep navigation visible.
 @MainActor
 final class Cockpit {
     static let shared = Cockpit()
-    private var window: NSWindow?
-
-    func show() {
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        // Recorded so the fleet-vs-queue comparison has both arms. A surface that
-        // never reports cannot be shown to be unused.
-        Task { try? await HeliconAPI().recordSurfaceOpen("queue") }
-        let host = NSHostingController(rootView: QueueView().environmentObject(Store.shared))
-        let w = NSWindow(contentViewController: host)
-        w.title = "Review Queue"
-        w.setContentSize(NSSize(width: 1180, height: 740))
-        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
-        w.isReleasedWhenClosed = false
-        w.center()
-        window = w
-        w.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
+    func show() { HeliconWindow.shared.show(.failures) }
 }
 
-/// The weekly knowledge-palace window — the app's opening view. Owned by AppKit
-/// so the launch flow, the sentry, or the Dock icon can all open it through one
-/// path, same pattern as Cockpit.
 @MainActor
 final class ThisWeekWindow {
     static let shared = ThisWeekWindow()
-    private var window: NSWindow?
-
-    func show() {
-        if let window {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        Task { try? await HeliconAPI().recordSurfaceOpen("thisweek") }
-        let host = NSHostingController(rootView: ThisWeekView().environmentObject(Store.shared))
-        let w = NSWindow(contentViewController: host)
-        w.title = "This Week"
-        w.setContentSize(NSSize(width: 860, height: 900))
-        w.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        w.titlebarAppearsTransparent = true
-        w.backgroundColor = NSColor(srgbRed: 0xE8/255.0, green: 0xED/255.0, blue: 0xF2/255.0, alpha: 1) // PAPER
-        w.isReleasedWhenClosed = false
-        w.center()
-        window = w
-        w.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
+    func show() { HeliconWindow.shared.show(.context) }
 }
 
 /// The morning-brief window, owned by AppKit so the sentry or a launch flag can
-/// open it. Same pattern as Cockpit — one path, many entry points.
+/// open it. Same AppKit-owned pattern — one path, many entry points.
 @MainActor
 final class BriefWindow {
     static let shared = BriefWindow()
@@ -127,7 +113,7 @@ final class BriefWindow {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    /// `--queue` opens the cockpit straight away (demo + headless verification).
+    /// `--queue` opens the Failures destination straight away.
     /// Without it the app is menu-bar-only and the window is opened from the
     /// sentry, which is the everyday shape.
     static var opensQueueAtLaunch: Bool {
@@ -145,17 +131,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandLine.arguments.contains("--measure")
     }
 
-    /// `--thisweek` opens the weekly knowledge-palace explicitly. It is also the
-    /// DEFAULT opening view (see below), so this flag is for parity with the
-    /// other headless-shot flags rather than the only way in.
+    /// `--thisweek` keeps compatibility with the former weekly entry point and
+    /// opens the Context destination in the unified shell.
     static var opensThisWeekAtLaunch: Bool {
         CommandLine.arguments.contains("--thisweek")
     }
 
-    /// The queue used to be the everyday shape (menu-bar-only until opened). The
-    /// opening view is now This Week — the one-read "is my setup any good this
-    /// week" page — so a plain launch shows it. The sentry still polls for the
-    /// life of the process (Store.shared), so the menu bar stays live behind it.
+    static var opensRulesAtLaunch: Bool {
+        CommandLine.arguments.contains("--rules")
+    }
+
+    static var opensHistoryAtLaunch: Bool {
+        CommandLine.arguments.contains("--history")
+    }
+
+    /// A plain launch reopens the last primary destination. The sentry still
+    /// polls for the life of the process (Store.shared), so the menu bar stays
+    /// live behind the native window.
     // Menu-bar-first: no Dock icon until a window is opened. Set in code because
     // a SwiftPM executable has no Info.plist to carry LSUIElement.
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -168,10 +160,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if Self.opensQueueAtLaunch {
             NSApp.setActivationPolicy(.regular)
             Cockpit.shared.show()
-        } else {
-            // Default: open This Week (--thisweek is the explicit alias).
+        } else if Self.opensRulesAtLaunch {
             NSApp.setActivationPolicy(.regular)
-            ThisWeekWindow.shared.show()
+            HeliconWindow.shared.show(.rules)
+        } else if Self.opensHistoryAtLaunch {
+            NSApp.setActivationPolicy(.regular)
+            HeliconWindow.shared.show(.history)
+        } else {
+            // Default: reopen the last-used native destination. A fresh install
+            // begins at Project history, the product's orientation screen.
+            NSApp.setActivationPolicy(.regular)
+            if Self.opensThisWeekAtLaunch {
+                ThisWeekWindow.shared.show()
+            } else {
+                HeliconWindow.shared.show()
+            }
         }
         scheduleDiagnostics()
     }
@@ -180,7 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false   // the sentry outlives the window
     }
 
-    /// Verification affordance: HELICON_SHOT=<path> renders the live cockpit
+    /// Verification affordance: HELICON_SHOT=<path> renders the live app
     /// window to a PNG from inside the process, then exits. Lets a headless
     /// shell prove what actually drew without Screen Recording permission.
     /// HELICON_DEBUG=1 additionally dumps the window inventory.
@@ -244,7 +247,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             if let path = env["HELICON_SHOT"] {
                 // When the composer is up, screenshot the sheet (the smaller
-                // attached window) rather than the cockpit behind it.
+                // attached window) rather than the app window behind it.
                 Self.capture(windows: windows, to: path,
                              preferSheet: env["HELICON_COMPOSE"] != nil)
                 NSApp.terminate(nil)
@@ -260,7 +263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let win = target ?? windows.first(where: { $0.frame.width > 480 }),
               let view = win.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
-            note("capture: no cockpit window found")
+            note("capture: no app window found")
             return
         }
         view.cacheDisplay(in: view.bounds, to: rep)

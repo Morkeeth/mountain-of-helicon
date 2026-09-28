@@ -131,6 +131,12 @@ struct HeliconAPI {
         try await get("/api/thisweek")
     }
 
+    /// GET /api/gold — the compiled rules and their compile history. The native
+    /// view reads this source directly; it never maintains a second rule list.
+    func gold() async throws -> GoldPayload {
+        try await get("/api/gold")
+    }
+
     // Workgraph fetchers, salvaged with WorkGraphView.swift.
     func workCards() async throws -> WorkCardsResponse {
         try await get("/api/workgraph/cards")
