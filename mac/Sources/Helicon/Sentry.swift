@@ -162,14 +162,13 @@ struct SentryPanel: View {
             }
             .buttonStyle(.plain)
 
-            // This Week: the opening view — the one-read "is my setup any good
-            // this week" page. Re-openable here after its window is closed.
+            // Context: the recent source window and unresolved setup decisions.
             Button {
                 NSApp.setActivationPolicy(.regular)
                 ThisWeekWindow.shared.show()
             } label: {
                 HStack(spacing: 6) {
-                    Text("This Week")
+                    Text("Context")
                         .font(.iface(12, .medium))
                     Image(systemName: "arrow.right")
                         .font(.system(size: 9, weight: .medium))

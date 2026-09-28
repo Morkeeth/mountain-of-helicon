@@ -42,11 +42,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>            <string>Helicon</string>
-    <key>CFBundleDisplayName</key>     <string>Mount Helicon</string>
+    <key>CFBundleDisplayName</key>     <string>Helicon</string>
     <key>CFBundleIdentifier</key>      <string>supply.earned.helicon</string>
     <key>CFBundleExecutable</key>      <string>Helicon</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
-    <key>CFBundleShortVersionString</key> <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key> <string>0.2.4</string>
     <key>LSMinimumSystemVersion</key>  <string>14.0</string>
     <!-- Fraunces / Bricolage Grotesque / IBM Plex Mono, loaded for this app
          only. Typography is the brand: without this the cockpit falls back to
