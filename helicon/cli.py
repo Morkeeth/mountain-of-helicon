@@ -4206,6 +4206,21 @@ def cmd_setup(args):
           "(github.com/Morkeeth/mountain-of-helicon)")
 
 
+def cmd_status(args):
+    """What changed in the local agent setup against an explicit snapshot."""
+    from helicon.setup_status import render_status, setup_status
+
+    try:
+        report = setup_status(project=getattr(args, "project", None),
+                              previous=getattr(args, "previous", None))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"helicon status: {exc}") from exc
+    if getattr(args, "json", False):
+        print(json.dumps(report, indent=2))
+    else:
+        print(render_status(report))
+
+
 def cmd_skills_review(args):
     """Skills reviewed from USE: which installed skills fired in the window."""
     from helicon.skillsuse import render_review, review
@@ -4829,6 +4844,10 @@ def main():
     mb_p.add_argument("--db", help="override store path (demo SQLite in cloud)")
     sub.add_parser("score", help="Show current Helicon Score")
     sub.add_parser("stack", help="Audit your AI stack setup")
+    status_p = sub.add_parser("status", help="What changed in this agent setup against an explicit previous snapshot")
+    status_p.add_argument("--project", default=".", help="Project whose setup to inspect (default: current directory)")
+    status_p.add_argument("--previous", help="Prior status JSON or raw setup snapshot to compare")
+    status_p.add_argument("--json", action="store_true", help="Emit the snapshot and comparison as JSON")
     sr_p = sub.add_parser("skills-review", help="Which installed skills actually fire (local transcripts, honest window)")
     sr_p.add_argument("--days", type=int, default=30, help="Window in days (default 30)")
 
@@ -4939,6 +4958,7 @@ def main():
         "measurement-bench": cmd_measurement_bench,
         "score": cmd_score,
         "stack": cmd_stack,
+        "status": cmd_status,
         "setup": cmd_setup,
         "outcomes": cmd_outcomes,
         "witness": cmd_witness,
