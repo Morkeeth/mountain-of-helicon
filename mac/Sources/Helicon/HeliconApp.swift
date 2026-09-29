@@ -149,13 +149,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandLine.arguments.contains("--setup")
     }
 
+    static var opensOverviewAtLaunch: Bool {
+        CommandLine.arguments.contains("--overview")
+    }
+
     /// A plain launch reopens the last primary destination. The sentry still
     /// polls for the life of the process (Store.shared), so the menu bar stays
     /// live behind the native window.
     // Menu-bar-first: no Dock icon until a window is opened. Set in code because
     // a SwiftPM executable has no Info.plist to carry LSUIElement.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if Self.opensMeasureAtLaunch {
+        if Self.opensOverviewAtLaunch {
+            NSApp.setActivationPolicy(.regular)
+            HeliconWindow.shared.show(.overview)
+        } else if Self.opensMeasureAtLaunch {
             NSApp.setActivationPolicy(.regular)
             MeasureWindow.shared.show()
         } else if Self.opensBriefAtLaunch {
