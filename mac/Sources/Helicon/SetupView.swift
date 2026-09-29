@@ -89,7 +89,7 @@ struct SetupView: View {
                     }
                 }
 
-                panel("Routes", title: "Configuration is not use") {
+                panel("Routes", title: "Configuration does not prove use") {
                     ForEach(report.snapshot.edges.prefix(24)) { edge in
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text(edge.relation.replacingOccurrences(of: "_", with: " "))
