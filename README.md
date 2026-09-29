@@ -496,9 +496,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (79 commands)
+## CLI (80 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `fix` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `teach` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `status` `setup` `outcomes` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `fix` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `teach` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `status` `setup` `overview` `outcomes` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 `helicon fix` prints safe path rewrites as a dry run and writes only with `--apply`.
 

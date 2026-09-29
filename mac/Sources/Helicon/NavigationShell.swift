@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 enum HeliconDestination: String, CaseIterable, Identifiable {
+    case overview
     case history
     case setup
     case context
@@ -12,6 +13,7 @@ enum HeliconDestination: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .overview: "Overview"
         case .history: "Project history"
         case .setup: "Setup"
         case .context: "Context"
@@ -22,6 +24,7 @@ enum HeliconDestination: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
+        case .overview: "Setup health"
         case .history: "Runs and evidence"
         case .setup: "What is wired now"
         case .context: "What governed the work"
@@ -32,6 +35,7 @@ enum HeliconDestination: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
+        case .overview: "mountain.2"
         case .history: "clock.arrow.circlepath"
         case .setup: "point.3.connected.trianglepath.dotted"
         case .context: "shippingbox"
@@ -53,7 +57,7 @@ final class RootNavigation: ObservableObject {
 
     private init() {
         let saved = UserDefaults.standard.string(forKey: Self.storageKey)
-        selection = HeliconDestination(rawValue: saved ?? "") ?? .history
+        selection = HeliconDestination(rawValue: saved ?? "") ?? .overview
     }
 }
 
@@ -183,6 +187,8 @@ struct NavigationShell: View {
     @ViewBuilder
     private var detail: some View {
         switch navigation.selection {
+        case .overview:
+            OverviewView()
         case .history:
             ProjectHistoryView()
         case .setup:
