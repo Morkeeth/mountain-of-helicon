@@ -19,6 +19,11 @@ let package = Package(
             // and reads as a different product than the dashboard.
             resources: [.copy("Fonts")],
             swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
+        .testTarget(
+            name: "HeliconTests",
+            dependencies: ["Helicon"],
+            path: "Tests/HeliconTests"
         )
     ]
 )

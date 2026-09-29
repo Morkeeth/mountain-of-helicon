@@ -145,6 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CommandLine.arguments.contains("--history")
     }
 
+    static var opensSetupAtLaunch: Bool {
+        CommandLine.arguments.contains("--setup")
+    }
+
     /// A plain launch reopens the last primary destination. The sentry still
     /// polls for the life of the process (Store.shared), so the menu bar stays
     /// live behind the native window.
@@ -166,6 +170,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if Self.opensHistoryAtLaunch {
             NSApp.setActivationPolicy(.regular)
             HeliconWindow.shared.show(.history)
+        } else if Self.opensSetupAtLaunch {
+            NSApp.setActivationPolicy(.regular)
+            HeliconWindow.shared.show(.setup)
         } else {
             // Default: reopen the last-used native destination. A fresh install
             // begins at Project history, the product's orientation screen.
