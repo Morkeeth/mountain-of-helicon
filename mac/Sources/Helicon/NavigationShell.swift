@@ -3,6 +3,7 @@ import AppKit
 
 enum HeliconDestination: String, CaseIterable, Identifiable {
     case history
+    case setup
     case context
     case rules
     case failures
@@ -12,6 +13,7 @@ enum HeliconDestination: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .history: "Project history"
+        case .setup: "Setup"
         case .context: "Context"
         case .rules: "Rules"
         case .failures: "Failures"
@@ -21,6 +23,7 @@ enum HeliconDestination: String, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .history: "Runs and evidence"
+        case .setup: "What is wired now"
         case .context: "What governed the work"
         case .rules: "Current law"
         case .failures: "Open drift"
@@ -30,6 +33,7 @@ enum HeliconDestination: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .history: "clock.arrow.circlepath"
+        case .setup: "point.3.connected.trianglepath.dotted"
         case .context: "shippingbox"
         case .rules: "seal"
         case .failures: "exclamationmark.triangle"
@@ -181,6 +185,8 @@ struct NavigationShell: View {
         switch navigation.selection {
         case .history:
             ProjectHistoryView()
+        case .setup:
+            SetupView()
         case .context:
             ContextView()
         case .rules:
