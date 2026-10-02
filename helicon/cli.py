@@ -2699,6 +2699,66 @@ def cmd_gold(args):
         print(f"not injected (dry-run). {inj['hint']}")
 
 
+def cmd_checkin(args):
+    """Grade one harness answer against live state and show whether Helicon can
+    see the existing memory and transcript bridges on both sides."""
+    import json as _json
+    from helicon.checkin import (memory_candidates, prompt, read_state,
+                                 score_answer, transcript_index)
+    from helicon.config import load_config
+    import sqlite3 as _sqlite3
+
+    state = read_state(args.state)
+    config = load_config()
+    db_path = os.path.expanduser(config["db_path"])
+    conn = _sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = _sqlite3.Row
+    report = {
+        "contract": "helicon-checkin-v1",
+        "harness": args.harness,
+        "state": {"path": state["path"], "revision": state["revision"],
+                  "open": len(state["open"]), "closed": len(state["closed"])},
+        "memory": memory_candidates(conn),
+        "transcripts": transcript_index(args.trace),
+        "question": prompt(state, args.harness),
+    }
+    answer = args.answer_text
+    if args.answer:
+        with open(args.answer, encoding="utf-8") as fh:
+            answer = fh.read()
+    if answer is not None:
+        report["result"] = score_answer(state, answer)
+
+    if args.json:
+        print(_json.dumps(report, indent=2, sort_keys=True))
+        return
+    print(report["question"])
+    print("\nBRIDGES")
+    print(f"- context: revision {state['revision']} · {len(state['open'])} open · "
+          f"{len(state['closed'])} closed")
+    mem = report["memory"]
+    pending = mem["by_status"].get("pending", {}).get("count", 0)
+    print(f"- memory: {mem['total']} Codex candidates · {pending} pending · "
+          "no automatic merge")
+    tr = report["transcripts"]
+    if tr["available"]:
+        seen = ", ".join(
+            f"{name} {row['sessions']} sessions ({row['freshness']}, "
+            f"{row['age_hours']}h)" for name, row in
+            sorted(tr["harnesses"].items()) if name in ("claude", "codex", "cursor")
+        )
+        print(f"- transcripts: {seen} · {tr['warnings']} source warning(s) · read-only")
+    else:
+        print(f"- transcripts: unavailable at {tr['path']}")
+    if "result" in report:
+        r = report["result"]
+        print(f"\nSCORE {r['score']}/{r['out_of']}")
+        print(f"- revision {r['revision']['points']}/25")
+        print(f"- open IDs {r['open_ids']['points']}/50")
+        print(f"- next action {r['next_action']['points']}/15")
+        print(f"- no closed IDs {r['closed_ids']['points']}/10")
+
+
 def cmd_evolve(args):
     """The night command: scan everything, run every selector and the rot
     exam, recompile the golden rules, and report the DELTA — what your
@@ -4636,6 +4696,18 @@ def main():
                              "Default: claude")
     gold_p.add_argument("--show", action="store_true", help="print the compiled rules, write nothing")
 
+    checkin_p = sub.add_parser(
+        "checkin", help="Score a harness belief against live state and inspect the two-way bridges")
+    checkin_p.add_argument("--harness", choices=["claude", "codex", "cursor"],
+                           default="codex")
+    checkin_p.add_argument("--answer", help="plain-text answer file to score")
+    checkin_p.add_argument("--answer-text", help="plain-text answer to score")
+    checkin_p.add_argument("--state", default="~/.local/state/fleet/CURRENT.md",
+                           help="rendered fleet state authority")
+    checkin_p.add_argument("--trace", default="~/.trace/trace.db",
+                           help="Transcripto index, opened read-only")
+    checkin_p.add_argument("--json", action="store_true")
+
     evolve_p = sub.add_parser("evolve", help="The night command: scan + exams + gold recompile + the morning delta")
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
     evolve_p.add_argument("--obey", action="store_true", help="also push the compiled policy to ~/.claude so the agent obeys it (.bak kept)")
@@ -4923,6 +4995,7 @@ def main():
         "ci": cmd_ci,
         "policy": cmd_gold,
         "gold": cmd_gold,
+        "checkin": cmd_checkin,
         "evolve": cmd_evolve,
         "wager": cmd_wager,
         "capture": cmd_capture,
