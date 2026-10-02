@@ -2699,6 +2699,66 @@ def cmd_gold(args):
         print(f"not injected (dry-run). {inj['hint']}")
 
 
+def cmd_checkin(args):
+    """Grade one harness answer against live state and show whether Helicon can
+    see the existing memory and transcript bridges on both sides."""
+    import json as _json
+    from helicon.checkin import (memory_candidates, prompt, read_state,
+                                 score_answer, transcript_index)
+    from helicon.config import load_config
+    import sqlite3 as _sqlite3
+
+    state = read_state(args.state)
+    config = load_config()
+    db_path = os.path.expanduser(config["db_path"])
+    conn = _sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = _sqlite3.Row
+    report = {
+        "contract": "helicon-checkin-v1",
+        "harness": args.harness,
+        "state": {"path": state["path"], "revision": state["revision"],
+                  "open": len(state["open"]), "closed": len(state["closed"])},
+        "memory": memory_candidates(conn),
+        "transcripts": transcript_index(args.trace),
+        "question": prompt(state, args.harness),
+    }
+    answer = args.answer_text
+    if args.answer:
+        with open(args.answer, encoding="utf-8") as fh:
+            answer = fh.read()
+    if answer is not None:
+        report["result"] = score_answer(state, answer)
+
+    if args.json:
+        print(_json.dumps(report, indent=2, sort_keys=True))
+        return
+    print(report["question"])
+    print("\nBRIDGES")
+    print(f"- context: revision {state['revision']} · {len(state['open'])} open · "
+          f"{len(state['closed'])} closed")
+    mem = report["memory"]
+    pending = mem["by_status"].get("pending", {}).get("count", 0)
+    print(f"- memory: {mem['total']} Codex candidates · {pending} pending · "
+          "no automatic merge")
+    tr = report["transcripts"]
+    if tr["available"]:
+        seen = ", ".join(
+            f"{name} {row['sessions']} sessions ({row['freshness']}, "
+            f"{row['age_hours']}h)" for name, row in
+            sorted(tr["harnesses"].items()) if name in ("claude", "codex", "cursor")
+        )
+        print(f"- transcripts: {seen} · {tr['warnings']} source warning(s) · read-only")
+    else:
+        print(f"- transcripts: unavailable at {tr['path']}")
+    if "result" in report:
+        r = report["result"]
+        print(f"\nSCORE {r['score']}/{r['out_of']}")
+        print(f"- revision {r['revision']['points']}/25")
+        print(f"- open IDs {r['open_ids']['points']}/50")
+        print(f"- next action {r['next_action']['points']}/15")
+        print(f"- no closed IDs {r['closed_ids']['points']}/10")
+
+
 def cmd_evolve(args):
     """The night command: scan everything, run every selector and the rot
     exam, recompile the golden rules, and report the DELTA — what your
@@ -4248,6 +4308,24 @@ def cmd_witness(args):
     print(run_ledger(path, judge_flag=getattr(args, "judge", False)))
 
 
+def cmd_followed(args):
+    """Witnessed staleness: which instruction paths did agents follow and fail on?
+    Joins pointers in CLAUDE.md/AGENTS.md to missing-path tool errors in local
+    transcripts. Deterministic; keyless; prints paths and an error head only."""
+    import json as _json
+
+    from helicon.followed import check_followed, format_followed
+    res = check_followed(getattr(args, "repo", None) or ".",
+                         getattr(args, "files", None),
+                         getattr(args, "transcripts", None),
+                         getattr(args, "limit", 50))
+    if getattr(args, "json", False):
+        print(_json.dumps(res, ensure_ascii=False))
+    else:
+        print(format_followed(res))
+    raise SystemExit(1 if res["verdict"] == "ROT FOUND" else 0)
+
+
 def cmd_export(args):
     """Export a governed TaskRun as JSON: run row, events, packets, receipt."""
     import json as _json
@@ -4318,7 +4396,7 @@ _PRODUCT_LINE = (
     "before the work starts."
 )
 _HELICON_HELP_GROUPS = (
-    ("Verify", ("truth", "witness", "review", "ci", "doctor")),
+    ("Verify", ("truth", "witness", "followed", "review", "ci", "doctor")),
     ("Lab", ("demo", "scan", "serve", "doorway")),
     ("Harness", ("export", "setup", "board")),
 )
@@ -4636,6 +4714,18 @@ def main():
                              "Default: claude")
     gold_p.add_argument("--show", action="store_true", help="print the compiled rules, write nothing")
 
+    checkin_p = sub.add_parser(
+        "checkin", help="Score a harness belief against live state and inspect the two-way bridges")
+    checkin_p.add_argument("--harness", choices=["claude", "codex", "cursor"],
+                           default="codex")
+    checkin_p.add_argument("--answer", help="plain-text answer file to score")
+    checkin_p.add_argument("--answer-text", help="plain-text answer to score")
+    checkin_p.add_argument("--state", default="~/.local/state/fleet/CURRENT.md",
+                           help="rendered fleet state authority")
+    checkin_p.add_argument("--trace", default="~/.trace/trace.db",
+                           help="Transcripto index, opened read-only")
+    checkin_p.add_argument("--json", action="store_true")
+
     evolve_p = sub.add_parser("evolve", help="The night command: scan + exams + gold recompile + the morning delta")
     evolve_p.add_argument("--no-scan", action="store_true", help="skip ingest, just exams + gold")
     evolve_p.add_argument("--obey", action="store_true", help="also push the compiled policy to ~/.claude so the agent obeys it (.bak kept)")
@@ -4843,6 +4933,17 @@ def main():
     witness_p.add_argument("--summary", action="store_true",
                            help="Print one line: session_id claims=N verified=M contradicted=C share=0.xx")
 
+    followed_p = sub.add_parser("followed", help="Witnessed staleness: instruction-file paths an agent FOLLOWED and failed on (transcript tool errors joined to pointers; keyless, local)")
+    followed_p.add_argument("repo", nargs="?", default=".",
+                            help="Repo (or any directory) holding the instruction files (default: current directory)")
+    followed_p.add_argument("--transcripts", nargs="*", default=None,
+                            help="Session .jsonl files or directories to read (default: newest --limit under ~/.claude/projects)")
+    followed_p.add_argument("--files", nargs="*", default=None,
+                            help="Instruction files to read, relative to repo (default: CLAUDE.md, AGENTS.md, ... as helicon review)")
+    followed_p.add_argument("--limit", type=int, default=50,
+                            help="How many newest transcripts to read when none is given (default: 50)")
+    followed_p.add_argument("--json", action="store_true", help="machine-readable result")
+
     outcomes_p = sub.add_parser("outcomes", help="Read-only coverage of recorded outcomes, not a quality score")
     outcomes_p.add_argument("--db", help="Existing store to inspect, never created")
     outcomes_p.add_argument("--json", action="store_true")
@@ -4923,6 +5024,7 @@ def main():
         "ci": cmd_ci,
         "policy": cmd_gold,
         "gold": cmd_gold,
+        "checkin": cmd_checkin,
         "evolve": cmd_evolve,
         "wager": cmd_wager,
         "capture": cmd_capture,
@@ -4942,6 +5044,7 @@ def main():
         "setup": cmd_setup,
         "outcomes": cmd_outcomes,
         "witness": cmd_witness,
+        "followed": cmd_followed,
         "skills-review": cmd_skills_review,
         "review": cmd_review,
         "review-queue": cmd_review_queue,
@@ -4977,7 +5080,7 @@ def main():
     # stranger hitting a traceback broke the one caller that was already right.
     SELF_CONFIGURING = (
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
-        "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
+        "doorway", "sweep", "magnet", "setup", "witness", "followed", "skills-review",
         "review", "fix", "outcomes",
         "teach",
     )

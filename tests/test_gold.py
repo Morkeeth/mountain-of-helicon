@@ -144,6 +144,21 @@ def test_inject_is_dry_run_by_default(env, tmp_path, monkeypatch):
     assert os.path.exists(res["target"] + ".bak")
 
 
+def test_codex_policy_refresh_preserves_fleet_owned_state_block(env, tmp_path, monkeypatch):
+    conn, config = env
+    monkeypatch.setenv("HOME", str(tmp_path))
+    target = tmp_path / ".codex" / "AGENTS.md"
+    target.parent.mkdir(parents=True)
+    target.write_text(
+        "<!-- STATE:start -->\nTODAY revision abc\n<!-- STATE:end -->\n\nold law\n"
+    )
+    inject(conn, config, apply=True, targets=("codex",))
+    text = target.read_text()
+    assert text.startswith("<!-- STATE:start -->\nTODAY revision abc\n<!-- STATE:end -->")
+    assert "GOLDEN RULES (compiled for Codex)" in text
+    assert "old law" not in text
+
+
 # --- the compile path: a rule the human never wrote is worse than no rule ---
 # Regression: gold.py used the cube TITLE as the rule text with no fallback, so
 # a memory with empty frontmatter compiled a BLANK line into the law and nothing

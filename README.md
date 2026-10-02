@@ -496,9 +496,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (78 commands)
+## CLI (80 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `fix` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `teach` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `outcomes` `witness` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `fix` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `checkin` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `teach` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `outcomes` `witness` `followed` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 `helicon fix` prints safe path rewrites as a dry run and writes only with `--apply`.
 
@@ -523,6 +523,8 @@ Four of them answer to a second name, kept working so older muscle memory doesn'
 `helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots — no news, no noise. First run baselines silently.
 
 `helicon policy` compiles **GOLDEN RULES**: the stack's law, built from your rulings, dismissal precedents, approved triage rules, declared renames, canonical sources and standing feedback — every rule with its provenance (a rule without provenance is a vibe). `--inject` writes it to `~/.claude/GOLDEN_RULES.md` (dry-run default, `.bak` kept) so every session can obey it. `helicon evolve` is the night command: scan, every selector, the exam, a gold recompile, and the morning delta — what your stack learned while you slept.
+
+`helicon checkin` asks one harness for the live shared-state revision, exactly five open task IDs, and one next action. It scores the answer against `CURRENT.md` on a fixed 100-point denominator, reports Codex memories as review candidates rather than silently merging them, and reads the existing Transcripto views in read-only mode.
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
