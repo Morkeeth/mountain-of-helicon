@@ -53,6 +53,8 @@ TARGETS = {
     },
 }
 DEFAULT_TARGETS = ("claude",)
+STATE_START = "<!-- STATE:start -->"
+STATE_END = "<!-- STATE:end -->"
 
 
 def _clip(text: str, limit: int = RULE_MAX) -> str:
@@ -377,6 +379,15 @@ def inject(conn: sqlite3.Connection, config: dict, apply: bool = False,
         text = (md if (md is not None and scoped == SECTIONS)
                 else _compile_from(g, sections=scoped, title=spec["title"]))
         target = os.path.join(os.path.expanduser(spec["path"][0]), *spec["path"][1:])
+        old = ""
+        if os.path.exists(target):
+            with open(target, encoding="utf-8") as f:
+                old = f.read()
+        # fleet-ops owns the live STATE block in Codex's global AGENTS.md.
+        # A policy refresh must replace the law without erasing today's state.
+        if name == "codex" and STATE_START in old and STATE_END in old:
+            end = old.index(STATE_END) + len(STATE_END)
+            text = old[old.index(STATE_START):end].rstrip() + "\n\n" + text.lstrip()
         if not apply:
             results[name] = {"applied": False, "target": target,
                              "chars": len(text), "sections": scoped,
@@ -384,9 +395,7 @@ def inject(conn: sqlite3.Connection, config: dict, apply: bool = False,
             continue
         os.makedirs(os.path.dirname(target), exist_ok=True)
         baked = False
-        if os.path.exists(target):
-            with open(target, encoding="utf-8") as f:
-                old = f.read()
+        if old:
             with open(target + ".bak", "w", encoding="utf-8") as f:
                 f.write(old)
             baked = True
