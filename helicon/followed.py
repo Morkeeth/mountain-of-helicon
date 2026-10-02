@@ -69,6 +69,8 @@ _RE_ENOENT = re.compile(r"ENOENT[^'\"\n]*['\"]([^'\"\n]+)['\"]")
 # `cat: /a/b c.md: No such file or directory`. The path may hold spaces, so take
 # everything between the previous colon (or line start) and the error phrase.
 _RE_SHELL = re.compile(r"(?:^|\n)(?:[\w./+-]+: )?([^\n:]+?): No such file or directory")
+# zsh puts the path last and may include an evaluation line number.
+_RE_ZSH = re.compile(r"^(?:zsh|\(eval\))(?::[0-9]+)?: no such file or directory: ([^\n]+)$", re.I | re.M)
 _RE_READ_MISSING = re.compile(r"File does not exist|does not exist|No such file|ENOENT", re.I)
 
 
@@ -105,7 +107,7 @@ def extract_failed_paths(transcript: str) -> list[dict]:
                 if p:
                     paths.append(p)
         else:
-            for rx in (_RE_ERRNO, _RE_ENOENT, _RE_SHELL):
+            for rx in (_RE_ERRNO, _RE_ENOENT, _RE_SHELL, _RE_ZSH):
                 for m in rx.finditer(text):
                     p = m.group(1).strip()
                     if p and not p.startswith("command not found"):
