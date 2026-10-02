@@ -353,7 +353,7 @@ def find_identity_forks(conn, semantic: bool = True, judge_client=None,
 def _judge_confirm(forks: list[dict], client, model: str) -> list[dict]:
     """Stage 3: the Qwen judge decides which cosine survivors are real forks.
 
-    Keeps a fork only on an explicit `contradicts`. A resurfaced fork skips the
+    Drops a fork only on an explicit boolean consistency verdict. A resurfaced fork skips the
     judge entirely: a human already ruled that name, and a ruling is not re-argued
     by a model. On any judge error the fork SURVIVES: an unreachable judge must
     not silently retire rot the human never saw."""
@@ -366,11 +366,14 @@ def _judge_confirm(forks: list[dict], client, model: str) -> list[dict]:
             kept.append(f)
             continue
         try:
-            res = detect_contradictions(client, f["gloss_a"], f["gloss_b"], model=model) or {}
+            res = detect_contradictions(client, f["gloss_a"], f["gloss_b"], model=model)
         except Exception:
             kept.append(f)
             continue
-        f["judge"] = {"contradicts": bool(res.get("contradicts")),
+        if not isinstance(res, dict) or type(res.get("contradicts")) is not bool:
+            kept.append(f)
+            continue
+        f["judge"] = {"contradicts": res["contradicts"],
                       "why": (res.get("explanation") or "")[:200],
                       "severity": res.get("severity"), "model": model}
         if res.get("contradicts"):
