@@ -226,3 +226,15 @@ def test_zsh_path_last_errors_are_paths_not_missing_commands(tmp_path):
         records.extend([_tool(str(i), 'Bash', {'command': './example.sh'}), _result(str(i), message)])
     _write_jsonl(transcript, records)
     assert [item['path'] for item in extract_failed_paths(str(transcript))] == [p for _, p in cases if p]
+
+
+def test_unreadable_sessions_cannot_report_clean(repo, tmp_path, monkeypatch):
+    transcript = tmp_path / 'unreadable.jsonl'
+    transcript.write_text('{}\n')
+    def refuse(_path):
+        raise PermissionError('unreadable')
+    monkeypatch.setattr('helicon.followed.extract_failed_paths', refuse)
+    result = check_followed(str(repo), transcripts=[str(transcript)])
+    assert result['verdict'] == 'UNMEASURED'
+    assert result['sessions'] == 0
+    assert result['unreadable_sessions'] == 1
