@@ -232,12 +232,15 @@ def check_followed(repo_root: str, files: list[str] | None = None,
     hits: dict[tuple[str, int, str], dict] = {}
     unmatched = 0
     total_failures = 0
+    read_sessions = unreadable_sessions = 0
     for t in sessions:
         sid = os.path.splitext(os.path.basename(t))[0]
         try:
             failed = extract_failed_paths(t)
         except OSError:
+            unreadable_sessions += 1
             continue
+        read_sessions += 1
         for f in failed:
             total_failures += 1
             best = None
@@ -271,7 +274,7 @@ def check_followed(repo_root: str, files: list[str] | None = None,
         witnessed.append(row)
     witnessed.sort(key=lambda r: (-r["failures"], -r["session_count"], r["file"], r["line_no"]))
 
-    if not sessions:
+    if not read_sessions:
         verdict = "UNMEASURED"
     else:
         verdict = "ROT FOUND" if witnessed else "CLEAN"
@@ -280,7 +283,8 @@ def check_followed(repo_root: str, files: list[str] | None = None,
         "name": "Instruction paths followed and failed",
         "verdict": verdict,
         "repo": repo_root,
-        "sessions": len(sessions),
+        "sessions": read_sessions,
+        "unreadable_sessions": unreadable_sessions,
         "candidates": len(candidates),
         "failures": total_failures,
         "unmatched_failures": unmatched,
@@ -294,7 +298,8 @@ def format_followed(res: dict) -> str:
         return (head + "  (no transcript read; pass --transcripts <file-or-dir> "
                 "or run where ~/.claude/projects holds sessions)")
     lines = [head,
-             f"  {res['sessions']} session(s) read, {res['candidates']} instruction path(s), "
+             f"  {res['sessions']} session(s) read, {res.get('unreadable_sessions', 0)} unreadable, "
+             f"{res['candidates']} instruction path(s), "
              f"{res['failures']} missing-path tool error(s), "
              f"{res['unmatched_failures']} on paths no instruction names"]
     for r in res["witnessed"]:
