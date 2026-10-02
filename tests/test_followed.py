@@ -209,3 +209,20 @@ def test_bare_basename_pointer_joins_by_name_at_most(tmp_path):
     res = check_followed(str(root), transcripts=[str(t)])
     targets = {r["target"]: r["match"] for r in res["witnessed"]}
     assert targets == {"state-log.md": "by name"}
+
+
+def test_zsh_path_last_errors_are_paths_not_missing_commands(tmp_path):
+    transcript = tmp_path / 'zsh.jsonl'
+    cases = [
+        ('zsh: no such file or directory: ./missing/script.sh', './missing/script.sh'),
+        ('zsh:1: no such file or directory: ./folder with spaces/script.sh', './folder with spaces/script.sh'),
+        ('(eval):2: no such file or directory: ./missing/script.sh', './missing/script.sh'),
+        ('zsh:1: No such file or directory: ./missing/other.sh', './missing/other.sh'),
+        ('zsh:1: command not found: absent-command', None),
+        ('The docs say no such file or directory: ./not-an-error.sh', None),
+    ]
+    records = []
+    for i, (message, _) in enumerate(cases):
+        records.extend([_tool(str(i), 'Bash', {'command': './example.sh'}), _result(str(i), message)])
+    _write_jsonl(transcript, records)
+    assert [item['path'] for item in extract_failed_paths(str(transcript))] == [p for _, p in cases if p]
