@@ -6,22 +6,11 @@ a missing local link docs/GUIDE.md, and `../outside/OUT.md`.
 """
 import builtins
 import os
-import shutil
 from pathlib import Path
 
 from helicon import doorway
 from helicon import pointers as P
 from helicon.review import format_review, review, review_summary
-
-_CASES = Path(
-    "/private/tmp/claude-501/-Users-morkeeth/7a280f02-767c-40d2-a4f8-dc5ca75fca8a"
-    "/scratchpad/cold-review/cases"
-)
-_CASES2 = Path(
-    "/private/tmp/claude-501/-Users-morkeeth/7a280f02-767c-40d2-a4f8-dc5ca75fca8a"
-    "/scratchpad/cold-review-2/cases"
-)
-
 
 def _fixture(tmp_path):
     root = tmp_path / "h23"
@@ -317,11 +306,33 @@ def test_npm_scope_is_not_graded_as_an_import(tmp_path):
 
 
 def _copy_case(tmp_path, name):
-    src = _CASES / name
     dest = tmp_path / name
-    shutil.copytree(src / "repo", dest / "repo", symlinks=True)
-    shutil.copytree(src / "canary", dest / "canary", symlinks=True)
-    return dest / "repo", dest / "canary"
+    repo, canary = dest / "repo", dest / "canary"
+    repo.mkdir(parents=True)
+    canary.mkdir()
+    if name == "case16-negation":
+        (repo / "AGENTS.md").write_text(
+            "Do not read `../canary/no.md`.\n", encoding="utf-8")
+        (canary / "no.md").write_text(
+            "MARKER_CASE16_HELICON_LEAK\n", encoding="utf-8")
+    elif name == "case15-hostname":
+        (repo / "AGENTS.md").write_text(
+            "See `evil.example.com/../../../canary/h.md`.\n", encoding="utf-8")
+        (canary / "h.md").write_text(
+            "MARKER_CASE15_HELICON_LEAK\n", encoding="utf-8")
+    elif name == "case08-import-chain":
+        docs = repo / "docs"
+        docs.mkdir()
+        (repo / "CLAUDE.md").write_text("@docs/helper.md\n", encoding="utf-8")
+        (docs / "helper.md").write_text(
+            "Imported instructions. See `../../canary/hidden.md`.\n",
+            encoding="utf-8",
+        )
+        (canary / "hidden.md").write_text(
+            "MARKER_CASE08_HELICON_LEAK\n", encoding="utf-8")
+    else:
+        raise AssertionError(f"unknown inline fixture {name}")
+    return repo, canary
 
 
 def test_negated_line_still_reports_a_reference_that_leaves_the_repo(tmp_path, monkeypatch):
@@ -371,11 +382,16 @@ def test_in_repo_import_is_scanned_only_for_references_that_leave(tmp_path, monk
 
 def _copy_cursor_dir_symlink(tmp_path):
     """case09: repo/.cursor -> ../../canary-09/.cursor, which holds the canary."""
-    src = _CASES2 / "case09-cursor-dir-symlink"
     dest = tmp_path / "case09-cursor-dir-symlink"
-    shutil.copytree(src / "repo", dest / "repo", symlinks=True)
-    shutil.copytree(_CASES2 / "canary-09", tmp_path / "canary-09", symlinks=True)
-    return dest / "repo"
+    repo = dest / "repo"
+    repo.mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("# Safe local instructions\n", encoding="utf-8")
+    rules = tmp_path / "canary-09" / ".cursor" / "rules"
+    rules.mkdir(parents=True)
+    (rules / "secret.mdc").write_text(
+        "CANARY_MARKER_09_CURSOR_DIR\n", encoding="utf-8")
+    (repo / ".cursor").symlink_to("../../canary-09/.cursor", target_is_directory=True)
+    return repo
 
 
 def test_symlinked_cursor_directory_is_refused_and_not_read(tmp_path, monkeypatch):
