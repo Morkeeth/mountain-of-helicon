@@ -4308,6 +4308,24 @@ def cmd_witness(args):
     print(run_ledger(path, judge_flag=getattr(args, "judge", False)))
 
 
+def cmd_followed(args):
+    """Witnessed staleness: which instruction paths did agents follow and fail on?
+    Joins pointers in CLAUDE.md/AGENTS.md to missing-path tool errors in local
+    transcripts. Deterministic; keyless; prints paths and an error head only."""
+    import json as _json
+
+    from helicon.followed import check_followed, format_followed
+    res = check_followed(getattr(args, "repo", None) or ".",
+                         getattr(args, "files", None),
+                         getattr(args, "transcripts", None),
+                         getattr(args, "limit", 50))
+    if getattr(args, "json", False):
+        print(_json.dumps(res, ensure_ascii=False))
+    else:
+        print(format_followed(res))
+    raise SystemExit(1 if res["verdict"] == "ROT FOUND" else 0)
+
+
 def cmd_export(args):
     """Export a governed TaskRun as JSON: run row, events, packets, receipt."""
     import json as _json
@@ -4378,7 +4396,7 @@ _PRODUCT_LINE = (
     "before the work starts."
 )
 _HELICON_HELP_GROUPS = (
-    ("Verify", ("truth", "witness", "review", "ci", "doctor")),
+    ("Verify", ("truth", "witness", "followed", "review", "ci", "doctor")),
     ("Lab", ("demo", "scan", "serve", "doorway")),
     ("Harness", ("export", "setup", "board")),
 )
@@ -4915,6 +4933,17 @@ def main():
     witness_p.add_argument("--summary", action="store_true",
                            help="Print one line: session_id claims=N verified=M contradicted=C share=0.xx")
 
+    followed_p = sub.add_parser("followed", help="Witnessed staleness: instruction-file paths an agent FOLLOWED and failed on (transcript tool errors joined to pointers; keyless, local)")
+    followed_p.add_argument("repo", nargs="?", default=".",
+                            help="Repo (or any directory) holding the instruction files (default: current directory)")
+    followed_p.add_argument("--transcripts", nargs="*", default=None,
+                            help="Session .jsonl files or directories to read (default: newest --limit under ~/.claude/projects)")
+    followed_p.add_argument("--files", nargs="*", default=None,
+                            help="Instruction files to read, relative to repo (default: CLAUDE.md, AGENTS.md, ... as helicon review)")
+    followed_p.add_argument("--limit", type=int, default=50,
+                            help="How many newest transcripts to read when none is given (default: 50)")
+    followed_p.add_argument("--json", action="store_true", help="machine-readable result")
+
     outcomes_p = sub.add_parser("outcomes", help="Read-only coverage of recorded outcomes, not a quality score")
     outcomes_p.add_argument("--db", help="Existing store to inspect, never created")
     outcomes_p.add_argument("--json", action="store_true")
@@ -5015,6 +5044,7 @@ def main():
         "setup": cmd_setup,
         "outcomes": cmd_outcomes,
         "witness": cmd_witness,
+        "followed": cmd_followed,
         "skills-review": cmd_skills_review,
         "review": cmd_review,
         "review-queue": cmd_review_queue,
@@ -5050,7 +5080,7 @@ def main():
     # stranger hitting a traceback broke the one caller that was already right.
     SELF_CONFIGURING = (
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
-        "doorway", "sweep", "magnet", "setup", "witness", "skills-review",
+        "doorway", "sweep", "magnet", "setup", "witness", "followed", "skills-review",
         "review", "fix", "outcomes",
         "teach",
     )
