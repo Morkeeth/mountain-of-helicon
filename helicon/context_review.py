@@ -12,6 +12,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .calendar_check import calendar_candidate, check_weekday_item
 from .setup_audit import audit_setup
 from .context_history import HistoryError, read_source_bytes
 
@@ -94,6 +95,15 @@ def _claims(source, data, project, home):
     for number, line, offset in _lines(data):
         text = re.sub(r"^\s*[-*]\s+", "", line.strip())
         evidence = _evidence(source, line, number, offset)
+        calendar = check_weekday_item(text)
+        if calendar is None and calendar_candidate(text):
+            calendar = dict(verdict="unknown", claimed_weekday=None,
+                            basis="Narrow explicit weekday/full-date parser; no calendar inference performed",
+                            detail="Calendar mention is ambiguous or unsupported; this check abstained.")
+        if calendar:
+            # One item, never a pair of nearby memories or dates.
+            yield dict(subject=f"{source['path']}:{number}", predicate="calendar-weekday",
+                       value=calendar["claimed_weekday"], calendar=calendar, evidence=evidence)
         # A literal loader pointer remains useful even when delivery is unknown.
         # Resolve home explicitly against the reviewed home, not this process's.
         pointer_text = _first_sentence(text) if _reference_directive(text) else text
@@ -220,7 +230,20 @@ def context_review(home=None, project=None, receipts=None):
         key = "claim:" + _id(harness, subject, predicate)
         check = dict(id=key, version="1", status="success", source_ids=ids)
         checks.append(check)
-        if predicate in ("exists", "reference"):
+        if predicate == "calendar-weekday":
+            for claim in group:
+                result = claim["calendar"]
+                probe = dict(object=subject, command=None, operation=result["basis"],
+                             observed_at=now.isoformat(), verdict=result["verdict"], output=result)
+                claim["probe"] = probe
+                if result["verdict"] == "unknown":
+                    check["status"] = "unknown"
+                if result["verdict"] == "contradicted":
+                    finding("calendar-weekday", subject, predicate, [claim["evidence"]], key,
+                            "Weekday and date disagree in one item",
+                            result["detail"] + " Which field was intended is not known.",
+                            "Confirm the intended date and weekday before correcting this source. No event or deadline was independently verified.", probe)
+        elif predicate in ("exists", "reference"):
             target = Path(subject)
             # No traversal out of the selected project; existence elsewhere is
             # not evidence about the intended project object.
@@ -353,5 +376,6 @@ def context_review(home=None, project=None, receipts=None):
                 claims=claims, findings=findings,
                 coverage=dict(checks=checks, scope="Local source text; no model or shell execution.",
                               not_observed=["effective context without external receipt", "agent compliance", "memory usefulness",
-                                            "conditional rule applicability", "free-form factual claims", "remote outcomes"],
+                                            "conditional rule applicability", "free-form factual claims", "remote outcomes",
+                                            "ambiguous, relative, recurring or non-English calendar statements", "intended event dates"],
                               carried_in="setup_audit discovery at baseline 4556ccf"))
