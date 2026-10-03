@@ -76,3 +76,20 @@ def test_outside_home_file_and_profile_are_refused():
         with pytest.raises(ValueError, match="inside your home"):
             tasks(outside)
         assert source.read_text() == "{}"
+
+
+@pytest.mark.parametrize('at', ['2026-10-03T01:00:00Z', '2026-10-03T01:00:00.123Z', '2026-10-03T03:00:00+02:00'])
+def test_browser_utc_and_offset_times_preserve_confirmed_bytes(home_tmp_path, at):
+    db, receipt, profile = setup(home_tmp_path)
+    args = (db, 'a', 'b', receipt, profile, 'task-1', at)
+    proposal = prepare(*args)
+    assert proposal['record']['at'] == at
+    result = commit(*args, proposal['acceptance'])
+    stored = json.loads((profile / 'zup-ledger.jsonl').read_text().splitlines()[-1])
+    assert stored['at'] == at and stored['id'] == result['id']
+
+
+def test_timezone_less_handoff_is_refused(home_tmp_path):
+    db, receipt, profile = setup(home_tmp_path)
+    with pytest.raises(ValueError, match='timezone'):
+        prepare(db, 'a', 'b', receipt, profile, 'task-1', '2026-10-03T01:00:00')
