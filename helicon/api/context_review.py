@@ -268,3 +268,16 @@ def memory_journey(project_id: str):
                                corrections.history(), packet_store.list(project=project["path"]))
     except (ValueError, OSError, KeyError) as exc:
         failed(exc)
+
+
+@router.get("/judge-preview")
+def selected_judge_preview(item: str, against: str | None = None):
+    from helicon.judge_preview import preview
+    import sqlite3
+    db = (get_config() or {}).get("db_path")
+    if not db:
+        raise HTTPException(503, "No existing memory store is configured.")
+    try:
+        return preview(db, item, against)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        raise HTTPException(400, "Selected memory cannot be inspected: " + str(exc))
