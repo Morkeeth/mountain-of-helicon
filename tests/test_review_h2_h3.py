@@ -570,3 +570,18 @@ def test_review_of_a_missing_path_names_the_path_not_a_missing_agents_file(tmp_p
     assert "does not exist" in text
     assert "Add AGENTS.md" not in text
     assert "GRADE A" not in text and "PASS" not in text
+
+
+def test_nested_negation_cannot_reinclude_excluded_parent(tmp_path):
+    import subprocess
+    repo = tmp_path / "ignored-parent"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / "foo").mkdir()
+    (repo / ".gitignore").write_text("foo/\n!foo/root-keep.md\n")
+    (repo / "foo" / ".gitignore").write_text("!keep.md\n")
+    P._IGNORE_CACHE.clear()
+    for target in ("foo/keep.md", "foo/root-keep.md"):
+        oracle = subprocess.run(["git", "-C", str(repo), "check-ignore", "--no-index", target], capture_output=True)
+        assert oracle.returncode == 0
+        assert P.is_gitignored(str(repo), target)
