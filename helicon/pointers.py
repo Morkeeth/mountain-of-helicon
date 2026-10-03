@@ -654,7 +654,14 @@ def is_gitignored(repo_root: str, rel: str) -> bool:
         if depth and segs[depth - 1] == "..":
             break
         subdir = "/".join(segs[:depth])
-        verdict = _rules_cover(_gitignore_rules(repo_root, subdir), segs[depth:], is_dir)
+        rules = _gitignore_rules(repo_root, subdir)
+        remaining = segs[depth:]
+        # Git never enters an excluded parent directory. A later file negation
+        # or a nested .gitignore cannot re-include its children by itself.
+        if any(_rules_cover(rules, remaining[:end], True) is True
+               for end in range(1, len(remaining))):
+            return True
+        verdict = _rules_cover(rules, remaining, is_dir)
         if verdict is not None:
             ignored = verdict
     return ignored
