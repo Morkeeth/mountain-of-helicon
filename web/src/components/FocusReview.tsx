@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { api } from '../api';
+import { SelectedJudgePreview } from './SelectedJudgePreview';
 import type { Finding, FindingsResponse, GovernReceipt } from '../api';
 
 /* Govern by exception, one tap. A finding, its evidence, your ruling — and it
@@ -130,6 +131,8 @@ export default function FocusReview({ data, onActed, onSeeAll }: {
         })()}
 
         {f.evidence_preview && <Receipt text={f.evidence_preview} src={`${f.source || ''}${f.source_ref ? ' · ' + f.source_ref : ''}`} />}
+
+        {f.cube_id && <SelectedJudgePreview key={f.id} itemId={f.cube_id} />}
 
         <div className="mt-7 md:mt-9">
           {reasoning ? (

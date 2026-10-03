@@ -4162,6 +4162,19 @@ def cmd_consolidation_eval(args):
         print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
+def cmd_judge_preview(args):
+    from helicon.judge_preview import preview, print_preview
+    import sqlite3
+    try:
+        report = preview(args.db, args.item, args.against)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        sys.exit("Cannot inspect selected memory: " + str(exc))
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print_preview(report)
+
+
 def cmd_outcomes(args):
     from helicon.outcomes import outcome_report, render_outcomes, compare_cohort
     from helicon.config import load_config, helicon_home
@@ -4944,6 +4957,12 @@ def main():
                             help="How many newest transcripts to read when none is given (default: 50)")
     followed_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    jp = sub.add_parser("judge-preview", help="Inspect selected stored memories with local rules; no model calls or SQL changes")
+    jp.add_argument("--db", required=True, help="Existing SQLite store (opened read-only)")
+    jp.add_argument("--item", required=True, help="Exact selected memory ID")
+    jp.add_argument("--against", help="Optional second memory ID")
+    jp.add_argument("--json", action="store_true", help="Emit provenance, bounded checks and explicit unknowns")
+
     outcomes_p = sub.add_parser("outcomes", help="Read-only coverage of recorded outcomes, not a quality score")
     outcomes_p.add_argument("--db", help="Existing store to inspect, never created")
     outcomes_p.add_argument("--json", action="store_true")
@@ -5043,6 +5062,7 @@ def main():
         "stack": cmd_stack,
         "setup": cmd_setup,
         "outcomes": cmd_outcomes,
+        "judge-preview": cmd_judge_preview,
         "witness": cmd_witness,
         "followed": cmd_followed,
         "skills-review": cmd_skills_review,
@@ -5081,7 +5101,7 @@ def main():
     SELF_CONFIGURING = (
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
         "doorway", "sweep", "magnet", "setup", "witness", "followed", "skills-review",
-        "review", "fix", "outcomes",
+        "review", "fix", "outcomes", "judge-preview",
         "teach",
     )
     has_explicit_bench_db = (
@@ -5094,8 +5114,8 @@ def main():
         from helicon.extras import require
         require("web", args.command)
 
-    from helicon.config import config_file, load_config as _load
     if args.command not in SELF_CONFIGURING and not has_explicit_bench_db:
+        from helicon.config import config_file, load_config as _load
         try:
             _cfg = _load()
         except FileNotFoundError as e:
