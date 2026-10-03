@@ -60,7 +60,11 @@ def tasks(profile):
 
 
 def prepare(db, item, against, receipt, profile, task_id, prepared_at):
-    timestamp = datetime.fromisoformat(prepared_at)
+    # datetime.fromisoformat learned the ISO UTC Z suffix in Python 3.11.
+    # Browsers send Z; preserve those exact preview bytes while parsing an
+    # equivalent offset on every supported Python (including 3.10).
+    iso_time = prepared_at[:-1] + '+00:00' if prepared_at.endswith('Z') else prepared_at
+    timestamp = datetime.fromisoformat(iso_time)
     if timestamp.tzinfo is None:
         raise ValueError('Preview requires an explicit timestamp with timezone.')
     home, log, _ = rows(profile)
