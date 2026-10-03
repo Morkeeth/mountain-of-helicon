@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { SelectedJevComparison } from './SelectedJevComparison';
 import { api } from '../api';
 import type { Cube } from '../api';
 
@@ -39,7 +40,7 @@ export function SelectedJudgePreview({ itemId }: { itemId: string }) {
   if (!open) return <button className="text-sm underline mt-4 mb-4" onClick={begin}>Inspect local rules and sources</button>;
   return <section className="my-5 p-4 rounded-lg border text-sm" style={{ borderColor: 'var(--helicon-line)', background: 'var(--helicon-panel-2)' }} aria-label="Local rule inspection">
     <div className="flex justify-between gap-3"><strong>Local rule inspection</strong><button className="underline" onClick={() => { sequence.current++; setOpen(false); setResult(null); }}>Back to this review</button></div>
-    <p className="mt-2">No Jev result. No model calls or SQL changes. SQLite may use sidecar locks.</p>
+    <p className="mt-2">These local rules make no model calls or SQL changes. SQLite may use sidecar locks.</p>
     <label className="block mt-3">Compare with another saved item (optional)
       <select className="block w-full mt-1 border rounded p-2 bg-white text-black" value={against} disabled={busy}
         onChange={e => { setAgainst(e.target.value); void inspect(e.target.value); }}>
@@ -62,5 +63,6 @@ export function SelectedJudgePreview({ itemId }: { itemId: string }) {
       <p className="text-xs">Observed: {result.observed_at}</p><p className="text-xs">{result.limit}</p>
       <button className="underline" onClick={() => void inspect(against)}>Recheck these stored revisions</button>
     </div>}
+    <SelectedJevComparison key={itemId} item={itemId} against={against} />
   </section>;
 }
