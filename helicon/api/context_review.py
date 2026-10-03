@@ -281,3 +281,45 @@ def selected_judge_preview(item: str, against: str | None = None):
         return preview(db, item, against)
     except (OSError, ValueError, sqlite3.Error) as exc:
         raise HTTPException(400, "Selected memory cannot be inspected: " + str(exc))
+
+
+class SelectedComparison(BaseModel):
+    item: str
+    against: str
+    output: str
+    max_usd: float = Field(default=0.01, strict=True, gt=0, allow_inf_nan=False)
+    acceptance: str | None = None
+
+
+def comparison_call(req, action):
+    from helicon.selected_jev import prepare, execute, recorded
+    import sqlite3
+    db = (get_config() or {}).get("db_path")
+    if not db:
+        raise HTTPException(503, "No existing memory store is configured.")
+    try:
+        if action == "read":
+            return recorded(db, req.item, req.against, req.output)
+        if action == "run":
+            if not req.acceptance:
+                raise ValueError("Exact request confirmation is required.")
+            return execute(db, req.item, req.against, req.max_usd, req.output, req.acceptance)
+        return prepare(db, req.item, req.against, req.max_usd, req.output)
+    except (OSError, ValueError, sqlite3.Error):
+        # No raw paths/content from errors in the HTTP response.
+        raise HTTPException(400, "Comparison refused: check current source, privacy, key, finite cap and a new output path. Nothing else is retried or changed.")
+
+
+@router.post("/judge-compare/preview")
+def preview_selected_comparison(req: SelectedComparison):
+    return comparison_call(req, "preview")
+
+
+@router.post("/judge-compare/run")
+def run_selected_comparison(req: SelectedComparison):
+    return comparison_call(req, "run")
+
+
+@router.post("/judge-compare/read")
+def read_selected_comparison(req: SelectedComparison):
+    return comparison_call(req, "read")

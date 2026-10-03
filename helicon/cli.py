@@ -4162,6 +4162,21 @@ def cmd_consolidation_eval(args):
         print(f"    {d['topic'][:34]:34s} {d['cube_count']:>2} memories  {d['compression']:>5}x{q}")
 
 
+def cmd_judge_compare(args):
+    from helicon.selected_jev import prepare, execute, recorded
+    import sqlite3
+    try:
+        if args.read_result:
+            result = recorded(args.db, args.item, args.against, args.output)
+        elif args.confirm:
+            result = execute(args.db, args.item, args.against, args.max_usd, args.output, args.confirm)
+        else:
+            result = prepare(args.db, args.item, args.against, args.max_usd, args.output)
+        print(json.dumps(result, indent=2, allow_nan=False))
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        sys.exit("Cannot compare selected memories: " + str(exc))
+
+
 def cmd_judge_preview(args):
     from helicon.judge_preview import preview, print_preview
     import sqlite3
@@ -4957,6 +4972,16 @@ def main():
                             help="How many newest transcripts to read when none is given (default: 50)")
     followed_p.add_argument("--json", action="store_true", help="machine-readable result")
 
+    jc = sub.add_parser("judge-compare", help="Preview an opt-in Jev request for two selected memories; no send without --confirm")
+    jc.add_argument("--db", required=True, help="Existing memory database; no SQL mutations, SQLite sidecar locking may occur")
+    jc.add_argument("--item", required=True)
+    jc.add_argument("--against", required=True, help="Explicit second memory ID")
+    jc.add_argument("--output", required=True, help="Absolute NEW .json receipt path; existing files never overwritten")
+    jc.add_argument("--max-usd", type=float, default=0.01, help="Stop-after-reported-cost cap; one call can exceed it, not a price guarantee")
+    action = jc.add_mutually_exclusive_group()
+    action.add_argument("--confirm", help="Acceptance hash from exact preview; explicitly sends both texts")
+    action.add_argument("--read-result", action="store_true", help="Read existing receipt and recheck selected source hashes, no send")
+
     jp = sub.add_parser("judge-preview", help="Inspect selected stored memories with local rules; no model calls or SQL changes")
     jp.add_argument("--db", required=True, help="Existing SQLite store (opened read-only)")
     jp.add_argument("--item", required=True, help="Exact selected memory ID")
@@ -5063,6 +5088,7 @@ def main():
         "setup": cmd_setup,
         "outcomes": cmd_outcomes,
         "judge-preview": cmd_judge_preview,
+        "judge-compare": cmd_judge_compare,
         "witness": cmd_witness,
         "followed": cmd_followed,
         "skills-review": cmd_skills_review,
@@ -5101,7 +5127,7 @@ def main():
     SELF_CONFIGURING = (
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
         "doorway", "sweep", "magnet", "setup", "witness", "followed", "skills-review",
-        "review", "fix", "outcomes", "judge-preview",
+        "review", "fix", "outcomes", "judge-preview", "judge-compare",
         "teach",
     )
     has_explicit_bench_db = (
