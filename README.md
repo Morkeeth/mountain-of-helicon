@@ -95,6 +95,41 @@ unchecked. Exact supported calendar/quantity relations are narrow checks, not
 whole-memory truth; sum/rate arithmetic candidates remain unknown because their
 subject/metric binding is unproved. This is local rule inspection, not a Jev result.
 
+### Optional selected Jev comparison
+
+In the existing review, open **Inspect local rules and sources**, explicitly choose
+another saved item, then inspect the exact Jev request. Choose a new private JSON
+result path and a finite positive reported-spend cap. Confirmation sends both
+complete stored texts to OpenRouter using `OPENROUTER_API_KEY` from the server
+environment. No automatic pairing, fallback, retry or human review mutation occurs.
+
+For an automated local workflow:
+
+```bash
+helicon judge-compare --db /path/to/helicon.db --item FIRST_ID --against SECOND_ID --output /private/existing-folder/comparison.json --max-usd 0.01
+# Inspect every byte of request and privacy terms, then explicitly execute:
+helicon judge-compare --db /path/to/helicon.db --item FIRST_ID --against SECOND_ID --output /private/existing-folder/comparison.json --max-usd 0.01 --confirm ACCEPTANCE_HASH_FROM_PREVIEW
+# Reopen the recorded result against current selected bytes; no request:
+helicon judge-compare --db /path/to/helicon.db --item FIRST_ID --against SECOND_ID --output /private/existing-folder/comparison.json --read-result
+```
+
+One request can exceed the cap: it is not a price guarantee. Missing or invalid
+billing remains unknown. Invalid probability stays unknown. The privacy screen is
+conservative and incomplete; inspect the full request before confirming. The result
+file contains source hashes/IDs, checker/request hashes, time and model metadata,
+never raw memory text or provider error text. Existing files are never overwritten.
+An interrupted save can leave an empty reserved file; do not infer no charge or
+retry automatically. Stored memory access performs no SQL mutations; SQLite may
+create/use sidecar locking files. Results are unsigned historical observations,
+not fresh truth or independently authenticated provider evidence. Changed source
+bytes invalidate displayed support and old request confirmation. Use **Back to
+this review** to retain the finding; after reload explicitly choose the pair and
+**Load recorded comparison**. Only the chosen local result path is remembered.
+
+Acceptance for this integration uses an explicitly injected fake transport with
+synthetic records, labelled in the returned result. No real-data/model efficacy,
+installed application update or package release is claimed.
+
 The Setup screen also includes an independent, read-only ZUP project-state review.
 It compares local event receipts, canonical board identities, and queue actions.
 Duplicate identities, missing receipts, inconsistent state, and actions on
@@ -516,9 +551,9 @@ store. That opt-in includes bounded user and final-assistant text with common
 token patterns redacted. Reasoning, tool arguments, terminal output, file
 contents, search results, and diffs are never ingested.
 
-## CLI (81 commands)
+## CLI (82 commands)
 
-`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `fix` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-preview` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `checkin` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `teach` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `outcomes` `witness` `followed` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
+`init` `scan` `reconcile` `fix-skills` `serve` `demo` `triage` `review` `fix` `route` `score-runs` `runs` `run` `hook` `receipt` `judge-compare` `judge-preview` `judge-bench` `bench` `attribute` `move` `leaderboard` `snapshot` `lens` `taste` `check` `checkin` `report` `read` `audit` `consistency` `registry` `checkouts` `volatility` `unreviewed` `fleet` `queue` `guard` `ask` `teach` `brief` `board` `sweep` `doorway` `repair` `ci` `policy` `evolve` `wager` `capture` `lift` `resolve` `watch` `alias` `rule` `doctor` `export` `mcp` `score` `stack` `setup` `outcomes` `witness` `followed` `skills-review` `optimize` `eval` `embed` `playbooks` `reflect` `compile` `consolidate` `eval-consolidation` `complaints` `overboard` `ledger` `measure` `magnet` `measurement-bench` `review-queue` `science` `truth`
 
 `helicon fix` prints safe path rewrites as a dry run and writes only with `--apply`.
 
@@ -653,7 +688,7 @@ Mountain of Helicon's capabilities stand on well-understood memory-systems patte
 </p>
 
 
-- **Backend:** Python 3.12, FastAPI (155 endpoints), SQLite + FTS5 (43 tables declared across the memory and correction stores). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass, the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
+- **Backend:** Python 3.12, FastAPI (158 endpoints), SQLite + FTS5 (43 tables declared across the memory and correction stores). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass, the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
 - **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
 - **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
 - **Distribution:** BYOK + local-first. No hosted personal-store service is
