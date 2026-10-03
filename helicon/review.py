@@ -115,6 +115,10 @@ def format_review(repo_root: str, res: dict) -> str:
                            "dim"))
     elif p.get("refused"):
         L.append("  " + _p("· An instruction file was refused.", "dim"))
+    elif not _os.path.isdir(repo_root):
+        # A typo'd path is not a repo without an AGENTS.md. Say which it is.
+        L.append("  " + _p(f"· {repo_root} does not exist or is not a directory.", "dim"))
+        L.append("  " + _p("    Nothing was reviewed. Check the path, then run again.", "dim"))
     else:
         L.append("  " + _p("· No agent instruction file found in this repo.", "dim"))
         looked = ", ".join(DEFAULT_INSTRUCTION_FILES[:4]) + ", …"
