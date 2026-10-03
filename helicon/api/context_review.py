@@ -323,3 +323,47 @@ def run_selected_comparison(req: SelectedComparison):
 @router.post("/judge-compare/read")
 def read_selected_comparison(req: SelectedComparison):
     return comparison_call(req, "read")
+
+
+class ComparisonHandoff(BaseModel):
+    item: str
+    against: str
+    receipt: str
+    profile: str
+    task_id: str
+    prepared_at: str
+    acceptance: str | None = None
+
+
+@router.get('/judge-compare/handoff/tasks')
+def comparison_tasks(profile: str):
+    from helicon.jev_handoff import tasks
+    try:
+        return {'tasks': tasks(profile)}
+    except (OSError, ValueError):
+        raise HTTPException(400, 'Choose an existing local ZUP profile with a readable log.')
+
+
+def handoff_call(req, execute=False):
+    from helicon.jev_handoff import prepare, commit
+    import sqlite3
+    db = (get_config() or {}).get('db_path')
+    if not db:
+        raise HTTPException(503, 'No existing memory store is configured.')
+    try:
+        args = (db, req.item, req.against, req.receipt, req.profile, req.task_id, req.prepared_at)
+        if execute:
+            return commit(*args, req.acceptance)
+        return prepare(*args)
+    except (OSError, ValueError, TypeError, sqlite3.Error):
+        raise HTTPException(400, 'Handoff refused. Recheck selected sources, task and profile; no automatic retry.')
+
+
+@router.post('/judge-compare/handoff/preview')
+def preview_comparison_handoff(req: ComparisonHandoff):
+    return handoff_call(req)
+
+
+@router.post('/judge-compare/handoff/commit')
+def commit_comparison_handoff(req: ComparisonHandoff):
+    return handoff_call(req, True)
