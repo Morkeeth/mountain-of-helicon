@@ -1,3 +1,4 @@
+import { ComparisonHandoff } from './ComparisonHandoff';
 import { useEffect, useRef, useState } from 'react';
 
 type Preview = { acceptance: string; request: unknown; endpoint: string; privacy: string; limit: string; key_available: boolean };
@@ -60,6 +61,7 @@ export function SelectedJevComparison({ item, against }: { item: string; against
       <details><summary>Recorded provenance</summary><p className="break-all">Request SHA256: {result.request_sha256}</p><p className="break-all">Checker SHA256: {result.checker_sha256}</p></details>
       <p className="text-xs">{result.authenticity} {result.limit}</p>
       <button className="underline" disabled={busy} onClick={() => void act('read')}>Recheck recorded support</button>
+      {result.source_matches && <ComparisonHandoff item={item} against={against} receipt={output} />}
     </div>}
   </section>;
 }
