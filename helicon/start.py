@@ -3,7 +3,7 @@
 Helicon had the parts (review, truth, ask, skills-review, measure) and no front
 door. A person who starts it wants one answer: where is my context, what state is
 it in, what do I do next. This module asks each part for its reading and prints one
-card with five rows and at most three next steps.
+card: which copy is running, five readings, and at most three next steps.
 
 Rules it keeps:
   - Read only. It writes nothing and changes no store.
@@ -169,10 +169,40 @@ def read_index(home=None):
             "files_with_warnings": warned}
 
 
+def read_install():
+    """Which copy of Helicon is answering, and how far it is behind its main branch.
+
+    Helicon ran 38 commits stale for 12 days and nothing said so. This row is the
+    guard: it reads the tree this code was imported from. It uses what git already
+    knows locally and does not fetch, so "behind" means behind the last fetch.
+    """
+    tree = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def git(*args):
+        try:
+            done = subprocess.run(["git", "-C", tree, *args], capture_output=True, text=True, timeout=20)
+            return done.stdout.strip() if done.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+
+    if git("rev-parse", "--is-inside-work-tree") != "true":
+        return {"found": True, "read": tree, "git": False}
+    behind = git("rev-list", "--count", "HEAD..origin/main")
+    return {
+        "found": True, "read": tree, "git": True,
+        "branch": git("rev-parse", "--abbrev-ref", "HEAD") or "",
+        "behind_main": int(behind) if behind and behind.isdigit() else None,
+        "changed_files": len((git("status", "--porcelain") or "").splitlines()),
+    }
+
+
 def next_steps(card):
     """At most three things to do, worst first. Empty when nothing was found wrong."""
     steps = []
     ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
+    inst = card.get("install", {})
+    if inst.get("behind_main"):
+        steps.append(f"This Helicon is {inst['behind_main']} commit(s) behind main. Update it before trusting the rows below: {inst['read']}")
     if ins.get("found") and ins.get("broken"):
         steps.append(f"Fix {ins['broken']} instruction line(s) that do not match the repo: helicon review {ins['read']}")
     if mem.get("found") and mem.get("rotten"):
@@ -188,6 +218,7 @@ def next_steps(card):
 
 def build_card(path=".", home=None):
     card = {
+        "install": read_install(),
         "instructions": read_instructions(path),
         "memory": read_memory(memory_stores(home)),
         "decisions": read_decisions(),
@@ -204,6 +235,13 @@ def format_card(card):
 
     ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
     lines = ["", "  HELICON  where your context is, and its state", ""]
+    inst = card.get("install") or {}
+    if inst.get("git"):
+        behind = inst.get("behind_main")
+        state = "behind main unknown" if behind is None else ("up to date with main" if behind == 0 else f"STALE: {behind} commit(s) behind main")
+        lines.append(f"  {'Running from':<14}{inst['read']}  ·  branch {inst['branch']}  ·  {state}")
+    elif inst:
+        lines.append(f"  {'Running from':<14}{inst['read']}  ·  an installed copy, not a git tree")
     lines.append(row("Instructions", ins, f"grade {ins.get('grade')}  ·  {ins.get('broken')} of {ins.get('checked')} checked lines do not match the repo"))
     lines.append(row("Memory", mem, f"{mem.get('rotten')} of {mem.get('files')} memory files carry a stale or expired claim"))
     lines.append(row("Decisions", dec, f"{dec.get('rulings')} rulings on record  ·  newest {dec.get('newest')}"))

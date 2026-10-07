@@ -58,3 +58,20 @@ def test_next_steps_are_capped_at_three_and_worst_first():
     }
     steps = start.next_steps(card)
     assert len(steps) == 3 and steps[0].startswith("Fix 2 instruction")
+
+
+def test_a_stale_install_is_the_first_next_step():
+    card = {
+        "install": {"found": True, "read": "/tree", "git": True, "branch": "old", "behind_main": 38, "changed_files": 2},
+        "instructions": {"found": False, "why": "x"}, "memory": {"found": False, "why": "x"},
+        "decisions": {"found": True, "rulings": 1, "newest": "2026-10-07"},
+        "skills": {"found": False, "why": "x"}, "index": {"found": True, "sessions": 1, "newest": "2026-10-07"},
+    }
+    card["next"] = start.next_steps(card)
+    assert card["next"][0].startswith("This Helicon is 38 commit(s) behind main")
+    assert "STALE: 38 commit(s) behind main" in start.format_card(card)
+
+
+def test_install_row_reads_the_tree_this_code_runs_from():
+    part = start.read_install()
+    assert part["found"] is True and os.path.isdir(part["read"])
