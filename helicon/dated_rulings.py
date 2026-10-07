@@ -6,7 +6,7 @@ value) made inside Helicon's own audit log. A decision like "Free Lunch is kille
 recorded elsewhere, as one JSON line with the operator's words, a date and a source.
 
 This module reads that log, read only, and returns the rulings that match a question,
-newest first. It never writes, always lists the newest matching ruling first, and returns nothing when the log is absent.
+current one first. It never writes and returns nothing when the log is absent.
 
 The log path comes from HELICON_RULINGS_FILE. With the variable unset, the shared
 fleet log is used when it exists. Set it to an empty string to turn the reader off.
@@ -28,6 +28,7 @@ _STOP = frozenset(
 )
 _WORD = re.compile(r"[a-z0-9][a-z0-9'\-]{1,}")
 MIN_SCORE = 0.34  # share of the question's weighted words a ruling must cover
+SAME_SUBJECT = 0.75  # a ruling this close to the best cover is about the same subject
 
 
 def rulings_path():
@@ -81,23 +82,38 @@ def load_rulings(path=None):
     return out
 
 
+def _named(question):
+    """Words the asker wrote with a capital inside the sentence: the named things."""
+    tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9'\-]+", question or "")
+    return {_stem(t.lower()) for t in tokens[1:] if t[0].isupper() and t.lower() not in _STOP}
+
+
 def match_rulings(question, rulings=None, limit=3):
-    """Rulings that cover the question, best cover first, newest first on a tie.
+    """Rulings that cover the question, with the current one marked.
 
     Lexical on purpose: each question word is weighted by how rare it is across the
-    log, and a ruling scores the share of that weight it contains. It will miss a
-    ruling phrased with none of the question's words; that miss is measurable.
+    log, a named thing counts double, and a ruling scores the share of that weight it
+    contains. It will miss a ruling phrased with none of the question's words; that
+    miss is measurable.
+
+    Which ruling is current: only rulings that cover the question about as well as
+    the best one (SAME_SUBJECT of its score) are treated as the same subject. The
+    newest of those is current, and every ruling of that same day with it. A weaker
+    match is listed after them as related, whatever its date, so a later ruling about
+    something else cannot pass for the latest word on this subject.
     """
     rulings = load_rulings() if rulings is None else rulings
     asked = set(_words(question))
     if not rulings or not asked:
         return []
+    named = _named(question)
     bags = [set(_words(f"{r['title']} {r['text']} {r['quote']}")) for r in rulings]
     total = len(rulings)
     weight = {}
     for word in asked:
         seen = sum(1 for bag in bags if word in bag)
-        weight[word] = math.log((total + 1) / (seen + 1)) + 1.0 if seen else 0.0
+        base = math.log((total + 1) / (seen + 1)) + 1.0 if seen else 0.0
+        weight[word] = base * (2.0 if word in named else 1.0)
     full = sum(weight.values())
     if not full:
         return []
@@ -107,11 +123,20 @@ def match_rulings(question, rulings=None, limit=3):
         score = sum(weight[w] for w in hit) / full
         if score >= MIN_SCORE:
             scored.append({**ruling, "score": round(score, 3), "matched": hit})
+    if not scored:
+        return []
     scored.sort(key=lambda r: (r["score"], r["date"]), reverse=True)
-    best = scored[:limit]
-    # Shown newest first: a later decision on the subject replaces an earlier one, and
-    # the reader must meet it first. Each older row says so.
-    best.sort(key=lambda r: r["date"], reverse=True)
-    for position, ruling in enumerate(best):
-        ruling["newest"] = position == 0
-    return best
+    floor = scored[0]["score"] * SAME_SUBJECT
+    same = sorted((r for r in scored if r["score"] >= floor), key=lambda r: r["date"], reverse=True)
+    related = [r for r in scored if r["score"] < floor]
+    newest_day = same[0]["date"]
+    out = []
+    for ruling in same + related:
+        on_subject = ruling["score"] >= floor
+        ruling["standing"] = (
+            "current" if on_subject and ruling["date"] == newest_day
+            else "older" if on_subject else "related"
+        )
+        ruling["newest"] = ruling["standing"] == "current"
+        out.append(ruling)
+    return out[:limit]
