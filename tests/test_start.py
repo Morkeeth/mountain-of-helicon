@@ -121,3 +121,18 @@ def test_readings_are_sentences_without_paths_or_tool_words(tmp_path, monkeypatc
     assert "Look at the 1 out-of-date note and fix or delete it." in text
     for plumbing in ("/tree", "branch", "grade", "repo", "checked lines", "(s)"):
         assert plumbing not in text
+
+
+def test_share_holds_numbers_only_and_null_for_what_was_not_found(tmp_path, monkeypatch):
+    card = start.build_card(str(tmp_path), home=_empty_home(tmp_path, monkeypatch))
+    assert start.share(card)["readings_found"] == 0 and start.share(card)["memory"] is None
+    card["install"] = {"read": "/secret/tree", "behind_main": 0}
+    card["instructions"] = {"found": True, "read": "/secret/repo", "checked": 10, "broken": 1}
+    card["memory"] = {"found": True, "read": ["/secret/memory"], "files": 400, "rotten": 4}
+    card["skills"] = {"found": True, "opened_known": True, "installed": 40, "never_opened": 10,
+                      "never_opened_names": ["private-skill"], "read": "/secret/trace.db"}
+    out = start.share(card)
+    assert out["instructions"]["true_rate"] == 0.9 and out["memory"]["fresh_rate"] == 0.99
+    assert out["skills"]["used_rate"] == 0.75 and out["readings_found"] == 3
+    text = json.dumps(out)
+    assert "secret" not in text and "private-skill" not in text and "/" not in text

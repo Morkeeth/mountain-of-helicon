@@ -1702,6 +1702,11 @@ def cmd_start(args):
     card["trend"] = {key: trend(history, key) for key in
                      ("instructions_broken", "memory_rotten", "rulings", "skills_never_opened", "sessions")}
     card["days"] = len(history)
+    if getattr(args, "share", False):
+        from helicon.start import share
+
+        print(_json.dumps(share(card), indent=2))
+        return
     colour = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
     print(_json.dumps(card, indent=2) if getattr(args, "json", False) else format_card(card, colour=colour))
     out = getattr(args, "html", None)
@@ -4919,6 +4924,8 @@ def main():
     start_p = sub.add_parser("start", help="First-run review: one card for your whole setup, and what to do next")
     start_p.add_argument("path", nargs="?", default=".", help="repo to review (default: current directory)")
     start_p.add_argument("--json", action="store_true", help="machine-readable card")
+    start_p.add_argument("--share", action="store_true",
+                         help="print counts and rates only: no paths, names or text, safe to send to someone")
     start_p.add_argument("--no-record", action="store_true",
                          help="do not append this reading to ~/.helicon/start-history.jsonl")
     start_p.add_argument("--html", nargs="?", const="", default=None,
