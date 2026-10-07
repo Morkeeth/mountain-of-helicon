@@ -4,6 +4,9 @@ One file, no network: the brand faces are embedded when the repo's font files ar
 present, and the page falls back to system faces when they are not. Nothing here
 measures anything; it draws the card `helicon.start.build_card` already made.
 
+Colour: ink navy and its lighter and brighter blues only (Oscar, 7 Oct 2026: all blue
+in different nuances, no other colour, less beige).
+
 The one device: each reading is a measuring strip, drawn to scale. Four stale files
 of 390 is a notch you can barely see, and that is the point. Where a total would go
 there is an empty slot that says why it is empty.
@@ -38,10 +41,10 @@ def _font_faces():
 
 
 CSS = """
-:root{--paper:#ECE4D8;--sheet:#F4EFE7;--ink:#17283A;--slate:#4E6173;--mist:#6C7E8E;
---rule:rgba(23,40,58,.16);--track:rgba(23,40,58,.10);--improve:#C67C3E}
-@media (prefers-color-scheme:dark){:root{--paper:#101C28;--sheet:#17283A;--ink:#ECE4D8;
---slate:#AEBFCC;--mist:#8496A6;--rule:rgba(236,228,216,.18);--track:rgba(236,228,216,.12);--improve:#DC9A62}}
+:root{--paper:#EDF1F6;--sheet:#F7F9FC;--ink:#17283A;--slate:#42586E;--mist:#6F8296;
+--rule:rgba(23,40,58,.16);--track:#D5DEE8;--mark:#2B5F9E}
+@media (prefers-color-scheme:dark){:root{--paper:#0E1A27;--sheet:#152535;--ink:#E6EDF5;
+--slate:#A9BCCF;--mist:#7E93A8;--rule:rgba(230,237,245,.18);--track:#22384E;--mark:#7FB0E6}}
 *{box-sizing:border-box}
 html{background:var(--paper)}
 body{margin:0;color:var(--ink);font-family:'Bricolage Grotesque',system-ui,sans-serif;font-size:17px;line-height:1.45;
@@ -56,7 +59,7 @@ h1{font-family:'Fraunces',Georgia,serif;font-weight:560;font-size:44px;letter-sp
 font-size:15px}
 .from b{font-weight:600}
 .path{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;color:var(--slate);overflow-wrap:anywhere}
-.stale{color:var(--improve);font-weight:600}
+.stale{color:var(--mark);font-weight:600}
 .row{display:grid;grid-template-columns:150px minmax(0,300px) 1fr;gap:10px 24px;align-items:end;
 padding:26px 0 22px;border-bottom:1px solid var(--rule)}
 .label{font-weight:600;font-size:15px;align-self:start;padding-top:10px}
@@ -66,7 +69,7 @@ font-variant-numeric:tabular-nums}
 .say{color:var(--slate);font-size:16px;padding-bottom:6px}
 .none{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:24px;color:var(--mist)}
 .strip{grid-column:2 / 4;height:14px;background:var(--track);position:relative;margin-top:4px}
-.strip i{position:absolute;inset:0 auto 0 0;background:var(--ink);min-width:3px}
+.strip i{position:absolute;inset:0 auto 0 0;background:var(--mark);min-width:3px}
 .read{grid-column:2 / 4}
 .total{display:grid;grid-template-columns:150px 1fr;gap:10px 24px;padding:22px 0;border-bottom:2px solid var(--ink)}
 .slot{border:1px dashed var(--rule);padding:14px 18px;color:var(--mist);font-size:15px}
@@ -74,7 +77,7 @@ h2{font-family:'Fraunces',Georgia,serif;font-weight:520;font-size:28px;letter-sp
 ol{margin:0;padding:0;list-style:none;counter-reset:n}
 ol li{counter-increment:n;display:grid;grid-template-columns:150px 1fr;gap:6px 24px;padding:16px 0;
 border-bottom:1px solid var(--rule)}
-ol li::before{content:counter(n);font-family:'Fraunces',Georgia,serif;font-size:30px;line-height:1;color:var(--improve)}
+ol li::before{content:counter(n);font-family:'Fraunces',Georgia,serif;font-size:30px;line-height:1;color:var(--mark)}
 ol li code{display:block;margin-top:6px}
 code{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;color:var(--slate);overflow-wrap:anywhere}
 footer{margin-top:40px;color:var(--mist);font-size:14px}
