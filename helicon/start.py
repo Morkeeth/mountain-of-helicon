@@ -340,6 +340,40 @@ def plain(card):
     return {"status": status, "rows": rows, "steps": steps[:3]}
 
 
+def share(card):
+    """The card as numbers another person may see: counts and rates, nothing else.
+
+    No path, no file name, no skill name, no text from any note or session. This is
+    what a person sends when ten setups are compared. A reading that was not found is
+    null, never zero. Rates are shares between 0 and 1, so a setup with 20 notes and
+    one with 400 can sit side by side.
+    """
+    ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
+
+    def rate(part, whole):
+        return round(part / whole, 4) if whole else None
+
+    out = {"helicon_share": 1, "helicon_behind": (card.get("install") or {}).get("behind_main")}
+    out["instructions"] = (
+        {"checked": ins.get("checked", 0), "wrong": ins.get("broken", 0),
+         "true_rate": rate(ins.get("checked", 0) - ins.get("broken", 0), ins.get("checked", 0))}
+        if ins.get("found") else None)
+    out["memory"] = (
+        {"notes": mem.get("files", 0), "out_of_date": mem.get("rotten", 0),
+         "fresh_rate": rate(mem.get("files", 0) - mem.get("rotten", 0), mem.get("files", 0))}
+        if mem.get("found") else None)
+    out["decisions"] = {"saved": dec.get("rulings", 0)} if dec.get("found") else None
+    out["skills"] = (
+        {"installed": ski["installed"], "never_used": ski["never_opened"],
+         "used_rate": rate(ski["installed"] - ski["never_opened"], ski["installed"])}
+        if ski.get("opened_known") else ({"installed": ski.get("installed")} if ski.get("found") else None))
+    out["history"] = (
+        {"sessions": idx.get("sessions", 0), "not_fully_read": idx.get("files_with_warnings")}
+        if idx.get("found") else None)
+    out["readings_found"] = sum(1 for key in ("instructions", "memory", "decisions", "skills", "history") if out[key])
+    return out
+
+
 def next_steps(card):
     """At most three things to do, worst first, in plain words."""
     return [text for text, _ in plain(card)["steps"]]
