@@ -57,7 +57,8 @@ def test_next_steps_are_capped_at_three_and_worst_first():
         "index": {"found": False, "why": "x"},
     }
     steps = start.next_steps(card)
-    assert len(steps) == 3 and steps[0].startswith("Fix 2 instruction")
+    assert len(steps) == 3
+    assert steps[0] == "Fix the 2 things your instructions point to that are missing or wrong."
 
 
 def test_a_stale_install_is_the_first_next_step():
@@ -68,8 +69,10 @@ def test_a_stale_install_is_the_first_next_step():
         "skills": {"found": False, "why": "x"}, "index": {"found": True, "sessions": 1, "newest": "2026-10-07"},
     }
     card["next"] = start.next_steps(card)
-    assert card["next"][0].startswith("This Helicon is 38 commit(s) behind main")
-    assert "STALE: 38 commit(s) behind main" in start.format_card(card)
+    assert card["next"][0] == "Update Helicon first. It is out of date."
+    text = start.format_card(card)
+    assert "out of date, 38 updates behind" in text
+    assert "commit" not in text and "/tree" not in text.split("Do next")[0]  # no plumbing in the readings
 
 
 def test_install_row_reads_the_tree_this_code_runs_from():
@@ -88,3 +91,33 @@ def test_page_draws_the_card_and_refuses_a_total(tmp_path, monkeypatch):
     assert "3,649" in page and "7 Oct 2026" in page
     assert 'aria-label="0 of 390"></div>' in page  # zero of something draws no fill
     assert "http://" not in page and "https://" not in page  # one local file, no network
+
+
+def test_history_keeps_one_reading_per_day_and_gives_a_trend(tmp_path):
+    path = str(tmp_path / "h.jsonl")
+    card = {"instructions": {"found": True, "read": "/r", "broken": 2}, "memory": {"found": True, "rotten": 9},
+            "decisions": {"found": False}, "skills": {"opened_known": True, "never_opened": 7},
+            "index": {"found": True, "sessions": 10}}
+    start.record_reading(card, "2026-10-07T10:00:00+02:00", path)
+    card["memory"]["rotten"] = 6
+    start.record_reading(card, "2026-10-07T22:00:00+02:00", path)
+    card["memory"]["rotten"] = 4
+    start.record_reading(card, "2026-10-08T09:00:00+02:00", path)
+    history = start.load_history(path)
+    assert [row["at"][:10] for row in history] == ["2026-10-07", "2026-10-08"]
+    assert start.trend(history, "memory_rotten") == -2
+    assert start.trend(history, "rulings") is None  # a reading that was never found has no trend
+    assert start.trend(history[:1], "memory_rotten") is None
+
+
+def test_readings_are_sentences_without_paths_or_tool_words(tmp_path, monkeypatch):
+    card = start.build_card(str(tmp_path), home=_empty_home(tmp_path, monkeypatch))
+    card["install"] = {"found": True, "read": "/tree", "git": True, "branch": "b", "behind_main": 0}
+    card["instructions"] = {"found": True, "read": "/r", "checked": 11, "broken": 0, "grade": "A"}
+    card["memory"] = {"found": True, "read": ["/m"], "files": 390, "rotten": 1}
+    text = start.format_card(card)
+    assert "11 of 11 things your agent instructions point to exist. Nothing is wrong." in text
+    assert "1 of 390 notes your agents remember are out of date." in text
+    assert "Look at the 1 out-of-date note and fix or delete it." in text
+    for plumbing in ("/tree", "branch", "grade", "repo", "checked lines", "(s)"):
+        assert plumbing not in text

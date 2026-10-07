@@ -59,7 +59,10 @@ h1{font-family:'Fraunces',Georgia,serif;font-weight:560;font-size:44px;letter-sp
 font-size:15px}
 .from b{font-weight:600}
 .path{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;color:var(--slate);overflow-wrap:anywhere}
-.stale{color:var(--mark);font-weight:600}
+.status{margin:0;padding:16px 0;border-bottom:1px solid var(--rule);color:var(--slate)}
+.status.stale{color:var(--mark);font-weight:600}
+details{margin-top:36px;color:var(--mist);font-size:14px}summary{cursor:pointer}
+details ul{margin:10px 0 0;padding-left:18px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:anywhere}
 .row{display:grid;grid-template-columns:150px minmax(0,300px) 1fr;gap:10px 24px;align-items:end;
 padding:26px 0 22px;border-bottom:1px solid var(--rule)}
 .label{font-weight:600;font-size:15px;align-self:start;padding-top:10px}
@@ -107,82 +110,53 @@ def _count(value):
     return f"{value:,}" if isinstance(value, int) else value
 
 
-def _row(label, part, number, unit, sentence, strip="", read=""):
+def _row(row):
     esc = html.escape
-    if not part.get("found"):
-        body = f'<div class="none">nothing found</div><div class="say">{esc(part.get("why", ""))}</div>'
-        return f'<section class="row"><div class="label">{esc(label)}</div>{body}</section>'
-    source = f'<div class="path read">read from {esc(str(read))}</div>' if read else ""
+    if not row["found"]:
+        body = f'<div class="none">nothing found</div><div class="say">{esc(row["text"])}</div>'
+        return f'<section class="row"><div class="label">{esc(row["label"])}</div>{body}</section>'
+    strip = _strip(row["part"], row["whole"]) if row["whole"] else ""
     return (
-        f'<section class="row"><div class="label">{esc(label)}</div>'
-        f'<div class="num">{esc(str(_count(number)))}<small>{esc(unit)}</small></div>'
-        f'<div class="say">{esc(sentence)}</div>{strip}{source}</section>'
+        f'<section class="row"><div class="label">{esc(row["label"])}</div>'
+        f'<div class="num">{esc(str(_count(row["number"])))}<small>{esc(row["unit"])}</small></div>'
+        f'<div class="say">{esc(row["text"])}</div>{strip}</section>'
     )
 
 
 def render(card, when=None):
+    from helicon.start import plain
+
     esc = html.escape
     when = when or datetime.now().astimezone()
-    ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
-    inst = card.get("install") or {}
+    view = plain(card)
+    sentence, problem = view["status"]
+    status = f'<p class="status{" stale" if problem else ""}">{esc(sentence)}</p>' if sentence else ""
 
-    if inst.get("git"):
-        behind = inst.get("behind_main")
-        if behind is None:
-            state = "distance to main unknown"
-        elif behind == 0:
-            state = "up to date with main"
-        else:
-            state = f'<span class="stale">stale: {behind} commit(s) behind main</span>'
-        running = (f'<div class="from"><b>Running from</b><div><div class="path">{esc(inst["read"])}</div>'
-                   f'<div>branch {esc(inst.get("branch", ""))} · {state}</div></div></div>')
-    elif inst:
-        running = (f'<div class="from"><b>Running from</b><div><div class="path">{esc(inst["read"])}</div>'
-                   f"<div>an installed copy, not a git tree</div></div></div>")
-    else:
-        running = ""
-
-    rows = [
-        _row("Instructions", ins, ins.get("broken"), f"of {ins.get('checked')}",
-             f"checked lines do not match the repo. Grade {ins.get('grade')}.",
-             _strip(ins.get("broken") or 0, ins.get("checked") or 0), ins.get("read")),
-        _row("Memory", mem, mem.get("rotten"), f"of {mem.get('files')}",
-             "memory files carry a stale or expired claim.",
-             _strip(mem.get("rotten") or 0, mem.get("files") or 0), ", ".join(mem.get("read", []))),
-        _row("Decisions", dec, dec.get("rulings"), "rulings",
-             f"on record in your own words. Newest {_day(dec.get('newest'))}.", "", dec.get("read")),
-    ]
-    if ski.get("found") and ski.get("opened_known"):
-        rows.append(_row("Skills", ski, ski["never_opened"], f"of {ski['installed']}",
-                         "installed skills were never opened in your indexed sessions.",
-                         _strip(ski["never_opened"], ski["installed"]), ski.get("read")))
-    else:
-        rows.append(_row("Skills", ski, ski.get("installed"), "installed", ski.get("why", "")))
-    warned = idx.get("files_with_warnings")
-    rows.append(_row("Index", idx, idx.get("sessions"), "sessions",
-                     f"indexed. Newest {_day(idx.get('newest'))}."
-                     + (f" {warned} file(s) carry a warning." if warned else ""), "", idx.get("read")))
-
-    if card.get("next"):
-        items = []
-        for step in card["next"]:
-            text, _, command = step.partition(": helicon ")
-            code = f"<code>helicon {esc(command)}</code>" if command else ""
-            items.append(f"<li><div>{esc(text if command else step)}{code}</div></li>")
-        steps = f"<h2>Do next</h2><ol>{''.join(items)}</ol>"
+    if view["steps"]:
+        items = "".join(
+            f"<li><div>{esc(text)}</div></li>" for text, _ in view["steps"])
+        steps = f"<h2>Do next</h2><ol>{items}</ol>"
     else:
         steps = "<h2>Do next</h2><p class='sub'>Nothing to fix was found in what could be read.</p>"
+
+    sources = "".join(f"<li>{esc(row['label'])}: {esc(row['detail'])}</li>" for row in view["rows"] if row.get("detail"))
+    sources += "".join(f"<li>To do step {n}: {esc(command)}</li>"
+                       for n, (_, command) in enumerate(view["steps"], 1) if command)
+    inst = card.get("install") or {}
+    if inst.get("read"):
+        sources += f"<li>Helicon itself: {esc(inst['read'])}" + (f", branch {esc(inst.get('branch', ''))}" if inst.get("git") else "") + "</li>"
+    details = f"<details><summary>Where these numbers come from, and the commands</summary><ul>{sources}</ul></details>" if sources else ""
 
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-        f"<title>Helicon start</title><style>{_font_faces()}{CSS}</style></head><body><main>"
+        f"<title>Helicon</title><style>{_font_faces()}{CSS}</style></head><body><main>"
         "<header><div><h1>Helicon</h1><p class='sub'>Where your context is, and its state.</p></div>"
-        f"<div class='when'>read {esc(when.strftime('%d %b %Y, %H:%M'))}<br>helicon start</div></header>"
-        f"{running}{''.join(rows)}"
+        f"<div class='when'>{esc(when.strftime('%-d %b %Y, %H:%M'))}</div></header>"
+        f"{status}{''.join(_row(row) for row in view['rows'])}"
         "<div class='total'><div class='label'>Total</div><div class='slot'>No total. These five readings "
         "measure different things, so they are not added up.</div></div>"
-        f"{steps}"
-        "<footer>Read only. This page is a local file and was made on this machine.</footer>"
+        f"{steps}{details}"
+        "<footer>Nothing was changed. This page is a file on this Mac.</footer>"
         "</main></body></html>"
     )
