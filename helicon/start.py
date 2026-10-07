@@ -6,7 +6,8 @@ it in, what do I do next. This module asks each part for its reading and prints 
 card: which copy is running, five readings, and at most three next steps.
 
 Rules it keeps:
-  - Read only. It writes nothing and changes no store.
+  - It changes no store. The one thing it writes is its own reading, one line per
+    run, in ~/.helicon/start-history.jsonl, so a trend can exist.
   - No total. The five readings measure different things and are never summed.
   - A part that found nothing to read says "nothing found". It never prints zero
     as if it had measured.
@@ -196,24 +197,152 @@ def read_install():
     }
 
 
-def next_steps(card):
-    """At most three things to do, worst first. Empty when nothing was found wrong."""
-    steps = []
+def history_path():
+    return os.path.join(os.path.expanduser("~"), ".helicon", "start-history.jsonl")
+
+
+def _numbers(card):
+    """The few numbers worth following over time. Missing readings stay missing."""
     ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
-    inst = card.get("install", {})
-    if inst.get("behind_main"):
-        steps.append(f"This Helicon is {inst['behind_main']} commit(s) behind main. Update it before trusting the rows below: {inst['read']}")
-    if ins.get("found") and ins.get("broken"):
-        steps.append(f"Fix {ins['broken']} instruction line(s) that do not match the repo: helicon review {ins['read']}")
+    return {
+        "instructions_broken": ins.get("broken") if ins.get("found") else None,
+        "memory_rotten": mem.get("rotten") if mem.get("found") else None,
+        "rulings": dec.get("rulings") if dec.get("found") else None,
+        "skills_never_opened": ski.get("never_opened") if ski.get("opened_known") else None,
+        "sessions": idx.get("sessions") if idx.get("found") else None,
+    }
+
+
+def record_reading(card, when, path=None):
+    """Append this reading to the local history. One line per run, never rewritten.
+    This is the only thing `helicon start` writes, and only when asked to record."""
+    path = path or history_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    row = {"at": when, "repo": card["instructions"].get("read"), **_numbers(card)}
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row) + "\n")
+    return row
+
+
+def load_history(path=None, limit=30):
+    """Past readings, oldest first, one per day (the last run of a day wins)."""
+    path = path or history_path()
+    if not os.path.isfile(path):
+        return []
+    by_day = {}
+    with open(path, encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and row.get("at"):
+                by_day[str(row["at"])[:10]] = row
+    return [by_day[day] for day in sorted(by_day)][-limit:]
+
+
+def trend(history, key):
+    """Change since the first stored reading, or None with fewer than two days."""
+    values = [row.get(key) for row in history if row.get(key) is not None]
+    return None if len(values) < 2 else values[-1] - values[0]
+
+
+def _day(iso):
+    """2026-10-07 as 7 Oct. Anything else comes back as it was."""
+    from datetime import datetime
+
+    try:
+        return datetime.strptime(str(iso)[:10], "%Y-%m-%d").strftime("%-d %b")
+    except (TypeError, ValueError):
+        return iso or ""
+
+
+def _short(path):
+    home = os.path.expanduser("~")
+    path = str(path or "")
+    return "~" + path[len(home):] if path.startswith(home) else path
+
+
+def _n(count, one, many=None):
+    """3 notes, 1 note."""
+    return f"{count} {one if count == 1 else (many or one + 's')}"
+
+
+def plain(card):
+    """The card in words a person reads once and understands. No file paths, branch
+    names or tool words in a sentence; those live in `detail` for whoever wants them.
+
+    Returns {"status": (sentence, is_problem), "rows": [...], "steps": [(sentence, command)]}.
+    Each row: label, found, number, unit, text, part, whole, detail.
+    """
+    ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
+    inst = card.get("install") or {}
+    behind = inst.get("behind_main")
+    if behind:
+        status = (f"This copy of Helicon is out of date, {_n(behind, 'update')} behind. Update it before you trust the numbers below.", True)
+    elif inst.get("git") and behind == 0:
+        status = ("Helicon is up to date.", False)
+    else:
+        status = ("", False)
+
+    def row(label, part, number=None, unit="", text="", share=None, detail=""):
+        if not part.get("found"):
+            return {"label": label, "found": False, "text": part.get("why", ""), "detail": ""}
+        return {"label": label, "found": True, "number": number, "unit": unit, "text": text,
+                "part": share[0] if share else None, "whole": share[1] if share else None, "detail": detail}
+
+    rows = []
+    checked, broken = ins.get("checked") or 0, ins.get("broken") or 0
+    where = f"instruction files in {_short(ins.get('read'))}"
+    if not checked:
+        rows.append(row("Instructions", ins, 0, "checks", "possible. Your instruction files point to nothing that can be checked."))
+    elif not broken:
+        rows.append(row("Instructions", ins, checked, f"of {checked}",
+                        "things your agent instructions point to exist. Nothing is wrong.", None, where))
+    else:
+        rows.append(row("Instructions", ins, broken, f"of {checked}",
+                        "things your agent instructions point to are missing or wrong.", (broken, checked), where))
+    rows.append(row(
+        "Memory", mem, mem.get("rotten"), f"of {mem.get('files')}",
+        "notes your agents remember are out of date.",
+        (mem.get("rotten") or 0, mem.get("files") or 0), "agent memory in " + ", ".join(_short(p) for p in mem.get("read", []))))
+    rows.append(row(
+        "Decisions", dec, dec.get("rulings"), "decisions",
+        f"saved in your own words. The latest is from {_day(dec.get('newest'))}.",
+        None, f"decision log {_short(dec.get('read'))}"))
+    if ski.get("found") and ski.get("opened_known"):
+        never = ski["never_opened"]
+        rows.append(row("Skills", ski, never, f"of {ski['installed']}",
+                        "skills you installed have never been used.",
+                        (never, ski["installed"]), "work history " + _short(ski.get("read"))))
+    else:
+        rows.append(row("Skills", ski, ski.get("installed"), "installed",
+                        "Their use is unknown, because your work history is not searchable yet."))
+    warned = idx.get("files_with_warnings")
+    rows.append(row("History", idx, idx.get("sessions"), "sessions",
+                    f"of your work with agents can be searched. The latest is from {_day(idx.get('newest'))}."
+                    + (f" {warned} could not be read in full." if warned else ""),
+                    None, "work history " + _short(idx.get("read"))))
+
+    steps = []
+    if behind:
+        steps.append(("Update Helicon first. It is out of date.", f"git -C {_short(inst.get('read'))} pull"))
+    if ins.get("found") and broken:
+        steps.append((f"Fix the {_n(broken, 'thing')} your instructions point to that {'is' if broken == 1 else 'are'} missing or wrong.", f"helicon review {_short(ins['read'])}"))
     if mem.get("found") and mem.get("rotten"):
-        steps.append(f"Review {mem['rotten']} rotten memory file(s): helicon truth {mem['read'][0]}")
+        steps.append((f"Look at the {_n(mem['rotten'], 'out-of-date note')} and fix or delete {'it' if mem['rotten'] == 1 else 'them'}.", f"helicon truth {_short(mem['read'][0])}"))
     if ski.get("opened_known") and ski.get("never_opened"):
-        steps.append(f"{ski['never_opened']} installed skill(s) were never opened. Route to them or remove them.")
+        steps.append((f"Decide on the {_n(ski['never_opened'], 'skill')} you have never used: connect or remove {'it' if ski['never_opened'] == 1 else 'them'}.", ""))
     if not dec.get("found"):
-        steps.append("No decisions on record. Without a ruling log an agent cannot know what you decided.")
+        steps.append(("Start saving your decisions. Without them an agent cannot know what you decided.", ""))
     if not idx.get("found"):
-        steps.append("No transcript index. Index your sessions so use and drift can be measured.")
-    return steps[:3]
+        steps.append(("Make your work history searchable, so use and drift can be measured.", ""))
+    return {"status": status, "rows": rows, "steps": steps[:3]}
+
+
+def next_steps(card):
+    """At most three things to do, worst first, in plain words."""
+    return [text for text, _ in plain(card)["steps"]]
 
 
 def build_card(path=".", home=None):
@@ -242,51 +371,45 @@ def _bar(part, whole, colour, width=28):
 
 
 def format_card(card, colour=False):
-    """The card as text. With colour it uses blues only: bright for a number, mid for
-    a strip, dim for what was read. Without it the same words print plain."""
-    ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
+    """The card as text, in plain words. With colour it uses blues only."""
+    view = plain(card)
     head = lambda text: _paint(text, "1;38;5;153", colour)  # noqa: E731
     num = lambda text: _paint(str(text), "1;38;5;117", colour)  # noqa: E731
     dim = lambda text: _paint(text, "38;5;67", colour)  # noqa: E731
 
-    def row(label, part, text, bar=""):
-        if not part.get("found"):
-            return [f"  {label:<14}{dim('nothing found: ' + part.get('why', ''))}"]
-        lines = [f"  {head(label.ljust(14))}{text}"]
-        if bar:
-            lines.append(f"  {'':<14}{bar}")
-        return lines
-
     lines = ["", f"  {head('HELICON')}  where your context is, and its state", ""]
-    inst = card.get("install") or {}
-    if inst.get("git"):
-        behind = inst.get("behind_main")
-        state = "behind main unknown" if behind is None else ("up to date with main" if behind == 0 else f"STALE: {behind} commit(s) behind main")
-        if behind:
-            state = num(state)
-        lines.append(f"  {head('Running from  ')}{dim(inst['read'])}  ·  branch {inst['branch']}  ·  {state}")
-    elif inst:
-        lines.append(f"  {head('Running from  ')}{dim(inst['read'])}  ·  an installed copy, not a git tree")
+    sentence, problem = view["status"]
+    if sentence:
+        lines += [f"  {num(sentence) if problem else dim(sentence)}", ""]
+    for row in view["rows"]:
+        label = head(row["label"].ljust(14))
+        if not row["found"]:
+            lines.append(f"  {label}{dim('nothing found: ' + row['text'])}")
+            continue
+        number = f"{row['number']:,}" if isinstance(row["number"], int) else row["number"]
+        lines.append(f"  {label}{num(number)} {row['unit']} {row['text']}".rstrip())
+        if row["whole"]:
+            lines.append(f"  {'':<14}{_bar(row['part'], row['whole'], colour)}")
     lines.append("")
-    lines += row("Instructions", ins, f"grade {ins.get('grade')}  ·  {num(ins.get('broken'))} of {ins.get('checked')} checked lines do not match the repo",
-                 _bar(ins.get("broken") or 0, ins.get("checked") or 0, colour))
-    lines += row("Memory", mem, f"{num(mem.get('rotten'))} of {mem.get('files')} memory files carry a stale or expired claim",
-                 _bar(mem.get("rotten") or 0, mem.get("files") or 0, colour))
-    lines += row("Decisions", dec, f"{num(dec.get('rulings'))} rulings on record  ·  newest {dec.get('newest')}")
-    if ski.get("found") and ski.get("opened_known"):
-        lines += row("Skills", ski, f"{num(ski['never_opened'])} of {ski['installed']} installed skills were never opened",
-                     _bar(ski["never_opened"], ski["installed"], colour))
-    else:
-        lines += row("Skills", ski, f"{num(ski.get('installed'))} installed  ·  {ski.get('why', '')}")
-    warned = idx.get("files_with_warnings")
-    lines += row("Index", idx, f"{num(idx.get('sessions'))} sessions indexed  ·  newest {idx.get('newest')}"
-                 + (f"  ·  {warned} file(s) with warnings" if warned else ""))
-    lines.append("")
-    if card["next"]:
-        lines.append(f"  {head('Do next:')}")
-        lines.extend(f"    {num(n)}. {step}" for n, step in enumerate(card["next"], 1))
+    if view["steps"]:
+        lines.append(f"  {head('Do next')}")
+        for n, (text, command) in enumerate(view["steps"], 1):
+            lines.append(f"    {num(n)}. {text}")
+            if command:
+                lines.append(dim(f"       run: {command}"))
     else:
         lines.append("  Nothing to fix was found in what could be read.")
+    days = card.get("days")
+    if days:
+        lines.append("")
+        if days < 2:
+            lines.append(dim("  This is the first saved reading. Changes show from the second day."))
+        else:
+            moved = [f"{label} {value:+d}" for label, key in (
+                ("out-of-date notes", "memory_rotten"), ("unused skills", "skills_never_opened"),
+                ("wrong instructions", "instructions_broken"), ("decisions", "rulings"))
+                if (value := (card.get("trend") or {}).get(key))]
+            lines.append(dim(f"  Since the first of {days} days: " + (", ".join(moved) or "no change")))
     lines.append("")
     lines.append(dim("  Five separate readings. They are not added up."))
     return "\n".join(lines) + "\n"

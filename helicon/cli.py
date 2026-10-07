@@ -1690,7 +1690,18 @@ def cmd_start(args):
 
     from helicon.start import build_card, format_card
 
+    from datetime import datetime
+
+    from helicon.start import load_history, record_reading, trend
+
     card = build_card(getattr(args, "path", ".") or ".")
+    if not getattr(args, "no_record", False):
+        record_reading(card, datetime.now().astimezone().isoformat(timespec="seconds"))
+    history = load_history()
+    card["history"] = history
+    card["trend"] = {key: trend(history, key) for key in
+                     ("instructions_broken", "memory_rotten", "rulings", "skills_never_opened", "sessions")}
+    card["days"] = len(history)
     colour = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
     print(_json.dumps(card, indent=2) if getattr(args, "json", False) else format_card(card, colour=colour))
     out = getattr(args, "html", None)
@@ -4908,6 +4919,8 @@ def main():
     start_p = sub.add_parser("start", help="First-run review: one card for your whole setup, and what to do next")
     start_p.add_argument("path", nargs="?", default=".", help="repo to review (default: current directory)")
     start_p.add_argument("--json", action="store_true", help="machine-readable card")
+    start_p.add_argument("--no-record", action="store_true",
+                         help="do not append this reading to ~/.helicon/start-history.jsonl")
     start_p.add_argument("--html", nargs="?", const="", default=None,
                          help="also write the card as one local page (default: ~/.helicon/start.html)")
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
