@@ -92,9 +92,10 @@ def format_guarded_context(res: dict) -> str:
         lines.append("\n  Trusted answer: no ruling covers this topic — treat retrieved context as unverified.")
 
     if res.get("dated_rulings"):
-        lines.append("\n  Rulings on record (newest decision wins; read the date):")
+        lines.append("\n  Rulings on record (the newest decision on a subject wins):")
         for r in res["dated_rulings"]:
-            mark = "CURRENT" if r.get("newest") else "older, check against the current one"
+            mark = {"current": "CURRENT", "older": "older, replaced by the current one",
+                    "related": "related, another subject"}.get(r.get("standing"), "CURRENT" if r.get("newest") else "older")
             lines.append(f"    • {r['date']}  [{mark}]  {r['text']}")
             if r["quote"]:
                 lines.append(f'        said: "{r["quote"]}"')

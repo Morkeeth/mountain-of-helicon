@@ -53,3 +53,13 @@ def test_ask_output_names_the_current_ruling(log):
     text = format_guarded_context(res)
     assert "no ruling covers" not in text
     assert text.index("[CURRENT]") < text.index("[older")
+
+
+def test_a_newer_ruling_on_another_subject_is_not_current(log):
+    rows = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines() if l.startswith("{")]
+    rows.append({"ts": "2026-10-07T09:00:00+02:00", "text": "The deadline for the tax form moved to Friday.",
+                 "quote": "friday", "source": "chat 7 Oct"})
+    log.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    found = dated_rulings.match_rulings("Is the lunch stall still shipping for the fair deadline?", limit=5)
+    assert found[0]["standing"] == "current" and "killed" in found[0]["text"]
+    assert all(r["standing"] != "current" for r in found if "tax form" in r["text"])
