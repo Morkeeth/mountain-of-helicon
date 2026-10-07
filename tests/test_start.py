@@ -75,3 +75,16 @@ def test_a_stale_install_is_the_first_next_step():
 def test_install_row_reads_the_tree_this_code_runs_from():
     part = start.read_install()
     assert part["found"] is True and os.path.isdir(part["read"])
+
+
+def test_page_draws_the_card_and_refuses_a_total(tmp_path, monkeypatch):
+    from helicon.start_html import render
+
+    card = start.build_card(str(tmp_path), home=_empty_home(tmp_path, monkeypatch))
+    card["memory"] = {"found": True, "read": ["/m"], "files": 390, "rotten": 0}
+    card["index"] = {"found": True, "read": "/t", "sessions": 3649, "newest": "2026-10-07", "files_with_warnings": 0}
+    page = render(card)
+    assert "No total." in page and page.count("nothing found") == 3
+    assert "3,649" in page and "7 Oct 2026" in page
+    assert 'aria-label="0 of 390"></div>' in page  # zero of something draws no fill
+    assert "http://" not in page and "https://" not in page  # one local file, no network
