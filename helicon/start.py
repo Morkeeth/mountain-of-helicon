@@ -229,36 +229,64 @@ def build_card(path=".", home=None):
     return card
 
 
-def format_card(card):
-    def row(label, part, text):
-        return f"  {label:<14}{text if part.get('found') else 'nothing found: ' + part.get('why', '')}"
+def _paint(text, code, colour):
+    return f"\033[{code}m{text}\033[0m" if colour else text
 
+
+def _bar(part, whole, colour, width=28):
+    """A strip drawn to scale for the terminal. Zero draws an empty strip."""
+    if not whole:
+        return ""
+    filled = 0 if not part else max(1, round(width * min(1.0, part / whole)))
+    return _paint("█" * filled, "38;5;68", colour) + _paint("░" * (width - filled), "38;5;240", colour)
+
+
+def format_card(card, colour=False):
+    """The card as text. With colour it uses blues only: bright for a number, mid for
+    a strip, dim for what was read. Without it the same words print plain."""
     ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
-    lines = ["", "  HELICON  where your context is, and its state", ""]
+    head = lambda text: _paint(text, "1;38;5;153", colour)  # noqa: E731
+    num = lambda text: _paint(str(text), "1;38;5;117", colour)  # noqa: E731
+    dim = lambda text: _paint(text, "38;5;67", colour)  # noqa: E731
+
+    def row(label, part, text, bar=""):
+        if not part.get("found"):
+            return [f"  {label:<14}{dim('nothing found: ' + part.get('why', ''))}"]
+        lines = [f"  {head(label.ljust(14))}{text}"]
+        if bar:
+            lines.append(f"  {'':<14}{bar}")
+        return lines
+
+    lines = ["", f"  {head('HELICON')}  where your context is, and its state", ""]
     inst = card.get("install") or {}
     if inst.get("git"):
         behind = inst.get("behind_main")
         state = "behind main unknown" if behind is None else ("up to date with main" if behind == 0 else f"STALE: {behind} commit(s) behind main")
-        lines.append(f"  {'Running from':<14}{inst['read']}  ·  branch {inst['branch']}  ·  {state}")
+        if behind:
+            state = num(state)
+        lines.append(f"  {head('Running from  ')}{dim(inst['read'])}  ·  branch {inst['branch']}  ·  {state}")
     elif inst:
-        lines.append(f"  {'Running from':<14}{inst['read']}  ·  an installed copy, not a git tree")
-    lines.append(row("Instructions", ins, f"grade {ins.get('grade')}  ·  {ins.get('broken')} of {ins.get('checked')} checked lines do not match the repo"))
-    lines.append(row("Memory", mem, f"{mem.get('rotten')} of {mem.get('files')} memory files carry a stale or expired claim"))
-    lines.append(row("Decisions", dec, f"{dec.get('rulings')} rulings on record  ·  newest {dec.get('newest')}"))
+        lines.append(f"  {head('Running from  ')}{dim(inst['read'])}  ·  an installed copy, not a git tree")
+    lines.append("")
+    lines += row("Instructions", ins, f"grade {ins.get('grade')}  ·  {num(ins.get('broken'))} of {ins.get('checked')} checked lines do not match the repo",
+                 _bar(ins.get("broken") or 0, ins.get("checked") or 0, colour))
+    lines += row("Memory", mem, f"{num(mem.get('rotten'))} of {mem.get('files')} memory files carry a stale or expired claim",
+                 _bar(mem.get("rotten") or 0, mem.get("files") or 0, colour))
+    lines += row("Decisions", dec, f"{num(dec.get('rulings'))} rulings on record  ·  newest {dec.get('newest')}")
     if ski.get("found") and ski.get("opened_known"):
-        skills_text = f"{ski['never_opened']} of {ski['installed']} installed skills were never opened"
+        lines += row("Skills", ski, f"{num(ski['never_opened'])} of {ski['installed']} installed skills were never opened",
+                     _bar(ski["never_opened"], ski["installed"], colour))
     else:
-        skills_text = f"{ski.get('installed')} installed  ·  {ski.get('why', '')}"
-    lines.append(row("Skills", ski, skills_text))
+        lines += row("Skills", ski, f"{num(ski.get('installed'))} installed  ·  {ski.get('why', '')}")
     warned = idx.get("files_with_warnings")
-    lines.append(row("Index", idx, f"{idx.get('sessions')} sessions indexed  ·  newest {idx.get('newest')}"
-                     + (f"  ·  {warned} file(s) with warnings" if warned else "")))
+    lines += row("Index", idx, f"{num(idx.get('sessions'))} sessions indexed  ·  newest {idx.get('newest')}"
+                 + (f"  ·  {warned} file(s) with warnings" if warned else ""))
     lines.append("")
     if card["next"]:
-        lines.append("  Do next:")
-        lines.extend(f"    {n}. {step}" for n, step in enumerate(card["next"], 1))
+        lines.append(f"  {head('Do next:')}")
+        lines.extend(f"    {num(n)}. {step}" for n, step in enumerate(card["next"], 1))
     else:
         lines.append("  Nothing to fix was found in what could be read.")
     lines.append("")
-    lines.append("  Five separate readings. They are not added up.")
+    lines.append(dim("  Five separate readings. They are not added up."))
     return "\n".join(lines) + "\n"

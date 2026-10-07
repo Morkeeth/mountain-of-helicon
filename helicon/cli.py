@@ -1691,7 +1691,8 @@ def cmd_start(args):
     from helicon.start import build_card, format_card
 
     card = build_card(getattr(args, "path", ".") or ".")
-    print(_json.dumps(card, indent=2) if getattr(args, "json", False) else format_card(card))
+    colour = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+    print(_json.dumps(card, indent=2) if getattr(args, "json", False) else format_card(card, colour=colour))
     out = getattr(args, "html", None)
     if out is not None:
         from helicon.start_html import render
