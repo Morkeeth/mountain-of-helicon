@@ -1692,6 +1692,15 @@ def cmd_start(args):
 
     card = build_card(getattr(args, "path", ".") or ".")
     print(_json.dumps(card, indent=2) if getattr(args, "json", False) else format_card(card))
+    out = getattr(args, "html", None)
+    if out is not None:
+        from helicon.start_html import render
+
+        out = os.path.expanduser(out or os.path.join("~", ".helicon", "start.html"))
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as handle:
+            handle.write(render(card))
+        print(f"  Page written: {out}")
 
 
 def cmd_ask(args):
@@ -4898,6 +4907,8 @@ def main():
     start_p = sub.add_parser("start", help="First-run review: one card for your whole setup, and what to do next")
     start_p.add_argument("path", nargs="?", default=".", help="repo to review (default: current directory)")
     start_p.add_argument("--json", action="store_true", help="machine-readable card")
+    start_p.add_argument("--html", nargs="?", const="", default=None,
+                         help="also write the card as one local page (default: ~/.helicon/start.html)")
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
