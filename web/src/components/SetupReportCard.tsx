@@ -50,7 +50,7 @@ const GOAL_META: { key: string; label: string; stat: (g: SubGoal) => string }[] 
       const cs = (g.cross_source_contradictions as { inter_judge_kappa?: number; second_judge?: string } | undefined);
       const k = cs?.inter_judge_kappa;
       const base = `${g.snapshots_regressed ?? 0}/${g.snapshots_total ?? 0} snapshots regressed`;
-      return k != null ? `${base} · two-judge κ=${k}` : `${base} · two-judge panel (Qwen + ${cs?.second_judge ?? 'DeepSeek'})`;
+      return k != null ? `${base} · two-judge κ=${k}` : `${base} · two-judge panel (model + ${cs?.second_judge ?? 'second judge'})`;
     } },
 ];
 

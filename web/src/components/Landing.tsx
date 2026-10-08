@@ -39,15 +39,15 @@ function Exhibit({ n, title, sub, children }: { n: string; title: string; sub: s
 }
 
 const CARDS_DASH = [
-  ['Next Moves', 'Memory → your move', 'Qwen turns the state of your memory into 2-4 cited next prompts. Uncited ones are dropped.'],
+  ['Next Moves', 'Memory → your move', 'Your model turns the state of your memory into 2-4 cited next prompts. Uncited ones are dropped.'],
   ['Memory', 'Setup report card', 'Graded live against the MemoryAgent criteria: storage, forgetting, recall, cross-session accuracy.'],
   ['Needs Ruling', 'The cases', 'Every finding as a case: the why leads, evidence follows. Rule once, it sticks.'],
   ['Golden Rules', 'The precedent', "Your rulings compiled into your agent's operating law, each with provenance."],
 ];
 const STACK = [
-  ['Retrieval', 'retrieve → rerank', 'text-embedding-v4 (1024-dim) + FTS, fused by Reciprocal Rank Fusion, reranked by qwen3-rerank. Fully Qwen-native.'],
-  ['Two-judge court', 'κ, not one voice', 'Each contradiction adjudicated by qwen3.6-plus and a decorrelated second judge (deepseek-v4). Splits escalate to you; Cohen’s κ reported.'],
-  ['Tiered + honest', 'flash / plus / max', 'Routed by difficulty, structured outputs, response-cached, cost-tracked. Degrades honestly without a key.'],
+  ['Retrieval', 'retrieve → rerank', 'Embeddings + FTS, fused by Reciprocal Rank Fusion, with an optional reranker. Any OpenAI-compatible embeddings endpoint, or local keyword + MiniLM.'],
+  ['Two-judge court', 'κ, not one voice', 'Each contradiction adjudicated by your model and, when you name one, a second judge from another model family. Splits escalate to you; Cohen’s κ reported.'],
+  ['Tiered + honest', 'fast / default / deep', 'Routed by difficulty, structured outputs, response-cached, cost-tracked. Degrades honestly without a key.'],
   ['Alibaba proof', 'runs in Cloud Shell', 'scripts/cloudshell-run.sh boots the backend inside Alibaba Cloud Shell. Local-first everywhere else.'],
 ];
 
@@ -116,7 +116,7 @@ The rot exam, 12 documented failure classes, checked live
    `}<NUM c="7/12" />{` classes show rot right now · 12/12 fully tested
 
 $ `}<CMD c="helicon doctor" />{`
-  `}<OK c="[OK]" />{` Qwen key configured   `}<OK c="[OK]" />{` DB, `}<NUM c="4,214" />{` cubes`}</Term>
+  `}<OK c="[OK]" />{` model configured   `}<OK c="[OK]" />{` DB, `}<NUM c="4,214" />{` cubes`}</Term>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2.5 mt-4">
             {[['helicon ci', 'rot exam as a GitHub Action'], ['helicon battery "<task>"', 'context-quality verdict'], ['helicon gold --inject', 'rulings → GOLDEN_RULES.md'], ['helicon watch', 'ambient cron, pings on new rot']].map(([c, d]) => (
               <div key={c} className="rounded-lg border border-zinc-800/40 px-3 py-2.5">
@@ -133,7 +133,7 @@ $ `}<CMD c="helicon doctor" />{`
   `}<P c='"helicon"' />{`: { `}<CMD c='"command":"helicon","args":["mcp"]' />{` }
 
 `}<DIM c="agent ▸" />{` load what you know about the auth refactor
-`}<OK c="helicon_context ▸" />{` 6 memories, ranked (text-embedding-v4 + qwen3-rerank)
+`}<OK c="helicon_context ▸" />{` 6 memories, ranked (embeddings + rerank)
    #a1f2  "auth uses JWT rotation"   `}<DIM c="verified 3d · used 5x" />{`
    #c8e1  "sessions in Redis"        `}<DIM c="verified 41d" />{`  `}<ROT c="⚠ stale" />{`
 `}<DIM c="agent ▸" />{` #c8e1 is wrong, we moved off Redis, flag it
@@ -154,7 +154,7 @@ $ `}<CMD c="helicon doctor" />{`
         </Exhibit>
       </section>
 
-      {/* QWEN STACK */}
+      {/* MODEL STACK */}
       <section>
         <div className="text-[11px] uppercase tracking-[0.24em] mb-2" style={{ color: 'var(--helicon-muted)' }}>Local-first · bring your own model</div>
         <h2 className="text-[clamp(24px,3.2vw,32px)] m-0 mb-5" style={{ ...SERIF, color: 'var(--helicon-ink)', fontWeight: 500 }}>Deterministic checks run keyless; an LLM judge is optional.</h2>
