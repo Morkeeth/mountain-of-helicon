@@ -34,6 +34,7 @@ intact.
 
 ```bash
 pip install -e ".[web,model,retrieval]"   # CLI entry point + the full lab (plain -e . is the review only)
+helicon start                # first-run review: one card for the whole setup, and what to do next
 helicon init                 # auto-detect Claude Code, Cursor, Obsidian, git
 helicon scan                 # extract memory items from your sources
 helicon serve                # start web UI on :8420
@@ -73,7 +74,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - ~3,800 live memories of ~6,900 total (2026-07-15; the store grows on every scan, so `helicon doctor` prints today's count). Live memories come from 4 enabled connectors (Claude Code, Git, Obsidian, Skills) plus human resolutions. Cursor memories exist but are all retired; the ChatGPT connector ships but is not enabled and has 0 memories
 - Auto-triage rules learned from HUMAN reviews only (auto-triage's own decisions excluded so it can't reinforce its own echo)
 - 41 entities, 605 edges in knowledge graph
-- 38 routers (161 endpoints), 25 MCP tools, 82 CLI commands (+4 aliases)
+- 38 routers (161 endpoints), 25 MCP tools, 83 CLI commands (+4 aliases)
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)

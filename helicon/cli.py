@@ -1683,6 +1683,43 @@ def cmd_reflect(args):
         print(format_day_reflection(d))
 
 
+def cmd_start(args):
+    """First-run review: one card for the whole setup (instructions, memory,
+    decisions, skills, index) and at most three next steps. Read only."""
+    import json as _json
+
+    from helicon.start import build_card, format_card
+
+    from datetime import datetime
+
+    from helicon.start import load_history, record_reading, trend
+
+    card = build_card(getattr(args, "path", ".") or ".")
+    if not getattr(args, "no_record", False):
+        record_reading(card, datetime.now().astimezone().isoformat(timespec="seconds"))
+    history = load_history()
+    card["history"] = history
+    card["trend"] = {key: trend(history, key) for key in
+                     ("instructions_broken", "memory_rotten", "rulings", "skills_never_opened", "sessions")}
+    card["days"] = len(history)
+    if getattr(args, "share", False):
+        from helicon.start import share
+
+        print(_json.dumps(share(card), indent=2))
+        return
+    colour = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+    print(_json.dumps(card, indent=2) if getattr(args, "json", False) else format_card(card, colour=colour))
+    out = getattr(args, "html", None)
+    if out is not None:
+        from helicon.start_html import render
+
+        out = os.path.expanduser(out or os.path.join("~", ".helicon", "start.html"))
+        os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as handle:
+            handle.write(render(card))
+        print(f"  Page written: {out}")
+
+
 def cmd_ask(args):
     """Guarded retrieve: ask what is safe to believe about a topic. The read-side
     mirror of `helicon guard` — it retrieves context, then screens it through the
@@ -4884,6 +4921,15 @@ def main():
     reflect_p.add_argument("--day", help="the day to reflect on (YYYY-MM-DD); default: latest day with activity")
     reflect_p.add_argument("--json", action="store_true", help="emit the structured day reflection for another surface")
 
+    start_p = sub.add_parser("start", help="First-run review: one card for your whole setup, and what to do next")
+    start_p.add_argument("path", nargs="?", default=".", help="repo to review (default: current directory)")
+    start_p.add_argument("--json", action="store_true", help="machine-readable card")
+    start_p.add_argument("--share", action="store_true",
+                         help="print counts and rates only: no paths, names or text, safe to send to someone")
+    start_p.add_argument("--no-record", action="store_true",
+                         help="do not append this reading to ~/.helicon/start-history.jsonl")
+    start_p.add_argument("--html", nargs="?", const="", default=None,
+                         help="also write the card as one local page (default: ~/.helicon/start.html)")
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
@@ -5039,6 +5085,7 @@ def main():
         "fleet": cmd_fleet,
         "unreviewed": cmd_unreviewed,
         "guard": cmd_guard,
+        "start": cmd_start,
         "ask": cmd_ask,
         "teach": cmd_teach,
         "brief": cmd_brief,
