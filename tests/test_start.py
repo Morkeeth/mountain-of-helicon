@@ -138,3 +138,93 @@ def test_share_holds_numbers_only_and_null_for_what_was_not_found(tmp_path, monk
     assert out["skills"]["used_rate"] == 0.75 and out["readings_found"] == 3
     text = json.dumps(out)
     assert "secret" not in text and "private-skill" not in text and "/" not in text
+
+
+def _history_db(tmp_path, rows):
+    os.makedirs(tmp_path / ".trace")
+    con = sqlite3.connect(tmp_path / ".trace" / "trace.db")
+    con.execute("CREATE TABLE messages (session_id TEXT, ts TEXT, text TEXT, is_human INTEGER, harness TEXT)")
+    con.executemany("INSERT INTO messages VALUES (?,?,?,?,?)", rows)
+    con.commit()
+    con.close()
+
+
+def test_work_counts_typed_turns_per_tool_and_never_reads_spend_in_a_test_home(tmp_path, monkeypatch):
+    home = _empty_home(tmp_path, monkeypatch)
+    _history_db(tmp_path, [
+        ("s1", "2026-10-07T10:00:00Z", "fix it", 1, "claude"),
+        ("s1", "2026-10-07T10:01:00Z", "tool output", 0, "claude"),
+        ("s2", "2026-10-08T09:00:00Z", "ship", 1, "codex"),
+        ("s3", "2026-08-01T09:00:00Z", "old", 1, "codex"),
+    ])
+    work = start.read_work(home, today="2026-10-08")
+    assert work["typed"] == 2 and work["by_tool"] == {"claude": 1, "codex": 1} and work["sessions"] == 2
+    assert work["last_14_days"][-2:] == [1, 1] and len(work["last_14_days"]) == 14
+    assert work["spend"] is None  # a test home never starts the spend tool
+
+
+def test_work_rows_say_at_least_when_replies_have_no_price_and_nothing_found_without_the_tool():
+    work = {"found": True, "days": 30, "typed": 6119, "by_tool": {"codex": 4477, "claude": 1061},
+            "sessions": 786, "last_14_days": [0] * 13 + [5], "spend": None}
+    rows = start.work_plain(work)
+    assert rows[-1]["label"] == "Spend" and "nothing found" in rows[-1]["text"]
+    work["spend"] = {"usd": 2014.37, "typed": 1184, "agent_messages": 40344, "unpriced_messages": 28693,
+                     "tokens": 100, "tokens_reread": 97}
+    by_label = {row["label"]: row for row in start.work_plain(work)}
+    assert by_label["Spend"]["number"] == "$2,014" and by_label["Spend"]["unit"] == "or more, at list price" and "71% of agent replies have no price" in by_label["Spend"]["text"]
+    assert by_label["Per prompt"]["number"] == "$1.70" and by_label["Per prompt"]["unit"] == "or more, each" and "34 agent replies" in by_label["Per prompt"]["text"]
+    assert by_label["Re-reading"]["number"] == "97%"
+    work["spend"]["unpriced_messages"] = 0
+    assert start.work_plain(work)[2]["unit"] == "at list price"
+
+
+def test_share_carries_work_numbers_and_no_text(tmp_path, monkeypatch):
+    card = start.build_card(str(tmp_path), home=_empty_home(tmp_path, monkeypatch))
+    assert start.share(card)["work"] is None
+    card["work"] = {"found": True, "read": "/secret/trace.db", "days": 30, "typed": 10, "by_tool": {"claude": 10},
+                    "sessions": 2, "last_14_days": [0] * 14, "spend": None}
+    out = start.share(card)
+    assert out["work"]["typed"] == 10 and "secret" not in json.dumps(out)
+
+
+def test_routines_counts_job_files_and_reads_a_saved_cloud_reading(tmp_path, monkeypatch):
+    import plistlib
+
+    home = _empty_home(tmp_path, monkeypatch)
+    assert start.read_routines(home)["found"] is False
+    folder = tmp_path / "Library" / "LaunchAgents"
+    folder.mkdir(parents=True)
+    plistlib.dump({"Label": "me.job", "ProgramArguments": ["/no/such/program"]}, open(folder / "me.job.plist", "wb"))
+    plistlib.dump({"Label": "com.apple.x", "ProgramArguments": ["/bin/ls"]}, open(folder / "com.apple.x.plist", "wb"))
+    (folder / "me.job.plist.bak-2026").write_text("x", encoding="utf-8")
+    os.makedirs(tmp_path / ".helicon")
+    (tmp_path / ".helicon" / "cloud-routines.json").write_text(json.dumps(
+        {"read_at": "2026-10-08", "routines": [{"name": "a", "on": True}, {"name": "b", "on": False}]}), encoding="utf-8")
+    part = start.read_routines(home)
+    assert part["jobs"] == 1 and part["missing_program"] == 1 and part["backups"] == 1
+    assert part["known"] is False  # a test home never asks the system which jobs run
+    assert part["cloud"] == {"on": 1, "off": 1, "read_at": "2026-10-08"}
+    rows = {row["label"]: row for row in start.system_plain({"routines": part})}
+    assert "Which ones run is unknown here" in rows["Routines"]["text"]
+    assert rows["Cloud"]["number"] == 1 and "cannot read the cloud by itself" in rows["Cloud"]["text"]
+
+
+def test_system_rows_in_plain_words_and_a_step_for_broken_jobs():
+    card = {
+        "install": {}, "instructions": {"found": False, "why": "x"}, "memory": {"found": False, "why": "x"},
+        "decisions": {"found": True, "rulings": 1, "newest": "2026-10-08"},
+        "skills": {"found": False, "why": "x"}, "index": {"found": True, "sessions": 1, "newest": "2026-10-08"},
+        "routines": {"found": True, "jobs": 97, "running": 58, "failed": 14, "missing_program": 7, "not_running": 39,
+                     "backups": 10, "cron_lines": 13, "known": True, "cloud": None},
+        "size": {"found": True, "always_loaded_chars": 12394, "always_loaded_files": 8, "notes": 390, "long_notes": 4},
+        "stalled": {"found": True, "projects": 89, "stalled": 21, "days": 30},
+    }
+    view = start.plain(card)
+    rows = {row["label"]: row for row in view["system"]}
+    assert rows["Routines"]["text"].startswith("scheduled jobs are running. 14 failed their last run.")
+    assert rows["Left behind"]["number"] == 49 and rows["Notes"]["text"].endswith("4 of them are longer than a chapter.")
+    assert rows["Stalled"]["number"] == 21 and rows["Stalled"]["unit"] == "of 89"
+    assert any("scheduled jobs that failed or point at nothing" in text for text, _ in view["steps"])
+    text = start.format_card(card)
+    for plumbing in ("launchd", "plist", "LaunchAgents", "crontab", "/Users"):
+        assert plumbing not in text
