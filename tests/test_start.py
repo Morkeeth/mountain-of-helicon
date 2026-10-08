@@ -323,3 +323,15 @@ def test_a_job_restarted_by_hand_is_not_a_failed_job():
     assert _job_failed("-", "-15")  # killed and not running: still a failure
     assert not _job_failed("60881", "-15")  # stopped by a signal, alive again: a restart
     assert not _job_failed("60881", "0") and not _job_failed("-", "0") and not _job_failed("-", "-")
+
+
+def test_a_tool_is_found_beside_python_when_the_search_path_is_short(tmp_path, monkeypatch):
+    from helicon.start import _find_tool
+
+    monkeypatch.setenv("PATH", str(tmp_path / "empty"))
+    assert _find_tool("some-tool", beside=str(tmp_path)) is None
+    tool = tmp_path / "some-tool"
+    tool.write_text("#!/bin/sh\n")
+    assert _find_tool("some-tool", beside=str(tmp_path)) is None  # a file that cannot run is not a tool
+    tool.chmod(0o755)
+    assert _find_tool("some-tool", beside=str(tmp_path)) == str(tool)
