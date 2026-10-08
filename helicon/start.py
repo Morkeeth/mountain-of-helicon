@@ -371,6 +371,15 @@ def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
 _NOT_YOURS = ("com.apple.", "com.google.", "com.microsoft.", "com.docker.", "com.adobe.", "homebrew.")
 
 
+def _job_failed(pid, status):
+    """True when a loaded job's last run ended badly. A job that is alive now and whose
+    last exit was a signal was stopped and started again by someone, for example on a
+    restart after an update. That is not a failure."""
+    if status in ("0", "-", ""):
+        return False
+    return not (str(pid).isdigit() and str(status).startswith("-"))
+
+
 def read_routines(home=None):
     """The scheduled work on this machine: jobs the system starts by itself, the classic
     cron table, and cloud routines when an agent has left a reading of them.
@@ -393,7 +402,7 @@ def read_routines(home=None):
             for line in listing.splitlines()[1:]:
                 parts = line.split("\t")
                 if len(parts) == 3:
-                    state[parts[2]] = parts[1]
+                    state[parts[2]] = (parts[0], parts[1])
         except (OSError, subprocess.TimeoutExpired):
             state = {}
     running = failed = missing = idle = 0
@@ -409,7 +418,7 @@ def read_routines(home=None):
             missing += 1
         if label in state:
             running += 1
-            if state[label] not in ("0", "-"):
+            if _job_failed(*state[label]):
                 failed += 1
         else:
             idle += 1
