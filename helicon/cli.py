@@ -3621,18 +3621,9 @@ def cmd_doctor(_args):
             checks.append(("OK" if st["ok"] else "FAIL",
                            f"mcp '{st['name']}' — {st['reason']}"))
 
-        # Retrieval calls a remote reranker and silently keeps the hybrid order
-        # when it fails, so a dead reranker and a healthy one look identical.
-        # Retrieval is what R8 exists to test, so a silently-degraded reranker is
-        # a silently-degraded exam. Printed healthy or not, same as the nightly.
-        from helicon.embeddings import rerank_health
-        rr = rerank_health()
-        checks.append(("OK" if rr["ok"] else ("WARN" if rr["ok"] is None else "FAIL"),
-                       f"rerank — {rr['reason']}"))
-
-        # Same seam, one layer down, and worse: the SEMANTIC branch can be
+        # A silent seam: the SEMANTIC branch can be
         # entirely absent with no error at all. _load_all_embeddings filters on
-        # the current provider's dimension, so a store embedded at 1024 (Qwen)
+        # the current provider's dimension, so a store embedded at 1024 (remote)
         # read by a config-less checkout (local, 384) matches zero rows —
         # semantic_search returns [], hybrid_search silently becomes FTS-only,
         # and "60% semantic / 40% FTS5" stops describing what runs.

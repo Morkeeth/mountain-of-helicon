@@ -220,12 +220,12 @@ def test_a_dimension_mismatch_is_reported_not_silently_dropped(store, monkeypatc
     """`_load_all_embeddings` filters `ce.dim = <provider dim>`; on a mismatch
     it returns nothing, semantic_search returns [], and hybrid_search quietly
     becomes FTS-only with no error anywhere. On a copy of the real store all
-    4,214 vectors are dim=1024 (Qwen) while a config-less checkout resolves to
+    4,214 vectors are dim=1024 (remote) while a config-less checkout resolves to
     local/384 — so 60% of the documented ranking signal was silently absent and
     the answer had exactly the same shape.
 
     The provider is pinned rather than inherited. This test used to depend on
-    the DEVELOPER having no config.json: with one present it resolves to Qwen at
+    the DEVELOPER having no config.json: with one present it resolves to a remote model at
     dim 1024, the "mismatch" matches, and the test fails on a working machine
     while the code is correct. The property under test is the mismatch, not the
     absence of a config file.

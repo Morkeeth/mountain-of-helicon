@@ -357,6 +357,46 @@ def test_both_tables_present_is_left_alone(tmp_path):
     assert conn.execute(f"SELECT COUNT(*) FROM {_OLD_TABLE}").fetchone()[0] == len(_ROWS)
 
 
+# --- embeddings: local unless the config names an endpoint -------------------
+
+def _provider(monkeypatch, config):
+    from helicon import embeddings
+    monkeypatch.setattr(embeddings, "_provider_cache", None)
+    monkeypatch.setattr("helicon.config.load_config", lambda path=None: config)
+    return embeddings._embed_provider()
+
+
+def test_embeddings_default_to_local_minilm(monkeypatch):
+    assert _provider(monkeypatch, {})[0::2] == ("local", "all-MiniLM-L6-v2")
+    assert _provider(monkeypatch, {})[3] == 384
+
+
+def test_a_router_key_alone_does_not_pick_an_embeddings_vendor(monkeypatch):
+    # A key for the judge bench is not a decision about where memories are sent.
+    kind, client, model, dim = _provider(monkeypatch, {"openrouter_api_key": "k"})
+    assert (kind, client, model, dim) == ("local", None, "all-MiniLM-L6-v2", 384)
+
+
+def test_incomplete_embeddings_block_stays_local(monkeypatch):
+    for block in ({"api_key": "k", "base_url": "http://x.example/v1"},
+                  {"base_url": "http://x.example/v1", "model": "m"},
+                  {"api_key": "k", "model": "m", "dim": 8}):
+        assert _provider(monkeypatch, {"embeddings": block})[0] == "local", block
+
+
+def test_complete_embeddings_block_is_used_as_written(monkeypatch):
+    pytest.importorskip("openai")
+    kind, client, model, dim = _provider(monkeypatch, {"embeddings": {
+        "base_url": "http://localhost:9/v1", "model": "my-embedder", "dim": 8}})
+    assert (kind, model, dim) == ("remote", "my-embedder", 8)
+    assert str(client.base_url).rstrip("/") == "http://localhost:9/v1"
+
+
+def test_retrieval_has_no_reranker_left():
+    from helicon import embeddings
+    assert not [n for n in dir(embeddings) if "rerank" in n.lower()]
+
+
 # --- first run: init and doctor --------------------------------------------
 
 def _cli(home, *args, extra_env=None):
