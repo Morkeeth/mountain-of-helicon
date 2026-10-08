@@ -156,8 +156,7 @@ def build_portrait(conn: sqlite3.Connection, config: dict, client=None) -> dict:
     if client is None:
         return {"digest": digest, "keyless": True, "reading": None}
     from helicon.llm import complete_json, resolve_model
-    # qwen_models["plus"] is the key this reader has always honoured.
-    model = (config.get("qwen_models") or {}).get("plus") or resolve_model("default", config)
+    model = resolve_model("default", config)
     reading = complete_json(
         client, _SYS, "DIGEST:\n" + json.dumps(digest, ensure_ascii=False),
         model=model, operation="portrait")

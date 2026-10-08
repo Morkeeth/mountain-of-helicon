@@ -4,16 +4,6 @@ import sqlite3
 import sys
 import time
 
-# The tier table of the vendor Helicon was born on. It applies only to a config
-# that still points at that endpoint through the old qwen_* keys (see
-# config.resolve_llm). A config that uses the neutral llm_* keys names its own
-# model in llm_model, or per tier in llm_models, and never reads this table.
-MODELS = {
-    "fast": "qwen3.6-flash",
-    "default": "qwen3.6-plus",
-    "deep": "qwen3.7-max",
-}
-
 TIER_COST_PER_1K = {
     "qwen3.6-flash": 0.0003,
     "qwen3.6-plus": 0.0008,
@@ -60,37 +50,23 @@ def get_client(config: dict):
     try:
         client._helicon_models = {t: resolve_model(t, config) for t in TIERS}
         # The second contradiction judge (pairing.pair_scan). Off unless the
-        # config names one; the old endpoint keeps the one it always used.
-        client._helicon_models["judge2"] = (config or {}).get("llm_judge2_model") or (
-            "deepseek-v4-flash" if r["legacy"] else None)
+        # config names one.
+        client._helicon_models["judge2"] = (config or {}).get("llm_judge2_model") or None
     except Exception:
         pass
     return client
 
 
-def resolve_model(tier: str, config: dict | None = None,
-                  legacy_fallback: str | None = None) -> str | None:
+def resolve_model(tier: str, config: dict | None = None) -> str | None:
     """The configured model for a tier, or None when none is configured. It
     does not guess: a model name belongs to an endpoint, and only the config
-    knows which endpoint this is.
-
-    legacy_fallback is for the few callers that named their own model before
-    the layer went neutral. It is used only on an old qwen_* endpoint, in place
-    of the tier table, so those callers send what they always sent."""
+    knows which endpoint this is."""
     from helicon.config import resolve_llm
     cfg = config or {}
     tiers = cfg.get("llm_models") or {}
     if tiers.get(tier):
         return tiers[tier]
-    r = resolve_llm(cfg)
-    if r["model"]:
-        return r["model"]
-    old_tiers = cfg.get("qwen_models") or {}
-    if old_tiers.get(tier):
-        return old_tiers[tier]
-    if r["legacy"]:
-        return legacy_fallback or MODELS.get(tier, "qwen-plus")
-    return None
+    return resolve_llm(cfg)["model"] or None
 
 
 def default_model(client, tier: str = "default") -> str | None:

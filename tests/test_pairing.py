@@ -260,7 +260,7 @@ def test_resurfaced_pair_scan_with_judge_does_not_crash(conn, monkeypatch):
     pair_scan, killing helicon report and every watch cron tick the moment
     the never-twice guard fired. The truth side now speaks through the real
     correction cube; a missing row skips the judge, never crashes."""
-    from helicon import qwen
+    from helicon import llm
     from helicon.pairing import resolve_pair
     _cube(conn, "| Lea birthday Jul 13 | from her list |", "mindmap.md")
     _cube(conn, "| Jul 18 | Lea birthday (Paris) | plan dinner |", "summer-trips.md")
@@ -273,7 +273,7 @@ def test_resurfaced_pair_scan_with_judge_does_not_crash(conn, monkeypatch):
     def fake_judge(client, a, b, model="m", audit_context=""):
         seen["contents"] = (a, b)
         return {"contradicts": True, "severity": "critical", "explanation": "x"}
-    monkeypatch.setattr(qwen, "detect_contradictions", fake_judge)
+    monkeypatch.setattr(llm, "detect_contradictions", fake_judge)
 
     res = pair_scan(conn, client=object())  # crashed before the fix
     assert len(res["filed"]) == 1

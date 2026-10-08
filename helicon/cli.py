@@ -190,36 +190,12 @@ def cmd_init(args):
     # local one included, or names none and runs the deterministic half.
     # The HELICON_LLM_* env vars are read at run time (config.resolve_llm), so
     # nothing from the environment is copied into the file.
-    #
-    # One exception, for the people already here: a shell that still exports
-    # QWEN_API_KEY and nothing neutral gets the old shape, endpoint included.
-    # An old key in a neutral slot with no endpoint would turn their model
-    # features off on the next `init --force`. The embeddings block in that
-    # shape is the 2026 fix it always was: without it _embed_provider drops to
-    # the local MiniLM fallback while inference stays remote.
-    env_key = os.environ.get("QWEN_API_KEY", "")
-    neutral_env = any(os.environ.get(k) for k in (
-        "HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL", "HELICON_LLM_MODEL"))
-    legacy_shape = bool(env_key) and not neutral_env
-    if legacy_shape:
-        model_block = {
-            "qwen_api_key": env_key,
-            "qwen_model": "qwen3.6-plus",
-            "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-            "embeddings": {
-                "api_key": os.environ.get("DASHSCOPE_API_KEY", env_key),
-                "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-                "model": "text-embedding-v4",
-                "dim": 1024,
-            },
-        }
-    else:
-        model_block = {
-            "llm_api_key": "",
-            "llm_base_url": "",
-            "llm_model": "",
-            "embeddings": {"api_key": "", "base_url": "", "model": ""},
-        }
+    model_block = {
+        "llm_api_key": "",
+        "llm_base_url": "",
+        "llm_model": "",
+        "embeddings": {"api_key": "", "base_url": "", "model": ""},
+    }
     config = {
         "db_path": os.path.join(helicon_home(), "helicon.db"),
         **model_block,
@@ -290,7 +266,7 @@ def cmd_init(args):
         print("  including a local one. Helicon ships no key and picks no provider:")
         print(f"    edit {config_path} -> llm_base_url, llm_model, llm_api_key")
         print("    or export HELICON_LLM_BASE_URL, HELICON_LLM_MODEL, HELICON_LLM_API_KEY")
-        print("    (a local endpoint needs no key; an old QWEN_API_KEY still works)")
+        print("    (a local endpoint needs no key)")
         print("  Embeddings are a separate block (embeddings.base_url, .model,")
         print("  .api_key). Without it retrieval uses local keyword + MiniLM.")
     if detected:
@@ -3595,6 +3571,16 @@ def cmd_doctor(_args):
                                "start card, guard, decay. Contradiction/Grounding need a "
                                "model: any OpenAI-compatible endpoint, including a local one"))
 
+    # The one place the old vendor name is still said: a config or shell from
+    # before the model layer went neutral would otherwise turn the model
+    # features off with no explanation. Names only, never a value.
+    from helicon.config import ignored_old_llm_settings
+    old = ignored_old_llm_settings(config)
+    if old:
+        checks.append(("WARN", f"old Qwen settings found and ignored ({', '.join(old)}): "
+                               "set llm_base_url, llm_model and llm_api_key "
+                               "(or HELICON_LLM_BASE_URL, HELICON_LLM_MODEL, HELICON_LLM_API_KEY)"))
+
     db_path = config.get("db_path", "data/helicon.db")
     if not os.path.exists(db_path):
         checks.append(("FAIL", f"no DB at {db_path} — run: helicon scan"))
@@ -4051,7 +4037,7 @@ Decay stats:
         client,
         "You are a memory system optimization advisor. Analyze the user's memory audit stats and give specific, actionable recommendations. Focus on: what to review first, what to auto-triage, what decay settings to adjust, and what patterns suggest about the user's workflow. Be direct and specific. No fluff.",
         context,
-        model=resolve_model("default", config, legacy_fallback="qwen-plus"),
+        model=resolve_model("default", config),
         operation="optimize",
     )
     print(result)
@@ -4135,7 +4121,7 @@ def cmd_consolidate(args):
 
     max_clusters = args.max if hasattr(args, "max") else 10
     qwen_client = None
-    if hasattr(args, "qwen") and args.qwen:
+    if getattr(args, "llm", False):
         from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
         qwen_client = get_client(config)
@@ -4203,7 +4189,7 @@ def cmd_consolidation_eval(args):
     conn = init_db(config["db_path"])
 
     qwen_client = None
-    if getattr(args, "qwen", False):
+    if getattr(args, "llm", False):
         from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
         qwen_client = get_client(config)
@@ -5091,11 +5077,10 @@ def main():
 
     consolidate_p = sub.add_parser("consolidate", help="Find and merge related memories")
     consolidate_p.add_argument("--max", "-m", type=int, default=10, help="Max clusters to consolidate")
-    # --qwen stays as an alias: scripts and crons call these flags by that name.
-    consolidate_p.add_argument("--llm", "--qwen", dest="qwen", action="store_true", help="Use the model for synthesis")
+    consolidate_p.add_argument("--llm", dest="llm", action="store_true", help="Use the model for synthesis")
 
     coneval_p = sub.add_parser("eval-consolidation", help="Before/after: raw memories vs consolidated synthesis (tokens + quality)")
-    coneval_p.add_argument("--llm", "--qwen", dest="qwen", action="store_true", help="Model-judge answer quality (raw vs consolidated)")
+    coneval_p.add_argument("--llm", dest="llm", action="store_true", help="Model-judge answer quality (raw vs consolidated)")
     coneval_p.add_argument("--sample", "-n", type=int, default=12, help="Consolidations to evaluate")
 
     args = parser.parse_args()

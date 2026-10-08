@@ -124,8 +124,8 @@ def test_cli_fix_skills_no_key(skills_dir, monkeypatch, capsys):
 def test_cli_fix_skills_dry_run_prints_proposals(skills_dir, monkeypatch, capsys):
     from types import SimpleNamespace
     monkeypatch.setattr("helicon.config.load_config",
-                        lambda path=None: {"qwen_api_key": "test"})
-    monkeypatch.setattr("helicon.qwen.get_client", lambda config: FakeClient())
+                        lambda path=None: {"llm_api_key": "test"})
+    monkeypatch.setattr("helicon.llm.get_client", lambda config: FakeClient())
     cli.cmd_fix_skills(SimpleNamespace(apply=False, skills_dir=str(skills_dir)))
     out = capsys.readouterr().out
     assert "[would fix] deployer/SKILL.md" in out

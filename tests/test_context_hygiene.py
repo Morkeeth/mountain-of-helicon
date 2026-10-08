@@ -22,7 +22,7 @@ What was actually wrong, and what these tests pin:
 """
 import pytest
 
-import helicon.qwen as qwen_mod
+import helicon.llm as qwen_mod
 from helicon.battery import run_battery, run_llm_tests
 from helicon.db import init_db, insert_cube
 from helicon.models import HeliconCube
