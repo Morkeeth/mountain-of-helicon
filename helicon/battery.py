@@ -107,13 +107,13 @@ def _judge_lines(hits: list[dict]) -> list[str]:
     return lines
 
 
-def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plus") -> list[dict]:
-    """The subjective (llm-mode) tests, judged by Qwen. Returns [] if no client
+def run_llm_tests(client, task: str, hits: list[dict], model: str | None = None) -> list[dict]:
+    """The subjective (llm-mode) tests, judged by the model. Returns [] if no client
     or the call fails — the battery then falls back to deterministic-only, never
     fabricating a verdict."""
     if client is None or not hits:
         return []
-    from helicon.qwen import complete_json
+    from helicon.llm import complete_json, judge_label
     llm = [t for t in CONTEXT_TESTS if t["mode"] == "llm"]
     lines = [f"Task the agent retrieves context for:\n  {task}\n", "Retrieved memories:"]
     lines.extend(_judge_lines(hits))
@@ -133,14 +133,14 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plu
         if isinstance(v, dict) and v.get("status") in ("PASS", "FAIL"):
             out.append({"name": t["name"], "status": v["status"],
                         "reason": str(v.get("reason", ""))[:200],
-                        "critical": False, "judged_by": "qwen"})
+                        "critical": False, "judged_by": judge_label(client, model)})
     return out
 
 
 def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
-                model: str = "qwen3.6-plus", stale_after_hours: float | None = None) -> dict:
+                model: str | None = None, stale_after_hours: float | None = None) -> dict:
     """Run the battery on what `task` retrieves. Deterministic tests always run;
-    if a Qwen `client` is given, Contradiction/Grounding are judged live by Qwen
+    if a model `client` is given, Contradiction/Grounding are judged live by the model
     and folded into the verdict (non-critical: they degrade, never break).
 
     Every verdict carries `last_scan` (age of the last completed ingest): a
@@ -251,7 +251,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     context_budget = _assess_budget(context_tokens)
     add("Context budget", context_budget["status"] != "over", context_budget["note"])
 
-    # Qwen-judged tests (Contradiction/Grounding), folded in if a client is
+    # model-judged tests (Contradiction/Grounding), folded in if a client is
     # given. The judge gets title + content excerpt — grading claims requires
     # seeing them (see _judge_lines).
     judged_hits = [{"id": h["id"], "title": h.get("title", ""),

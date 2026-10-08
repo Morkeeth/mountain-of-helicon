@@ -213,7 +213,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "max_clusters": {"type": "integer", "description": "Max clusters to consolidate. Default 10", "default": 10},
-                "use_qwen": {"type": "boolean", "description": "Use Qwen LLM for synthesis. Default false (uses extractive summary)", "default": False},
+                "use_llm": {"type": "boolean", "description": "Use the configured model for synthesis. Default false (uses extractive summary)", "default": False},
             },
         },
     },
@@ -830,17 +830,17 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
     elif name == "helicon_consolidate":
         from helicon.consolidation import find_clusters, run_consolidation
         max_clusters = arguments.get("max_clusters", 10)
-        use_qwen = arguments.get("use_qwen", False)
-        qwen_client = None
-        if use_qwen:
-            from helicon.qwen import get_client
-            qwen_client = get_client(load_config())
-        result = run_consolidation(conn, qwen_client, max_clusters)
+        use_llm = arguments.get("use_llm", False)
+        llm_client = None
+        if use_llm:
+            from helicon.llm import get_client
+            llm_client = get_client(load_config())
+        result = run_consolidation(conn, llm_client, max_clusters)
         return json.dumps(result, indent=2)
 
     elif name == "helicon_portrait":
         from helicon.portrait import build_portrait
-        from helicon.qwen import get_client
+        from helicon.llm import get_client
         cfg = load_config()
         return json.dumps(build_portrait(conn, cfg, client=get_client(cfg)), indent=2, default=str)
 

@@ -14,7 +14,7 @@ from helicon.forgetting import apply_decay
 from helicon.audit import run_audit
 from helicon.patterns import extract_patterns_from_sql, save_patterns
 from helicon.score import compute_score
-from helicon.qwen import get_client
+from helicon.llm import get_client
 
 config = load_config()
 db_path = config.get("db_path", "data/helicon.db")

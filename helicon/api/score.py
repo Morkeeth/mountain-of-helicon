@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from helicon.api.app import get_conn, get_config
 from helicon.score import compute_score, get_score_history, backfill_score_history, record_score_snapshot
 from helicon.forgetting import apply_decay, get_decay_stats
-from helicon.qwen import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, MODELS, TIER_COST_PER_1K
+from helicon.llm import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, model_prices, resolve_model
 
 router = APIRouter()
 
@@ -95,7 +95,7 @@ async def health_report():
     try:
         client = _get_client(config)
         resp = client.chat.completions.create(
-            model=config.get("qwen_model", "qwen-plus"),
+            model=resolve_model("default", config),
             messages=[
                 {"role": "system", "content": "You are a memory health analyst. Given memory system statistics, write a concise 3-paragraph health report. Be specific about numbers. Use plain language. No markdown headers."},
                 {"role": "user", "content": f"Generate a health report for this memory system:\n{json.dumps(context, indent=2)}"}
@@ -131,25 +131,28 @@ async def score_snapshot(event_label: str = None):
     return {"status": "recorded"}
 
 
-@router.get("/qwen/stats")
-async def qwen_stats():
-    # Pass the DB conn so stats cover Qwen usage from ALL processes
+@router.get("/llm/stats")
+async def llm_stats():
+    # Pass the DB conn so stats cover model usage from ALL processes
     # (CLI report/battery/rule runs), not just this server process.
-    stats = get_call_stats(get_conn())
+    stats = get_call_stats(get_conn(), get_config())
     return stats
 
 
-@router.get("/qwen/models")
-async def qwen_models():
+@router.get("/llm/models")
+async def llm_models():
     config = get_config()
-    custom = config.get("qwen_models", {})
+    # None for a tier means no model is configured for it; nothing is guessed.
     return {
         "routing": {
-            "fast": custom.get("fast", MODELS["fast"]),
-            "default": custom.get("default", MODELS["default"]),
-            "deep": custom.get("deep", MODELS["deep"]),
+            "fast": resolve_model("fast", config),
+            "default": resolve_model("default", config),
+            "deep": resolve_model("deep", config),
         },
-        "cost_per_1k_tokens": TIER_COST_PER_1K,
+        # What the user configured in llm_prices, per million tokens. Empty
+        # means no price is known, and every cost is then reported as null.
+        "prices_per_million_tokens": {
+            m: {"input": p[0], "output": p[1]} for m, p in model_prices(config).items()},
         "usage": {
             "fast": "Novelty gate (ADD/NOOP/MERGE), summarization, tag extraction",
             "default": "Pattern detection, health reports, entity extraction",
@@ -158,14 +161,14 @@ async def qwen_models():
     }
 
 
-@router.get("/qwen/cache")
-async def qwen_cache():
+@router.get("/llm/cache")
+async def llm_cache():
     conn = get_conn()
     return get_cache_stats_db(conn)
 
 
-@router.get("/qwen/routing")
-async def qwen_routing():
+@router.get("/llm/routing")
+async def llm_routing():
     return get_route_stats()
 
 @router.get("/gold")

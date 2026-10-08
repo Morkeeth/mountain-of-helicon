@@ -16,11 +16,11 @@ Three tiers:
 Two stages, honest about cost:
   1. deterministic pre-filter (free) — flag cubes whose text carries a
      fast-fact SIGNAL. High recall, no judgment, no false confidence.
-  2. Qwen classifier (paid, cached) — sentence each suspect: tier, a one-line
+  2. Model classifier (paid, cached): sentence each suspect: tier, a one-line
      reason, and the named event that would make it wrong (`stale_when`).
 
 Only the suspects reach the model, so the scan stays cheap. Keyless degrade is
-honest: with no Qwen key we surface the deterministic suspects and say plainly
+honest: with no model key we surface the deterministic suspects and say plainly
 that they are unsentenced, rather than faking a tier.
 """
 import json
@@ -101,14 +101,14 @@ def find_suspects(conn: sqlite3.Connection, cube_limit: int = 4000) -> list[dict
                 "excerpt": _excerpt(r["title"], r["summary"] or "", r["content"] or ""),
             })
     # Judge the highest-value suspects first: fact-bearing source, then signal
-    # richness. The Qwen budget goes to real stored facts, not commit noise.
+    # richness. The model budget goes to real stored facts, not commit noise.
     suspects.sort(key=lambda s: (fact_first.get(s["source"], 5), -len(s["signals"])))
     return suspects
 
 
 def _classify(client, suspects: list[dict], model: str) -> dict:
-    """Stage 2: Qwen sentences each suspect. Returns {index: verdict}."""
-    from helicon.qwen import complete_json
+    """Stage 2: the model sentences each suspect. Returns {index: verdict}."""
+    from helicon.llm import complete_json
     verdicts: dict[int, dict] = {}
     batch = 12
     for start in range(0, len(suspects), batch):
@@ -135,7 +135,7 @@ def _classify(client, suspects: list[dict], model: str) -> dict:
 
 def scan_volatility(conn: sqlite3.Connection, config: dict | None = None,
                     client=None, judge_cap: int = 60, model: str | None = None) -> dict:
-    """The full gate: deterministic suspects, then Qwen sentences the top ones.
+    """The full gate: deterministic suspects, then the model sentences the top ones.
 
     Returns fast facts (rot: belong in the live layer), slow facts missing decay
     metadata (fixable with as_of/stale_when), and honest counts.
@@ -160,7 +160,8 @@ def scan_volatility(conn: sqlite3.Connection, config: dict | None = None,
         }
 
     to_judge = suspects[:judge_cap]
-    model = model or (config.get("qwen_models", {}) or {}).get("flash", "qwen3.6-flash")
+    from helicon.llm import resolve_model
+    model = model or resolve_model("fast", config)
     verdicts = _classify(client, to_judge, model)
 
     fast, slow_undated, static_n = [], [], 0

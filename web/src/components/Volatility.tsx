@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 
 /* The volatility gate. truth = fact + timestamp + decay. Fast facts (a %, a
    count, a price, a rank) rot in a memory file; they belong in the live layer
-   or need a decay stamp. Helicon finds the suspects, Qwen sentences them, and
+   or need a decay stamp. Helicon finds the suspects, the model sentences them, and
    one click fixes the source. */
 
 const SERIF = { fontFamily: 'var(--helicon-serif)', fontVariationSettings: "'opsz' 144" } as const;
@@ -192,7 +192,7 @@ export default function Volatility() {
           {data.keyless && (
             <div>
               <p className="text-[13px] mb-4" style={{ color: 'var(--helicon-muted)' }}>
-                Helicon sees <span className="tabular-nums" style={{ color: RED }}>{data.suspects}</span> suspect{data.suspects === 1 ? '' : 's'} carrying a fast-fact signal. A Qwen key sentences them into fast, slow, and static.
+                Helicon sees <span className="tabular-nums" style={{ color: RED }}>{data.suspects}</span> suspect{data.suspects === 1 ? '' : 's'} carrying a fast-fact signal. A model key sentences them into fast, slow, and static.
               </p>
               <div className="space-y-2">
                 {(data.unsentenced ?? []).map(s => (

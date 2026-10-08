@@ -61,10 +61,10 @@ def test_latest_judge_run_is_none_when_never_run(conn):
 def test_save_and_read_back_a_run(conn):
     res = {
         "probes": [{"is_contradiction": True}, {"is_contradiction": False}],
-        "notes": ["set OPENROUTER_API_KEY to compare Qwen vs GPT/Claude"],
+        "notes": ["set OPENROUTER_API_KEY to compare your model vs GPT/Claude"],
         "scored": {
             "probes": 2, "inter_tier_agreement": 1.0,
-            "rows": {"qwen3.6-flash": {"model": "qwen3.6-flash", "accuracy": 0.962,
+            "rows": {"model-small": {"model": "model-small", "accuracy": 0.962,
                                        "cost_usd": 0.00166, "recall": 1.0,
                                        "specificity": 1.0, "latency_s": 32.9,
                                        "errors": 0, "misses": []}},
@@ -75,8 +75,8 @@ def test_save_and_read_back_a_run(conn):
     got = latest_judge_run(conn)
     assert got["probe_set"] == "all"
     assert got["positives"] == 1 and got["negatives"] == 1
-    assert got["rows"]["qwen3.6-flash"]["accuracy"] == 0.962
-    assert got["rows"]["qwen3.6-flash"]["cost_usd"] == 0.00166
+    assert got["rows"]["model-small"]["accuracy"] == 0.962
+    assert got["rows"]["model-small"]["cost_usd"] == 0.00166
     # the notes are the honesty channel: what was NOT measured survives the trip
     assert "OPENROUTER_API_KEY" in got["notes"][0]
 
@@ -145,12 +145,12 @@ def test_api_judge_serves_a_saved_run(tmp_path, monkeypatch):
         save_judge_run(conn, {
             "probes": [{"is_contradiction": True}], "notes": ["no competitor"],
             "scored": {"probes": 1, "inter_tier_agreement": None,
-                       "rows": {"qwen3.6-flash": {"model": "qwen3.6-flash",
+                       "rows": {"model-small": {"model": "model-small",
                                                   "accuracy": 0.962,
                                                   "cost_usd": 0.00166}}},
         }, which="all")
         conn.close()
         body = c.get("/api/judge").json()
         assert body["ran"] is True
-        assert body["rows"]["qwen3.6-flash"]["cost_usd"] == 0.00166
+        assert body["rows"]["model-small"]["cost_usd"] == 0.00166
         assert body["notes"] == ["no competitor"]

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from helicon.api.app import get_conn, get_config
 from helicon.consolidation import find_clusters, run_consolidation, get_consolidations
-from helicon.qwen import get_client as _get_client
+from helicon.llm import get_client as _get_client
 
 router = APIRouter()
 
@@ -21,10 +21,10 @@ async def list_clusters():
 
 
 @router.post("/consolidations/run")
-async def trigger_consolidation(use_qwen: bool = True, max_clusters: int = 10):
+async def trigger_consolidation(use_llm: bool = True, max_clusters: int = 10):
     conn = get_conn()
-    qwen_client = _get_client(get_config()) if use_qwen else None
-    result = run_consolidation(conn, qwen_client, max_clusters)
+    llm_client = _get_client(get_config()) if use_llm else None
+    result = run_consolidation(conn, llm_client, max_clusters)
     return result
 
 

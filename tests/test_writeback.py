@@ -1,7 +1,7 @@
 """helicon fix-skills / helicon.writeback: dry-run proposes without writing; --apply
 writes the description into frontmatter with a .bak backup; files that already
-have a description are never touched; a second run is a no-op; no Qwen key
-degrades to a skip. The Qwen call is mocked throughout."""
+have a description are never touched; a second run is a no-op; no model key
+degrades to a skip. The model call is mocked throughout."""
 import os
 
 import pytest
@@ -116,7 +116,7 @@ def test_cli_fix_skills_no_key(skills_dir, monkeypatch, capsys):
     monkeypatch.setattr("helicon.config.load_config", lambda path=None: {})
     cli.cmd_fix_skills(SimpleNamespace(apply=False, skills_dir=str(skills_dir)))
     out = capsys.readouterr().out
-    assert "no Qwen key" in out
+    assert "no model key" in out
     assert "deployer/SKILL.md" in out
     assert not list(skills_dir.rglob("*.bak"))
 
@@ -124,8 +124,8 @@ def test_cli_fix_skills_no_key(skills_dir, monkeypatch, capsys):
 def test_cli_fix_skills_dry_run_prints_proposals(skills_dir, monkeypatch, capsys):
     from types import SimpleNamespace
     monkeypatch.setattr("helicon.config.load_config",
-                        lambda path=None: {"qwen_api_key": "test"})
-    monkeypatch.setattr("helicon.qwen.get_client", lambda config: FakeClient())
+                        lambda path=None: {"llm_api_key": "test"})
+    monkeypatch.setattr("helicon.llm.get_client", lambda config: FakeClient())
     cli.cmd_fix_skills(SimpleNamespace(apply=False, skills_dir=str(skills_dir)))
     out = capsys.readouterr().out
     assert "[would fix] deployer/SKILL.md" in out

@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from helicon.api.app import get_conn, get_config
 from helicon.graph import build_graph, get_graph_data, get_entity_details
-from helicon.qwen import get_client
+from helicon.llm import get_client
 
 router = APIRouter()
 
@@ -15,11 +15,11 @@ async def graph_data():
 
 
 @router.post("/graph/build")
-async def build_graph_endpoint(use_qwen: bool = False):
+async def build_graph_endpoint(use_llm: bool = False):
     conn = get_conn()
     config = get_config()
-    qwen_client = get_client(config) if use_qwen else None
-    stats = build_graph(conn, qwen_client)
+    llm_client = get_client(config) if use_llm else None
+    stats = build_graph(conn, llm_client)
     return stats
 
 

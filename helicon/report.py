@@ -113,7 +113,7 @@ def cross_session_verdict(regressed: int | None, snaps_total: int,
 
 
 def memoryagent_report(conn: sqlite3.Connection, client=None,
-                       model: str = "qwen3.6-plus") -> dict:
+                       model: str | None = None) -> dict:
     from helicon.battery import run_battery
     from helicon.eval import (_build_test_queries, _run_forgetting_benchmark,
                               _run_retrieval_benchmark)
@@ -214,7 +214,7 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         {"id": s["snapshot_id"], "task": s["task"], "status": s.get("status"),
          "age_days": s.get("age_days"), "stale_task": s.get("stale_task")}
         for s in snaps if s.get("needs_recapture")]
-    contra_rate = _rate("Contradiction")  # only present when Qwen judged live
+    contra_rate = _rate("Contradiction")  # only present when the model judged live
     grounding_rate = _rate("Grounding")
 
     # Cross-source pairing (the R1 selector): every report run scans live
@@ -277,7 +277,7 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
                     "verdict on it made HEALTHY unreachable by construction.",
         },
         "mechanisms": "snapshot regression (CI for memory) + cross-source pair selector "
-                      "+ Qwen-judged Contradiction/Grounding",
+                      "+ model-judged Contradiction/Grounding",
         # No baselines captured = unmeasured, not broken. DEGRADED with a
         # pointer beats a fake BROKEN.
         "verdict": acc["verdict"],

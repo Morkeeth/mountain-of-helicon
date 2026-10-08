@@ -1,9 +1,9 @@
-"""Slice 1: benchmark Qwen as the memory-rot JUDGE against human-ruled ground truth.
+"""Slice 1: benchmark the configured model as the memory-rot JUDGE against human-ruled ground truth.
 
-The rot exam's contradiction judge (`helicon.qwen.detect_contradictions`) is
-Qwen-powered and tier-swappable. This measures how well each Qwen tier judges
-contradictions, and it is the keystone of the moonshot: the whole "Qwen is the
-verification brain" claim rests on Qwen being a measurably good judge.
+The rot exam's contradiction judge (`helicon.llm.detect_contradictions`) is
+model-powered and tier-swappable. This measures how well each configured tier
+judges contradictions, and it is the keystone of the moonshot: the whole "a
+model is the verification brain" claim rests on it being a measurably good judge.
 
 Ground truth = Oscar's OWN human rulings (compiled into GOLDEN_RULES): facts a
 human settled, each with the true value AND the competing value that was ruled
@@ -24,7 +24,7 @@ import sqlite3
 import time
 from datetime import datetime, timezone
 
-TIERS = ["fast", "default", "deep"]      # qwen3.6-flash / qwen3.6-plus / qwen3.7-max
+TIERS = ["fast", "default", "deep"]      # resolved by llm.resolve_model
 
 # Human-ruled contradictions, from GOLDEN_RULES.md (the rulings + renames the
 # operator settled). (subject, true_value, ruled_wrong_value). Stable facts.
@@ -110,7 +110,7 @@ def _openrouter_client(config: dict | None = None):
 
     Reads config.json first and falls back to the environment, which is how
     every other key in this tool is resolved (config.py). This used to be
-    env-only, so the Qwen-vs-field comparison was unreachable for anyone who
+    env-only, so the model-vs-field comparison was unreachable for anyone who
     keeps their keys where the rest of the tool keeps them."""
     import os
     key = (config or {}).get("openrouter_api_key") or os.environ.get("OPENROUTER_API_KEY")
@@ -121,41 +121,43 @@ def _openrouter_client(config: dict | None = None):
 
 
 def build_judges(config: dict, tiers) -> tuple[list, list]:
-    """(judges, notes). Each judge = (label, client, model). Qwen tiers always
-    (if a Qwen key exists); competitor models only when OPENROUTER_API_KEY is set."""
+    """(judges, notes). Each judge = (label, client, model, source). The
+    configured tiers always (if a model is configured); competitor models only
+    when OPENROUTER_API_KEY is set."""
     import os
-    from helicon.qwen import get_client, resolve_model
+    from helicon.llm import get_client, llm_status, resolve_model
     judges, notes = [], []
     qc = get_client(config)
     if qc:
         for t in tiers:
             m = resolve_model(t, config)
-            judges.append((m, qc, m))
+            judges.append((m, qc, m, "configured"))
     else:
-        notes.append("no Qwen key (set QWEN_API_KEY)")
+        notes.append(f"no model judge: {llm_status(config)['reason']}")
     orc = _openrouter_client()
     if orc:
         for m in (os.environ.get("OPENROUTER_JUDGES",
                                  "openai/gpt-5,anthropic/claude-sonnet-5").split(",")):
             m = m.strip()
             if m:
-                judges.append((m, orc, m))
+                judges.append((m, orc, m, "openrouter"))
     else:
         notes.append("set OPENROUTER_API_KEY (+ optional OPENROUTER_JUDGES) to compare "
-                     "Qwen vs GPT/Claude on the same probes")
+                     "your model vs GPT/Claude on the same probes")
     return judges, notes
 
 
 def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
-    """Run every judge (Qwen tiers + any competitor) over every probe. Returns
-    per-judge verdicts + latency + cost (cost only for models with known pricing).
-    Uses the Qwen cache so reruns are free."""
-    from helicon.qwen import detect_contradictions, _call_log, TIER_COST_PER_1K
+    """Run every judge (configured tiers + any competitor) over every probe.
+    Returns per-judge verdicts + latency + cost (cost only for models with known
+    pricing). Uses the response cache so reruns are free."""
+    from helicon.llm import detect_contradictions, _call_log, call_cost, model_prices
+    prices = model_prices(config)
     judges, notes = build_judges(config, tiers)
     if not judges:
         return {"error": "; ".join(notes) or "no judges available"}
     out = {"_notes": notes}
-    for label, client, model in judges:
+    for label, client, model, source in judges:
         verdicts, latency, errors = [], 0.0, 0
         start = len(_call_log)
         for p in probes:
@@ -164,14 +166,18 @@ def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
             latency += time.time() - t0
             # None = the call errored (bad slug / no access / parse fail). Record
             # it as "no verdict", NEVER as "judged not-a-contradiction" - scoring a
-            # broken competitor as wrong would fake a Qwen win.
+            # broken competitor as wrong would fake a win for the configured model.
             verdicts.append(None if res is None else bool(res.get("contradicts")))
             errors += 1 if res is None else 0
         tok = sum((e.get("input_tokens", 0) or 0) + (e.get("output_tokens", 0) or 0)
                   for e in _call_log[start:])
-        cost = (round(tok / 1000 * TIER_COST_PER_1K[model], 5)
-                if model in TIER_COST_PER_1K else None)
-        out[label] = {"model": model, "verdicts": verdicts, "latency_s": round(latency, 1),
+        # Priced from config llm_prices. No entry for this model: cost unknown.
+        cost = call_cost(model,
+                         sum(e.get("input_tokens", 0) or 0 for e in _call_log[start:]),
+                         sum(e.get("output_tokens", 0) or 0 for e in _call_log[start:]),
+                         prices)
+        cost = None if cost is None else round(cost, 5)
+        out[label] = {"model": model, "source": source, "verdicts": verdicts, "latency_s": round(latency, 1),
                       "tokens": tok, "cost_usd": cost, "errors": errors}
     return out
 
@@ -195,7 +201,8 @@ def score_tiers(probes: list[dict], judged: dict) -> dict:
                   for i in range(len(probes))
                   if v[i] is not None and v[i] != probes[i]["is_contradiction"]]
         rows[tier] = {
-            "model": d["model"], "latency_s": d.get("latency_s"),
+            "model": d["model"], "source": d.get("source"),
+            "latency_s": d.get("latency_s"),
             "tokens": d.get("tokens"), "cost_usd": d.get("cost_usd"),
             "errors": d.get("errors", 0),
             "coverage": round(answered / len(probes), 3) if probes else None,
@@ -219,7 +226,7 @@ def format_judge_bench(scored: dict) -> str:
     rows = scored["rows"]
     if not rows:
         return "\n  No probes to judge.\n"
-    out = ["", f"  QWEN AS MEMORY JUDGE — vs human-ruled ground truth "
+    out = ["", f"  THE MODEL AS MEMORY JUDGE, vs human-ruled ground truth "
            f"({scored['probes']} probes: {scored['probes']//2} real contradictions + "
            f"{scored['probes']//2} consistent controls)", ""]
     out.append(f"  {'tier / model':22}  {'recall':>7}  {'specificity':>11}  "

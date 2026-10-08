@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/focus/moves")
 async def focus_moves():
-    """Generate cited next-moves from the current memory state (Qwen)."""
+    """Generate cited next-moves from the current memory state (model)."""
     return generate_next_moves(get_conn(), get_config())
 
 
@@ -41,7 +41,8 @@ async def stores_audit():
         os.remove(db)
     conn = init_db(db)
     scfg = {"db_path": db, "embeddings": cfg.get("embeddings", {}),
-            "qwen_api_key": cfg.get("qwen_api_key", ""), "qwen_base_url": cfg.get("qwen_base_url", ""),
+            **{k: cfg[k] for k in ("llm_api_key", "llm_base_url", "llm_model", "llm_models")
+               if k in cfg},
             "connectors": {"mem0": {"api_key": m["api_key"], "user_id": m.get("user_id", "default"), "limit": 500}}}
     stats = run_scan(scfg)
     if m.get("rename") and len(m["rename"]) == 2:
@@ -62,7 +63,7 @@ async def setup_report():
     setup is, scored live against the Track-1 criteria. Heavy (runs the battery
     + cross-source pairing), so it's an explicit action, not an auto-load."""
     from helicon.report import memoryagent_report
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     cfg = get_config()
     return memoryagent_report(get_conn(), client=get_client(cfg))
 
@@ -125,10 +126,10 @@ async def focus_route(body: RouteBody):
 @router.get("/portrait")
 async def portrait():
     """The reading: a grounded portrait of who the record shows you are, plus
-    the process arc. Qwen narrates a deterministic digest (heavy-ish, so it is
+    the process arc. The model narrates a deterministic digest (heavy-ish, so it is
     an explicit tab load, not an auto-poll)."""
     from helicon.portrait import build_portrait
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     cfg = get_config()
     return build_portrait(get_conn(), cfg, client=get_client(cfg))
 
@@ -149,9 +150,9 @@ async def consistency():
 @router.get("/volatility/scan")
 async def volatility_scan():
     """The volatility gate: which stored memories are fast facts that belong in
-    the live layer, not memory. Deterministic suspects, then Qwen sentences the
+    the live layer, not memory. Deterministic suspects, then the model sentences the
     top ones with a tier + the event that would make each wrong."""
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     from helicon.volatility import scan_volatility
     cfg = get_config()
     return scan_volatility(get_conn(), cfg, client=get_client(cfg))

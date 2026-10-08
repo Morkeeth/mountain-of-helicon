@@ -5,7 +5,7 @@ holds: who and what recur, the kind of work you make, how much of the record is
 still true, and the three moves the record itself argues for.
 
 The digest is deterministic and free (counts, entities, output mix, health).
-Qwen does one thing: turn that digest into a grounded reading, in the Court's
+The model does one thing: turn that digest into a grounded reading, in the Court's
 voice, inventing nothing the digest does not contain.
 """
 import re
@@ -155,8 +155,8 @@ def build_portrait(conn: sqlite3.Connection, config: dict, client=None) -> dict:
     digest = build_digest(conn, config)
     if client is None:
         return {"digest": digest, "keyless": True, "reading": None}
-    from helicon.qwen import complete_json
-    model = (config.get("qwen_models") or {}).get("plus", "qwen3.6-plus")
+    from helicon.llm import complete_json, resolve_model
+    model = resolve_model("default", config)
     reading = complete_json(
         client, _SYS, "DIGEST:\n" + json.dumps(digest, ensure_ascii=False),
         model=model, operation="portrait")

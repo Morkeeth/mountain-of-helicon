@@ -101,5 +101,5 @@ def test_an_unserializable_document_exits_nonzero():
     must parse, and this command finds that out rather than the shell guard in
     scripts/nightly.sh finding out for it six hours later."""
     with pytest.raises(SystemExit) as e:
-        _report_must_say_something(_good_report(), "No Qwen key; running deterministic-only.\n{}")
+        _report_must_say_something(_good_report(), "No model key; running deterministic-only.\n{}")
     assert e.value.code != 0

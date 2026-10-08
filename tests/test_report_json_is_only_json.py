@@ -1,10 +1,10 @@
-"""`report --llm --json` must put ONLY JSON on stdout, even with no Qwen key.
+"""`report --llm --json` must put ONLY JSON on stdout, even with no model key.
 
-THE BUG THIS PINS. `cmd_report` warned "No Qwen key; running deterministic-only."
+THE BUG THIS PINS. `cmd_report` warned "No model key; running deterministic-only."
 with a bare `print()`, so the line landed on stdout at byte 0 of the document,
 ahead of the JSON. `scripts/nightly.sh` pipes that stdout to a temp file and
 guards it with `json.load` before promoting it to `data/eval-latest.json`. So
-every night launchd ran without QWEN_API_KEY in its minimal environment:
+every night launchd ran without a model key in its minimal environment:
 
     json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
     === nightly exit 1 ===
@@ -18,7 +18,7 @@ WHY THIS TEST CAN GO RED, which is the point. The failing condition is not
 Delete `file=sys.stderr` from cli.py:~2925 and test_no_key_stdout_parses fails
 on the real decode, not on a mock. Verified red before being committed green.
 
-Note the assertion is `json.loads(stdout)`, not `"No Qwen key" not in stdout`.
+Note the assertion is `json.loads(stdout)`, not `"No model key" not in stdout`.
 Naming the one known offender would let the next one through; parsing the
 document is the property that actually matters.
 """
@@ -34,7 +34,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _run_report_without_key(config_path):
-    """Run the real CLI in a subprocess with QWEN_API_KEY stripped.
+    """Run the real CLI in a subprocess with the model env stripped.
 
     A subprocess, not an in-process call, because the defect lives in what
     reaches the stdout FILE DESCRIPTOR. capsys would capture a Python-level
@@ -47,7 +47,8 @@ def _run_report_without_key(config_path):
     suite was green — the same shape as the npm-build gap, one directory over.
     """
     env = dict(os.environ)
-    env.pop("QWEN_API_KEY", None)
+    for name in ("HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL", "HELICON_LLM_MODEL"):
+        env.pop(name, None)
     env["HELICON_CONFIG"] = str(config_path)
     return subprocess.run(
         [sys.executable, "-m", "helicon.cli", "report", "--llm", "--json"],
@@ -71,7 +72,8 @@ def helicon_config(tmp_path_factory):
     with open(os.path.join(REPO, "config.example.json"), encoding="utf-8") as f:
         config = json.load(f)
     config["db_path"] = str(tmp / "helicon.db")
-    config["qwen_api_key"] = ""
+    config["llm_api_key"] = ""
+    config["llm_base_url"] = ""
     for connector in config.get("connectors", {}).values():
         connector["enabled"] = False
     path = tmp / "config.json"
@@ -113,7 +115,7 @@ def test_the_warning_still_reaches_a_human(report_run):
     that made the nightly pass by muting the reason would trade a loud failure
     for a quiet one, which is the exact trade this repo exists to refuse.
     """
-    assert "No Qwen key" in report_run.stderr, (
+    assert "No model key" in report_run.stderr, (
         "the no-key warning vanished entirely; it belongs on stderr, not nowhere"
     )
 

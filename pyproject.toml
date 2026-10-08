@@ -30,7 +30,7 @@ dependencies = []
 [project.optional-dependencies]
 # The web app: `helicon serve`, `helicon demo`, the HTTP API.
 web = ["fastapi>=0.111.0", "uvicorn>=0.30.0", "pydantic>=2.0"]
-# Model-backed commands: anything that calls Qwen or another OpenAI-compatible endpoint.
+# Model-backed commands: anything that calls an OpenAI-compatible endpoint.
 model = ["openai>=1.30.0"]
 # The memory/retrieval lab: hybrid search, consolidation, identity resolution.
 # Without it, search degrades to FTS5 keyword only.
