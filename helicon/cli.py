@@ -2024,11 +2024,12 @@ def cmd_battery(args):
         print(_json.dumps(res, indent=2, default=str))
         return
 
+    from helicon.llm import is_model_judged
     print(f"\nContext battery for: \"{args.task}\"  (top {res['top_k']})")
     print(f"Verdict: {res['verdict']}\n")
     for r in res["results"]:
         crit = " *" if r.get("critical") and r["status"] == "FAIL" else ""
-        judged = " (model)" if r.get("judged_by") in ("model", "qwen") else ""
+        judged = " (model)" if is_model_judged(r.get("judged_by")) else ""
         print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}{judged}")
 
     print(f"\n  context cost: ~{res['context_tokens']} tokens for top-{res['top_k']}")

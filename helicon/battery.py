@@ -108,12 +108,12 @@ def _judge_lines(hits: list[dict]) -> list[str]:
 
 
 def run_llm_tests(client, task: str, hits: list[dict], model: str | None = None) -> list[dict]:
-    """The subjective (llm-mode) tests, judged by Qwen. Returns [] if no client
+    """The subjective (llm-mode) tests, judged by the model. Returns [] if no client
     or the call fails — the battery then falls back to deterministic-only, never
     fabricating a verdict."""
     if client is None or not hits:
         return []
-    from helicon.llm import complete_json
+    from helicon.llm import complete_json, judge_label
     llm = [t for t in CONTEXT_TESTS if t["mode"] == "llm"]
     lines = [f"Task the agent retrieves context for:\n  {task}\n", "Retrieved memories:"]
     lines.extend(_judge_lines(hits))
@@ -133,7 +133,7 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str | None = None)
         if isinstance(v, dict) and v.get("status") in ("PASS", "FAIL"):
             out.append({"name": t["name"], "status": v["status"],
                         "reason": str(v.get("reason", ""))[:200],
-                        "critical": False, "judged_by": "qwen"})
+                        "critical": False, "judged_by": judge_label(client, model)})
     return out
 
 

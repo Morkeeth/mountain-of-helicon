@@ -2,7 +2,7 @@
 
 Merges the system's real action trails into one newest-first feed:
 
-  - audit_log: every finding Helicon flagged (actor 'qwen' when the factual
+  - audit_log: every finding Helicon flagged (actor 'llm' when the factual
     contradiction judge produced it, 'helicon' otherwise), plus the human's
     resolution when one was recorded
   - reviews: human decisions (kept / killed / revised, with notes); auto-triage
@@ -12,7 +12,7 @@ Merges the system's real action trails into one newest-first feed:
     per source per day (helicon_cubes has no supersede timestamp, so the best
     available timestamp — last_reinforced, else created_at — dates the batch)
 
-Every row: {ts, actor ('human'|'helicon'|'qwen'), action, detail, count?}.
+Every row: {ts, actor ('human'|'helicon'|'llm'), action, detail, count?}.
 """
 from fastapi import APIRouter
 
@@ -35,7 +35,7 @@ def _audit_entries(conn, limit: int) -> list[dict]:
     for r in rows:
         entries.append({
             "ts": r["audited_at"],
-            "actor": "qwen" if r["audit_type"] == "factual" else "helicon",
+            "actor": "llm" if r["audit_type"] == "factual" else "helicon",
             "action": f"audit_flag_{r['audit_type']}",
             "detail": f"[{r['severity']}] {r['finding']}",
         })

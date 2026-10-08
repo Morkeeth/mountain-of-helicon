@@ -210,7 +210,7 @@ def test_log_returns_receipts_newest_first(client):
 
     for e in entries:
         assert {"ts", "actor", "action", "detail"} <= set(e)
-        assert e["actor"] in ("human", "helicon", "qwen")
+        assert e["actor"] in ("human", "helicon", "llm")
 
     tss = [e["ts"] for e in entries]
     assert tss == sorted(tss, reverse=True)

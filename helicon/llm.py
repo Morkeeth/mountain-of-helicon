@@ -80,6 +80,27 @@ def default_model(client, tier: str = "default") -> str | None:
     return models.get(tier) or models.get("default")
 
 
+# Stored provenance labels (judged_by in battery results and audit details).
+# New records carry the model id that judged, or "llm" when no id is known.
+# Rows written by earlier versions carry a vendor name or "model", and they
+# are never rewritten. So a reader asks "is this one of the labels that mean
+# no model was involved" and treats everything else as model-judged: every
+# old value, "llm", and any model id, with no list of names to keep current.
+NOT_MODEL_JUDGED = frozenset({"", "deterministic", "probe", "human", "helicon"})
+
+
+def judge_label(client, model: str | None = None) -> str:
+    """What to store as judged_by for a verdict this client produced."""
+    return model or default_model(client) or "llm"
+
+
+def is_model_judged(label) -> bool:
+    """True when a stored judged_by / actor label names a model verdict."""
+    if not isinstance(label, str):
+        return False
+    return label.strip().lower() not in NOT_MODEL_JUDGED
+
+
 _warned_no_model = False
 
 
