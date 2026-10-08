@@ -10,7 +10,7 @@ from helicon.patterns import (
     detect_kill_candidates,
     compute_shipping_rates,
 )
-from helicon.qwen import get_client as _get_client
+from helicon.llm import get_client as _get_client
 
 router = APIRouter()
 

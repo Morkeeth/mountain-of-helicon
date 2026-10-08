@@ -671,7 +671,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                        f"dates cannot both be true")
         judged_by = "deterministic"
         if client is not None:
-            from helicon.qwen import detect_contradictions
+            from helicon.llm import detect_contradictions
             row_a = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
                                  (rep_a["id"],)).fetchone()
             row_b = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",

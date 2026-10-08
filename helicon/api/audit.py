@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from helicon.api.app import get_conn, get_config
 from helicon.audit import run_audit
 from helicon.db import get_audit_results
-from helicon.qwen import get_client as _get_client
+from helicon.llm import get_client as _get_client
 
 router = APIRouter()
 

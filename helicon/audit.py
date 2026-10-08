@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
-from helicon.qwen import detect_contradictions, audit_pattern, resolve_model, complete_json
+from helicon.llm import detect_contradictions, audit_pattern, resolve_model, complete_json
 
 def _parse_dt(s: str) -> datetime:
     clean = s.replace("Z", "")

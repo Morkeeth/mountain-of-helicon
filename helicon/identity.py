@@ -359,7 +359,7 @@ def _judge_confirm(forks: list[dict], client, model: str) -> list[dict]:
     not silently retire rot the human never saw."""
     if not client or not forks:
         return forks
-    from helicon.qwen import detect_contradictions
+    from helicon.llm import detect_contradictions
     kept = []
     for f in forks:
         if f.get("resurfaced"):

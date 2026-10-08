@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from helicon.api.app import get_conn, get_config
 from helicon.score import compute_score, get_score_history, backfill_score_history, record_score_snapshot
 from helicon.forgetting import apply_decay, get_decay_stats
-from helicon.qwen import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, MODELS, TIER_COST_PER_1K
+from helicon.llm import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, MODELS, TIER_COST_PER_1K
 
 router = APIRouter()
 

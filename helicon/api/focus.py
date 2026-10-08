@@ -62,7 +62,7 @@ async def setup_report():
     setup is, scored live against the Track-1 criteria. Heavy (runs the battery
     + cross-source pairing), so it's an explicit action, not an auto-load."""
     from helicon.report import memoryagent_report
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     cfg = get_config()
     return memoryagent_report(get_conn(), client=get_client(cfg))
 
@@ -128,7 +128,7 @@ async def portrait():
     the process arc. Qwen narrates a deterministic digest (heavy-ish, so it is
     an explicit tab load, not an auto-poll)."""
     from helicon.portrait import build_portrait
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     cfg = get_config()
     return build_portrait(get_conn(), cfg, client=get_client(cfg))
 
@@ -151,7 +151,7 @@ async def volatility_scan():
     """The volatility gate: which stored memories are fast facts that belong in
     the live layer, not memory. Deterministic suspects, then Qwen sentences the
     top ones with a tier + the event that would make each wrong."""
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     from helicon.volatility import scan_volatility
     cfg = get_config()
     return scan_volatility(get_conn(), cfg, client=get_client(cfg))

@@ -108,7 +108,7 @@ def find_suspects(conn: sqlite3.Connection, cube_limit: int = 4000) -> list[dict
 
 def _classify(client, suspects: list[dict], model: str) -> dict:
     """Stage 2: Qwen sentences each suspect. Returns {index: verdict}."""
-    from helicon.qwen import complete_json
+    from helicon.llm import complete_json
     verdicts: dict[int, dict] = {}
     batch = 12
     for start in range(0, len(suspects), batch):

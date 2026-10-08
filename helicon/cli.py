@@ -375,7 +375,7 @@ def cmd_fix_skills(args):
     skills audit flags as missing one. Dry-run by default; --apply writes with
     a .bak backup per modified file."""
     from helicon.config import load_config
-    from helicon.qwen import get_client, resolve_model
+    from helicon.llm import get_client, resolve_model
     from helicon.writeback import DEFAULT_SKILLS_DIR, fix_skills
 
     config = load_config()
@@ -2006,7 +2006,7 @@ def cmd_battery(args):
     # live; --no-llm forces deterministic-only.
     client = None
     if not getattr(args, "no_llm", False):
-        from helicon.qwen import get_client, set_cache_db, resolve_model
+        from helicon.llm import get_client, set_cache_db, resolve_model
         set_cache_db(conn)
         client = get_client(config)
     model = resolve_model("default", config) if client else "qwen3.6-plus"
@@ -2110,7 +2110,7 @@ def cmd_rot(args):
     judge_client, judge_model = None, "qwen3.6-flash"
     if getattr(args, "judge", False):
         try:
-            from helicon.qwen import get_client, resolve_model, set_cache_db
+            from helicon.llm import get_client, resolve_model, set_cache_db
             set_cache_db(conn)
             judge_client = get_client(config)
             judge_model = resolve_model("fast", config)
@@ -2125,7 +2125,7 @@ def cmd_rot(args):
         # that turns a detected fork/contradiction into something you can rule.
         client = None
         try:
-            from helicon.qwen import get_client, set_cache_db
+            from helicon.llm import get_client, set_cache_db
             set_cache_db(conn)
             client = get_client(config)
         except Exception:
@@ -2535,7 +2535,7 @@ def cmd_read(args):
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon.portrait import build_portrait
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
 
     config = load_config()
     conn = init_db(config["db_path"])
@@ -2554,7 +2554,7 @@ def cmd_volatility(args):
     suspects, then Qwen sentences each with a tier + when it goes wrong."""
     from helicon.config import load_config
     from helicon.db import init_db
-    from helicon.qwen import get_client
+    from helicon.llm import get_client
     from helicon.volatility import scan_volatility
 
     config = load_config()
@@ -2824,7 +2824,7 @@ def cmd_evolve(args):
 
     client = None
     try:
-        from helicon.qwen import get_client, set_cache_db
+        from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
         client = get_client(config)
     except Exception:
@@ -3488,7 +3488,7 @@ def cmd_rule(args):
         print('usage: helicon rule "<natural language rule>" | --list | --approve N | --run [--apply]')
         return
 
-    from helicon.qwen import get_client, resolve_model, set_cache_db
+    from helicon.llm import get_client, resolve_model, set_cache_db
     set_cache_db(conn)
     client = get_client(config)
     if client is None:
@@ -3798,7 +3798,7 @@ def cmd_report(args):
     client = None
     model = "qwen3.6-plus"
     if getattr(args, "llm", False):
-        from helicon.qwen import get_client, resolve_model, set_cache_db
+        from helicon.llm import get_client, resolve_model, set_cache_db
         set_cache_db(conn)
         client = get_client(config)
         model = resolve_model("default", config)
@@ -3963,7 +3963,7 @@ def cmd_optimize(args):
     from helicon.score import compute_score
     from helicon.forgetting import get_decay_stats
     from helicon.triage import compute_triage_rules, init_triage_table
-    from helicon.qwen import get_client, complete, set_cache_db
+    from helicon.llm import get_client, complete, set_cache_db
 
     config = load_config()
     conn = init_db(config["db_path"])
@@ -4100,7 +4100,7 @@ def cmd_consolidate(args):
     max_clusters = args.max if hasattr(args, "max") else 10
     qwen_client = None
     if hasattr(args, "qwen") and args.qwen:
-        from helicon.qwen import get_client, set_cache_db
+        from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
         qwen_client = get_client(config)
 
@@ -4168,7 +4168,7 @@ def cmd_consolidation_eval(args):
 
     qwen_client = None
     if getattr(args, "qwen", False):
-        from helicon.qwen import get_client, set_cache_db
+        from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
         qwen_client = get_client(config)
 

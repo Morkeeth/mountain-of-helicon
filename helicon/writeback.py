@@ -16,7 +16,7 @@ import os
 import re
 
 from helicon.connectors.skills import _find_skill_files, _parse_frontmatter
-from helicon.qwen import complete
+from helicon.llm import complete
 
 # The user-owned root the integrity audit scans (see helicon/api/integrity.py
 # _SKILL_ROOTS). The audit also reads the plugin marketplace root, but that is

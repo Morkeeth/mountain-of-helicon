@@ -3,7 +3,7 @@ from fastapi import APIRouter, Query
 from helicon.api.app import get_conn, get_config
 from helicon.db import search_cubes, rebuild_fts
 from helicon.consolidation import find_clusters, run_consolidation, get_consolidations
-from helicon.qwen import get_client
+from helicon.llm import get_client
 
 router = APIRouter()
 

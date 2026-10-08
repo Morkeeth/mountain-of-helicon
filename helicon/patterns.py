@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from helicon.models import Pattern
-from helicon.qwen import complete_json
+from helicon.llm import complete_json
 
 
 def make_id() -> str:
