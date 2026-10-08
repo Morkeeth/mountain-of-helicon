@@ -15,6 +15,7 @@ Same rulings, other direction: the guard stops bad writes; this stops bad belief
 It is read-only — it retrieves and screens, it never mutates a memory or a ruling.
 """
 
+from helicon.dated_rulings import match_rulings
 from helicon.guard import _load_factual_resolutions, guard_output
 
 
@@ -66,6 +67,7 @@ def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000) ->
     return {
         "task": task,
         "trusted_answer": trusted,          # what the rulings say is true, for topics asked about
+        "dated_rulings": match_rulings(task),  # the operator's quoted decisions that cover the question
         "safe_context": safe,               # retrieved memory no ruling contradicts
         "flagged_context": flagged,         # retrieved memory that still asserts a ruled-wrong value
         "suppressed_count": len(flagged),
@@ -86,8 +88,19 @@ def format_guarded_context(res: dict) -> str:
                 f"    • {t['topic']} = {t['answer']}   "
                 f"(ruled wrong: {wrong} · ruling #{t['ruling_id']})"
             )
-    else:
+    elif not res.get("dated_rulings"):
         lines.append("\n  Trusted answer: no ruling covers this topic — treat retrieved context as unverified.")
+
+    if res.get("dated_rulings"):
+        lines.append("\n  Rulings on record (the newest decision on a subject wins):")
+        for r in res["dated_rulings"]:
+            mark = {"current": "CURRENT", "older": "older, replaced by the current one",
+                    "related": "related, another subject"}.get(r.get("standing"), "CURRENT" if r.get("newest") else "older")
+            lines.append(f"    • {r['date']}  [{mark}]  {r['text']}")
+            if r["quote"]:
+                lines.append(f'        said: "{r["quote"]}"')
+            if r["source"]:
+                lines.append(f"        source: {r['source']}")
 
     if res["flagged_context"]:
         lines.append(f"\n  ⚠ {res['suppressed_count']} retrieved memory contradicts a ruling — held back:")

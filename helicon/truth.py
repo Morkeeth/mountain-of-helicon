@@ -403,8 +403,12 @@ def _score_md(rec: dict, today: date, newest: datetime, index_text: str,
         reasons.append((38, f"retired-but-live ({rmatch.group(1).upper()} marker, file still on disk)",
                         _first_line(status if _RETIRED.search(status) else body)))
 
-    # 5. expired dated claims in the body
-    for c in _dated_claims(body, today):
+    # 5. expired dated claims in the body. A note the operator marked as a record
+    #    of the past (frontmatter `history: closed <date>`) is expected to hold old
+    #    dates: a deadline that passed is its content, not its rot. The marker only
+    #    silences this one signal; a stale stamp or a banned term still counts.
+    closed_history = str(fm.get("history", "")).strip().lower().startswith("closed")
+    for c in ([] if closed_history else _dated_claims(body, today)):
         reasons.append((min(30, 12 + c["days_past"] // 10),
                         f"expired dated claim ({c['days_past']}d past, {c['date']})",
                         c["quote"]))
