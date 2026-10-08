@@ -27,11 +27,13 @@ import pytest
 import helicon.api.app  # noqa: F401  (import order is load-bearing)
 
 
-def _client(tmp_path, monkeypatch):
+def _client(tmp_path, monkeypatch, prices=None):
     from fastapi.testclient import TestClient
     from helicon.api import app as app_mod
-    monkeypatch.setattr(app_mod, "load_config",
-                        lambda: {"db_path": str(tmp_path / "api.db")})
+    config = {"db_path": str(tmp_path / "api.db")}
+    if prices is not None:
+        config["llm_prices"] = prices
+    monkeypatch.setattr(app_mod, "load_config", lambda: config)
     return TestClient(app_mod.create_app())
 
 
@@ -55,8 +57,8 @@ def _seed(tmp_path, rows=None):
         "(cache_key, model, response, input_tokens, output_tokens, created_at)"
         " VALUES (?,?,?,?,?,?)",
         rows if rows is not None else
-        [("k1", "qwen-max", "{}", 100, 10, "2026-09-16T00:00:00Z"),
-         ("k2", "qwen-max", "{}", 200, 20, "2026-09-16T00:01:00Z")])
+        [("k1", "model-a", "{}", 100, 10, "2026-09-16T00:00:00Z"),
+         ("k2", "model-a", "{}", 200, 20, "2026-09-16T00:01:00Z")])
     conn.commit()
     conn.close()
 
@@ -123,6 +125,54 @@ def test_unavailable_fields_say_why(tmp_path, monkeypatch):
                 f"`{field}` is unavailable but the payload does not say why"
 
 
+# --- a cost exists only when the user configured a price --------------------
+
+_TWO_MODELS = [("k1", "model-a", "{}", 100, 10, "2026-09-16T00:00:00Z"),
+               ("k2", "model-a", "{}", 200, 20, "2026-09-16T00:01:00Z"),
+               ("k3", "model-b", "{}", 1000, 500, "2026-09-16T00:02:00Z")]
+
+
+def test_configured_price_gives_a_derived_cost(tmp_path, monkeypatch):
+    _seed(tmp_path, _TWO_MODELS)
+    prices = {"model-a": {"input": 2.0, "output": 10.0},
+              "model-b": {"input": 1.0, "output": 4.0}}
+    with _client(tmp_path, monkeypatch, prices) as c:
+        body = c.get("/api/llm-calls/dashboard").json()
+    a = (300 * 2.0 + 30 * 10.0) / 1e6
+    b = (1000 * 1.0 + 500 * 4.0) / 1e6
+    assert body["by_model"]["model-a"]["cost_usd"] == pytest.approx(a)
+    assert body["by_model"]["model-b"]["cost_usd"] == pytest.approx(b)
+    assert body["total_cost_usd"] == pytest.approx(a + b)
+    assert body["unpriced_models"] == []
+    assert body["provenance"]["cost_usd"] == "derived"
+    assert body["provenance"]["total_cost_usd"] == "derived"
+    assert "total_cost_usd" not in body["unavailable_because"]
+    # The two this store cannot supply stay null whatever is configured.
+    assert body["by_model"]["model-a"]["avg_latency"] is None
+    assert body["by_model"]["model-a"]["cached_calls"] is None
+
+
+def test_one_unpriced_model_keeps_the_total_unknown(tmp_path, monkeypatch):
+    _seed(tmp_path, _TWO_MODELS)
+    with _client(tmp_path, monkeypatch, {"model-a": {"input": 2.0, "output": 10.0}}) as c:
+        body = c.get("/api/llm-calls/dashboard").json()
+    assert body["by_model"]["model-a"]["cost_usd"] > 0
+    assert body["by_model"]["model-b"]["cost_usd"] is None
+    assert body["total_cost_usd"] is None
+    assert body["unpriced_models"] == ["model-b"]
+    assert body["provenance"]["total_cost_usd"] == "unavailable"
+    assert "model-b" in body["unavailable_because"]["total_cost_usd"]
+    assert "model-b" in body["unavailable_because"]["cost_usd"]
+
+
+def test_no_price_says_how_to_configure_one(tmp_path, monkeypatch):
+    _seed(tmp_path)
+    with _client(tmp_path, monkeypatch) as c:
+        body = c.get("/api/llm-calls/dashboard").json()
+    assert body["unpriced_models"] == ["model-a"]
+    assert "llm_prices" in body["unavailable_because"]["total_cost_usd"]
+
+
 # --- defect 2: the name must match the question -----------------------------
 
 def test_the_payload_names_the_population_it_read(tmp_path, monkeypatch):
@@ -159,8 +209,8 @@ def test_cached_responses_is_not_called_calls(tmp_path, monkeypatch):
         body = c.get("/api/llm-calls/dashboard").json()
 
         assert body["total_cached_responses"] == 2
-        assert body["by_model"]["qwen-max"]["cached_responses"] == 2
-        assert "calls" not in body["by_model"]["qwen-max"], \
+        assert body["by_model"]["model-a"]["cached_responses"] == 2
+        assert "calls" not in body["by_model"]["model-a"], \
             "a cache row is not a call; do not name it one"
         assert "total_calls" not in body
 
@@ -171,7 +221,7 @@ def test_measured_totals_are_still_right(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
         body = c.get("/api/llm-calls/dashboard").json()
         assert body["total_tokens"] == 330
-        row = body["by_model"]["qwen-max"]
+        row = body["by_model"]["model-a"]
         assert row["input_tokens"] == 300
         assert row["output_tokens"] == 30
 

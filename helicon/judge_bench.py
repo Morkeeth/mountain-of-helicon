@@ -151,7 +151,8 @@ def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
     """Run every judge (configured tiers + any competitor) over every probe.
     Returns per-judge verdicts + latency + cost (cost only for models with known
     pricing). Uses the response cache so reruns are free."""
-    from helicon.llm import detect_contradictions, _call_log, TIER_COST_PER_1K
+    from helicon.llm import detect_contradictions, _call_log, call_cost, model_prices
+    prices = model_prices(config)
     judges, notes = build_judges(config, tiers)
     if not judges:
         return {"error": "; ".join(notes) or "no judges available"}
@@ -170,8 +171,12 @@ def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
             errors += 1 if res is None else 0
         tok = sum((e.get("input_tokens", 0) or 0) + (e.get("output_tokens", 0) or 0)
                   for e in _call_log[start:])
-        cost = (round(tok / 1000 * TIER_COST_PER_1K[model], 5)
-                if model in TIER_COST_PER_1K else None)
+        # Priced from config llm_prices. No entry for this model: cost unknown.
+        cost = call_cost(model,
+                         sum(e.get("input_tokens", 0) or 0 for e in _call_log[start:]),
+                         sum(e.get("output_tokens", 0) or 0 for e in _call_log[start:]),
+                         prices)
+        cost = None if cost is None else round(cost, 5)
         out[label] = {"model": model, "source": source, "verdicts": verdicts, "latency_s": round(latency, 1),
                       "tokens": tok, "cost_usd": cost, "errors": errors}
     return out

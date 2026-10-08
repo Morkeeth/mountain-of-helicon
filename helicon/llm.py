@@ -4,11 +4,47 @@ import sqlite3
 import sys
 import time
 
-TIER_COST_PER_1K = {
-    "qwen3.6-flash": 0.0003,
-    "qwen3.6-plus": 0.0008,
-    "qwen3.7-max": 0.0024,
-}
+
+def model_prices(config: dict | None) -> dict[str, tuple[float, float]]:
+    """{model: (input, output)} in USD per MILLION tokens, from config
+    `llm_prices`: {"<model id>": {"input": 0.25, "output": 1.0}}.
+
+    Helicon ships no price table. A price belongs to an endpoint and a date,
+    and only the person paying the bill knows it. A model with no entry here
+    has an UNKNOWN cost, which is reported as None, never as a guess and never
+    as 0. Entries that are not two non-negative numbers are dropped."""
+    out: dict[str, tuple[float, float]] = {}
+    raw = (config or {}).get("llm_prices")
+    if not isinstance(raw, dict):
+        return out
+    for model, price in raw.items():
+        if not isinstance(price, dict):
+            continue
+        pin, pout = price.get("input"), price.get("output")
+        ok = all(isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0
+                 for v in (pin, pout))
+        if ok:
+            out[str(model)] = (float(pin), float(pout))
+    return out
+
+
+def call_cost(model: str, input_tokens: int, output_tokens: int,
+              prices: dict | None) -> float | None:
+    """USD for one call or one token sum, or None when the model has no
+    configured price. None means unknown. It is not zero."""
+    price = (prices or {}).get(model)
+    if price is None:
+        return None
+    return ((input_tokens or 0) * price[0] + (output_tokens or 0) * price[1]) / 1_000_000
+
+
+def _sum_costs(costs) -> float | None:
+    """Sum, unless any part is unknown: a total with a hole in it is unknown."""
+    costs = list(costs)
+    if any(c is None for c in costs):
+        return None
+    return round(sum(costs), 6)
+
 
 _call_log: list[dict] = []
 _cache: dict[str, str] = {}
@@ -46,8 +82,10 @@ def get_client(config: dict):
     from openai import OpenAI
     # A local endpoint needs no key, but the SDK refuses an empty one.
     client = OpenAI(api_key=r["api_key"] or "not-needed", base_url=r["base_url"])
-    # complete() has no config, so the configured models ride on the client.
+    # complete() has no config, so the configured models and prices ride on
+    # the client.
     try:
+        client._helicon_prices = model_prices(config)
         client._helicon_models = {t: resolve_model(t, config) for t in TIERS}
         # The second contradiction judge (pairing.pair_scan). Off unless the
         # config names one.
@@ -233,7 +271,9 @@ def complete(client, system: str, user: str, model: str | None = None, operation
         _cache[key] = result
         _save_to_cache_db(_db_conn, key, model, operation, result, in_tok, out_tok)
 
-        cost = (in_tok + out_tok) / 1000 * TIER_COST_PER_1K.get(model, 0.001)
+        # None when no price is configured for this model: unknown, not zero.
+        cost = call_cost(model, in_tok, out_tok, getattr(client, "_helicon_prices", None))
+        cost = None if cost is None else round(cost, 6)
         _call_log.append({
             "model": model,
             "elapsed": round(elapsed, 2),
@@ -242,7 +282,7 @@ def complete(client, system: str, user: str, model: str | None = None, operation
             "timestamp": time.time(),
             "cached": False,
             "operation": operation,
-            "cost_usd": round(cost, 6),
+            "cost_usd": cost,
         })
 
         _route_log.append({
@@ -251,7 +291,7 @@ def complete(client, system: str, user: str, model: str | None = None, operation
             "input_tokens": in_tok,
             "output_tokens": out_tok,
             "latency": round(elapsed, 2),
-            "cost_usd": round(cost, 6),
+            "cost_usd": cost,
             "timestamp": time.time(),
         })
 
@@ -286,17 +326,24 @@ def complete_json(client, system: str, user: str, model: str | None = None, oper
         return None
 
 
-def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
+def get_call_stats(conn: sqlite3.Connection | None = None,
+                   config: dict | None = None) -> dict:
     """Token/cost stats for the dashboard.
 
-    Durable usage (calls, tokens, cost) comes from the llm_cache table, which
+    Durable usage (calls, tokens) comes from the llm_cache table, which
     every live model call in ANY process writes to. The in-process _call_log only
     ever sees this process's calls (CLI runs like `helicon report --llm` happen
     in other processes), so it is used only for session-local data the DB does
     not have: cache hits and latency. Falls back to _call_log-only accounting
     when no DB connection is available.
+
+    Cost is tokens times the configured price (config `llm_prices`). A model
+    with no price has cost_usd None and is named in `unpriced_models`, and
+    then total_cost_usd is None too: a total that leaves a model out would be
+    a made-up number.
     """
     conn = conn if conn is not None else _db_conn
+    prices = model_prices(config)
     by_model: dict[str, dict] = {}
     by_operation: dict[str, dict] = {}
     if conn is not None:
@@ -313,7 +360,7 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
     def _bucket(model: str) -> dict:
         return by_model.setdefault(model, {
             "calls": 0, "cached_calls": 0, "input_tokens": 0,
-            "output_tokens": 0, "avg_latency": 0, "cost_usd": 0.0,
+            "output_tokens": 0, "avg_latency": 0, "cost_usd": None,
         })
 
     db_ok = False
@@ -330,7 +377,6 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
                 b["calls"] = r["calls"]
                 b["input_tokens"] = r["in_tok"]
                 b["output_tokens"] = r["out_tok"]
-                b["cost_usd"] = (r["in_tok"] + r["out_tok"]) / 1000 * TIER_COST_PER_1K.get(r["model"], 0.001)
             db_ok = True
         except Exception:
             by_model = {}
@@ -344,34 +390,39 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
             b["calls"] += 1
             b["input_tokens"] += call["input_tokens"]
             b["output_tokens"] += call["output_tokens"]
-            b["cost_usd"] += call.get("cost_usd", 0)
 
     for m, b in by_model.items():
         live_calls = [c for c in _call_log if c["model"] == m and not c.get("cached")]
         if live_calls:
             b["avg_latency"] = round(sum(c["elapsed"] for c in live_calls) / len(live_calls), 2)
-        b["cost_usd"] = round(b["cost_usd"], 6)
+        cost = call_cost(m, b["input_tokens"], b["output_tokens"], prices)
+        b["cost_usd"] = None if cost is None else round(cost, 6)
 
+    # Only a model that actually used tokens can leave a hole in the total.
+    unpriced = sorted(m for m, b in by_model.items()
+                      if b["cost_usd"] is None and (b["input_tokens"] or b["output_tokens"]))
+    total_cost = None if unpriced else _sum_costs(
+        b["cost_usd"] or 0.0 for b in by_model.values())
     cache_rate = _cache_stats["hits"] / max(_cache_stats["hits"] + _cache_stats["misses"], 1)
     return {
         "by_operation": by_operation,
         "total_calls": sum(b["calls"] + b["cached_calls"] for b in by_model.values()),
         "by_model": by_model,
         "cache": {**_cache_stats, "rate": round(cache_rate, 3), "entries": len(_cache)},
-        "total_cost_usd": round(sum(b["cost_usd"] for b in by_model.values()), 6),
+        "total_cost_usd": total_cost,
+        "unpriced_models": unpriced,
     }
 
 
 def get_route_stats() -> dict:
-    if not _route_log:
-        return {"operations": {}, "recommendations": []}
+    """Per-operation usage for this process. total_cost is None for an
+    operation with any call whose model has no configured price."""
     by_op = {}
     for r in _route_log:
         op = r["operation"] or "unknown"
         if op not in by_op:
             by_op[op] = {"calls": 0, "models_used": {}, "avg_latency": 0, "total_cost": 0, "total_tokens": 0}
         by_op[op]["calls"] += 1
-        by_op[op]["total_cost"] += r["cost_usd"]
         by_op[op]["total_tokens"] += r["input_tokens"] + r["output_tokens"]
         m = r["model"]
         if m not in by_op[op]["models_used"]:
@@ -380,25 +431,8 @@ def get_route_stats() -> dict:
     for op in by_op:
         op_calls = [r for r in _route_log if (r["operation"] or "unknown") == op]
         by_op[op]["avg_latency"] = round(sum(r["latency"] for r in op_calls) / len(op_calls), 2)
-        by_op[op]["total_cost"] = round(by_op[op]["total_cost"], 6)
-
-    recommendations = []
-    for op, stats in by_op.items():
-        if stats["calls"] >= 3:
-            models = stats["models_used"]
-            if any(m in models for m in ("qwen-max", "qwen-plus")) and stats["avg_latency"] < 2.0:
-                cheaper = "qwen-turbo" if "qwen-max" in models or "qwen-plus" in models else None
-                if cheaper:
-                    savings = stats["total_cost"] * 0.6
-                    recommendations.append({
-                        "operation": op,
-                        "current_model": max(models, key=models.get),
-                        "suggested": cheaper,
-                        "reason": f"Low latency ({stats['avg_latency']}s) suggests {cheaper} may suffice",
-                        "estimated_savings_usd": round(savings, 6),
-                    })
-
-    return {"operations": by_op, "recommendations": recommendations}
+        by_op[op]["total_cost"] = _sum_costs(r.get("cost_usd") for r in op_calls)
+    return {"operations": by_op}
 
 
 def get_cache_stats_db(conn: sqlite3.Connection) -> dict:

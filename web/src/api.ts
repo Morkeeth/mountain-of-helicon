@@ -498,14 +498,15 @@ export interface SkillsAudit {
 
 export interface LlmStats {
   total_calls: number;
-  by_model: Record<string, { calls: number; cached_calls: number; input_tokens: number; output_tokens: number; avg_latency: number; cost_usd: number }>;
+  by_model: Record<string, { calls: number; cached_calls: number; input_tokens: number; output_tokens: number; avg_latency: number; cost_usd: number | null }>;   // null = no price configured for the model
   cache: { hits: number; misses: number; rate?: number; entries?: number };
-  total_cost_usd: number;
+  total_cost_usd: number | null;                              // null when any model is unpriced
+  unpriced_models: string[];
 }
 
 export interface LlmModels {
-  routing: Record<string, string>;
-  cost_per_1k_tokens: Record<string, number>;
+  routing: Record<string, string | null>;
+  prices_per_million_tokens: Record<string, { input: number; output: number }>;   // from config llm_prices; empty = unknown
   usage: Record<string, string>;
 }
 
@@ -537,8 +538,7 @@ export interface ReviewDrift {
 }
 
 export interface LlmRouting {
-  operations: Record<string, { calls: number; models_used: Record<string, number>; avg_latency: number; total_cost: number; total_tokens: number }>;
-  recommendations: { operation: string; current_model: string; suggested: string; reason: string; estimated_savings_usd: number }[];
+  operations: Record<string, { calls: number; models_used: Record<string, number>; avg_latency: number; total_cost: number | null; total_tokens: number }>;
 }
 
 export interface TriageAction {
