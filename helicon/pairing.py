@@ -1,6 +1,6 @@
 """Cross-source contradiction pairing — the R1 selector.
 
-ROT.md R1 said it out loud: the Qwen detector was proven on the real birthday
+ROT.md R1 said it out loud: the model detector was proven on the real birthday
 pair, but *production pairing across sources* was the gap — nothing selected
 which two cubes to hand the detector, so the conflict only surfaced when a
 human already knew where to look.
@@ -11,7 +11,7 @@ range) inside a small window around an event keyword ("birthday", "wedding",
 ...). Assertions group by (person, topic); a group where two different source
 files assert two *disjoint* intervals is a candidate contradiction ("Sep
 11-13" vs "Sep 13" overlap, so they agree; "Jul 13" vs "Jul 18" cannot both
-be true). The selector finds, the Qwen judge (detect_contradictions) rules;
+be true). The selector finds, the model judge (detect_contradictions) rules;
 with no key the disjoint-interval mismatch itself is the verdict. Zero LLM
 calls in the selector.
 
@@ -371,7 +371,7 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
             if not by_iv:
                 continue  # resolved, and nothing new contradicts the truth
             # The truth's representative is the CORRECTION CUBE resolve_pair
-            # wrote — a real DB row, so the Qwen judge downstream always has
+            # wrote, a real DB row, so the model judge downstream always has
             # real content to rule on (a synthetic marker here crashed
             # pair_scan the moment the guard fired with a client configured).
             crow = conn.execute(
@@ -639,16 +639,16 @@ def _cohen_kappa(p: dict) -> float | None:
     if n == 0:
         return None
     po = (p["both_yes"] + p["both_no"]) / n
-    p1_yes = (p["both_yes"] + p["qwen_only"]) / n
+    p1_yes = (p["both_yes"] + p["judge1_only"]) / n
     p2_yes = (p["both_yes"] + p["judge2_only"]) / n
     pe = p1_yes * p2_yes + (1 - p1_yes) * (1 - p2_yes)
     return 1.0 if pe >= 1 else round((po - pe) / (1 - pe), 3)
 
 
-def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus",
-              judge2_model: str = "deepseek-v4-flash") -> dict:
+def pair_scan(conn: sqlite3.Connection, client=None, model: str | None = None,
+              judge2_model: str | None = None) -> dict:
     """Find cross-source conflicts and file each new one as a factual audit
-    finding. With a Qwen client, every candidate pair is confirmed by
+    finding. With a model client, every candidate pair is confirmed by
     detect_contradictions before filing (the judge can veto the selector);
     without one, the disjoint-interval mismatch is the verdict. Idempotent:
     a pair_key already in audit_log is never filed twice."""
@@ -657,7 +657,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, rejected, skipped = [], [], []
     # Two-judge panel confusion counts, for Cohen's κ across the scan.
-    panel = {"both_yes": 0, "both_no": 0, "qwen_only": 0, "judge2_only": 0}
+    panel = {"both_yes": 0, "both_no": 0, "judge1_only": 0, "judge2_only": 0}
 
     for c in conflicts:
         if (c["pair_key"] in existing
@@ -671,7 +671,11 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                        f"dates cannot both be true")
         judged_by = "deterministic"
         if client is not None:
-            from helicon.qwen import detect_contradictions
+            from helicon.llm import detect_contradictions, default_model
+            # Both judges come from the config. No second judge configured
+            # means a one-judge verdict, said as such in judged_by.
+            model = model or default_model(client)
+            judge2_model = judge2_model or default_model(client, "judge2")
             row_a = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
                                  (rep_a["id"],)).fetchone()
             row_b = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
@@ -681,8 +685,8 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
             # deterministic verdict instead of crashing the watch tick.
             if row_a is not None and row_b is not None:
                 v1 = detect_contradictions(client, row_a["content"], row_b["content"], model=model)
-                # Second judge from a DIFFERENT model family (two Qwens share
-                # failure modes and inflate agreement). The court sits with two
+                # Second judge from a DIFFERENT model family (two models of
+                # one family share failure modes and inflate agreement). The court sits with two
                 # independent judges; a split verdict is escalated to the human.
                 v2 = (detect_contradictions(client, row_a["content"], row_b["content"], model=judge2_model)
                       if judge2_model else None)
@@ -694,7 +698,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                     elif not c1 and not c2:
                         panel["both_no"] += 1
                     elif c1 and not c2:
-                        panel["qwen_only"] += 1
+                        panel["judge1_only"] += 1
                     else:
                         panel["judge2_only"] += 1
                     if c1 == c2:

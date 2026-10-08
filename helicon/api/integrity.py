@@ -44,13 +44,13 @@ def _terms(text: str) -> set[str]:
 @router.get("/integrity/battery")
 async def integrity_battery(llm: bool = False):
     """Live context-quality battery over the real benchmark tasks. With ?llm=true
-    the Contradiction/Grounding tests are judged live by Qwen (slower, needs a
+    the Contradiction/Grounding tests are judged live by the model (slower, needs a
     key); default is deterministic-only for a fast dashboard load."""
     conn = get_conn()
     client = model = None
     if llm:
         from helicon.api.app import get_config
-        from helicon.qwen import get_client, resolve_model
+        from helicon.llm import get_client, resolve_model
         config = get_config()
         client = get_client(config)
         model = resolve_model("default", config)
@@ -58,7 +58,7 @@ async def integrity_battery(llm: bool = False):
     tasks = []
     counts = Counter()
     for q in queries:
-        res = run_battery(conn, q["query"], k=K, client=client, model=model or "qwen3.6-plus")
+        res = run_battery(conn, q["query"], k=K, client=client, model=model)
         counts[res["verdict"]] += 1
         tasks.append({
             "task": res["task"],

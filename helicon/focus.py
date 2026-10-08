@@ -7,13 +7,13 @@ what to *do* about it is the human act this surfaces.
 Every move must cite the exact memory it came from (Trust-Align, arXiv
 2409.11242) and the citation must point at the memory that actually justifies
 the move, not a vaguely-related one (Correctness != Faithfulness, 2412.18004).
-So we hand Qwen a fixed set of ref-ids and drop any move whose citations do not
+So we hand the model a fixed set of ref-ids and drop any move whose citations do not
 resolve back to one of them, no free-floating advice ever ships.
 """
 
 from datetime import datetime, timezone
 
-from helicon.qwen import get_client, complete_json
+from helicon.llm import get_client, complete_json, llm_status, resolve_model
 from helicon.lenses import detect_lens, lens_guidance
 
 
@@ -106,14 +106,15 @@ def generate_next_moves(conn, config: dict | None = None) -> dict:
     client = get_client(config)
     if client is None:
         return {"moves": [], "grounded_in": len(refs), "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-                "note": "No Qwen client configured (set qwen_api_key)."}
+                "note": f"Model features are off: {llm_status(config)['reason']}."}
 
     present = {r.get("output_kind", "default") for r in refs.values()}
     user = ("Current memory state. Cite only these ref ids.\n\n"
             + lens_guidance(present)
             + "\n\nFINDINGS & SIGNALS (each tagged with its output type):\n"
             + "\n".join(lines))
-    data = complete_json(client, _SYSTEM, user, model="qwen3.6-plus", operation="focus_next_moves")
+    data = complete_json(client, _SYSTEM, user, model=resolve_model("default", config),
+                         operation="focus_next_moves")
 
     moves_in = (data or {}).get("moves", []) if isinstance(data, dict) else []
     moves_out = []

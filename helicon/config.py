@@ -39,6 +39,76 @@ def expand_path(path: str) -> str:
     return os.path.expanduser(os.path.expandvars(path))
 
 
+# Settings from before the model layer went provider-neutral. They are not read
+# any more. The names are kept only so `helicon doctor` can say in one line
+# that it found them and ignored them (see ignored_old_llm_settings).
+_OLD_LLM_CONFIG_KEYS = ("qwen_api_key", "qwen_base_url", "qwen_model", "qwen_models")
+_OLD_LLM_ENV = ("QWEN_API_KEY",)
+
+
+def ignored_old_llm_settings(config: dict | None) -> list[str]:
+    """NAMES of old model settings that are present and ignored. Never values."""
+    cfg = config or {}
+    found = [k for k in _OLD_LLM_CONFIG_KEYS if cfg.get(k)]
+    found += [f"{k} env" for k in _OLD_LLM_ENV if os.environ.get(k)]
+    return found
+
+
+def _first(sources: list[tuple[str, str | None]]) -> tuple[str, str]:
+    for name, value in sources:
+        if value:
+            return value, name
+    return "", ""
+
+
+def resolve_llm(config: dict | None) -> dict:
+    """Where the model layer points, and why. Pure: reads the config dict and
+    the HELICON_LLM_* environment, writes nothing.
+
+    Order for each setting: config key, then env. There is no default vendor
+    and no default model: no endpoint means the model-judged features are off,
+    and `reason` says which setting is missing.
+
+    Never put the key in a message. `key_source` names where it came from.
+    """
+    cfg = config or {}
+    env = os.environ
+    api_key, key_source = _first([
+        ("config llm_api_key", cfg.get("llm_api_key")),
+        ("HELICON_LLM_API_KEY env", env.get("HELICON_LLM_API_KEY")),
+    ])
+    base_url, url_source = _first([
+        ("config llm_base_url", cfg.get("llm_base_url")),
+        ("HELICON_LLM_BASE_URL env", env.get("HELICON_LLM_BASE_URL")),
+    ])
+    model, model_source = _first([
+        ("config llm_model", cfg.get("llm_model")),
+        ("HELICON_LLM_MODEL env", env.get("HELICON_LLM_MODEL")),
+    ])
+    has_model = bool(model or (cfg.get("llm_models") or {}).get("default"))
+
+    if not base_url:
+        if api_key:
+            reason = ("a model key is set but no endpoint: set llm_base_url "
+                      "(or HELICON_LLM_BASE_URL)")
+        else:
+            reason = ("no model configured: set llm_base_url, llm_model and, if the "
+                      "endpoint needs one, llm_api_key (or the HELICON_LLM_* env vars)")
+        enabled = False
+    elif not has_model:
+        reason = "no model name: set llm_model (or HELICON_LLM_MODEL)"
+        enabled = False
+    else:
+        reason = f"model endpoint configured ({url_source})"
+        enabled = True
+    return {
+        "enabled": enabled, "reason": reason,
+        "api_key": api_key, "key_source": key_source,
+        "base_url": base_url, "base_url_source": url_source,
+        "model": model, "model_source": model_source,
+    }
+
+
 def load_config(path: str | None = None) -> dict:
     # Resolve at call time. `helicon demo` sets HELICON_CONFIG immediately
     # before uvicorn starts, while normal installs prefer ~/.helicon and retain
@@ -63,8 +133,7 @@ def load_config(path: str | None = None) -> dict:
         config = json.load(f)
 
     config["db_path"] = expand_path(config.get("db_path", "data/helicon.db"))
-    config["qwen_api_key"] = config.get("qwen_api_key") or os.environ.get("QWEN_API_KEY", "")
-    # Same shape as every other key: config.json first, env as the fallback.
+    # config.json first, env as the fallback.
     # judge_bench used to read OPENROUTER_API_KEY from the environment and
     # nowhere else, which made it the only component that could not be
     # configured the way the whole rest of the tool is. The field was not even

@@ -87,9 +87,9 @@ def _check(rid, name, coverage, found, receipt):
 
 
 def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
-                 judge_client=None, judge_model: str = "qwen3.6-flash",
+                 judge_client=None, judge_model: str | None = None,
                  config: dict | None = None) -> dict:
-    """judge_client (Qwen) upgrades R11 from the cosine gate to the judge that
+    """judge_client (a model client) upgrades R11 from the cosine gate to the judge that
     actually separates a fork from a rephrasing. Optional: without it R11 reports
     cosine survivors and says so, rather than pretending the weaker gate is the
     same exam.
@@ -101,7 +101,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
 
     # R1 cross-source contradiction — the pair selector (helicon.pairing)
     # finds disjoint dated facts about the same person across source files;
-    # the Qwen detector rules on what it finds.
+    # the model detector rules on what it finds.
     # Verdict scope: live conflicts + open PAIRING findings only. An open
     # agent-flag about something else must not pin R1 at ROT FOUND forever
     # (that would mute watch's flip alert for real contradictions).
@@ -500,7 +500,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
             # fork from a rephrasing (real 0.354 vs artifact 0.367 on the live
             # store), so a cosine-only R11 is over-reporting and must say so
             # rather than sell its candidates as confirmed rot.
-            gate = "qwen-judged" if judge_client else "cosine-only, unjudged"
+            gate = "model-judged" if judge_client else "cosine-only, unjudged"
             note = (f" (+{unconfirmed} genus candidate(s) dropped by the {gate} gate)"
                     if unconfirmed else f" [{gate}]")
             checks.append(_check(

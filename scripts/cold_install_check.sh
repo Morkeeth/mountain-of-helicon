@@ -52,8 +52,9 @@ PY
 set +e
 HOME="$home" \
 NO_COLOR=1 \
-QWEN_API_KEY= \
-DASHSCOPE_API_KEY= \
+HELICON_LLM_API_KEY= \
+HELICON_LLM_BASE_URL= \
+HELICON_LLM_MODEL= \
 OPENAI_API_KEY= \
 "$venv/bin/helicon" review "$fixture" --json > "$work/result.json" 2> "$work/review.err"
 review_status=$?

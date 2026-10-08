@@ -177,7 +177,7 @@ export interface GovernReceipt {
 // One receipt of the LOG surface (/api/log)
 export interface LogEntry {
   ts: string;
-  actor: string;              // human | helicon | qwen
+  actor: string;              // human | helicon | llm
   action: string;
   detail: string;
   count?: number;
@@ -229,6 +229,7 @@ export interface RotExam {
    reason to draw a chart from nothing. */
 export interface JudgeRow {
   model: string;
+  source?: 'configured' | 'openrouter';   // absent on runs saved before the field existed
   accuracy: number | null;
   recall: number | null;
   specificity: number | null;
@@ -393,15 +394,15 @@ export const api = {
   }>('/report'),
   search: (q: string, limit = 30) => get<{ results: Cube[]; total: number; query: string }>(`/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   getGraph: () => get<GraphData>('/graph'),
-  buildGraph: (useQwen = false) => post<{ entities: number; cubes_processed: number; edges: number }>(`/graph/build?use_qwen=${useQwen}`),
+  buildGraph: (useLlm = false) => post<{ entities: number; cubes_processed: number; edges: number }>(`/graph/build?use_llm=${useLlm}`),
   getEntityDetail: (id: string) => get<{ entity: Record<string, unknown>; cubes: Cube[]; related_entities: { target_id: string; name: string; entity_type: string }[] }>(`/graph/entity/${id}`),
   getConsolidations: () => get<{ consolidations: Consolidation[] }>('/consolidations'),
   getClusters: () => get<{ clusters: Cluster[] }>('/consolidations/clusters'),
-  runConsolidation: (useQwen = false, maxClusters = 10) => post<{ clusters_found: number; consolidated: number; results: Consolidation[] }>(`/consolidations/run?use_qwen=${useQwen}&max_clusters=${maxClusters}`),
-  getQwenStats: () => get<QwenStats>('/qwen/stats'),
-  getQwenModels: () => get<QwenModels>('/qwen/models'),
-  getQwenCache: () => get<QwenCache>('/qwen/cache'),
-  getQwenRouting: () => get<QwenRouting>('/qwen/routing'),
+  runConsolidation: (useLlm = false, maxClusters = 10) => post<{ clusters_found: number; consolidated: number; results: Consolidation[] }>(`/consolidations/run?use_llm=${useLlm}&max_clusters=${maxClusters}`),
+  getLlmStats: () => get<LlmStats>('/llm/stats'),
+  getLlmModels: () => get<LlmModels>('/llm/models'),
+  getLlmCache: () => get<LlmCache>('/llm/cache'),
+  getLlmRouting: () => get<LlmRouting>('/llm/routing'),
   getSessions: (limit = 10) => get<{ sessions: SessionSummary[] }>(`/sessions?limit=${limit}`),
   getReviewDrift: () => get<ReviewDrift>('/sessions/drift'),
   summarizeSession: () => post<{ status: string; summary?: SessionSummary }>('/sessions/summarize'),
@@ -495,20 +496,21 @@ export interface SkillsAudit {
   summary: { duplicated: number; collisions: number; thin: number };
 }
 
-export interface QwenStats {
+export interface LlmStats {
   total_calls: number;
-  by_model: Record<string, { calls: number; cached_calls: number; input_tokens: number; output_tokens: number; avg_latency: number; cost_usd: number }>;
+  by_model: Record<string, { calls: number; cached_calls: number; input_tokens: number; output_tokens: number; avg_latency: number; cost_usd: number | null }>;   // null = no price configured for the model
   cache: { hits: number; misses: number; rate?: number; entries?: number };
-  total_cost_usd: number;
+  total_cost_usd: number | null;                              // null when any model is unpriced
+  unpriced_models: string[];
 }
 
-export interface QwenModels {
-  routing: Record<string, string>;
-  cost_per_1k_tokens: Record<string, number>;
+export interface LlmModels {
+  routing: Record<string, string | null>;
+  prices_per_million_tokens: Record<string, { input: number; output: number }>;   // from config llm_prices; empty = unknown
   usage: Record<string, string>;
 }
 
-export interface QwenCache {
+export interface LlmCache {
   cached_responses: number;
   tokens_saved_on_hits: number;
   by_model: Record<string, { cached: number; tokens: number }>;
@@ -535,9 +537,8 @@ export interface ReviewDrift {
   session_history?: { date: string; reviews: number; kill_rate: number }[];
 }
 
-export interface QwenRouting {
-  operations: Record<string, { calls: number; models_used: Record<string, number>; avg_latency: number; total_cost: number; total_tokens: number }>;
-  recommendations: { operation: string; current_model: string; suggested: string; reason: string; estimated_savings_usd: number }[];
+export interface LlmRouting {
+  operations: Record<string, { calls: number; models_used: Record<string, number>; avg_latency: number; total_cost: number | null; total_tokens: number }>;
 }
 
 export interface TriageAction {

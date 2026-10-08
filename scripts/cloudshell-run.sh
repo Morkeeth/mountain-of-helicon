@@ -7,7 +7,8 @@
 # Prereqs in Cloud Shell (once the shell opens for your account):
 #   1. Get the code:   git clone https://github.com/MorkeethHQ/mount-helicon helicon && cd helicon
 #   2. Provide the DB: upload data/helicon-demo.db  (Cloud Shell "Upload File")
-#   3. Provide the key: export QWEN_API_KEY='sk-...'   (do NOT hardcode)
+#   3. Name the model: export HELICON_LLM_BASE_URL, HELICON_LLM_MODEL and
+#      HELICON_LLM_API_KEY  (any OpenAI-compatible endpoint; do NOT hardcode)
 #   4. Run this:        bash scripts/cloudshell-run.sh
 # Then use Cloud Shell "Web Preview" on port 8420 to view + screenshot + record.
 #
@@ -37,14 +38,12 @@ echo "==> Staging web UI (app serves from ./static)"
 mkdir -p static && cp -r web/dist/. static/ 2>/dev/null || echo "  (no web/dist found; API will work, UI limited)"
 
 if [ ! -f config.json ]; then
-  echo "==> No config.json; generating one from \$QWEN_API_KEY (connectors off - serve only)"
-  : "${QWEN_API_KEY:?set QWEN_API_KEY first: export QWEN_API_KEY='sk-...'}"
+  echo "==> No config.json; generating one (connectors off - serve only)"
+  # The model endpoint is read from the HELICON_LLM_* env at run time, so no
+  # key is written to disk. With none set, the model-judged features are off.
   cat > config.json <<JSON
 {
   "db_path": "data/helicon.db",
-  "qwen_api_key": "${QWEN_API_KEY}",
-  "qwen_model": "qwen-plus",
-  "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   "connectors": {},
   "server": {"host": "0.0.0.0", "port": ${PORT}, "password": ""}
 }

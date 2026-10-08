@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from helicon.models import AuditResult
 from helicon.db import insert_audit
-from helicon.qwen import detect_contradictions, audit_pattern, resolve_model, complete_json
+from helicon.llm import detect_contradictions, audit_pattern, resolve_model, complete_json
 
 def _parse_dt(s: str) -> datetime:
     clean = s.replace("Z", "")
@@ -71,7 +71,7 @@ def audit_temporal(conn: sqlite3.Connection, stale_days: int = 7) -> list[AuditR
     return results
 
 
-def audit_factual(conn: sqlite3.Connection, qwen_client=None, audit_context: str = "") -> list[AuditResult]:
+def audit_factual(conn: sqlite3.Connection, llm_client=None, audit_context: str = "") -> list[AuditResult]:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     results = []
 
@@ -103,8 +103,8 @@ def audit_factual(conn: sqlite3.Connection, qwen_client=None, audit_context: str
 
             seen_pairs.add(pair_key)
 
-            if qwen_client:
-                result = detect_contradictions(qwen_client, a["content"][:500], b["content"][:500], audit_context=audit_context)
+            if llm_client:
+                result = detect_contradictions(llm_client, a["content"][:500], b["content"][:500], audit_context=audit_context)
                 if result and result.get("contradicts"):
                     results.append(AuditResult(
                         audit_type="factual",
@@ -197,7 +197,7 @@ def audit_decay(conn: sqlite3.Connection) -> list[AuditResult]:
     return results
 
 
-def audit_patterns_staleness(conn: sqlite3.Connection, qwen_client=None) -> list[AuditResult]:
+def audit_patterns_staleness(conn: sqlite3.Connection, llm_client=None) -> list[AuditResult]:
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     results = []
 
@@ -279,7 +279,7 @@ def _build_audit_context(conn: sqlite3.Connection) -> str:
     return "\n".join(parts) if parts else ""
 
 
-def run_audit(conn: sqlite3.Connection, config: dict, qwen_client=None) -> dict:
+def run_audit(conn: sqlite3.Connection, config: dict, llm_client=None) -> dict:
     audit_config = config.get("audit", {})
     stale_days = audit_config.get("temporal_stale_days", 7)
 
@@ -290,13 +290,13 @@ def run_audit(conn: sqlite3.Connection, config: dict, qwen_client=None) -> dict:
     temporal = audit_temporal(conn, stale_days)
     all_results.extend(temporal)
 
-    factual = audit_factual(conn, qwen_client, audit_context)
+    factual = audit_factual(conn, llm_client, audit_context)
     all_results.extend(factual)
 
     decay = audit_decay(conn)
     all_results.extend(decay)
 
-    pattern_stale = audit_patterns_staleness(conn, qwen_client)
+    pattern_stale = audit_patterns_staleness(conn, llm_client)
     all_results.extend(pattern_stale)
 
     for result in all_results:

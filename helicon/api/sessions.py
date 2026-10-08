@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from helicon.api.app import get_conn, get_config
-from helicon.qwen import get_client
+from helicon.llm import get_client
 from helicon.sessions import generate_session_summary, get_session_summaries, get_review_drift
 
 router = APIRouter()

@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from helicon.qwen import complete_json
+from helicon.llm import complete_json
 
 
 def make_id() -> str:
@@ -84,7 +84,7 @@ def _embedding_clusters(conn: sqlite3.Connection, threshold: float = 0.75) -> li
         anchor = cube_map.get(ids[i])
         raw_title = anchor["title"] if anchor else ids[i]
         # Strip scan-artifact prefixes ("Created: route.ts" -> "route.ts") so the
-        # seed reads as a concept, not a git action. Final topic is Qwen's title anyway.
+        # seed reads as a concept, not a git action. Final topic is the model's title anyway.
         for prefix in ("Created:", "Edited:", "Deleted:", "[world-relay]", "[helicon]"):
             if raw_title.startswith(prefix):
                 raw_title = raw_title[len(prefix):].strip()
@@ -172,7 +172,7 @@ def find_clusters(conn: sqlite3.Connection, min_overlap: int = 2) -> list[dict]:
     return sorted(clusters, key=lambda c: -c["count"])[:30]
 
 
-def consolidate_cluster(conn: sqlite3.Connection, qwen_client, cluster: dict) -> dict | None:
+def consolidate_cluster(conn: sqlite3.Connection, llm_client, cluster: dict) -> dict | None:
     cube_ids = [c["id"] for c in cluster["cubes"][:15]]
     contents = []
     for cid in cube_ids:
@@ -182,9 +182,9 @@ def consolidate_cluster(conn: sqlite3.Connection, qwen_client, cluster: dict) ->
 
     combined = "\n\n".join(contents)
 
-    if qwen_client:
+    if llm_client:
         result = complete_json(
-            qwen_client,
+            llm_client,
             "You are a memory consolidation engine. Like the brain during sleep, merge related memories into a single coherent summary.",
             f"""These {len(contents)} memory items are about "{cluster['topic']}". Consolidate them into one clear summary.
 
@@ -216,9 +216,9 @@ Return JSON:
     cons_id = make_id()
 
     # The stored topic drives both the UI label and the consolidation eval query.
-    # Qwen's synthesized title is far cleaner than the raw cluster seed (which for
+    # The model's synthesized title is far cleaner than the raw cluster seed (which for
     # code/git cubes is a filename), so prefer it. Fall back to the seed only if
-    # Qwen returned no title.
+    # the model returned no title.
     topic = result.get("title") or cluster["topic"]
 
     conn.execute(
@@ -241,12 +241,12 @@ Return JSON:
     }
 
 
-def run_consolidation(conn: sqlite3.Connection, qwen_client=None, max_clusters: int = 10) -> dict:
+def run_consolidation(conn: sqlite3.Connection, llm_client=None, max_clusters: int = 10) -> dict:
     clusters = find_clusters(conn)
     consolidated = []
 
     for cluster in clusters[:max_clusters]:
-        result = consolidate_cluster(conn, qwen_client, cluster)
+        result = consolidate_cluster(conn, llm_client, cluster)
         if result:
             consolidated.append(result)
 

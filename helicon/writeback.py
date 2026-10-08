@@ -2,7 +2,7 @@
 
 The skills audit (/api/integrity/skills) flags SKILL.md files whose frontmatter
 has a missing or empty `description:` — a thin trigger means the skill never
-fires. This module fixes them: for each such file, Qwen writes a one-line
+fires. This module fixes them: for each such file, the model writes a one-line
 description from the skill's body and it is inserted into the frontmatter.
 
 Safety model:
@@ -10,13 +10,13 @@ Safety model:
   - --apply writes a `.bak` of the original next to each file BEFORE modifying
   - files that already have a non-empty description are never touched, so a
     second run is a no-op
-  - no Qwen key -> skip with a message, never write
+  - no model key -> skip with a message, never write
 """
 import os
 import re
 
 from helicon.connectors.skills import _find_skill_files, _parse_frontmatter
-from helicon.qwen import complete
+from helicon.llm import complete, default_model
 
 # The user-owned root the integrity audit scans (see helicon/api/integrity.py
 # _SKILL_ROOTS). The audit also reads the plugin marketplace root, but that is
@@ -26,8 +26,8 @@ DEFAULT_SKILLS_DIR = "~/.claude/skills"
 _EMPTY_DESC_LINE = re.compile(r"^description:\s*$")
 
 
-def generate_description(client, body: str, model: str = "qwen3.6-flash") -> str:
-    """One-line `description:` value for a skill, written by Qwen from the body.
+def generate_description(client, body: str, model: str | None = None) -> str:
+    """One-line `description:` value for a skill, written by the model from the body.
     Returns "" when the client is missing or the call yields nothing usable."""
     if client is None or not body.strip():
         return ""
@@ -38,7 +38,8 @@ def generate_description(client, body: str, model: str = "qwen3.6-flash") -> str
         "should trigger and what it does. Under 140 characters. Plain text only: "
         "no quotes, no markdown, no 'description:' prefix.",
         body[:2000],
-        model,
+        # the cheap tier wrote these before; the config says which model that is
+        model or default_model(client, "fast"),
         operation="skill_description",
     )
     if not raw:
@@ -70,7 +71,7 @@ def insert_description(text: str, description: str) -> str:
     return f"---\n{line}\n---\n\n{text}"
 
 
-def fix_skills(skills_dir: str, client=None, model: str = "qwen3.6-flash",
+def fix_skills(skills_dir: str, client=None, model: str | None = None,
                apply: bool = False) -> dict:
     """Find SKILL.md files under `skills_dir` lacking a non-empty description
     and (propose | write) one for each. Returns per-file records:

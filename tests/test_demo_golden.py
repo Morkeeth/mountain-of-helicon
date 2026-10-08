@@ -29,7 +29,8 @@ def test_demo_config_is_keyless_local_and_scans_nothing(tmp_path):
     path, _ = demo.write_demo_config(str(tmp_path / "config-demo.json"))
     cfg = json.load(open(path))
     assert cfg["server"]["host"] == "127.0.0.1"   # never exposes a mutation API to the network
-    assert cfg["qwen_api_key"] == ""              # keyless: the deterministic exam is the demo
+    assert cfg["llm_api_key"] == ""               # keyless: the deterministic exam is the demo
+    assert cfg["llm_base_url"] == ""              # and no vendor endpoint is written for it
     assert cfg["connectors"] == {}                # scans no personal source
 
 

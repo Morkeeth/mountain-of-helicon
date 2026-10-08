@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, type JudgeRow, type JudgeRun } from '../api';
 
-/* THE JUDGE — Qwen benchmarked as the memory-rot judge against human-ruled
-   ground truth.
+/* THE JUDGE: the configured model benchmarked as the memory-rot judge
+   against human-ruled ground truth.
 
    Two rules govern this file, and they outrank how good the chart looks:
 
@@ -18,7 +18,7 @@ import { api, type JudgeRow, type JudgeRun } from '../api';
    says what was NOT measured (e.g. no competitor judged, no OpenRouter key),
    and the absence of a competitor must be visible rather than implied. */
 
-const QWEN_INK = 'var(--helicon-accent)';    // #223A4E — the subject
+const SUBJECT_INK = 'var(--helicon-accent)';    // #223A4E, the subject
 const FIELD_INK = 'var(--helicon-conflict)'; // #AEBFCC — the context
 /* Validated, not eyeballed (dataviz validate_palette.js, light, surface #F4EFE7):
    #223A4E vs #AEBFCC — CVD ΔE 45.3, normal-vision ΔE 45.8, both PASS.
@@ -27,7 +27,12 @@ const FIELD_INK = 'var(--helicon-conflict)'; // #AEBFCC — the context
    (The near pair #223A4E/#465B6F was rejected: normal-vision ΔE 12.4, a hard
    FAIL — two marks a full-colour reader cannot tell apart.) */
 
-const isQwen = (m: string) => m.toLowerCase().includes('qwen');
+/* The subject is the model this install is configured with; the field is
+   every other judge in the run. A run saved before rows carried `source` has
+   no marker, so it falls back to the slug shape: field judges are reached
+   through a router and are named vendor/model. */
+const isSubject = (r: { model: string; source?: string }) =>
+  r.source ? r.source === 'configured' : !r.model.includes('/');
 const fmtCost = (c: number) => (c >= 0.01 ? `$${c.toFixed(4)}` : `$${c.toFixed(5)}`);
 
 /* ---------------------------------------------------------------------------
@@ -187,7 +192,7 @@ function CostAccuracyChart({ rows }: { rows: JudgeRow[] }) {
 
           {pts.map((p, i) => {
             const { cx, cy, x, dy } = labels[i];
-            const q = isQwen(p.model);
+            const q = isSubject(p);
             const on = hover === i;
             return (
               <g key={p.model}>
@@ -199,7 +204,7 @@ function CostAccuracyChart({ rows }: { rows: JudgeRow[] }) {
                   <line x1={cx} y1={cy} x2={x} y2={cy + dy + (dy < 0 ? 4 : -8)}
                         stroke="var(--helicon-line-2)" strokeWidth={1} />
                 )}
-                <circle cx={cx} cy={cy} r={on ? 8 : 6} fill={q ? QWEN_INK : FIELD_INK}
+                <circle cx={cx} cy={cy} r={on ? 8 : 6} fill={q ? SUBJECT_INK : FIELD_INK}
                         stroke="var(--helicon-panel)" strokeWidth={2} style={{ pointerEvents: 'none' }} />
                 {/* direct label: identity never rides on colour alone */}
                 <text x={x} y={cy + dy} textAnchor="middle"
@@ -259,10 +264,10 @@ function JudgeTable({ rows }: { rows: JudgeRow[] }) {
         <tbody>
           {rows.map(r => (
             <tr key={r.model} style={{ borderTop: '1px solid var(--helicon-line)' }}>
-              <td style={{ ...cell, fontWeight: isQwen(r.model) ? 600 : 400 }}>
+              <td style={{ ...cell, fontWeight: isSubject(r) ? 600 : 400 }}>
                 <span style={{
                   display: 'inline-block', width: 7, height: 7, borderRadius: 4, marginRight: 7,
-                  background: isQwen(r.model) ? QWEN_INK : FIELD_INK,
+                  background: isSubject(r) ? SUBJECT_INK : FIELD_INK,
                 }} />
                 {r.model}
               </td>
@@ -292,7 +297,7 @@ export default function JudgeView() {
 
   const eyebrow = (
     <div style={{ fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'var(--helicon-muted)' }}>
-      qwen as memory judge · vs human-ruled ground truth
+      your model as memory judge · vs human-ruled ground truth
     </div>
   );
 
@@ -326,7 +331,7 @@ export default function JudgeView() {
 
   const rows = Object.values(data.rows);
   const h = headline(rows);
-  const anyField = rows.some(r => !isQwen(r.model));
+  const anyField = rows.some(r => !isSubject(r));
   const when = new Date(data.run_at).toLocaleString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
@@ -368,14 +373,14 @@ export default function JudgeView() {
         <div className="px-1 mb-3" style={{ fontSize: 11, color: 'var(--helicon-muted)', lineHeight: 1.5 }}>
           Both measures on one chart, because the claim is the ratio between them.
           {anyField
-            ? ' Qwen in ink, the rest of the field in mist.'
-            : ' Every judge in this run is a Qwen tier.'}
+            ? ' Your configured model in ink, the rest of the field in mist.'
+            : ' Every judge in this run is a tier of your configured model.'}
         </div>
 
         {anyField && (
           <div className="px-1 mb-2 flex items-center gap-3" style={{ fontSize: 10, color: 'var(--helicon-muted)' }}>
             <span className="flex items-center gap-1.5">
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: QWEN_INK, display: 'inline-block' }} /> Qwen
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: SUBJECT_INK, display: 'inline-block' }} /> configured model
             </span>
             <span className="flex items-center gap-1.5">
               <span style={{ width: 8, height: 8, borderRadius: 4, background: FIELD_INK, display: 'inline-block' }} /> other providers

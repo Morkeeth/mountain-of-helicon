@@ -219,7 +219,7 @@ def _definition_only(gloss: str, name: str) -> str:
 
 
 def find_identity_forks(conn, semantic: bool = True, judge_client=None,
-                        judge_model: str = "qwen3.6-flash") -> list[dict]:
+                        judge_model: str | None = None) -> list[dict]:
     """Names whose definition forks: >=2 distinct genera across >=2 source scopes,
     and the two genera are attested by DIFFERENT scopes (a real cross-source fork,
     not one cube listing two genera).
@@ -228,7 +228,7 @@ def find_identity_forks(conn, semantic: bool = True, judge_client=None,
     drop obvious same-concept rephrasings. Pass semantic=False for the fast rot
     exam and deterministic tests.
 
-    judge_client (a Qwen client) adds stage 3, and stage 3 is the one that works.
+    judge_client (a model client) adds stage 3, and stage 3 is the one that works.
     Measured on the real store 2026-07-17, the cosine gate could not separate a
     real fork from a lookalike:
 
@@ -244,7 +244,7 @@ def find_identity_forks(conn, semantic: bool = True, judge_client=None,
 
     The Qwen judge scored 4/4 on those same pairs (yieldbound CONTRA; the other
     three clean, correctly reading litmus as "a more specific instance of A").
-    So cosine stays as the cheap pre-filter and Qwen decides. Without a client we
+    So cosine stays as the cheap pre-filter and the model decides. Without a client we
     keep the cosine survivors and the caller discloses them as unconfirmed, which
     is the honest degradation: over-report to a human, never silently drop."""
     rows = conn.execute(
@@ -350,8 +350,8 @@ def find_identity_forks(conn, semantic: bool = True, judge_client=None,
     return _judge_confirm(confirmed, judge_client, judge_model)
 
 
-def _judge_confirm(forks: list[dict], client, model: str) -> list[dict]:
-    """Stage 3: the Qwen judge decides which cosine survivors are real forks.
+def _judge_confirm(forks: list[dict], client, model: str | None) -> list[dict]:
+    """Stage 3: the model judge decides which cosine survivors are real forks.
 
     Drops a fork only on an explicit boolean consistency verdict. A resurfaced fork skips the
     judge entirely: a human already ruled that name, and a ruling is not re-argued
@@ -359,7 +359,9 @@ def _judge_confirm(forks: list[dict], client, model: str) -> list[dict]:
     not silently retire rot the human never saw."""
     if not client or not forks:
         return forks
-    from helicon.qwen import detect_contradictions
+    from helicon.llm import detect_contradictions, default_model
+    # The cheap tier is the validated judge; the config says which model that is.
+    model = model or default_model(client, "fast")
     kept = []
     for f in forks:
         if f.get("resurfaced"):
@@ -466,10 +468,10 @@ def _existing_identity_keys(conn) -> set[str]:
 
 
 def identity_scan(conn, semantic: bool = True, judge_client=None,
-                  judge_model: str = "qwen3.6-flash") -> dict:
+                  judge_model: str | None = None) -> dict:
     """File one finding per identity fork (idempotent by pair_key).
 
-    Pass judge_client to file only Qwen-confirmed forks. Filing a cosine-only
+    Pass judge_client to file only model-confirmed forks. Filing a cosine-only
     candidate costs a human a review of something that was never rot."""
     existing = _existing_identity_keys(conn)
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Audit a live Mem0 store — the memory backend Alibaba's own docs recommend
-for Qwen agents (Model Studio Memory / Mem0 + AnalyticDB reference solution).
+"""Audit a live Mem0 store, a widely used agent memory backend.
 Mem0 stores and retrieves; its docs never mention dedup quality, decay, or
 contradiction. Mount Helicon reads what Mem0 stored (read-only, via the shipped
 connector) and runs the rot exam on it.
@@ -67,7 +66,7 @@ def main() -> int:
               "for a no-setup demo on a bundled Mem0-format store.")
         return 2
 
-    # Reuse the local Qwen embedding config if present (Qwen-native retrieval);
+    # Reuse the local model and embedding config if present;
     # everything the rot exam needs is deterministic and runs keyless anyway.
     base = load_config()
     db = os.path.join(tempfile.gettempdir(), "helicon-mem0-audit.db")
@@ -75,8 +74,8 @@ def main() -> int:
         os.remove(db)
     cfg = {
         "db_path": db,
-        "qwen_api_key": base.get("qwen_api_key", ""),
-        "qwen_base_url": base.get("qwen_base_url", ""),
+        **{k: base[k] for k in ("llm_api_key", "llm_base_url", "llm_model", "llm_models")
+           if k in base},
         "embeddings": base.get("embeddings", {}),
         "connectors": {"mem0": {"api_key": key, "user_id": args.user_id, "limit": 500}},
     }

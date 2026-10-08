@@ -4,13 +4,13 @@ from helicon.api.app import get_conn, get_config
 from helicon.db import get_patterns
 from helicon.patterns import (
     extract_patterns_from_sql,
-    extract_patterns_with_qwen,
+    extract_patterns_with_llm,
     save_patterns,
     detect_spin,
     detect_kill_candidates,
     compute_shipping_rates,
 )
-from helicon.qwen import get_client as _get_client
+from helicon.llm import get_client as _get_client
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ async def extract():
     conn = get_conn()
     client = _get_client(get_config())
     if client:
-        patterns = extract_patterns_with_qwen(conn, client)
+        patterns = extract_patterns_with_llm(conn, client)
     else:
         patterns = extract_patterns_from_sql(conn)
     save_patterns(conn, patterns)

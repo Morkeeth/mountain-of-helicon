@@ -6,11 +6,11 @@ import type { LogEntry } from '../api';
    made, newest first, merged from audit_log / reviews / triage / reconcile.
    Shape from /api/log: {entries: [{ts, actor, action, detail, count?}]}. */
 
-// actor chip palette: human=zinc, helicon=warm stone, qwen=terracotta-tinted
+// actor chip palette: human=zinc, helicon=warm stone, llm=terracotta-tinted
 const ACTOR_CHIP: Record<string, { bg: string; color: string }> = {
   human: { bg: 'rgba(85,85,110,0.10)', color: '#55556e' },
   helicon: { bg: 'hsl(40 18% 92%)', color: '#6f665a' },
-  qwen: { bg: 'rgba(194,94,58,0.10)', color: 'var(--helicon-accent)' },
+  llm: { bg: 'rgba(194,94,58,0.10)', color: 'var(--helicon-accent)' },
 };
 
 // action -> short human verb shown as the muted tag (detail carries the full line)

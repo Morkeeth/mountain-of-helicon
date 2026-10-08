@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from helicon.config import load_config
 from helicon.db import init_db
-from helicon.qwen import set_cache_db
+from helicon.llm import set_cache_db
 from helicon.triage import init_triage_table
 
 _conn: sqlite3.Connection | None = None

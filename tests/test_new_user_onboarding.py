@@ -13,8 +13,8 @@ def _run(home: Path, *args: str) -> subprocess.CompletedProcess:
     env = dict(os.environ)
     env["HOME"] = str(home)
     env.pop("HELICON_CONFIG", None)
-    env.pop("QWEN_API_KEY", None)
-    env.pop("DASHSCOPE_API_KEY", None)
+    for name in ("HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL", "HELICON_LLM_MODEL"):
+        env.pop(name, None)
     return subprocess.run(
         [sys.executable, "-m", "helicon", *args],
         cwd=ROOT,

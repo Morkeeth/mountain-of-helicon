@@ -5,7 +5,7 @@ import uuid
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
-from helicon.qwen import complete_json
+from helicon.llm import complete_json
 
 
 def make_id(prefix: str = "ent") -> str:
@@ -23,7 +23,7 @@ ENTITY_PATTERNS = {
         r"\b([A-ZÀ-Þ][a-zà-öø-ÿ]+)\s(?:said|mentioned|reviewed|approved|killed|decided)\b",
     ],
     "tool": [
-        r"\b(Claude Code|Obsidian|Cursor|ChatGPT|Qwen|FastAPI|React|Vite|SQLite|Docker)\b",
+        r"\b(Claude Code|Obsidian|Cursor|ChatGPT|FastAPI|React|Vite|SQLite|Docker)\b",
         r"\b(MCP|Vercel|GitHub|Linear|Telegram|Slack)\b",
     ],
     "concept": [
@@ -53,7 +53,7 @@ def extract_entities_regex(content: str, title: str = "") -> list[dict]:
     return entities
 
 
-def extract_entities_qwen(client, content: str, title: str = "") -> list[dict]:
+def extract_entities_llm(client, content: str, title: str = "") -> list[dict]:
     text = f"Title: {title}\nContent: {content[:1500]}"
     result = complete_json(
         client,
@@ -71,7 +71,7 @@ Skip generic words. Max 15 entities.
     return [e for e in result if isinstance(e, dict) and "name" in e and "type" in e]
 
 
-def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
+def build_graph(conn: sqlite3.Connection, llm_client=None, limit: int = 500):
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
     rows = conn.execute(
@@ -85,8 +85,8 @@ def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
     cube_entities = defaultdict(list)
 
     for row in rows:
-        if qwen_client:
-            entities = extract_entities_qwen(qwen_client, row["content"], row["title"])
+        if llm_client:
+            entities = extract_entities_llm(llm_client, row["content"], row["title"])
         else:
             entities = extract_entities_regex(row["content"], row["title"])
 

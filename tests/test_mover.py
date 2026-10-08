@@ -1,6 +1,6 @@
 """Slice 5: the context-mover.
 
-Hermetic: the Qwen contradiction pass is opt-in and behind the CLI; here we test
+Hermetic: the model contradiction pass is opt-in and behind the CLI; here we test
 the pure read/verify/plan/render so the honesty rule holds - memory does not
 move if it is stale/volatile, and the target format renders correctly.
 """

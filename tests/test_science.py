@@ -90,10 +90,11 @@ def test_hybrid_claim_stored_as_published_not_inverted():
     assert "holds" in THRESHOLD_HYBRID.claim.lower()
 
 
-def test_reranker_detection_reads_config_offline():
+def test_no_reranker_is_claimed_whatever_the_config_says():
+    # There is no reranker stage, so a remote embeddings block must not make
+    # the RAG probe report one as the mitigation in place.
     assert _has_reranker({}) is False
-    assert _has_reranker({"embeddings": {"api_key": "k", "base_url": "u"}}) is True
-    assert _has_reranker({"embeddings": {"api_key": "k"}}) is False
+    assert _has_reranker({"embeddings": {"api_key": "k", "base_url": "u"}}) is False
 
 
 # --- probes against a synthetic store ---------------------------------------

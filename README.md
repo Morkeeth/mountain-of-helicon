@@ -305,7 +305,7 @@ which predates PEP 660 and refuses with
 is missing a file* rather than *your pip is three years old*. The preflight
 checks both and prints the exact command for each.
 
-**Bring your own Qwen key (BYOK).** Get one free on the [Alibaba Cloud Model Studio free tier](https://www.alibabacloud.com/en/product/modelstudio), set `QWEN_API_KEY` or put it in `~/.helicon/config.json`. `helicon init` keeps configuration and the SQLite store under `~/.helicon/`, never inside the installed package. **Keyless degrade:** without a key every deterministic test still runs; only the two LLM-judged tests (Contradiction, Grounding) switch off -- the battery says so instead of faking a verdict.
+**Bring your own model (BYOK), or none.** The model layer is provider-neutral: it talks to any OpenAI-compatible endpoint, including a local one. Set `llm_base_url`, `llm_model` and `llm_api_key` in `~/.helicon/config.json`, or export `HELICON_LLM_BASE_URL`, `HELICON_LLM_MODEL` and `HELICON_LLM_API_KEY`. A local endpoint needs no key. Helicon ships no key and picks no provider. Settings from before the model layer went neutral are not read; `helicon doctor` says so if it finds any. `helicon init` keeps configuration and the SQLite store under `~/.helicon/`, never inside the installed package. **Keyless degrade:** without a key every deterministic test still runs; only the two LLM-judged tests (Contradiction, Grounding) switch off -- the battery says so instead of faking a verdict.
 
 ## What ships
 
@@ -371,7 +371,7 @@ helicon check "what am I working on"
 helicon serve
 ```
 
-Qwen is optional and BYOK. Without a key, deterministic checks continue and the
+A model is optional and BYOK. Without one, deterministic checks continue and the
 two LLM-judged checks report themselves unavailable rather than fabricating a
 verdict. Semantic embeddings are an optional install; the core remains slim.
 
@@ -444,11 +444,11 @@ quietly causes the rot it detects is the joke writing itself.
 ## Headline Features
 
 - **`helicon snapshot`** -- regression tests for retrieved context. Capture what a task retrieves today; `snapshot check` fails when tomorrow's retrieval drifts. CI for memory.
-- **`helicon check "<task>"`** -- context-quality battery on what a task retrieves: Relevance, Freshness, Redundancy, Thinness, Expiry (deterministic) + Contradiction, Grounding (judged live by Qwen). Verdict: HEALTHY / DEGRADED / BROKEN. Every verdict prints the age of the last scan, because a DEGRADED verdict is uninterpretable if the scan itself is stale. `--json` for scripts and CI.
+- **`helicon check "<task>"`** -- context-quality battery on what a task retrieves: Relevance, Freshness, Redundancy, Thinness, Expiry (deterministic) + Contradiction, Grounding (judged live by your model). Verdict: HEALTHY / DEGRADED / BROKEN. Every verdict prints the age of the last scan, because a DEGRADED verdict is uninterpretable if the scan itself is stale. `--json` for scripts and CI.
 - **`helicon reconcile`** -- timely forgetting. Re-scans sources and retires memories reality no longer contains (dry-run by default, never touches human decisions). On the live DB it retired 20 superseded memories in its first run.
-- **`helicon fix-skills`** -- write-back: Qwen writes missing descriptions into your agent skill files (dry-run by default, `.bak` backups). It fixed 7 of this project's own skills.
+- **`helicon fix-skills`** -- write-back: the model writes missing descriptions into your agent skill files (dry-run by default, `.bak` backups). It fixed 7 of this project's own skills.
 - **`helicon doctor`** -- five checks (PATH, config, key, DB, last scan), exit 1 on failure. The front door to a daily loop.
-- **`helicon rule "<natural language>"`** -- prompted rules. Qwen compiles your sentence to a restricted predicate (whitelisted fields, never code); before approval you see coverage, samples, empirical precision against YOUR past decisions, and conflicts with other rules. One approved rule governs hundreds of items; applied rules are never counted as human evidence.
+- **`helicon rule "<natural language>"`** -- prompted rules. The model compiles your sentence to a restricted predicate (whitelisted fields, never code); before approval you see coverage, samples, empirical precision against YOUR past decisions, and conflicts with other rules. One approved rule governs hundreds of items; applied rules are never counted as human evidence.
 - **The regret ledger** -- killed memories become a ghost list (LeCaR cache-eviction mechanics). When retrieval wants one back, a time-decayed regret event blames the exact decision that killed it, and FINDINGS shows "you retired this, retrieval wanted it 2x since -- restore?". Wrong forgetting is measured, not assumed.
 - **`helicon_flag` over MCP** -- point-of-use correction. Injected memories carry id + last_verified + used_count; the agent (or you, through it) flags stale/wrong/useful in one call. Flags become findings the human confirms -- the agent proposes, it never deletes.
 
@@ -458,19 +458,20 @@ quietly causes the rot it detects is the joke writing itself.
 
 **Layer 2 -- Review pattern learning.** Weibull forgetting curves with per-type shape (cliff decay for code, long tail for decisions). Auto-triage derives kill/approve rules from HUMAN reviews only -- its own decisions are excluded so it cannot reinforce its own echo. On its first run it handled 585 of the 1,268 memories the store held at that time autonomously. Spin detection, kill prediction, Helicon Score.
 
-**Layer 3 -- Meta-audit.** The system audits its own stored patterns: temporal staleness ("this week" in a 27-day-old file), factual contradictions (Qwen-judged), decay, pattern staleness, anti-confabulation challenges. The human reviews the memory review.
+**Layer 3 -- Meta-audit.** The system audits its own stored patterns: temporal staleness ("this week" in a 27-day-old file), factual contradictions (model-judged), decay, pattern staleness, anti-confabulation challenges. The human reviews the memory review.
 
-## Qwen Cloud API usage (where the LLM is load-bearing)
+## Model usage (where the LLM is load-bearing)
 
-| Tier | Model | Used for |
-|------|-------|----------|
-| fast | `qwen3.6-flash` | Memory summarization, novelty gate, skill descriptions |
-| default | `qwen3.6-plus` | Battery judging (Contradiction, Grounding), factual audit, Next Moves |
-| deep | `qwen3.7-max` | Consolidation synthesis, optimization reports |
-| retrieval | `text-embedding-v4` | Dense vectors (1024-dim) for hybrid + semantic search |
-| retrieval | `qwen3-rerank` | Two-stage rerank over RRF-fused candidates |
+The model layer (`helicon/llm.py`) is provider-neutral. `llm_model` names one model for every tier; `llm_models` can name one per tier. No model name is built in for a new config.
 
-All calls go through the OpenAI-compatible endpoint `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` with a per-call SQLite response cache and per-operation cost tracking (`/api/tokens`). The two subjective battery tests are judged live and tagged `(qwen)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
+| Tier | Config | Used for |
+|------|--------|----------|
+| fast | `llm_models.fast` | Memory summarization, novelty gate, skill descriptions |
+| default | `llm_models.default` | Battery judging (Contradiction, Grounding), factual audit, Next Moves |
+| deep | `llm_models.deep` | Consolidation synthesis, optimization reports |
+| retrieval | `embeddings.model` | Dense vectors for hybrid + semantic search (separate `embeddings` block naming `base_url`, `model` and `dim`; local keyword + MiniLM without it) |
+
+All calls go through the OpenAI-compatible endpoint you configure, with a per-call SQLite response cache (`llm_cache`) and per-model token counts (`/api/llm-calls/dashboard`). Helicon ships no price table: set `llm_prices` in config (`{"<model>": {"input": 0.25, "output": 1.0}}`, USD per million tokens) to get a cost, and a model with no price is reported as cost unknown, never as 0. History: the project began as a hackathon entry in July 2026. The two subjective battery tests are judged live and tagged `(model)` in output; if the judge call fails, the battery falls back to deterministic-only rather than fabricating a verdict.
 
 ## MCP Server (25 tools)
 
@@ -584,9 +585,9 @@ Four of them answer to a second name, kept working so older muscle memory doesn'
 
 `helicon score-runs` and `helicon runs` score whole RUNS, the same output-verification one level up and made cost-aware: `score = verified yield / cost - damage`. Cost comes from the real transcript token usage, yield from the `review-queue --terminals` verdicts, damage from an incident flag. Every term traces to a real source; nothing is vibed. `score-runs --card` cuts one run card, `runs` renders the scored history, `runs --suggest` reads what to run next off it. See [docs/RUNS.md](docs/RUNS.md).
 
-`helicon judge-bench` benchmarks Qwen as the memory-rot judge against the operator's own human rulings, and (with an OpenRouter key) against GPT/Claude on the same probes. Real result (run #2, 26 probes, 13 real contradictions + 13 controls, ground truth = the operator's own rulings): **qwen3.6-plus ties anthropic/claude-sonnet-5 at 0.962 accuracy and beats openai/gpt-5 (0.808)**, at $0.00444 per run and in 54s against Sonnet's 144s and GPT's 245s. qwen3.6-flash holds 0.923 for $0.00167, 8x cheaper than qwen3.7-max for the same specificity. And **every model, Qwen and Claude and GPT alike, missed `unit-drift`**: some rot is a domain ruling rather than a logical contradiction, and no judge at any price catches it. That is what the human-ruling layer exists for. Reproduce: `helicon judge-bench --set all --save` (needs `openrouter_api_key` for the competitors); the Judge tab reads the saved run, and renders an unrun bench as unrun. See [docs/ROUTE.md](docs/ROUTE.md).
+`helicon judge-bench` benchmarks your model tiers as the memory-rot judge against the operator's own human rulings, and (with an OpenRouter key) against GPT/Claude on the same probes. Real result (run #2, 26 probes, 13 real contradictions + 13 controls, ground truth = the operator's own rulings): **qwen3.6-plus ties anthropic/claude-sonnet-5 at 0.962 accuracy and beats openai/gpt-5 (0.808)**, at $0.00444 per run and in 54s against Sonnet's 144s and GPT's 245s. qwen3.6-flash holds 0.923 for $0.00167, 8x cheaper than qwen3.7-max for the same specificity. And **every model, Qwen and Claude and GPT alike, missed `unit-drift`**: some rot is a domain ruling rather than a logical contradiction, and no judge at any price catches it. That is what the human-ruling layer exists for. Reproduce: `helicon judge-bench --set all --save` (needs `openrouter_api_key` for the competitors); the Judge tab reads the saved run, and renders an unrun bench as unrun. See [docs/ROUTE.md](docs/ROUTE.md).
 
-`helicon move` is the context-mover: read memory from one platform, VERIFY each item (freshness, and with `--verify-contradictions` the Qwen judge), and render the survivors into another platform's native format (`claude-code` / `cursor` / `markdown`). Memory moves verified, never blindly; held-back items are listed with why. Dry-run by default; `--apply` backs up the target first.
+`helicon move` is the context-mover: read memory from one platform, VERIFY each item (freshness, and with `--verify-contradictions` the model judge), and render the survivors into another platform's native format (`claude-code` / `cursor` / `markdown`). Memory moves verified, never blindly; held-back items are listed with why. Dry-run by default; `--apply` backs up the target first.
 
 `helicon leaderboard` is the population-scale version: it reads git history across many repos (where multiple models and harnesses actually co-authored commits) and ranks models by how often their commits SURVIVE vs get REVERTED, Wilson-scored. Execution-free (git only, so it is bounded and cannot freeze a machine); the revert is the honest failure signal. On 927 attributed commits across 25 local repos it already separates opus-4.6 / opus-4.8 / fable-5 / cursor by reliability.
 
@@ -648,7 +649,7 @@ A tool that audits your memory reads your memory. That access is scary, so here 
 - `helicon policy --inject` (alias `helicon gold --inject`): `~/.claude/GOLDEN_RULES.md`, dry-run by default, `.bak` kept
 - your vault: **never**. Corrections are memories in Helicon's store, not edits to your files. You stay the only writer of your second brain.
 
-**Leaves your machine:** nothing, unless you configure a Qwen key — then excerpts of candidate memories (truncated content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
+**Leaves your machine:** nothing, unless you configure a model endpoint. Then excerpts of candidate memories (truncated content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
 
 **Decisions:** every destructive or state-changing action (kill, retire, resolve, dismiss, rule application) is either made by you or made by a written rule you previewed and approved — and automated decisions are quarantined from the learning loop (rot class R9), so the tool cannot launder its own output into your evidence.
 ## Your domain, your lexicon (config, not code)
@@ -682,7 +683,7 @@ which you can reproduce on your own repo in seconds.
 - Composite: **~67** (live, as of 2026-07-13 — run `helicon eval` to recompute; retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
 - Retrieval: P@3 0.615, MRR 0.596. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
 - **Decay predicts human kills at rank-AUC 0.78** (mean confidence of killed memories 0.14 vs approved 0.27). A real, independent signal.
-- Consolidation: ~9-10x fewer tokens; Qwen-judged quality favors synthesis (self-graded, shown as direction, not proof).
+- Consolidation: ~9-10x fewer tokens; model-judged quality favors synthesis (self-graded, shown as direction, not proof).
 - The public demo store is 19 labelled planted memories and contains no personal
   data. Live scans read only the sources each user configures.
 
@@ -707,9 +708,9 @@ Mountain of Helicon's capabilities stand on well-understood memory-systems patte
 </p>
 
 
-- **Backend:** Python 3.12, FastAPI (161 endpoints), SQLite + FTS5 (43 tables declared across the memory and correction stores). **Qwen-native retrieval when a Model Studio key is configured**: `text-embedding-v4` (1024-dim) dense vectors + FTS5, fused by Reciprocal Rank Fusion, then a `qwen3-rerank` two-stage pass, the whole retrieve→rerank stack on Alibaba Cloud (falls back to local MiniLM + linear fusion, FTS-only, when no key)
-- **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces — **Next Moves** (memory state → cited next prompts/goals, generated by Qwen, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
-- **AI:** Qwen Cloud API via OpenAI-compatible SDK (see table above)
+- **Backend:** Python 3.12, FastAPI (161 endpoints), SQLite + FTS5 (43 tables declared across the memory and correction stores). **Retrieval:** dense vectors from any OpenAI-compatible embeddings endpoint + FTS5, fused by Reciprocal Rank Fusion. Falls back to local MiniLM + linear fusion, FTS-only, when no embeddings endpoint is configured
+- **Frontend (optional):** React 19, TypeScript, Vite. Four surfaces: **Next Moves** (memory state → cited next prompts/goals, generated by the model, every move citing the memory it came from), **Memory** (sources, review coverage, health), **Needs Ruling** (every failed check with why/evidence/action, grouped Drift / Stale / Smartness), **Golden Rules** (rulings compiled with provenance, injectable). The dashboard is one of three interfaces (CLI · MCP-in-IDE · dashboard)
+- **AI:** any OpenAI-compatible endpoint, including a local one (see table above)
 - **Distribution:** BYOK + local-first. No hosted personal-store service is
   advertised for v0.1; public hosting waits for HTTPS, sessions, configured
   CORS, rate limits, and backups.

@@ -133,14 +133,10 @@ def interaction_readings(conn) -> list[Reading]:
 
 
 def _has_reranker(config: dict) -> bool:
-    """Whether retrieval reranks, read from config offline.
-
-    Mirrors embeddings._embed_provider exactly: reranking (qwen3-rerank) is only
-    available when the embeddings backend is Qwen-native, i.e. an `embeddings`
-    block carrying both api_key and base_url. No network call — a print command
-    must not depend on a remote model answering."""
-    e = config.get("embeddings") or {}
-    return bool(e.get("api_key") and e.get("base_url"))
+    """Whether retrieval reranks. It does not: Helicon has no reranker stage,
+    retrieval returns the fused hybrid order. Kept as the one seam the RAG
+    probe asks, so a future reranker changes one function."""
+    return False
 
 
 # --- the probes -------------------------------------------------------------
@@ -152,9 +148,8 @@ def _probe_rag_vectors(conn, config) -> ProbeResult:
     has_rr = _has_reranker(config)
     verdict = classify([reading], THRESHOLD_RAG.scale_it_bites_at,
                        has_rr)
-    note = ("a reranker IS configured (embeddings block is Qwen-native)"
-            if has_rr else
-            "no reranker configured — retrieval uses the hybrid order")
+    note = ("a reranker is in the retrieval path" if has_rr else
+            "no reranker stage: retrieval uses the hybrid order")
     return ProbeResult(verdict, [reading], has_rr, note)
 
 
