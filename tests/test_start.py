@@ -228,3 +228,14 @@ def test_system_rows_in_plain_words_and_a_step_for_broken_jobs():
     text = start.format_card(card)
     for plumbing in ("launchd", "plist", "LaunchAgents", "crontab", "/Users"):
         assert plumbing not in text
+
+
+def test_menu_line_names_problems_in_plain_words_or_says_all_in_order():
+    card = {"install": {}, "instructions": {"found": True, "broken": 0}, "memory": {"found": True, "rotten": 1},
+            "routines": {"found": True, "known": True, "failed": 14}}
+    assert start.menu_line(card) == ("1 note out of date · 14 jobs failing", 2)
+    card["memory"]["rotten"] = 0
+    card["routines"]["failed"] = 0
+    assert start.menu_line(card) == ("All in order", 0)
+    card["install"] = {"behind_main": 38}
+    assert start.menu_line(card)[0] == "Helicon is out of date"
