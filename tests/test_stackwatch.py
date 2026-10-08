@@ -200,7 +200,7 @@ def test_a_failed_run_is_not_healthy(tmp_path):
                                      '{"error": "traceback"}'])
 def test_valid_json_that_is_not_a_report_is_not_healthy(tmp_path, garbage):
     """Every one of these parses as JSON perfectly well. `report` can exit 0 and
-    still emit an error object (a model API 401, no eval data) — a report is a
+    still emit an error object (a model API 401, no eval data). A report is a
     non-empty object carrying its headline metric."""
     config, _ = _nightly_env(tmp_path, age_hours=1, report=garbage)
     st = nightly_status(config)

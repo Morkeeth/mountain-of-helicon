@@ -451,7 +451,7 @@ def semantic_health(conn: sqlite3.Connection) -> dict:
     warning is printed, and the caller's answer has exactly the same shape.
 
     Measured on a copy of the real store: all 4,214 stored vectors are dim=1024
-    (a remote embedding model), so with config.json absent — the fresh-clone and
+    (a remote embedding model), so with config.json absent, the fresh-clone and
     cloud-VM case this repo's own AGENTS.md sets up — the provider resolves to
     local/384, the filter matches zero rows, and 60% of the documented ranking
     signal is silently gone. "60% semantic / 40% FTS5" then describes something

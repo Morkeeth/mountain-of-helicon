@@ -58,7 +58,7 @@ type Tab = 'teach' | 'mind' | 'week' | 'board' | 'lab' | 'cockpit' | 'start' | '
 // is inspectable (Memory). Nothing else earned a permanent seat.
 //
 // What was cut and why — measured against Oscar's real store, not taste:
-//   Model as Judge  417 lines, 3 judge_runs ever      — worst effort/use ratio
+//   Model as Judge  417 lines, 3 judge_runs ever      worst effort/use ratio
 //   Graph           464 lines of three.js             — answers no question in the loop
 //   Runs (RunCards) 8 run_cards, and the name now      — collided with Governed Runs
 //                   belongs to the V2 governed runs

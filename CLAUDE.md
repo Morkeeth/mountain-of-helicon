@@ -78,7 +78,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - 6 task playbooks
 - Q-value utility learning wired into retrieval ranking (reward from human rulings only, so it can't reinforce its own echo)
 - Entity-boosted retrieval (41 entities wired)
-- Semantic embeddings: a remote OpenAI-compatible embedding model at 1024 dims per the author's config.json (local MiniLM, 384 dims, when no `embeddings` block is configured). NOT all memories: 187 of 4,507 live cubes embedded (4,214 embedding rows mostly cover retired cubes) — measured 2026-08-20; the old "all-MiniLM-L6-v2, 384 dims, all memories embedded" claim was false at the object
+- Semantic embeddings: a remote OpenAI-compatible embedding model at 1024 dims per the author's config.json (local MiniLM, 384 dims, when no `embeddings` block is configured). NOT all memories: 187 of 4,507 live cubes embedded (4,214 embedding rows mostly cover retired cubes), measured 2026-08-20; the old "all-MiniLM-L6-v2, 384 dims, all memories embedded" claim was false at the object
 - Hybrid search: 60% semantic + 40% FTS5 keyword, numpy vector ops
 - Embedding-based consolidation: cosine similarity clustering + model synthesis
 - Core Memory Compiler: compiles reviewed memory to injectable files (data/compiled/)

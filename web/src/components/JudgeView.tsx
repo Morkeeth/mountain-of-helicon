@@ -18,7 +18,7 @@ import { api, type JudgeRow, type JudgeRun } from '../api';
    says what was NOT measured (e.g. no competitor judged, no OpenRouter key),
    and the absence of a competitor must be visible rather than implied. */
 
-const SUBJECT_INK = 'var(--helicon-accent)';    // #223A4E — the subject
+const SUBJECT_INK = 'var(--helicon-accent)';    // #223A4E, the subject
 const FIELD_INK = 'var(--helicon-conflict)'; // #AEBFCC — the context
 /* Validated, not eyeballed (dataviz validate_palette.js, light, surface #F4EFE7):
    #223A4E vs #AEBFCC — CVD ΔE 45.3, normal-vision ΔE 45.8, both PASS.

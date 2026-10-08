@@ -371,7 +371,7 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
             if not by_iv:
                 continue  # resolved, and nothing new contradicts the truth
             # The truth's representative is the CORRECTION CUBE resolve_pair
-            # wrote — a real DB row, so the model judge downstream always has
+            # wrote, a real DB row, so the model judge downstream always has
             # real content to rule on (a synthetic marker here crashed
             # pair_scan the moment the guard fired with a client configured).
             crow = conn.execute(
