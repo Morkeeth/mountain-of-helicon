@@ -116,8 +116,8 @@ def compute_shipping_rates(conn: sqlite3.Connection) -> dict:
     return rates
 
 
-def extract_patterns_with_qwen(conn: sqlite3.Connection, qwen_client) -> list[Pattern]:
-    if qwen_client is None:
+def extract_patterns_with_llm(conn: sqlite3.Connection, llm_client) -> list[Pattern]:
+    if llm_client is None:
         return extract_patterns_from_sql(conn)
 
     reviews = conn.execute(
@@ -134,7 +134,7 @@ def extract_patterns_with_qwen(conn: sqlite3.Connection, qwen_client) -> list[Pa
     )
 
     result = complete_json(
-        qwen_client,
+        llm_client,
         "You are a behavioral pattern detector for a memory audit system.",
         f"""Analyze these review decisions and extract behavioral patterns.
 

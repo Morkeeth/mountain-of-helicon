@@ -26,7 +26,7 @@ export default function StoreAudit() {
             Audit an external store
           </div>
           <p className="mt-1.5 text-[13px]" style={{ color: 'var(--helicon-muted)', maxWidth: '52ch' }}>
-            Point Helicon at a <strong style={{ color: 'var(--helicon-ink)' }}>Mem0</strong> store, the memory backend Alibaba's own docs recommend for Qwen agents. It stores and retrieves; it never checks if what it kept is still true. Helicon does.
+            Point Helicon at a <strong style={{ color: 'var(--helicon-ink)' }}>Mem0</strong> store. It stores and retrieves; it never checks if what it kept is still true. Helicon does.
           </p>
         </div>
         <button

@@ -53,7 +53,7 @@ def extract_entities_regex(content: str, title: str = "") -> list[dict]:
     return entities
 
 
-def extract_entities_qwen(client, content: str, title: str = "") -> list[dict]:
+def extract_entities_llm(client, content: str, title: str = "") -> list[dict]:
     text = f"Title: {title}\nContent: {content[:1500]}"
     result = complete_json(
         client,
@@ -71,7 +71,7 @@ Skip generic words. Max 15 entities.
     return [e for e in result if isinstance(e, dict) and "name" in e and "type" in e]
 
 
-def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
+def build_graph(conn: sqlite3.Connection, llm_client=None, limit: int = 500):
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
     rows = conn.execute(
@@ -85,8 +85,8 @@ def build_graph(conn: sqlite3.Connection, qwen_client=None, limit: int = 500):
     cube_entities = defaultdict(list)
 
     for row in rows:
-        if qwen_client:
-            entities = extract_entities_qwen(qwen_client, row["content"], row["title"])
+        if llm_client:
+            entities = extract_entities_llm(llm_client, row["content"], row["title"])
         else:
             entities = extract_entities_regex(row["content"], row["title"])
 

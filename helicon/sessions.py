@@ -41,7 +41,7 @@ def detect_session(conn: sqlite3.Connection, window_minutes: int = 60) -> dict |
 
 
 def generate_session_summary(
-    conn: sqlite3.Connection, qwen_client=None, config: dict | None = None
+    conn: sqlite3.Connection, llm_client=None, config: dict | None = None
 ) -> dict | None:
     """Generate a structured audit summary for the current review session."""
     session = detect_session(conn)
@@ -73,7 +73,7 @@ def generate_session_summary(
         ),
     }
 
-    if qwen_client and session["review_count"] >= 5:
+    if llm_client and session["review_count"] >= 5:
         model = resolve_model("default", config)
         review_data = json.dumps(
             {
@@ -84,7 +84,7 @@ def generate_session_summary(
             }
         )
         insights = complete_json(
-            qwen_client,
+            llm_client,
             "You are a memory audit analyst. Given a review session summary, extract behavioral insights.",
             f"""This user just reviewed {session['review_count']} memory items. Analyze their behavior:
 

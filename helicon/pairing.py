@@ -639,7 +639,7 @@ def _cohen_kappa(p: dict) -> float | None:
     if n == 0:
         return None
     po = (p["both_yes"] + p["both_no"]) / n
-    p1_yes = (p["both_yes"] + p["qwen_only"]) / n
+    p1_yes = (p["both_yes"] + p["judge1_only"]) / n
     p2_yes = (p["both_yes"] + p["judge2_only"]) / n
     pe = p1_yes * p2_yes + (1 - p1_yes) * (1 - p2_yes)
     return 1.0 if pe >= 1 else round((po - pe) / (1 - pe), 3)
@@ -657,7 +657,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str | None = None,
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     filed, rejected, skipped = [], [], []
     # Two-judge panel confusion counts, for Cohen's κ across the scan.
-    panel = {"both_yes": 0, "both_no": 0, "qwen_only": 0, "judge2_only": 0}
+    panel = {"both_yes": 0, "both_no": 0, "judge1_only": 0, "judge2_only": 0}
 
     for c in conflicts:
         if (c["pair_key"] in existing
@@ -698,7 +698,7 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str | None = None,
                     elif not c1 and not c2:
                         panel["both_no"] += 1
                     elif c1 and not c2:
-                        panel["qwen_only"] += 1
+                        panel["judge1_only"] += 1
                     else:
                         panel["judge2_only"] += 1
                     if c1 == c2:

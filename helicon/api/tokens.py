@@ -15,7 +15,7 @@ Three corrections, in the order they matter.
 2. THE NAME NOW MATCHES THE POPULATION. `tokens` reads as agent token usage
    across Claude Code, Codex and Cursor. This never saw any of those. It reads
    `qwen_cache`, which is Helicon's OWN judge and narration calls. The honest
-   route is `/qwen-calls/dashboard`. The old path still serves, marked
+   route is `/llm-calls/dashboard`. The old path still serves, marked
    deprecated, because silently moving a published route is its own dishonesty.
 
 3. A CACHE ROW IS NOT A CALL. `qwen_cache` is keyed on `cache_key`, so it holds
@@ -39,7 +39,7 @@ router = APIRouter()
 
 SOURCE = "qwen_cache (helicon.db)"
 POPULATION = "helicon_own_llm_calls"
-HONEST_PATH = "/api/qwen-calls/dashboard"
+HONEST_PATH = "/api/llm-calls/dashboard"
 
 # Every number in the payload appears here. A field with no marker is a field
 # that can quietly become a guess, so the tests assert this map is complete.
@@ -115,8 +115,8 @@ def _payload(rows, store_present: bool) -> dict:
     }
 
 
-@router.get("/qwen-calls/dashboard")
-async def qwen_calls_dashboard():
+@router.get("/llm-calls/dashboard")
+async def llm_calls_dashboard():
     return _dashboard()
 
 

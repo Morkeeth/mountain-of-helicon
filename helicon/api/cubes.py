@@ -35,7 +35,7 @@ async def get_cube(cube_id: str):
 
 
 @router.post("/scan")
-async def trigger_scan(use_qwen: bool = False):
+async def trigger_scan(use_llm: bool = False):
     config = get_config()
-    stats = run_scan(config, use_qwen=use_qwen)
+    stats = run_scan(config, use_llm=use_llm)
     return stats

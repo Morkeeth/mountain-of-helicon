@@ -54,8 +54,8 @@ def collect_present_hashes(config: dict, source: str | None = None) -> dict:
     return scopes
 
 
-def enrich_with_qwen(cube: HeliconCube, qwen_client, existing_titles: list[str], config: dict | None = None) -> HeliconCube:
-    if not qwen_client:
+def enrich_with_llm(cube: HeliconCube, llm_client, existing_titles: list[str], config: dict | None = None) -> HeliconCube:
+    if not llm_client:
         return cube
 
     if cube.type in ("code", "file_created") and len(cube.content) < 100:
@@ -65,7 +65,7 @@ def enrich_with_qwen(cube: HeliconCube, qwen_client, existing_titles: list[str],
     default_model = resolve_model("default", config)
 
     try:
-        summary = summarize_cube(qwen_client, cube.content, model=fast_model)
+        summary = summarize_cube(llm_client, cube.content, model=fast_model)
         if summary:
             cube.summary = summary.get("summary", "")
             if summary.get("tags"):
@@ -75,7 +75,7 @@ def enrich_with_qwen(cube: HeliconCube, qwen_client, existing_titles: list[str],
 
     if existing_titles and cube.type in ("memory", "project", "draft", "idea"):
         try:
-            novelty = check_novelty(qwen_client, cube.content[:300], existing_titles[:15], model=fast_model)
+            novelty = check_novelty(llm_client, cube.content[:300], existing_titles[:15], model=fast_model)
             if novelty:
                 cube.novelty_action = novelty.get("action", "ADD")
                 cube.novelty_score = 1.0 if novelty.get("action") == "ADD" else 0.3
@@ -85,7 +85,7 @@ def enrich_with_qwen(cube: HeliconCube, qwen_client, existing_titles: list[str],
     return cube
 
 
-def run_scan(config: dict, use_qwen: bool = False) -> dict:
+def run_scan(config: dict, use_llm: bool = False) -> dict:
     db_path = config.get("db_path", "data/helicon.db")
     conn = init_db(db_path)
     # A scan_log row per scan: an incomplete row (no completed_at) marks a
@@ -93,12 +93,12 @@ def run_scan(config: dict, use_qwen: bool = False) -> dict:
     # whether memory is stale or the scan is.
     scan_id = log_scan_start(conn, list(config.get("connectors", {}).keys()))
 
-    qwen_client = None
-    if use_qwen:
-        qwen_client = get_client(config)
+    llm_client = None
+    if use_llm:
+        llm_client = get_client(config)
 
     existing_titles = []
-    if qwen_client:
+    if llm_client:
         rows = conn.execute("SELECT title FROM helicon_cubes WHERE type IN ('memory','project','draft') LIMIT 50").fetchall()
         existing_titles = [r["title"] for r in rows]
 
@@ -111,8 +111,8 @@ def run_scan(config: dict, use_qwen: bool = False) -> dict:
     enriched = 0
     for result in results:
         cube = result_to_cube(result)
-        if qwen_client and cube.type in ("memory", "project", "draft", "idea"):
-            cube = enrich_with_qwen(cube, qwen_client, existing_titles)
+        if llm_client and cube.type in ("memory", "project", "draft", "idea"):
+            cube = enrich_with_llm(cube, llm_client, existing_titles)
             enriched += 1
         if insert_cube(conn, cube):
             added += 1
@@ -134,7 +134,7 @@ def run_scan(config: dict, use_qwen: bool = False) -> dict:
         "skipped": skipped,
         "enriched": enriched,
         "decayed": decay_stats.get("updated", 0),
-        "qwen_enabled": qwen_client is not None,
+        "llm_enabled": llm_client is not None,
     }
 
     cursor = conn.execute("SELECT source, COUNT(*) as cnt FROM helicon_cubes GROUP BY source")

@@ -172,7 +172,7 @@ def find_clusters(conn: sqlite3.Connection, min_overlap: int = 2) -> list[dict]:
     return sorted(clusters, key=lambda c: -c["count"])[:30]
 
 
-def consolidate_cluster(conn: sqlite3.Connection, qwen_client, cluster: dict) -> dict | None:
+def consolidate_cluster(conn: sqlite3.Connection, llm_client, cluster: dict) -> dict | None:
     cube_ids = [c["id"] for c in cluster["cubes"][:15]]
     contents = []
     for cid in cube_ids:
@@ -182,9 +182,9 @@ def consolidate_cluster(conn: sqlite3.Connection, qwen_client, cluster: dict) ->
 
     combined = "\n\n".join(contents)
 
-    if qwen_client:
+    if llm_client:
         result = complete_json(
-            qwen_client,
+            llm_client,
             "You are a memory consolidation engine. Like the brain during sleep, merge related memories into a single coherent summary.",
             f"""These {len(contents)} memory items are about "{cluster['topic']}". Consolidate them into one clear summary.
 
@@ -241,12 +241,12 @@ Return JSON:
     }
 
 
-def run_consolidation(conn: sqlite3.Connection, qwen_client=None, max_clusters: int = 10) -> dict:
+def run_consolidation(conn: sqlite3.Connection, llm_client=None, max_clusters: int = 10) -> dict:
     clusters = find_clusters(conn)
     consolidated = []
 
     for cluster in clusters[:max_clusters]:
-        result = consolidate_cluster(conn, qwen_client, cluster)
+        result = consolidate_cluster(conn, llm_client, cluster)
         if result:
             consolidated.append(result)
 

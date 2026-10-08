@@ -3972,10 +3972,10 @@ def cmd_stack(args):
 
     print(f"\nStack completeness:")
     total_sources = len(detected)
-    has_qwen = llm["enabled"]
+    has_llm = llm["enabled"]
     has_db = os.path.exists(config.get("db_path", "data/helicon.db"))
-    completeness = (total_sources * 20 + (30 if has_qwen else 0) + (20 if has_db else 0))
-    print(f"  {min(completeness, 100)}% - {total_sources} source(s), {'model active' if has_qwen else 'no model'}, {'DB seeded' if has_db else 'no DB'}")
+    completeness = (total_sources * 20 + (30 if has_llm else 0) + (20 if has_db else 0))
+    print(f"  {min(completeness, 100)}% - {total_sources} source(s), {'model active' if has_llm else 'no model'}, {'DB seeded' if has_db else 'no DB'}")
 
 
 def cmd_optimize(args):
@@ -4120,14 +4120,14 @@ def cmd_consolidate(args):
         print(f"  [{c['method'][:10]:>10}] {c['topic'][:40]:<40} ({c['count']} items)")
 
     max_clusters = args.max if hasattr(args, "max") else 10
-    qwen_client = None
+    llm_client = None
     if getattr(args, "llm", False):
         from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
-        qwen_client = get_client(config)
+        llm_client = get_client(config)
 
     print(f"\nConsolidating top {max_clusters} clusters...\n")
-    result = run_consolidation(conn, qwen_client, max_clusters)
+    result = run_consolidation(conn, llm_client, max_clusters)
 
     for r in result["results"]:
         print(f"  {r['title'][:50]} ({r['cube_count']} items merged, conf: {r['confidence']:.0%})")
@@ -4188,15 +4188,15 @@ def cmd_consolidation_eval(args):
     config = load_config()
     conn = init_db(config["db_path"])
 
-    qwen_client = None
+    llm_client = None
     if getattr(args, "llm", False):
         from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
-        qwen_client = get_client(config)
+        llm_client = get_client(config)
 
     sample = getattr(args, "sample", 12)
-    print(f"Consolidation eval: raw memories vs consolidated synthesis (sample {sample}{', model-judged' if qwen_client else ', tokens only'})...\n")
-    result = run_consolidation_eval(conn, qwen_client, sample)
+    print(f"Consolidation eval: raw memories vs consolidated synthesis (sample {sample}{', model-judged' if llm_client else ', tokens only'})...\n")
+    result = run_consolidation_eval(conn, llm_client, sample)
 
     if result.get("error"):
         print(f"  {result['error']}")

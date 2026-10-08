@@ -39,9 +39,9 @@ async def list_clusters():
 
 
 @router.post("/consolidations/run")
-async def trigger_consolidation(use_qwen: bool = False, max_clusters: int = 10):
+async def trigger_consolidation(use_llm: bool = False, max_clusters: int = 10):
     conn = get_conn()
     config = get_config()
-    qwen_client = get_client(config) if use_qwen else None
-    result = run_consolidation(conn, qwen_client, max_clusters)
+    llm_client = get_client(config) if use_llm else None
+    result = run_consolidation(conn, llm_client, max_clusters)
     return result
