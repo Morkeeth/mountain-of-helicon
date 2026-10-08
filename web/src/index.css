@@ -99,11 +99,11 @@
   --improve: #C67C3E;                       /* the one warm pop — improvement only */
 
   /* legacy names kept (redefined to calm blue) so old classes stay calm */
-  --qwen-purple: #223A4E;
-  --qwen-indigo: #465B6F;
-  --qwen-blue: #AEBFCC;
-  --qwen-purple-dim: rgba(34,58,78,0.09);
-  --qwen-gradient: linear-gradient(135deg, #17283A 0%, #465B6F 60%, #AEBFCC 100%);
+  --model-ink: #223A4E;
+  --model-slate: #465B6F;
+  --model-mist: #AEBFCC;
+  --model-ink-dim: rgba(34,58,78,0.09);
+  --model-gradient: linear-gradient(135deg, #17283A 0%, #465B6F 60%, #AEBFCC 100%);
 
   /* shadcn vars — light mode (INK NAVY + PAPER) */
   --background: #ECE4D8;
@@ -270,13 +270,13 @@ button { font-family: inherit; letter-spacing: -0.005em; }
 .animate-pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
 
 /* legacy gradient classes — redefined off the rust rainbow, kept calm */
-.qwen-gradient-text {
+.model-gradient-text {
   color: var(--text-primary);
   -webkit-text-fill-color: currentColor;
 }
-.qwen-gradient-bg { background: var(--qwen-gradient); }
-.qwen-gradient-border { border-color: var(--border); }
-.qwen-shimmer {
+.model-gradient-bg { background: var(--model-gradient); }
+.model-gradient-border { border-color: var(--border); }
+.model-shimmer {
   background: linear-gradient(90deg, transparent 0%, rgba(46,58,71,0.05) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;

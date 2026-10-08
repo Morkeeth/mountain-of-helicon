@@ -58,7 +58,7 @@ type Tab = 'teach' | 'mind' | 'week' | 'board' | 'lab' | 'cockpit' | 'start' | '
 // is inspectable (Memory). Nothing else earned a permanent seat.
 //
 // What was cut and why — measured against Oscar's real store, not taste:
-//   Qwen as Judge   417 lines, 3 judge_runs ever      — worst effort/use ratio
+//   Model as Judge  417 lines, 3 judge_runs ever      — worst effort/use ratio
 //   Graph           464 lines of three.js             — answers no question in the loop
 //   Runs (RunCards) 8 run_cards, and the name now      — collided with Governed Runs
 //                   belongs to the V2 governed runs
@@ -406,7 +406,7 @@ function App() {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg)' }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-1 rounded-full qwen-gradient-bg opacity-60 animate-pulse-subtle" />
+          <div className="w-8 h-1 rounded-full model-gradient-bg opacity-60 animate-pulse-subtle" />
           <span className="text-zinc-500 text-sm tracking-wide">Loading...</span>
         </div>
       </div>
@@ -498,7 +498,7 @@ function App() {
                 <div className="flex items-center gap-1.5" title={`${score.reviewed} of ${score.total} memory items triaged, review coverage, not a health grade`}>
                   <div className="hidden sm:block w-16 h-1.5 rounded-full bg-zinc-800/60 overflow-hidden">
                     <div
-                      className="h-full rounded-full qwen-gradient-bg transition-all duration-700"
+                      className="h-full rounded-full model-gradient-bg transition-all duration-700"
                       style={{ width: `${score.score}%` }}
                     />
                   </div>
@@ -996,7 +996,7 @@ function ProjectsGrid({ projects, score, connectors, triageCount, onSelect, onRe
       </div>
 
       {/* Helicon explanation */}
-      <div className="rounded-xl border border-zinc-300 bg-gradient-to-r from-zinc-50 to-zinc-100 px-5 py-4 qwen-shimmer">
+      <div className="rounded-xl border border-zinc-300 bg-gradient-to-r from-zinc-50 to-zinc-100 px-5 py-4 model-shimmer">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-[13px] text-zinc-300 font-medium">Select a project</p>

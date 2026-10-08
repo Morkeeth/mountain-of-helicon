@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 
 /* The volatility gate. truth = fact + timestamp + decay. Fast facts (a %, a
    count, a price, a rank) rot in a memory file; they belong in the live layer
-   or need a decay stamp. Helicon finds the suspects, Qwen sentences them, and
+   or need a decay stamp. Helicon finds the suspects, the model sentences them, and
    one click fixes the source. */
 
 const SERIF = { fontFamily: 'var(--helicon-serif)', fontVariationSettings: "'opsz' 144" } as const;

@@ -131,16 +131,16 @@ async def score_snapshot(event_label: str = None):
     return {"status": "recorded"}
 
 
-@router.get("/qwen/stats")
-async def qwen_stats():
+@router.get("/llm/stats")
+async def llm_stats():
     # Pass the DB conn so stats cover Qwen usage from ALL processes
     # (CLI report/battery/rule runs), not just this server process.
     stats = get_call_stats(get_conn())
     return stats
 
 
-@router.get("/qwen/models")
-async def qwen_models():
+@router.get("/llm/models")
+async def llm_models():
     config = get_config()
     # None for a tier means no model is configured for it; nothing is guessed.
     return {
@@ -158,14 +158,14 @@ async def qwen_models():
     }
 
 
-@router.get("/qwen/cache")
-async def qwen_cache():
+@router.get("/llm/cache")
+async def llm_cache():
     conn = get_conn()
     return get_cache_stats_db(conn)
 
 
-@router.get("/qwen/routing")
-async def qwen_routing():
+@router.get("/llm/routing")
+async def llm_routing():
     return get_route_stats()
 
 @router.get("/gold")

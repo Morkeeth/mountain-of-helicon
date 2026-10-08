@@ -242,7 +242,7 @@ def get_recommendations(conn, config: dict | None = None) -> list[dict]:
     from helicon.llm import get_client, complete
     client = get_client(config or {})
     if client:
-        _enrich_with_qwen(client, scored, config)
+        _enrich_with_llm(client, scored, config)
 
     return scored
 
@@ -264,7 +264,7 @@ def _pick_action(p: dict, reasons: list[str]) -> str:
             f"across {len(reasons)} signals.")
 
 
-def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
+def _enrich_with_llm(client, projects: list[dict], config: dict | None = None):
     from helicon.llm import complete, resolve_model
     model = resolve_model("fast", config)
 

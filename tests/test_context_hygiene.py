@@ -22,7 +22,7 @@ What was actually wrong, and what these tests pin:
 """
 import pytest
 
-import helicon.llm as qwen_mod
+import helicon.llm as llm_mod
 from helicon.battery import run_battery, run_llm_tests
 from helicon.db import init_db, insert_cube
 from helicon.models import HeliconCube
@@ -135,7 +135,7 @@ def test_grounding_judge_receives_content_not_just_titles(conn, monkeypatch):
         return {"Contradiction": {"status": "PASS", "reason": "ok"},
                 "Grounding": {"status": "PASS", "reason": "concrete"}}
 
-    monkeypatch.setattr(qwen_mod, "complete_json", fake_complete_json)
+    monkeypatch.setattr(llm_mod, "complete_json", fake_complete_json)
     hits = [{"id": "gc_1", "title": "FAVOUR decision log",
              "content": "FAVOUR fee switched to 2.5% on 2026-07-02 after audit"}]
     out = run_llm_tests(object(), "FAVOUR fee status", hits, model="m")
@@ -156,7 +156,7 @@ def test_run_battery_feeds_the_judge_content_from_the_store(conn, monkeypatch):
         return {"Contradiction": {"status": "PASS", "reason": "ok"},
                 "Grounding": {"status": "PASS", "reason": "ok"}}
 
-    monkeypatch.setattr(qwen_mod, "complete_json", fake_complete_json)
+    monkeypatch.setattr(llm_mod, "complete_json", fake_complete_json)
     res = run_battery(conn, "portfolio design", k=3, client=object())
     assert res["llm_ran"] is True
     assert "three.js models and a dark hero section" in captured["user"]

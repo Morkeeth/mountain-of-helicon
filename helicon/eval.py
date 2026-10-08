@@ -363,7 +363,7 @@ freedom from contradiction/noise). Return JSON only:
 {{"raw_score": <0-100>, "consolidated_score": <0-100>, "reason": "<one sentence>"}}"""
 
 
-def run_consolidation_eval(conn: sqlite3.Connection, qwen_client=None, sample: int = 12) -> dict:
+def run_consolidation_eval(conn: sqlite3.Connection, llm_client=None, sample: int = 12) -> dict:
     """Before/after consolidation eval: token efficiency + (optional) Qwen-judged answer
     quality, comparing raw source cubes against their consolidated synthesis."""
     from helicon.consolidation import get_consolidations
@@ -372,7 +372,7 @@ def run_consolidation_eval(conn: sqlite3.Connection, qwen_client=None, sample: i
     if not cons:
         return {"error": "no consolidations found - run `helicon consolidate --llm` first", "summary": {"consolidations_evaluated": 0}}
 
-    if qwen_client:
+    if llm_client:
         from helicon.llm import complete_json
 
     rows_out = []
@@ -411,10 +411,10 @@ def run_consolidation_eval(conn: sqlite3.Connection, qwen_client=None, sample: i
             "compression": round(rt / ct, 1) if ct else 0,
         }
 
-        if qwen_client:
+        if llm_client:
             try:
                 query = f"What do we currently know about {c.get('topic') or 'this topic'}?"
-                j = complete_json(qwen_client, _JUDGE_SYS, _judge_prompt(query, raw_text, cons_text), operation="consolidation_eval")
+                j = complete_json(llm_client, _JUDGE_SYS, _judge_prompt(query, raw_text, cons_text), operation="consolidation_eval")
                 if j and isinstance(j, dict):
                     rs = float(j.get("raw_score", 0))
                     cs = float(j.get("consolidated_score", 0))

@@ -74,7 +74,7 @@ def test_unknown_numbers_are_null_not_zero(tmp_path, monkeypatch):
     """
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
 
         assert body["total_cost_usd"] is None, \
             "a dollar total this source cannot know must be null, not 0"
@@ -92,7 +92,7 @@ def test_every_number_carries_a_provenance_marker(tmp_path, monkeypatch):
     """
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
 
         prov = body["provenance"]
         assert set(prov.values()) <= {"measured", "derived", "unavailable"}
@@ -117,7 +117,7 @@ def test_unavailable_fields_say_why(tmp_path, monkeypatch):
     """An unavailable number with no reason is just a hole. Name the reason."""
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
         for field in UNKNOWABLE + ("total_cost_usd",):
             assert body["unavailable_because"][field].strip(), \
                 f"`{field}` is unavailable but the payload does not say why"
@@ -131,7 +131,7 @@ def test_the_payload_names_the_population_it_read(tmp_path, monkeypatch):
     populations and this endpoint only ever saw one of them."""
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
         assert body["population"] == "helicon_own_llm_calls"
         assert "qwen_cache" in body["source"]
 
@@ -142,8 +142,8 @@ def test_old_route_still_serves_the_honest_payload(tmp_path, monkeypatch):
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
         old = c.get("/api/tokens/dashboard").json()
-        new = c.get("/api/qwen-calls/dashboard").json()
-        assert old["deprecated_alias_for"] == "/api/qwen-calls/dashboard"
+        new = c.get("/api/llm-calls/dashboard").json()
+        assert old["deprecated_alias_for"] == "/api/llm-calls/dashboard"
         for key in ("total_cost_usd", "by_model", "population", "provenance"):
             assert old[key] == new[key]
 
@@ -156,7 +156,7 @@ def test_cached_responses_is_not_called_calls(tmp_path, monkeypatch):
     produced them is not recorded anywhere, so it must not be reported."""
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
 
         assert body["total_cached_responses"] == 2
         assert body["by_model"]["qwen-max"]["cached_responses"] == 2
@@ -169,7 +169,7 @@ def test_measured_totals_are_still_right(tmp_path, monkeypatch):
     """Honesty about the unknown must not cost the numbers that ARE known."""
     _seed(tmp_path)
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
         assert body["total_tokens"] == 330
         row = body["by_model"]["qwen-max"]
         assert row["input_tokens"] == 300
@@ -181,7 +181,7 @@ def test_empty_store_is_empty_not_zero_dollars(tmp_path, monkeypatch):
     and the dollar figure stays null rather than becoming a truthful-looking 0."""
     _seed(tmp_path, rows=[])
     with _client(tmp_path, monkeypatch) as c:
-        body = c.get("/api/qwen-calls/dashboard").json()
+        body = c.get("/api/llm-calls/dashboard").json()
         assert body["total_cached_responses"] == 0
         assert body["total_tokens"] == 0
         assert body["total_cost_usd"] is None

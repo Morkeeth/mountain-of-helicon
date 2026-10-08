@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 /* The reading, the opening surface. The browser twin of `helicon read`: the
    record read back to you as a portrait, not a dashboard. A little mythic,
-   numbers as the heroes. Qwen narrates a deterministic digest, so the prose is
+   numbers as the heroes. The model narrates a deterministic digest, so the prose is
    grounded and the numbers are real. Court voice throughout. */
 
 const SERIF = { fontFamily: 'var(--helicon-serif)', fontVariationSettings: "'opsz' 144" } as const;
