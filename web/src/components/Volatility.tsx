@@ -192,7 +192,7 @@ export default function Volatility() {
           {data.keyless && (
             <div>
               <p className="text-[13px] mb-4" style={{ color: 'var(--helicon-muted)' }}>
-                Helicon sees <span className="tabular-nums" style={{ color: RED }}>{data.suspects}</span> suspect{data.suspects === 1 ? '' : 's'} carrying a fast-fact signal. A Qwen key sentences them into fast, slow, and static.
+                Helicon sees <span className="tabular-nums" style={{ color: RED }}>{data.suspects}</span> suspect{data.suspects === 1 ? '' : 's'} carrying a fast-fact signal. A model key sentences them into fast, slow, and static.
               </p>
               <div className="space-y-2">
                 {(data.unsentenced ?? []).map(s => (

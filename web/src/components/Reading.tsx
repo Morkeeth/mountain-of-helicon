@@ -138,7 +138,7 @@ export default function Reading() {
 
       {keyless && (
         <p className="mt-4 text-[13px] max-w-[60ch]" style={{ color: 'var(--helicon-muted)' }}>
-          The reading needs a Qwen key; the record below is real.
+          The reading needs a model key; the record below is real.
         </p>
       )}
 
