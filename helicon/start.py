@@ -197,6 +197,257 @@ def read_install():
     }
 
 
+WORK_DAYS = 30
+
+
+def _work_cache_path():
+    return os.path.join(os.path.expanduser("~"), ".helicon", "work-cache.json")
+
+
+def _spend(days, today):
+    """Token spend from Transcripto, the tool that owns that number. None when it is
+    not installed or gives nothing. Cached for the day: it takes about ten seconds."""
+    import shutil
+
+    command = os.environ.get("HELICON_TRANSCRIPTO") or shutil.which("transcripto")
+    if not command:
+        return None
+    cache = _work_cache_path()
+    try:
+        saved = json.load(open(cache, encoding="utf-8"))
+        if saved.get("day") == today and saved.get("days") == days:
+            return saved["spend"]
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        done = subprocess.run([command, "cost", "--days", str(days), "--json"],
+                              capture_output=True, text=True, timeout=120)
+        raw = json.loads(done.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    tokens = raw.get("tokens") or {}
+    messages, unpriced = raw.get("agent_messages") or 0, raw.get("unpriced_messages") or 0
+    spend = {
+        "usd": raw.get("usd"), "typed": raw.get("decisions"),
+        "agent_messages": messages, "unpriced_messages": unpriced,
+        "tokens": tokens.get("total"), "tokens_reread": tokens.get("cache_read"),
+    }
+    try:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        json.dump({"day": today, "days": days, "spend": spend}, open(cache, "w", encoding="utf-8"))
+    except OSError:
+        pass
+    return spend
+
+
+def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
+    """What the person did with agents in the last `days` days: things typed, sessions,
+    and what it cost. Typed turns and sessions come from the transcript index; spend
+    comes from Transcripto. Counts only, never the text of a turn."""
+    from datetime import date, timedelta
+
+    db = _trace_db(home)
+    if not db:
+        return {"found": False, "why": "no searchable work history yet"}
+    today = today or date.today().isoformat()
+    since = (date.fromisoformat(today) - timedelta(days=days)).isoformat()
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        columns = {row[1] for row in con.execute("PRAGMA table_info(messages)")}
+        if "is_human" not in columns:
+            return {"found": False, "read": db, "why": "the work history does not say which turns were typed"}
+        typed = "is_human=1 AND text!='' AND ts>=?"
+        if "harness" in columns:
+            by_tool = dict(con.execute(
+                f"SELECT COALESCE(harness, 'unknown'), COUNT(*) FROM messages WHERE {typed} GROUP BY 1", (since,)))
+        else:
+            by_tool = {"all": con.execute(f"SELECT COUNT(*) FROM messages WHERE {typed}", (since,)).fetchone()[0]}
+        sessions = con.execute(f"SELECT COUNT(DISTINCT session_id) FROM messages WHERE {typed}", (since,)).fetchone()[0]
+        per_day = dict(con.execute(
+            f"SELECT substr(ts, 1, 10), COUNT(*) FROM messages WHERE {typed} GROUP BY 1", (since,)))
+    except sqlite3.Error:
+        return {"found": False, "read": db, "why": "the work history could not be read"}
+    finally:
+        con.close()
+    start = date.fromisoformat(today) - timedelta(days=13)
+    series = [per_day.get((start + timedelta(days=n)).isoformat(), 0) for n in range(14)]
+    out = {"found": True, "read": db, "days": days, "typed": sum(by_tool.values()), "by_tool": by_tool,
+           "sessions": sessions, "last_14_days": series}
+    out["spend"] = _spend(days, today) if with_spend and home is None else None
+    return out
+
+
+_NOT_YOURS = ("com.apple.", "com.google.", "com.microsoft.", "com.docker.", "com.adobe.", "homebrew.")
+
+
+def read_routines(home=None):
+    """The scheduled work on this machine: jobs the system starts by itself, the classic
+    cron table, and cloud routines when an agent has left a reading of them.
+
+    A plain program cannot ask a cloud account what is scheduled there, so cloud
+    routines come from `~/.helicon/cloud-routines.json`, written by an agent that can.
+    The row says when that reading was taken."""
+    import plistlib
+
+    real_home = home is None
+    home = home or os.path.expanduser("~")
+    folder = os.path.join(home, "Library", "LaunchAgents")
+    files = [f for f in glob.glob(os.path.join(folder, "*.plist"))
+             if not os.path.basename(f).startswith(_NOT_YOURS)]
+    backups = len([f for f in glob.glob(os.path.join(folder, "*")) if ".bak" in os.path.basename(f)])
+    state = {}
+    if real_home and files:
+        try:
+            listing = subprocess.run(["launchctl", "list"], capture_output=True, text=True, timeout=20).stdout
+            for line in listing.splitlines()[1:]:
+                parts = line.split("\t")
+                if len(parts) == 3:
+                    state[parts[2]] = parts[1]
+        except (OSError, subprocess.TimeoutExpired):
+            state = {}
+    running = failed = missing = idle = 0
+    for path in files:
+        try:
+            with open(path, "rb") as handle:
+                job = plistlib.load(handle)
+        except Exception:
+            continue
+        label = job.get("Label", "")
+        program = next((a for a in (job.get("ProgramArguments") or [job.get("Program", "")]) if str(a).startswith("/")), "")
+        if program and not os.path.exists(program):
+            missing += 1
+        if label in state:
+            running += 1
+            if state[label] not in ("0", "-"):
+                failed += 1
+        else:
+            idle += 1
+    cron = 0
+    if real_home:
+        try:
+            table = subprocess.run(["crontab", "-l"], capture_output=True, text=True, timeout=10).stdout
+            cron = sum(1 for line in table.splitlines() if line.strip() and not line.lstrip().startswith("#"))
+        except (OSError, subprocess.TimeoutExpired):
+            cron = 0
+    cloud = None
+    try:
+        saved = json.load(open(os.path.join(home, ".helicon", "cloud-routines.json"), encoding="utf-8"))
+        rows = saved.get("routines") or []
+        cloud = {"on": sum(1 for r in rows if r.get("on")), "off": sum(1 for r in rows if not r.get("on")),
+                 "read_at": saved.get("read_at", "")}
+    except (OSError, ValueError):
+        cloud = None
+    if not files and not cron and not cloud:
+        return {"found": False, "why": "no scheduled jobs on this machine"}
+    return {"found": True, "read": folder, "jobs": len(files), "running": running, "failed": failed,
+            "missing_program": missing, "not_running": idle, "backups": backups, "cron_lines": cron,
+            "known": bool(state) or not files, "cloud": cloud}
+
+
+def read_size(home=None):
+    """How much there is: what every session reads first, how many notes, how long the
+    longest are. Large is not wrong; the row is here so growth is seen."""
+    home = home or os.path.expanduser("~")
+    always = [os.path.join(home, ".claude", "CLAUDE.md")] + glob.glob(os.path.join(home, ".claude", "rules", "*.md"))
+    stores = memory_stores(home)
+    notes = glob.glob(os.path.join(stores[0], "*.md")) if stores else []
+    index = os.path.join(stores[0], "MEMORY.md") if stores else ""
+    if index:
+        always.append(index)
+    loaded = sum(os.path.getsize(f) for f in always if os.path.isfile(f))
+    if not loaded and not notes:
+        return {"found": False, "why": "no rules or notes found"}
+    return {"found": True, "always_loaded_chars": loaded, "always_loaded_files": sum(1 for f in always if os.path.isfile(f)),
+            "notes": len(notes), "long_notes": sum(1 for f in notes if os.path.getsize(f) > 15000)}
+
+
+def read_stalled(home=None, code_root=None, days=30, today=None):
+    """Projects with unfinished changes and no commit for `days` days. Cached for the
+    day, because it asks git about every project folder."""
+    from datetime import date
+
+    if home is not None and code_root is None:
+        return {"found": False, "why": "no project folder given"}
+    code_root = code_root or os.environ.get("HELICON_CODE_ROOT") or os.path.join(os.path.expanduser("~"), "CODE")
+    if not os.path.isdir(code_root):
+        return {"found": False, "why": "no project folder found"}
+    today = today or date.today().isoformat()
+    cache = os.path.join(os.path.expanduser("~"), ".helicon", "stalled-cache.json") if home is None else None
+    if cache:
+        try:
+            saved = json.load(open(cache, encoding="utf-8"))
+            if saved.get("day") == today and saved.get("root") == code_root and saved.get("days") == days:
+                return saved["result"]
+        except (OSError, ValueError, KeyError):
+            pass
+    import time
+
+    now, projects, stalled = time.time(), 0, 0
+    for entry in sorted(os.listdir(code_root)):
+        path = os.path.join(code_root, entry)
+        if not os.path.isdir(os.path.join(path, ".git")):
+            continue
+        projects += 1
+        try:
+            last = subprocess.run(["git", "-C", path, "log", "-1", "--format=%ct"], capture_output=True, text=True, timeout=15).stdout.strip()
+            dirty = subprocess.run(["git", "-C", path, "status", "--porcelain"], capture_output=True, text=True, timeout=30).stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if last.isdigit() and dirty and (now - int(last)) > days * 86400:
+            stalled += 1
+    result = {"found": bool(projects), "why": "no git projects in the project folder", "read": code_root,
+              "projects": projects, "stalled": stalled, "days": days}
+    if cache:
+        try:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            json.dump({"day": today, "root": code_root, "days": days, "result": result}, open(cache, "w", encoding="utf-8"))
+        except OSError:
+            pass
+    return result
+
+
+def system_plain(card):
+    """The operating system around the agents, in plain words: what runs by itself,
+    what was left behind, how much there is, and what stalled."""
+    rows = []
+    rt, size, stall = (card.get(k) or {} for k in ("routines", "size", "stalled"))
+    if rt.get("found"):
+        if rt.get("jobs"):
+            bits = []
+            if rt.get("known"):
+                bits.append(f"{rt['failed']} failed their last run." if rt["failed"] else "None failed its last run.")
+            if rt.get("missing_program"):
+                bits.append(f"{_n(rt['missing_program'], 'job')} point at something that no longer exists.")
+            number, unit = (rt["running"], f"of {rt['jobs']}") if rt.get("known") else (rt["jobs"], "jobs")
+            lead = "scheduled jobs are running." if rt.get("known") else "scheduled job files were found. Which ones run is unknown here."
+            rows.append({"label": "Routines", "number": number, "unit": unit, "text": " ".join([lead] + bits),
+                         "part": rt["failed"] if rt.get("known") else None, "whole": rt["running"] if rt.get("known") else None})
+            left = rt.get("not_running", 0) + rt.get("backups", 0)
+            if rt.get("known") and left:
+                rows.append({"label": "Left behind", "number": left, "unit": "files",
+                             "text": f"sit unused in the same folder: {rt['not_running']} job files that are not running and {_n(rt['backups'], 'backup copy', 'backup copies')}."})
+        if rt.get("cron_lines"):
+            rows.append({"label": "Cron", "number": rt["cron_lines"], "unit": "lines",
+                         "text": "in the classic timer table. Helicon counts them and does not check them yet."})
+        cloud = rt.get("cloud")
+        if cloud:
+            rows.append({"label": "Cloud", "number": cloud["on"], "unit": f"of {cloud['on'] + cloud['off']}",
+                         "text": f"cloud routines are switched on. Read by an agent on {_day(cloud['read_at'])}; Helicon cannot read the cloud by itself."})
+    if size.get("found"):
+        rows.append({"label": "Every session", "number": f"{size['always_loaded_chars']:,}", "unit": "characters",
+                     "text": f"of your rules are read at the start of each session, from {_n(size['always_loaded_files'], 'file')}."})
+        if size.get("notes"):
+            long_notes = size["long_notes"]
+            rows.append({"label": "Notes", "number": size["notes"], "unit": "notes",
+                         "text": (f"in your agents' memory. {long_notes} of them {'is' if long_notes == 1 else 'are'} longer than a chapter."
+                                  if long_notes else "in your agents' memory. None is longer than a chapter.")})
+    if stall.get("found"):
+        rows.append({"label": "Stalled", "number": stall["stalled"], "unit": f"of {stall['projects']}",
+                     "text": f"projects have unfinished changes and no commit in {stall['days']} days.",
+                     "part": stall["stalled"], "whole": stall["projects"]})
+    return rows
+
+
 def history_path():
     return os.path.join(os.path.expanduser("~"), ".helicon", "start-history.jsonl")
 
@@ -324,6 +575,8 @@ def plain(card):
                     + (f" {warned} could not be read in full." if warned else ""),
                     None, "work history " + _short(idx.get("read"))))
 
+    work_rows = work_plain(card.get("work") or {})
+
     steps = []
     if behind:
         steps.append(("Update Helicon first. It is out of date.", f"git -C {_short(inst.get('read'))} pull"))
@@ -337,7 +590,50 @@ def plain(card):
         steps.append(("Start saving your decisions. Without them an agent cannot know what you decided.", ""))
     if not idx.get("found"):
         steps.append(("Make your work history searchable, so use and drift can be measured.", ""))
-    return {"status": status, "rows": rows, "steps": steps[:3]}
+    routines = card.get("routines") or {}
+    if routines.get("known") and (routines.get("failed") or routines.get("missing_program")):
+        broken = max(routines.get("failed", 0), routines.get("missing_program", 0))
+        steps.append((f"Look at the {_n(broken, 'scheduled job')} that failed or point at nothing, and remove or repair them.", ""))
+    return {"status": status, "rows": rows, "work": work_rows, "system": system_plain(card), "steps": steps[:3]}
+
+
+def work_plain(work):
+    """The work of the last weeks in plain words. Each row: label, number, unit, text,
+    and for the first row the last 14 days as a series."""
+    if not work.get("found"):
+        return []
+    days = work["days"]
+    tools = ", ".join(f"{name.capitalize()} {count:,}" for name, count in
+                      sorted(work["by_tool"].items(), key=lambda item: -item[1]))
+    rows = [
+        {"label": "Prompts", "number": work["typed"], "unit": "typed",
+         "text": f"to your agents in {days} days. {tools}.", "series": work["last_14_days"]},
+        {"label": "Sessions", "number": work["sessions"], "unit": "sessions",
+         "text": f"of work with agents in {days} days."},
+    ]
+    spend = work.get("spend")
+    if not spend or spend.get("usd") is None:
+        rows.append({"label": "Spend", "number": None, "unit": "",
+                     "text": "nothing found: the tool that reads token spend is not installed."})
+        return rows
+    messages, unpriced = spend.get("agent_messages") or 0, spend.get("unpriced_messages") or 0
+    more = "or more, " if unpriced else ""
+    gap = (f" {round(100 * unpriced / messages)}% of agent replies have no price on record, so the real figure is higher."
+           if messages and unpriced else "")
+    rows.append({"label": "Spend", "number": f"${spend['usd']:,.0f}", "unit": f"{more}at list price",
+                 "text": f"in {days} days, Claude Code only. On a subscription this is not a bill.{gap}"})
+    if spend.get("typed"):
+        per = spend["usd"] / spend["typed"]
+        steps_each = round(messages / spend["typed"]) if messages else None
+        rows.append({"label": "Per prompt", "number": f"${per:,.2f}", "unit": f"{more}each",
+                     "text": (f"and about {steps_each} agent replies for each thing you typed." if steps_each
+                              else "for each thing you typed.")})
+    if spend.get("tokens") and spend.get("tokens_reread") is not None:
+        share = round(100 * spend["tokens_reread"] / spend["tokens"])
+        rows.append({"label": "Re-reading", "number": f"{share}%", "unit": "of all tokens",
+                     "text": "were the agent reading earlier context again. A token is a small piece of text the model reads or writes.",
+                     "part": spend["tokens_reread"], "whole": spend["tokens"]})
+    return rows
 
 
 def share(card):
@@ -370,6 +666,20 @@ def share(card):
     out["history"] = (
         {"sessions": idx.get("sessions", 0), "not_fully_read": idx.get("files_with_warnings")}
         if idx.get("found") else None)
+    work = card.get("work") or {}
+    if work.get("found"):
+        spend = work.get("spend") or {}
+        out["work"] = {"days": work["days"], "typed": work["typed"], "sessions": work["sessions"],
+                       "by_tool": work["by_tool"], "list_price_usd": spend.get("usd"),
+                       "agent_replies": spend.get("agent_messages"), "replies_without_price": spend.get("unpriced_messages"),
+                       "tokens": spend.get("tokens"), "tokens_reread": spend.get("tokens_reread")}
+    else:
+        out["work"] = None
+    rt, size, stall = (card.get(k) or {} for k in ("routines", "size", "stalled"))
+    out["routines"] = ({k: rt.get(k) for k in ("jobs", "running", "failed", "missing_program", "not_running", "backups", "cron_lines")}
+                       | {"cloud_on": (rt.get("cloud") or {}).get("on"), "cloud_off": (rt.get("cloud") or {}).get("off")}) if rt.get("found") else None
+    out["size"] = {k: size.get(k) for k in ("always_loaded_chars", "notes", "long_notes")} if size.get("found") else None
+    out["stalled"] = {k: stall.get(k) for k in ("projects", "stalled", "days")} if stall.get("found") else None
     out["readings_found"] = sum(1 for key in ("instructions", "memory", "decisions", "skills", "history") if out[key])
     return out
 
@@ -387,6 +697,10 @@ def build_card(path=".", home=None):
         "decisions": read_decisions(),
         "skills": read_skills(home),
         "index": read_index(home),
+        "work": read_work(home),
+        "routines": read_routines(home),
+        "size": read_size(home),
+        "stalled": read_stalled(home),
     }
     card["next"] = next_steps(card)
     return card
@@ -424,6 +738,24 @@ def format_card(card, colour=False):
         lines.append(f"  {label}{num(number)} {row['unit']} {row['text']}".rstrip())
         if row["whole"]:
             lines.append(f"  {'':<14}{_bar(row['part'], row['whole'], colour)}")
+    if view.get("work"):
+        lines += ["", f"  {head('YOUR WORK')}"]
+        for row in view["work"]:
+            number = f"{row['number']:,}" if isinstance(row["number"], int) else (row["number"] or "")
+            lines.append(f"  {head(row['label'].ljust(14))}{num(number)} {row['unit']} {row['text']}".replace("  nothing", " nothing").rstrip())
+            if row.get("series") and any(row["series"]):
+                top = max(row["series"])
+                marks = "".join(" ▁▂▃▄▅▆▇█"[round(8 * value / top)] for value in row["series"])
+                lines.append(f"  {'':<14}{_paint(marks, '38;5;68', colour)}  the last 14 days")
+            elif row.get("whole"):
+                lines.append(f"  {'':<14}{_bar(row['part'], row['whole'], colour)}")
+    if view.get("system"):
+        lines += ["", f"  {head('WHAT RUNS AROUND YOUR AGENTS')}"]
+        for row in view["system"]:
+            number = f"{row['number']:,}" if isinstance(row["number"], int) else row["number"]
+            lines.append(f"  {head(row['label'].ljust(14))}{num(number)} {row['unit']} {row['text']}")
+            if row.get("whole"):
+                lines.append(f"  {'':<14}{_bar(row['part'], row['whole'], colour)}")
     lines.append("")
     if view["steps"]:
         lines.append(f"  {head('Do next')}")
