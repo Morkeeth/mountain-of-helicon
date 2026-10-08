@@ -149,7 +149,7 @@ def _probe_rag_vectors(conn, config) -> ProbeResult:
     verdict = classify([reading], THRESHOLD_RAG.scale_it_bites_at,
                        has_rr)
     note = ("a reranker is in the retrieval path" if has_rr else
-            "no reranker stage — retrieval uses the hybrid order")
+            "no reranker stage: retrieval uses the hybrid order")
     return ProbeResult(verdict, [reading], has_rr, note)
 
 

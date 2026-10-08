@@ -1,4 +1,4 @@
-"""Mem0 connector — memories from a widely used agent memory store.
+"""Mem0 connector: memories from a widely used agent memory store.
 
 Mem0 is offered standalone and as the memory layer under several cloud
 agent stacks. This read-side adapter
