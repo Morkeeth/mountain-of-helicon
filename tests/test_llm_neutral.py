@@ -250,20 +250,111 @@ def test_old_module_name_is_gone():
     assert PathFinder.find_spec(old_name, helicon.__path__) is None
 
 
-def test_cache_table_keeps_its_name():
-    # Users' databases hold this table. The rename stops at the Python layer.
+# --- the cache table is renamed in place ------------------------------------
+
+_OLD_TABLE = OLD_KEY.split("_")[0] + "_cache"
+_ROWS = [("k1", "model-a", "summarize", '{"a": 1}', 10, 20, "2026-07-01T00:00:00"),
+         ("k2", "model-b", "", "plain text", 3, 4, "2026-07-02T00:00:00")]
+
+
+def _old_db(path):
+    """A database as an install from before the rename left it: the cache
+    under its first name, with rows in it."""
+    import sqlite3
+    conn = sqlite3.connect(str(path))
+    conn.execute(f"""CREATE TABLE {_OLD_TABLE} (
+        cache_key TEXT PRIMARY KEY, model TEXT NOT NULL, operation TEXT DEFAULT '',
+        response TEXT NOT NULL, input_tokens INTEGER DEFAULT 0,
+        output_tokens INTEGER DEFAULT 0, created_at TEXT NOT NULL)""")
+    conn.executemany(f"INSERT INTO {_OLD_TABLE} VALUES (?,?,?,?,?,?,?)", _ROWS)
+    conn.commit()
+    conn.close()
+
+
+def _tables(conn):
+    return {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+
+
+def _cache_rows(conn):
+    return [tuple(r) for r in conn.execute("SELECT * FROM llm_cache ORDER BY cache_key")]
+
+
+def test_init_db_renames_a_populated_old_cache_and_keeps_every_row(tmp_path):
+    from helicon.db import init_db
+    path = tmp_path / "old.db"
+    _old_db(path)
+    conn = init_db(str(path))
+    assert _OLD_TABLE not in _tables(conn) and "llm_cache" in _tables(conn)
+    assert _cache_rows(conn) == _ROWS
+    conn.close()
+    # Twice is a no-op: same rows, still one table.
+    conn = init_db(str(path))
+    assert _OLD_TABLE not in _tables(conn)
+    assert _cache_rows(conn) == _ROWS
+    conn.close()
+
+
+def test_migration_reports_what_it_did_and_does_nothing_the_second_time(tmp_path):
+    import sqlite3
+    from helicon.db import migrate_llm_cache
+    path = tmp_path / "old.db"
+    _old_db(path)
+    conn = sqlite3.connect(str(path))
+    assert migrate_llm_cache(conn) is True
+    assert migrate_llm_cache(conn) is False
+    assert _cache_rows(conn) == _ROWS
+    # The primary key came along: a cache write still replaces, never duplicates.
+    conn.execute("INSERT OR REPLACE INTO llm_cache VALUES (?,?,?,?,?,?,?)", _ROWS[0])
+    assert len(_cache_rows(conn)) == len(_ROWS)
+
+
+def test_fresh_database_gets_the_new_name_only(tmp_path):
     import sqlite3
     import helicon.llm as llm
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
+    from helicon.db import init_db, migrate_llm_cache
+    conn = init_db(str(tmp_path / "fresh.db"))
+    assert migrate_llm_cache(conn) is False
     saved = dict(llm._cache)
     try:
         llm.load_cache_from_db(conn)
     finally:
         llm._cache.clear()
         llm._cache.update(saved)
-    names = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-    assert "qwen_cache" in names
+    assert "llm_cache" in _tables(conn) and _OLD_TABLE not in _tables(conn)
+    assert isinstance(conn, sqlite3.Connection)
+
+
+def test_lazy_create_migrates_first_so_old_rows_are_not_stranded(tmp_path):
+    # load_cache_from_db can meet an old database before init_db does. A bare
+    # CREATE TABLE IF NOT EXISTS there would leave two tables and an empty cache.
+    import sqlite3
+    import helicon.llm as llm
+    path = tmp_path / "old.db"
+    _old_db(path)
+    conn = sqlite3.connect(str(path))
+    conn.row_factory = sqlite3.Row
+    saved = dict(llm._cache)
+    try:
+        llm._cache.clear()
+        llm.load_cache_from_db(conn)
+        assert llm._cache == {"k1": '{"a": 1}', "k2": "plain text"}
+    finally:
+        llm._cache.clear()
+        llm._cache.update(saved)
+    assert _OLD_TABLE not in _tables(conn)
+    assert _cache_rows(conn) == _ROWS
+
+
+def test_both_tables_present_is_left_alone(tmp_path):
+    # Not a state this code produces. If it is ever met, nothing is dropped.
+    import sqlite3
+    from helicon.db import migrate_llm_cache
+    path = tmp_path / "both.db"
+    _old_db(path)
+    conn = sqlite3.connect(str(path))
+    conn.execute("CREATE TABLE llm_cache (cache_key TEXT PRIMARY KEY)")
+    assert migrate_llm_cache(conn) is False
+    assert conn.execute(f"SELECT COUNT(*) FROM {_OLD_TABLE}").fetchone()[0] == len(_ROWS)
 
 
 # --- first run: init and doctor --------------------------------------------

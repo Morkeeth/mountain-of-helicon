@@ -1,4 +1,4 @@
-"""Token accounting: /qwen/stats must reflect durable usage in qwen_cache,
+"""Token accounting: /llm/stats must reflect durable usage in llm_cache,
 not just the calling process's in-memory _call_log (CLI runs like
 `helicon report --llm` happen in other processes)."""
 
@@ -6,7 +6,7 @@ import sqlite3
 
 import pytest
 
-from helicon import llm as qwen
+from helicon import llm
 from helicon.llm import get_call_stats, TIER_COST_PER_1K
 
 
@@ -14,7 +14,7 @@ from helicon.llm import get_call_stats, TIER_COST_PER_1K
 def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
-    c.execute("""CREATE TABLE qwen_cache (
+    c.execute("""CREATE TABLE llm_cache (
         cache_key TEXT PRIMARY KEY,
         model TEXT NOT NULL,
         operation TEXT DEFAULT '',
@@ -24,7 +24,7 @@ def conn():
         created_at TEXT NOT NULL
     )""")
     c.executemany(
-        "INSERT INTO qwen_cache VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO llm_cache VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
             ("k1", "qwen3.6-plus", "battery_judge", "{}", 1000, 2000, "2026-07-05T10:00:00"),
             ("k2", "qwen3.6-plus", "pair_judge", "{}", 500, 500, "2026-07-05T11:00:00"),
@@ -37,14 +37,14 @@ def conn():
 
 @pytest.fixture(autouse=True)
 def clean_memory_state(monkeypatch):
-    monkeypatch.setattr(qwen, "_call_log", [])
-    monkeypatch.setattr(qwen, "_cache", {})
-    monkeypatch.setattr(qwen, "_cache_stats", {"hits": 0, "misses": 0})
-    monkeypatch.setattr(qwen, "_db_conn", None)
+    monkeypatch.setattr(llm, "_call_log", [])
+    monkeypatch.setattr(llm, "_cache", {})
+    monkeypatch.setattr(llm, "_cache_stats", {"hits": 0, "misses": 0})
+    monkeypatch.setattr(llm, "_db_conn", None)
 
 
 def test_stats_come_from_db_even_with_empty_call_log(conn):
-    """The bug: CLI processes wrote usage to qwen_cache, but the API server's
+    """The bug: CLI processes wrote usage to llm_cache, but the API server's
     _call_log was empty, so the dashboard showed no activity."""
     stats = get_call_stats(conn)
     assert stats["total_calls"] == 3
@@ -59,7 +59,7 @@ def test_stats_come_from_db_even_with_empty_call_log(conn):
 
 
 def test_session_overlay_adds_cache_hits_and_latency(conn):
-    qwen._call_log.extend([
+    llm._call_log.extend([
         {"model": "qwen3.6-plus", "elapsed": 0.0, "input_tokens": 0,
          "output_tokens": 0, "timestamp": 0, "cached": True, "operation": "x"},
         {"model": "qwen3.6-plus", "elapsed": 4.0, "input_tokens": 1000,
@@ -68,7 +68,7 @@ def test_session_overlay_adds_cache_hits_and_latency(conn):
     ])
     stats = get_call_stats(conn)
     plus = stats["by_model"]["qwen3.6-plus"]
-    # live call is already in qwen_cache (choke point writes it): no double count
+    # live call is already in llm_cache (choke point writes it): no double count
     assert plus["calls"] == 2
     assert plus["cached_calls"] == 1
     assert plus["avg_latency"] == 4.0
@@ -76,7 +76,7 @@ def test_session_overlay_adds_cache_hits_and_latency(conn):
 
 
 def test_fallback_to_memory_when_no_db():
-    qwen._call_log.append(
+    llm._call_log.append(
         {"model": "qwen3.6-plus", "elapsed": 1.0, "input_tokens": 10,
          "output_tokens": 20, "timestamp": 0, "cached": False,
          "operation": "x", "cost_usd": 0.001}

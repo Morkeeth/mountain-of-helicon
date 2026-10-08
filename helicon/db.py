@@ -424,6 +424,26 @@ def _migrate_glaze_era(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def migrate_llm_cache(conn: sqlite3.Connection) -> bool:
+    """One-time rename of the model response cache, for DBs created when it
+    was named after the first vendor. Idempotent: it acts only when the old
+    table exists and the new one does not, so a second run is a no-op and a
+    fresh database is untouched. Rows, token counts and the primary key ride
+    along with ALTER TABLE.
+
+    Every site that creates llm_cache lazily calls this FIRST. Otherwise the
+    lazy create would make an empty llm_cache beside the old
+    table and the cached rows would be stranded under the old name."""
+    names = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' "
+        "AND name IN ('qwen_cache', 'llm_cache')")}
+    if names != {"qwen_cache"}:
+        return False
+    conn.execute("ALTER TABLE qwen_cache RENAME TO llm_cache")
+    conn.commit()
+    return True
+
+
 def human_evidence_sql(prefix: str = "") -> str:
     """The human-evidence guard (rot class R9), as one written predicate.
 
@@ -447,6 +467,7 @@ def init_db(db_path: str) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
     migrated = _migrate_glaze_era(conn)
+    migrate_llm_cache(conn)
     conn.executescript(SCHEMA)
     conn.commit()
     try:

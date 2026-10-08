@@ -4,18 +4,18 @@ Two separate defects live in the same endpoint, and both are the wrong-object
 failure rather than an arithmetic failure.
 
 1. UNKNOWN RENDERED AS ZERO. `cost_usd`, `total_cost_usd`, `cached_calls` and
-   `avg_latency` were hardcoded literal 0. The `qwen_cache` table carries no
+   `avg_latency` were hardcoded literal 0. The `llm_cache` table carries no
    price column, no latency column and no cache-hit counter, so none of those
    four numbers is knowable from this source. A 0 cannot be told apart from a
    measured zero by any reader, so the value must be null and must carry a
    provenance marker saying it is unavailable.
 
 2. THE NAME ANSWERS A DIFFERENT QUESTION. The route was `/tokens/dashboard`,
-   which reads as agent token usage across the harnesses. It reads `qwen_cache`,
+   which reads as agent token usage across the harnesses. It reads `llm_cache`,
    which is Helicon's OWN judge calls. Those are different populations. The
    route now says what it reads.
 
-There is a third, quieter one that this test also pins. `qwen_cache` has
+There is a third, quieter one that this test also pins. `llm_cache` has
 `cache_key` as its PRIMARY KEY, so it holds one row per distinct prompt, not
 one row per call. `COUNT(*)` over it is the number of cached responses, and it
 undercounts calls by exactly the number of cache hits, which nothing records.
@@ -46,12 +46,12 @@ def _seed(tmp_path, rows=None):
     import sqlite3
     conn = sqlite3.connect(str(tmp_path / "api.db"))
     conn.execute(
-        "CREATE TABLE IF NOT EXISTS qwen_cache ("
+        "CREATE TABLE IF NOT EXISTS llm_cache ("
         "cache_key TEXT PRIMARY KEY, model TEXT NOT NULL, operation TEXT DEFAULT '',"
         "response TEXT NOT NULL, input_tokens INTEGER DEFAULT 0,"
         "output_tokens INTEGER DEFAULT 0, created_at TEXT NOT NULL)")
     conn.executemany(
-        "INSERT OR REPLACE INTO qwen_cache"
+        "INSERT OR REPLACE INTO llm_cache"
         "(cache_key, model, response, input_tokens, output_tokens, created_at)"
         " VALUES (?,?,?,?,?,?)",
         rows if rows is not None else
@@ -81,7 +81,7 @@ def test_unknown_numbers_are_null_not_zero(tmp_path, monkeypatch):
         for model, row in body["by_model"].items():
             for field in UNKNOWABLE:
                 assert row[field] is None, \
-                    f"{model}.{field} is not knowable from qwen_cache; it must be null"
+                    f"{model}.{field} is not knowable from llm_cache; it must be null"
 
 
 def test_every_number_carries_a_provenance_marker(tmp_path, monkeypatch):
@@ -133,7 +133,7 @@ def test_the_payload_names_the_population_it_read(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as c:
         body = c.get("/api/llm-calls/dashboard").json()
         assert body["population"] == "helicon_own_llm_calls"
-        assert "qwen_cache" in body["source"]
+        assert "llm_cache" in body["source"]
 
 
 def test_old_route_still_serves_the_honest_payload(tmp_path, monkeypatch):
@@ -151,7 +151,7 @@ def test_old_route_still_serves_the_honest_payload(tmp_path, monkeypatch):
 # --- defect 3: count the object you actually have ---------------------------
 
 def test_cached_responses_is_not_called_calls(tmp_path, monkeypatch):
-    """`qwen_cache` is keyed on cache_key, so a row is a distinct prompt, not a
+    """`llm_cache` is keyed on cache_key, so a row is a distinct prompt, not a
     call. Two seeded rows are two cached responses. The number of CALLS that
     produced them is not recorded anywhere, so it must not be reported."""
     _seed(tmp_path)
