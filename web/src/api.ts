@@ -177,7 +177,7 @@ export interface GovernReceipt {
 // One receipt of the LOG surface (/api/log)
 export interface LogEntry {
   ts: string;
-  actor: string;              // human | helicon | qwen
+  actor: string;              // human | helicon | llm
   action: string;
   detail: string;
   count?: number;

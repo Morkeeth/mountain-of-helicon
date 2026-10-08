@@ -300,7 +300,7 @@ CREATE TABLE IF NOT EXISTS run_events (
     task_run_id TEXT NOT NULL,
     ts TEXT NOT NULL,
     kind TEXT NOT NULL,            -- opened | packet | artifact | verified | accepted | rework | rollback | amend
-    actor TEXT,                    -- human | helicon | qwen | opus
+    actor TEXT,                    -- human | helicon | llm | a model id
     detail TEXT                    -- json/text, append-only; history is never rewritten
 );
 CREATE INDEX IF NOT EXISTS idx_run_events_taskrun ON run_events(task_run_id);
