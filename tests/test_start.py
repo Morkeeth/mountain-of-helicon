@@ -185,3 +185,46 @@ def test_share_carries_work_numbers_and_no_text(tmp_path, monkeypatch):
                     "sessions": 2, "last_14_days": [0] * 14, "spend": None}
     out = start.share(card)
     assert out["work"]["typed"] == 10 and "secret" not in json.dumps(out)
+
+
+def test_routines_counts_job_files_and_reads_a_saved_cloud_reading(tmp_path, monkeypatch):
+    import plistlib
+
+    home = _empty_home(tmp_path, monkeypatch)
+    assert start.read_routines(home)["found"] is False
+    folder = tmp_path / "Library" / "LaunchAgents"
+    folder.mkdir(parents=True)
+    plistlib.dump({"Label": "me.job", "ProgramArguments": ["/no/such/program"]}, open(folder / "me.job.plist", "wb"))
+    plistlib.dump({"Label": "com.apple.x", "ProgramArguments": ["/bin/ls"]}, open(folder / "com.apple.x.plist", "wb"))
+    (folder / "me.job.plist.bak-2026").write_text("x", encoding="utf-8")
+    os.makedirs(tmp_path / ".helicon")
+    (tmp_path / ".helicon" / "cloud-routines.json").write_text(json.dumps(
+        {"read_at": "2026-10-08", "routines": [{"name": "a", "on": True}, {"name": "b", "on": False}]}), encoding="utf-8")
+    part = start.read_routines(home)
+    assert part["jobs"] == 1 and part["missing_program"] == 1 and part["backups"] == 1
+    assert part["known"] is False  # a test home never asks the system which jobs run
+    assert part["cloud"] == {"on": 1, "off": 1, "read_at": "2026-10-08"}
+    rows = {row["label"]: row for row in start.system_plain({"routines": part})}
+    assert "Which ones run is unknown here" in rows["Routines"]["text"]
+    assert rows["Cloud"]["number"] == 1 and "cannot read the cloud by itself" in rows["Cloud"]["text"]
+
+
+def test_system_rows_in_plain_words_and_a_step_for_broken_jobs():
+    card = {
+        "install": {}, "instructions": {"found": False, "why": "x"}, "memory": {"found": False, "why": "x"},
+        "decisions": {"found": True, "rulings": 1, "newest": "2026-10-08"},
+        "skills": {"found": False, "why": "x"}, "index": {"found": True, "sessions": 1, "newest": "2026-10-08"},
+        "routines": {"found": True, "jobs": 97, "running": 58, "failed": 14, "missing_program": 7, "not_running": 39,
+                     "backups": 10, "cron_lines": 13, "known": True, "cloud": None},
+        "size": {"found": True, "always_loaded_chars": 12394, "always_loaded_files": 8, "notes": 390, "long_notes": 4},
+        "stalled": {"found": True, "projects": 89, "stalled": 21, "days": 30},
+    }
+    view = start.plain(card)
+    rows = {row["label"]: row for row in view["system"]}
+    assert rows["Routines"]["text"].startswith("scheduled jobs are running. 14 failed their last run.")
+    assert rows["Left behind"]["number"] == 49 and rows["Notes"]["text"].endswith("4 of them are longer than a chapter.")
+    assert rows["Stalled"]["number"] == 21 and rows["Stalled"]["unit"] == "of 89"
+    assert any("scheduled jobs that failed or point at nothing" in text for text, _ in view["steps"])
+    text = start.format_card(card)
+    for plumbing in ("launchd", "plist", "LaunchAgents", "crontab", "/Users"):
+        assert plumbing not in text
