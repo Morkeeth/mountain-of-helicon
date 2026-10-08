@@ -135,11 +135,11 @@ def _bars(series):
     return f'<div class="bars" role="img" aria-label="things typed per day, last {len(series)} days">{cols}</div>'
 
 
-def _work(rows):
+def _work(rows, title="Your work"):
     if not rows:
         return ""
     esc = html.escape
-    out = ["<h2>Your work</h2>"]
+    out = [f"<h2>{esc(title)}</h2>"]
     for row in rows:
         number = _count(row["number"]) if row["number"] is not None else ""
         graph = _bars(row["series"]) if row.get("series") else (_strip(row["part"], row["whole"]) if row.get("whole") else "")
@@ -185,6 +185,7 @@ def render(card, when=None):
         "<div class='total'><div class='label'>Total</div><div class='slot'>No total. These five readings "
         "measure different things, so they are not added up.</div></div>"
         f"{_work(view.get('work') or [])}"
+        f"{_work(view.get('system') or [], 'What runs around your agents')}"
         f"{steps}{details}"
         "<footer>Nothing was changed. This page is a file on this Mac.</footer>"
         "</main></body></html>"
