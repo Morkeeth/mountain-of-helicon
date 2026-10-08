@@ -115,12 +115,15 @@ def create_app() -> FastAPI:
     from helicon.api.runs2 import router as runs2_router
     from helicon.api.doorway import router as doorway_router
     from helicon.api.thisweek import router as thisweek_router
+    from helicon.api.start import router as start_router, page_router as start_page_router
     from helicon.api.setup import router as setup_router
     from helicon.api.context_review import router as context_review_router
     from helicon.api.mind_changes import router as mind_changes_router
     from helicon.api.correction_transfer import router as correction_transfer_router
 
     app.include_router(setup_router, prefix="/api")
+    app.include_router(start_router, prefix="/api")
+    app.include_router(start_page_router)  # before the dashboard's catch-all route
     app.include_router(context_review_router, prefix="/api")
     app.include_router(mind_changes_router, prefix="/api")
     app.include_router(correction_transfer_router, prefix="/api")
