@@ -645,8 +645,8 @@ def _cohen_kappa(p: dict) -> float | None:
     return 1.0 if pe >= 1 else round((po - pe) / (1 - pe), 3)
 
 
-def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus",
-              judge2_model: str = "deepseek-v4-flash") -> dict:
+def pair_scan(conn: sqlite3.Connection, client=None, model: str | None = None,
+              judge2_model: str | None = None) -> dict:
     """Find cross-source conflicts and file each new one as a factual audit
     finding. With a Qwen client, every candidate pair is confirmed by
     detect_contradictions before filing (the judge can veto the selector);
@@ -671,7 +671,11 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
                        f"dates cannot both be true")
         judged_by = "deterministic"
         if client is not None:
-            from helicon.llm import detect_contradictions
+            from helicon.llm import detect_contradictions, default_model
+            # Both judges come from the config. No second judge configured
+            # means a one-judge verdict, said as such in judged_by.
+            model = model or default_model(client)
+            judge2_model = judge2_model or default_model(client, "judge2")
             row_a = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
                                  (rep_a["id"],)).fetchone()
             row_b = conn.execute("SELECT content FROM helicon_cubes WHERE id = ?",
@@ -681,8 +685,8 @@ def pair_scan(conn: sqlite3.Connection, client=None, model: str = "qwen3.6-plus"
             # deterministic verdict instead of crashing the watch tick.
             if row_a is not None and row_b is not None:
                 v1 = detect_contradictions(client, row_a["content"], row_b["content"], model=model)
-                # Second judge from a DIFFERENT model family (two Qwens share
-                # failure modes and inflate agreement). The court sits with two
+                # Second judge from a DIFFERENT model family (two models of
+                # one family share failure modes and inflate agreement). The court sits with two
                 # independent judges; a split verdict is escalated to the human.
                 v2 = (detect_contradictions(client, row_a["content"], row_b["content"], model=judge2_model)
                       if judge2_model else None)

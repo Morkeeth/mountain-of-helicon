@@ -87,9 +87,9 @@ def _check(rid, name, coverage, found, receipt):
 
 
 def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
-                 judge_client=None, judge_model: str = "qwen3.6-flash",
+                 judge_client=None, judge_model: str | None = None,
                  config: dict | None = None) -> dict:
-    """judge_client (Qwen) upgrades R11 from the cosine gate to the judge that
+    """judge_client (a model client) upgrades R11 from the cosine gate to the judge that
     actually separates a fork from a rephrasing. Optional: without it R11 reports
     cosine survivors and says so, rather than pretending the weaker gate is the
     same exam.

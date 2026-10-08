@@ -4,6 +4,10 @@ import sqlite3
 import sys
 import time
 
+# The tier table of the vendor Helicon was born on. It applies only to a config
+# that still points at that endpoint through the old qwen_* keys (see
+# config.resolve_llm). A config that uses the neutral llm_* keys names its own
+# model in llm_model, or per tier in llm_models, and never reads this table.
 MODELS = {
     "fast": "qwen3.6-flash",
     "default": "qwen3.6-plus",
@@ -29,25 +33,96 @@ def _cache_key(system: str, user: str, model: str, temperature: float | None = N
     return hashlib.sha256(f"{model}:{temperature}:{system}:{user}".encode()).hexdigest()[:24]
 
 
+TIERS = ("fast", "default", "deep")
+
+
+def llm_status(config: dict | None) -> dict:
+    """{enabled, reason, key_source, ...} with the key itself left out, so a
+    caller can print why the model-judged features are on or off."""
+    from helicon.config import resolve_llm
+    status = resolve_llm(config)
+    status.pop("api_key", None)
+    return status
+
+
 def get_client(config: dict):
-    api_key = config.get("qwen_api_key", "")
-    if not api_key:
+    """An OpenAI-compatible client for whatever endpoint the config names, or
+    None when the model layer is off. There is no default vendor: None is the
+    answer for a config with no endpoint, and llm_status says why."""
+    from helicon.config import resolve_llm
+    r = resolve_llm(config)
+    if not r["enabled"]:
         return None
     from openai import OpenAI
-    return OpenAI(
-        api_key=api_key,
-        base_url=config.get("qwen_base_url", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
-    )
+    # A local endpoint needs no key, but the SDK refuses an empty one.
+    client = OpenAI(api_key=r["api_key"] or "not-needed", base_url=r["base_url"])
+    # complete() has no config, so the configured models ride on the client.
+    try:
+        client._helicon_models = {t: resolve_model(t, config) for t in TIERS}
+        # The second contradiction judge (pairing.pair_scan). Off unless the
+        # config names one; the old endpoint keeps the one it always used.
+        client._helicon_models["judge2"] = (config or {}).get("llm_judge2_model") or (
+            "deepseek-v4-flash" if r["legacy"] else None)
+    except Exception:
+        pass
+    return client
 
 
-def resolve_model(tier: str, config: dict | None = None) -> str:
-    if config and "qwen_models" in config:
-        return config["qwen_models"].get(tier, MODELS.get(tier, "qwen-plus"))
-    return MODELS.get(tier, "qwen-plus")
+def resolve_model(tier: str, config: dict | None = None,
+                  legacy_fallback: str | None = None) -> str | None:
+    """The configured model for a tier, or None when none is configured. It
+    does not guess: a model name belongs to an endpoint, and only the config
+    knows which endpoint this is.
+
+    legacy_fallback is for the few callers that named their own model before
+    the layer went neutral. It is used only on an old qwen_* endpoint, in place
+    of the tier table, so those callers send what they always sent."""
+    from helicon.config import resolve_llm
+    cfg = config or {}
+    tiers = cfg.get("llm_models") or {}
+    if tiers.get(tier):
+        return tiers[tier]
+    r = resolve_llm(cfg)
+    if r["model"]:
+        return r["model"]
+    old_tiers = cfg.get("qwen_models") or {}
+    if old_tiers.get(tier):
+        return old_tiers[tier]
+    if r["legacy"]:
+        return legacy_fallback or MODELS.get(tier, "qwen-plus")
+    return None
+
+
+def default_model(client, tier: str = "default") -> str | None:
+    """The model get_client resolved for this client and tier. None for a
+    client that did not come from get_client: pass `model` yourself then."""
+    models = getattr(client, "_helicon_models", None)
+    if not isinstance(models, dict):
+        return None
+    if tier == "judge2":
+        return models.get("judge2")
+    return models.get(tier) or models.get("default")
+
+
+_warned_no_model = False
+
+
+def _model_not_configured(operation: str = ""):
+    # stderr, never stdout, for the same reason as the quota line in complete().
+    global _warned_no_model
+    if _warned_no_model:
+        return
+    _warned_no_model = True
+    what = f" for {operation}" if operation else ""
+    print(f"[llm] model not configured{what}: set llm_model (or HELICON_LLM_MODEL), "
+          "or pass model=. Skipping the model call.", file=sys.stderr)
 
 
 def load_cache_from_db(conn: sqlite3.Connection):
     try:
+        # The table keeps its first name. It caches calls to any provider, but
+        # it lives in users' databases, and renaming a table there is out of
+        # scope for a naming cleanup.
         conn.execute("""CREATE TABLE IF NOT EXISTS qwen_cache (
             cache_key TEXT PRIMARY KEY,
             model TEXT NOT NULL,
@@ -87,7 +162,7 @@ def set_cache_db(conn: sqlite3.Connection):
     load_cache_from_db(conn)
 
 
-def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "",
+def complete(client, system: str, user: str, model: str | None = None, operation: str = "",
              response_format: dict | None = None, enable_thinking: bool | None = None,
              temperature: float | None = None) -> str:
     """temperature=None leaves the model's default sampling alone (narration and
@@ -99,6 +174,10 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
     burned once by a non-deterministic remote call (the reranker, 11/12/11 across
     three runs); it does not get to happen twice."""
     if client is None:
+        return ""
+    model = model or default_model(client)
+    if not model:
+        _model_not_configured(operation)
         return ""
 
     key = _cache_key(system, user, model, temperature)
@@ -117,8 +196,8 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
 
     _cache_stats["misses"] += 1
     start = time.time()
-    # Qwen structured-output flex: JSON mode / function-calling is only valid
-    # with thinking OFF, and only on some models — fall back to a plain call if
+    # Structured output: on some endpoints JSON mode / function-calling is only
+    # valid with thinking OFF, and only on some models — fall back to a plain call if
     # the endpoint rejects the extra args so existing callers never break.
     kwargs: dict = {
         "model": model,
@@ -186,15 +265,15 @@ def complete(client, system: str, user: str, model: str = "qwen3.6-plus", operat
             # redirects stdout into the baseline file, so a stdout warning here
             # lands INSIDE the JSON and the file parses as CSV. That is how 14
             # nights of "eval-latest.json is empty, unreadable" were filed.
-            print(f"[qwen] Quota exhausted, skipping: {str(e)[:80]}", file=sys.stderr)
+            print(f"[llm] Quota exhausted, skipping: {str(e)[:80]}", file=sys.stderr)
             return ""
         raise
 
 
-def complete_json(client, system: str, user: str, model: str = "qwen3.6-plus", operation: str = "",
+def complete_json(client, system: str, user: str, model: str | None = None, operation: str = "",
                   temperature: float | None = None) -> dict | list | None:
-    # Qwen structured output: response_format json_object requires the word
-    # "json" in a message and thinking disabled; complete() falls back cleanly
+    # Structured output: some endpoints require the word "json" in a message
+    # and thinking disabled for response_format json_object; complete() falls back cleanly
     # if the model/endpoint rejects it, and we still parse the prose either way.
     raw = complete(client, system + "\n\nRespond with ONLY valid JSON. No markdown, no explanation.", user, model,
                    operation=operation, response_format={"type": "json_object"}, enable_thinking=False,
@@ -214,7 +293,7 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
     """Token/cost stats for the dashboard.
 
     Durable usage (calls, tokens, cost) comes from the qwen_cache table, which
-    every live Qwen call in ANY process writes to. The in-process _call_log only
+    every live model call in ANY process writes to. The in-process _call_log only
     ever sees this process's calls (CLI runs like `helicon report --llm` happen
     in other processes), so it is used only for session-local data the DB does
     not have: cache hits and latency. Falls back to _call_log-only accounting
@@ -347,7 +426,7 @@ def get_cache_stats_db(conn: sqlite3.Connection) -> dict:
         return {"cached_responses": 0}
 
 
-def summarize_cube(client, content: str, model: str = "qwen3.6-plus") -> dict | None:
+def summarize_cube(client, content: str, model: str | None = None) -> dict | None:
     return complete_json(
         client,
         "You are a memory audit system. Given content from an AI agent's output, extract structured metadata.",
@@ -367,7 +446,7 @@ Content:
     )
 
 
-def check_novelty(client, new_content: str, existing_summaries: list[str], model: str = "qwen3.6-plus") -> dict | None:
+def check_novelty(client, new_content: str, existing_summaries: list[str], model: str | None = None) -> dict | None:
     existing_text = "\n".join(f"- {s}" for s in existing_summaries[:10])
     return complete_json(
         client,
@@ -389,7 +468,7 @@ Return JSON:
     )
 
 
-def detect_contradictions(client, item_a: str, item_b: str, model: str = "qwen3.6-plus",
+def detect_contradictions(client, item_a: str, item_b: str, model: str | None = None,
                           audit_context: str = "", temperature: float | None = 0.0) -> dict | None:
     """Greedy by default: this is a judge, and a judge that answers differently on
     two identical calls cannot be an exam. See complete() for the measurement."""
@@ -417,7 +496,7 @@ Return JSON:
     )
 
 
-def audit_pattern(client, pattern_desc: str, recent_data: str, model: str = "qwen3.6-plus") -> dict | None:
+def audit_pattern(client, pattern_desc: str, recent_data: str, model: str | None = None) -> dict | None:
     return complete_json(
         client,
         "You are a meta-memory auditor. Challenge stored patterns against fresh evidence.",

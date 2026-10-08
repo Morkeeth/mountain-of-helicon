@@ -160,7 +160,9 @@ def scan_volatility(conn: sqlite3.Connection, config: dict | None = None,
         }
 
     to_judge = suspects[:judge_cap]
-    model = model or (config.get("qwen_models", {}) or {}).get("flash", "qwen3.6-flash")
+    from helicon.llm import resolve_model
+    # qwen_models["flash"] is the key this reader has always honoured.
+    model = model or (config.get("qwen_models", {}) or {}).get("flash") or resolve_model("fast", config)
     verdicts = _classify(client, to_judge, model)
 
     fast, slow_undated, static_n = [], [], 0

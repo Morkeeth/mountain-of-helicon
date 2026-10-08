@@ -58,7 +58,7 @@ async def integrity_battery(llm: bool = False):
     tasks = []
     counts = Counter()
     for q in queries:
-        res = run_battery(conn, q["query"], k=K, client=client, model=model or "qwen3.6-plus")
+        res = run_battery(conn, q["query"], k=K, client=client, model=model)
         counts[res["verdict"]] += 1
         tasks.append({
             "task": res["task"],
