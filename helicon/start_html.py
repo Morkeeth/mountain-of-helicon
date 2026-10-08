@@ -61,6 +61,9 @@ font-size:15px}
 .path{font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;color:var(--slate);overflow-wrap:anywhere}
 .status{margin:0;padding:16px 0;border-bottom:1px solid var(--rule);color:var(--slate)}
 .status.stale{color:var(--mark);font-weight:600}
+.bars{display:flex;align-items:flex-end;gap:4px;height:56px;margin-top:6px}
+.bars i{flex:1;background:var(--mark);min-width:4px}
+.cap{display:block;margin-top:6px;font-size:13px;color:var(--mist)}
 details{margin-top:36px;color:var(--mist);font-size:14px}summary{cursor:pointer}
 details ul{margin:10px 0 0;padding-left:18px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:anywhere}
 .row{display:grid;grid-template-columns:150px minmax(0,300px) 1fr;gap:10px 24px;align-items:end;
@@ -123,6 +126,31 @@ def _row(row):
     )
 
 
+def _bars(series):
+    """The last days as small columns, drawn to scale. No axis, no colour but blue."""
+    top = max(series) if series else 0
+    if not top:
+        return ""
+    cols = "".join(f'<i style="height:{max(2, round(100 * value / top))}%" title="{value}"></i>' for value in series)
+    return f'<div class="bars" role="img" aria-label="things typed per day, last {len(series)} days">{cols}</div>'
+
+
+def _work(rows):
+    if not rows:
+        return ""
+    esc = html.escape
+    out = ["<h2>Your work</h2>"]
+    for row in rows:
+        number = _count(row["number"]) if row["number"] is not None else ""
+        graph = _bars(row["series"]) if row.get("series") else (_strip(row["part"], row["whole"]) if row.get("whole") else "")
+        if graph and row.get("series"):
+            graph = f'<div class="read">{graph}<span class="cap">the last 14 days</span></div>'
+        big = f'<div class="num">{esc(str(number))}<small>{esc(row["unit"])}</small></div>' if number != "" else '<div class="none">nothing found</div>'
+        out.append(f'<section class="row"><div class="label">{esc(row["label"])}</div>{big}'
+                   f'<div class="say">{esc(row["text"])}</div>{graph}</section>')
+    return "".join(out)
+
+
 def render(card, when=None):
     from helicon.start import plain
 
@@ -156,6 +184,7 @@ def render(card, when=None):
         f"{status}{''.join(_row(row) for row in view['rows'])}"
         "<div class='total'><div class='label'>Total</div><div class='slot'>No total. These five readings "
         "measure different things, so they are not added up.</div></div>"
+        f"{_work(view.get('work') or [])}"
         f"{steps}{details}"
         "<footer>Nothing was changed. This page is a file on this Mac.</footer>"
         "</main></body></html>"

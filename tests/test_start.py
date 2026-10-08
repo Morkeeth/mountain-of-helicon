@@ -138,3 +138,50 @@ def test_share_holds_numbers_only_and_null_for_what_was_not_found(tmp_path, monk
     assert out["skills"]["used_rate"] == 0.75 and out["readings_found"] == 3
     text = json.dumps(out)
     assert "secret" not in text and "private-skill" not in text and "/" not in text
+
+
+def _history_db(tmp_path, rows):
+    os.makedirs(tmp_path / ".trace")
+    con = sqlite3.connect(tmp_path / ".trace" / "trace.db")
+    con.execute("CREATE TABLE messages (session_id TEXT, ts TEXT, text TEXT, is_human INTEGER, harness TEXT)")
+    con.executemany("INSERT INTO messages VALUES (?,?,?,?,?)", rows)
+    con.commit()
+    con.close()
+
+
+def test_work_counts_typed_turns_per_tool_and_never_reads_spend_in_a_test_home(tmp_path, monkeypatch):
+    home = _empty_home(tmp_path, monkeypatch)
+    _history_db(tmp_path, [
+        ("s1", "2026-10-07T10:00:00Z", "fix it", 1, "claude"),
+        ("s1", "2026-10-07T10:01:00Z", "tool output", 0, "claude"),
+        ("s2", "2026-10-08T09:00:00Z", "ship", 1, "codex"),
+        ("s3", "2026-08-01T09:00:00Z", "old", 1, "codex"),
+    ])
+    work = start.read_work(home, today="2026-10-08")
+    assert work["typed"] == 2 and work["by_tool"] == {"claude": 1, "codex": 1} and work["sessions"] == 2
+    assert work["last_14_days"][-2:] == [1, 1] and len(work["last_14_days"]) == 14
+    assert work["spend"] is None  # a test home never starts the spend tool
+
+
+def test_work_rows_say_at_least_when_replies_have_no_price_and_nothing_found_without_the_tool():
+    work = {"found": True, "days": 30, "typed": 6119, "by_tool": {"codex": 4477, "claude": 1061},
+            "sessions": 786, "last_14_days": [0] * 13 + [5], "spend": None}
+    rows = start.work_plain(work)
+    assert rows[-1]["label"] == "Spend" and "nothing found" in rows[-1]["text"]
+    work["spend"] = {"usd": 2014.37, "typed": 1184, "agent_messages": 40344, "unpriced_messages": 28693,
+                     "tokens": 100, "tokens_reread": 97}
+    by_label = {row["label"]: row for row in start.work_plain(work)}
+    assert by_label["Spend"]["number"] == "$2,014" and by_label["Spend"]["unit"] == "or more, at list price" and "71% of agent replies have no price" in by_label["Spend"]["text"]
+    assert by_label["Per prompt"]["number"] == "$1.70" and by_label["Per prompt"]["unit"] == "or more, each" and "34 agent replies" in by_label["Per prompt"]["text"]
+    assert by_label["Re-reading"]["number"] == "97%"
+    work["spend"]["unpriced_messages"] = 0
+    assert start.work_plain(work)[2]["unit"] == "at list price"
+
+
+def test_share_carries_work_numbers_and_no_text(tmp_path, monkeypatch):
+    card = start.build_card(str(tmp_path), home=_empty_home(tmp_path, monkeypatch))
+    assert start.share(card)["work"] is None
+    card["work"] = {"found": True, "read": "/secret/trace.db", "days": 30, "typed": 10, "by_tool": {"claude": 10},
+                    "sessions": 2, "last_14_days": [0] * 14, "spend": None}
+    out = start.share(card)
+    assert out["work"]["typed"] == 10 and "secret" not in json.dumps(out)
