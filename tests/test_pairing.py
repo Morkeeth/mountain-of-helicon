@@ -255,7 +255,7 @@ def test_pre_resolution_stale_cubes_stay_closed(conn):
 # --- audit regressions (Jul 5 adversarial review) ------------------------
 
 def test_resurfaced_pair_scan_with_judge_does_not_crash(conn, monkeypatch):
-    """P0 from the audit: with a Qwen client, the resurfaced conflict's truth
+    """P0 from the audit: with a model client, the resurfaced conflict's truth
     side used a synthetic representative with no DB row -> TypeError inside
     pair_scan, killing helicon report and every watch cron tick the moment
     the never-twice guard fired. The truth side now speaks through the real

@@ -1,6 +1,6 @@
-"""Slice 1: Qwen-as-judge benchmark scoring (ruling-derived probes).
+"""Slice 1: model-as-judge benchmark scoring (ruling-derived probes).
 
-Hermetic: the live judge (Qwen) is behind the CLI; here we test the PURE scorer
+Hermetic: the live judge (a model) is behind the CLI; here we test the PURE scorer
 and probe construction. Ground truth is the operator's human rulings; positives
 are real contradictions (measure recall), negatives are consistent restatements
 (measure specificity). No divide-by-zero, no fabricated numbers.
@@ -29,7 +29,7 @@ def test_score_recall_specificity_accuracy():
         {"is_contradiction": False, "a": "x", "b": "x", "subject": "s3"},
         {"is_contradiction": False, "a": "x", "b": "x", "subject": "s4"},
     ]
-    judged = {"deep": {"model": "qwen3.7-max", "latency_s": 4.0,
+    judged = {"deep": {"model": "model-big", "latency_s": 4.0,
                        # catches 2/2 contradictions, passes 1/2 controls (1 false positive)
                        "verdicts": [True, True, False, True]}}
     r = score_tiers(probes, judged)["rows"]["deep"]
@@ -42,7 +42,7 @@ def test_cross_provider_gated_on_key(monkeypatch):
     from helicon import judge_bench
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     assert judge_bench._openrouter_client() is None       # no key -> no competitor, never faked
-    judges, notes = judge_bench.build_judges({}, ["fast"])  # no Qwen key either
+    judges, notes = judge_bench.build_judges({}, ["fast"])  # no model configured either
     assert judges == []
     assert any("OPENROUTER_API_KEY" in n for n in notes)   # honest "add a key" note
 
@@ -50,17 +50,17 @@ def test_cross_provider_gated_on_key(monkeypatch):
 def test_score_skips_notes_key():
     # judged may carry a "_notes" entry; it must not be scored as a judge
     probes = [{"is_contradiction": True, "a": "x", "b": "y", "subject": "s"}]
-    judged = {"_notes": ["hi"], "qwen3.6-flash": {"model": "qwen3.6-flash", "verdicts": [True]}}
+    judged = {"_notes": ["hi"], "model-small": {"model": "model-small", "verdicts": [True]}}
     rows = score_tiers(probes, judged)["rows"]
-    assert list(rows) == ["qwen3.6-flash"]
+    assert list(rows) == ["model-small"]
 
 
 def test_inter_tier_agreement_and_no_divide_by_zero():
     probes = [{"is_contradiction": True, "a": "x", "b": "y", "subject": "s"},
               {"is_contradiction": False, "a": "x", "b": "x", "subject": "s"}]
     judged = {
-        "fast": {"model": "qwen3.6-flash", "verdicts": [True, False]},
-        "deep": {"model": "qwen3.7-max", "verdicts": [True, True]},
+        "fast": {"model": "model-small", "verdicts": [True, False]},
+        "deep": {"model": "model-big", "verdicts": [True, True]},
     }
     s = score_tiers(probes, judged)
     assert s["inter_tier_agreement"] == 0.5     # agree on probe 0, differ on 1

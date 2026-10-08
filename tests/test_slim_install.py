@@ -147,7 +147,8 @@ def _run_slim(tmp_path: Path, *cli_args: str, code: str | None = None):
     )
     env = {**os.environ, "HOME": str(home), "NO_COLOR": "1", "PYTHONPATH": str(ROOT),
            "PYTHONDONTWRITEBYTECODE": "1"}
-    for key in ("QWEN_API_KEY", "DASHSCOPE_API_KEY", "OPENAI_API_KEY", "HELICON_EXECUTE"):
+    for key in ("HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL", "HELICON_LLM_MODEL",
+                "OPENAI_API_KEY", "HELICON_EXECUTE"):
         env.pop(key, None)
     return subprocess.run([sys.executable, "-c", BLOCK + body], env=env,
                           capture_output=True, text=True, cwd=str(tmp_path), timeout=120)

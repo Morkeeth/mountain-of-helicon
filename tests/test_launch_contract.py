@@ -67,7 +67,7 @@ def test_release_workflow_covers_product_not_only_memory_exam():
 def test_example_server_is_local_only_and_has_no_fake_key():
     config = _read("config.example.json")
     assert '"host": "127.0.0.1"' in config
-    assert "sk-your-qwen-api-key" not in config
+    assert "sk-your-" not in config   # no placeholder that looks like a key
 
 
 def test_executable_launch_receipt_passes_source_controlled_gates():
