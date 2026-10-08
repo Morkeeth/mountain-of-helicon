@@ -113,7 +113,7 @@ def cross_session_verdict(regressed: int | None, snaps_total: int,
 
 
 def memoryagent_report(conn: sqlite3.Connection, client=None,
-                       model: str = "qwen3.6-plus") -> dict:
+                       model: str | None = None) -> dict:
     from helicon.battery import run_battery
     from helicon.eval import (_build_test_queries, _run_forgetting_benchmark,
                               _run_retrieval_benchmark)

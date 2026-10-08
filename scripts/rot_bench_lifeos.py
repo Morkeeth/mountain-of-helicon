@@ -275,7 +275,7 @@ def main():
 
     banner("5. QWEN SECOND PASS — the misses, judged (with un-bannered controls)")
     from helicon.config import load_config
-    from helicon.qwen import get_client, complete_json, set_cache_db
+    from helicon.llm import get_client, complete_json, set_cache_db
     client = get_client(load_config())
     if client is None:
         print("   no Qwen key configured; the deterministic numbers above stand alone")

@@ -107,7 +107,7 @@ def _judge_lines(hits: list[dict]) -> list[str]:
     return lines
 
 
-def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plus") -> list[dict]:
+def run_llm_tests(client, task: str, hits: list[dict], model: str | None = None) -> list[dict]:
     """The subjective (llm-mode) tests, judged by Qwen. Returns [] if no client
     or the call fails — the battery then falls back to deterministic-only, never
     fabricating a verdict."""
@@ -138,7 +138,7 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plu
 
 
 def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
-                model: str = "qwen3.6-plus", stale_after_hours: float | None = None) -> dict:
+                model: str | None = None, stale_after_hours: float | None = None) -> dict:
     """Run the battery on what `task` retrieves. Deterministic tests always run;
     if a Qwen `client` is given, Contradiction/Grounding are judged live by Qwen
     and folded into the verdict (non-critical: they degrade, never break).

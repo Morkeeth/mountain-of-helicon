@@ -41,7 +41,7 @@ COMPILER_SYSTEM = (
 )
 
 
-def compile_rule(client, nl_text: str, model: str = "qwen3.6-plus") -> dict:
+def compile_rule(client, nl_text: str, model: str | None = None) -> dict:
     """NL -> {action, match} via Qwen, strictly validated. Returns
     {"error": ...} when it can't be expressed or the model output is invalid."""
     from helicon.llm import complete_json

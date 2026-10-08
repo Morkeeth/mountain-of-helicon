@@ -2009,7 +2009,7 @@ def cmd_battery(args):
         from helicon.llm import get_client, set_cache_db, resolve_model
         set_cache_db(conn)
         client = get_client(config)
-    model = resolve_model("default", config) if client else "qwen3.6-plus"
+    model = resolve_model("default", config) if client else None
     # Freshness half-life = the fastest-decaying cube type's stability. Scans
     # older than that make any verdict ambiguous (stale memory vs stale scan).
     stability = config.get("forgetting", {}).get("stability", {})
@@ -2107,7 +2107,7 @@ def cmd_rot(args):
     config = load_config()
     conn = init_db(config["db_path"])
 
-    judge_client, judge_model = None, "qwen3.6-flash"
+    judge_client, judge_model = None, None
     if getattr(args, "judge", False):
         try:
             from helicon.llm import get_client, resolve_model, set_cache_db
@@ -3796,7 +3796,7 @@ def cmd_report(args):
     config = load_config()
     conn = init_db(config["db_path"])
     client = None
-    model = "qwen3.6-plus"
+    model = None
     if getattr(args, "llm", False):
         from helicon.llm import get_client, resolve_model, set_cache_db
         set_cache_db(conn)
@@ -3963,7 +3963,7 @@ def cmd_optimize(args):
     from helicon.score import compute_score
     from helicon.forgetting import get_decay_stats
     from helicon.triage import compute_triage_rules, init_triage_table
-    from helicon.llm import get_client, complete, set_cache_db
+    from helicon.llm import get_client, complete, resolve_model, set_cache_db
 
     config = load_config()
     conn = init_db(config["db_path"])
@@ -4015,7 +4015,7 @@ Decay stats:
         client,
         "You are a memory system optimization advisor. Analyze the user's memory audit stats and give specific, actionable recommendations. Focus on: what to review first, what to auto-triage, what decay settings to adjust, and what patterns suggest about the user's workflow. Be direct and specific. No fluff.",
         context,
-        model="qwen-plus",
+        model=resolve_model("default", config, legacy_fallback="qwen-plus"),
         operation="optimize",
     )
     print(result)

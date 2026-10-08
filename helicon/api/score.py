@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from helicon.api.app import get_conn, get_config
 from helicon.score import compute_score, get_score_history, backfill_score_history, record_score_snapshot
 from helicon.forgetting import apply_decay, get_decay_stats
-from helicon.llm import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, MODELS, TIER_COST_PER_1K
+from helicon.llm import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, resolve_model, TIER_COST_PER_1K
 
 router = APIRouter()
 
@@ -95,7 +95,8 @@ async def health_report():
     try:
         client = _get_client(config)
         resp = client.chat.completions.create(
-            model=config.get("qwen_model", "qwen-plus"),
+            model=resolve_model("default", config,
+                                legacy_fallback=config.get("qwen_model", "qwen-plus")),
             messages=[
                 {"role": "system", "content": "You are a memory health analyst. Given memory system statistics, write a concise 3-paragraph health report. Be specific about numbers. Use plain language. No markdown headers."},
                 {"role": "user", "content": f"Generate a health report for this memory system:\n{json.dumps(context, indent=2)}"}
@@ -142,12 +143,12 @@ async def qwen_stats():
 @router.get("/qwen/models")
 async def qwen_models():
     config = get_config()
-    custom = config.get("qwen_models", {})
+    # None for a tier means no model is configured for it; nothing is guessed.
     return {
         "routing": {
-            "fast": custom.get("fast", MODELS["fast"]),
-            "default": custom.get("default", MODELS["default"]),
-            "deep": custom.get("deep", MODELS["deep"]),
+            "fast": resolve_model("fast", config),
+            "default": resolve_model("default", config),
+            "deep": resolve_model("deep", config),
         },
         "cost_per_1k_tokens": TIER_COST_PER_1K,
         "usage": {
