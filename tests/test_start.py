@@ -86,9 +86,11 @@ def test_page_draws_the_card_and_refuses_a_total(tmp_path, monkeypatch):
     card = start.build_card(str(tmp_path), home=_empty_home(tmp_path, monkeypatch))
     card["memory"] = {"found": True, "read": ["/m"], "files": 390, "rotten": 0}
     card["index"] = {"found": True, "read": "/t", "sessions": 3649, "newest": "2026-10-07", "files_with_warnings": 0}
-    page = render(card)
+    from datetime import datetime
+
+    page = render(card, when=datetime(2026, 10, 9, 8, 30))  # a fixed clock: the page must not depend on today
     assert "No total." in page and page.count("nothing found") == 3
-    assert "3,649" in page and "7 Oct 2026" in page
+    assert "3,649" in page and "The latest is from 7 Oct." in page and "9 Oct 2026, 08:30" in page
     assert 'aria-label="0 of 390"></div>' in page  # zero of something draws no fill
     assert "http://" not in page and "https://" not in page  # one local file, no network
 
