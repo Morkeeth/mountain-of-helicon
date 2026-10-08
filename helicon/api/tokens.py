@@ -2,7 +2,7 @@
 
 This endpoint used to be `/tokens/dashboard` and it returned four hardcoded
 zeros: `total_cost_usd`, `cost_usd`, `cached_calls` and `avg_latency`. None of
-those four is knowable from the table it reads. `qwen_cache` has seven columns
+those four is knowable from the table it reads. `llm_cache` has seven columns
 and not one of them is a price, a latency or a cache-hit counter. So a reader
 of that payload saw a 0 and could not tell it apart from a measured zero.
 
@@ -14,11 +14,11 @@ Three corrections, in the order they matter.
 
 2. THE NAME NOW MATCHES THE POPULATION. `tokens` reads as agent token usage
    across Claude Code, Codex and Cursor. This never saw any of those. It reads
-   `qwen_cache`, which is Helicon's OWN judge and narration calls. The honest
+   `llm_cache`, which is Helicon's OWN judge and narration calls. The honest
    route is `/llm-calls/dashboard`. The old path still serves, marked
    deprecated, because silently moving a published route is its own dishonesty.
 
-3. A CACHE ROW IS NOT A CALL. `qwen_cache` is keyed on `cache_key`, so it holds
+3. A CACHE ROW IS NOT A CALL. `llm_cache` is keyed on `cache_key`, so it holds
    one row per distinct prompt. `COUNT(*)` over it undercounts calls by exactly
    the number of cache hits, and nothing records those. The field is therefore
    `cached_responses`, which is what the count actually is. `total_calls` is
@@ -37,7 +37,7 @@ from helicon.api.app import get_conn
 
 router = APIRouter()
 
-SOURCE = "qwen_cache (helicon.db)"
+SOURCE = "llm_cache (helicon.db)"
 POPULATION = "helicon_own_llm_calls"
 HONEST_PATH = "/api/llm-calls/dashboard"
 
@@ -57,13 +57,13 @@ PROVENANCE = {
 }
 
 UNAVAILABLE_BECAUSE = {
-    "total_cost_usd": "qwen_cache stores no price and the model key is BYOK, so "
+    "total_cost_usd": "llm_cache stores no price and the model key is BYOK, so "
                       "there is no per call cost to read or derive.",
-    "cost_usd": "qwen_cache stores no price and the model key is BYOK, so there "
+    "cost_usd": "llm_cache stores no price and the model key is BYOK, so there "
                 "is no per call cost to read or derive.",
-    "avg_latency": "qwen_cache has no latency column. Call duration is not "
+    "avg_latency": "llm_cache has no latency column. Call duration is not "
                    "recorded anywhere in this store.",
-    "cached_calls": "qwen_cache is keyed on cache_key, so it records distinct "
+    "cached_calls": "llm_cache is keyed on cache_key, so it records distinct "
                     "cached responses. Cache HITS are not counted, so the "
                     "number of calls those responses served is unknown.",
 }
@@ -75,7 +75,7 @@ def _dashboard() -> dict:
         rows = conn.execute(
             "SELECT model, COUNT(*) AS cached_responses, "
             "SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens "
-            "FROM qwen_cache GROUP BY model"
+            "FROM llm_cache GROUP BY model"
         ).fetchall()
     except sqlite3.OperationalError:
         # No table is not an empty table. Say which one it is.

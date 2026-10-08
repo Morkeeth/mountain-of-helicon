@@ -96,10 +96,10 @@ def _model_not_configured(operation: str = ""):
 
 def load_cache_from_db(conn: sqlite3.Connection):
     try:
-        # The table keeps its first name. It caches calls to any provider, but
-        # it lives in users' databases, and renaming a table there is out of
-        # scope for a naming cleanup.
-        conn.execute("""CREATE TABLE IF NOT EXISTS qwen_cache (
+        # A database from before the table was renamed keeps its rows.
+        from helicon.db import migrate_llm_cache
+        migrate_llm_cache(conn)
+        conn.execute("""CREATE TABLE IF NOT EXISTS llm_cache (
             cache_key TEXT PRIMARY KEY,
             model TEXT NOT NULL,
             operation TEXT DEFAULT '',
@@ -109,7 +109,7 @@ def load_cache_from_db(conn: sqlite3.Connection):
             created_at TEXT NOT NULL
         )""")
         conn.commit()
-        rows = conn.execute("SELECT cache_key, response FROM qwen_cache").fetchall()
+        rows = conn.execute("SELECT cache_key, response FROM llm_cache").fetchall()
         for row in rows:
             _cache[row["cache_key"]] = row["response"]
     except Exception:
@@ -121,7 +121,7 @@ def _save_to_cache_db(conn: sqlite3.Connection | None, key: str, model: str, ope
         return
     try:
         conn.execute(
-            "INSERT OR REPLACE INTO qwen_cache (cache_key, model, operation, response, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO llm_cache (cache_key, model, operation, response, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (key, model, operation, response, in_tok, out_tok, time.strftime("%Y-%m-%dT%H:%M:%S")),
         )
         conn.commit()
@@ -268,7 +268,7 @@ def complete_json(client, system: str, user: str, model: str | None = None, oper
 def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
     """Token/cost stats for the dashboard.
 
-    Durable usage (calls, tokens, cost) comes from the qwen_cache table, which
+    Durable usage (calls, tokens, cost) comes from the llm_cache table, which
     every live model call in ANY process writes to. The in-process _call_log only
     ever sees this process's calls (CLI runs like `helicon report --llm` happen
     in other processes), so it is used only for session-local data the DB does
@@ -283,7 +283,7 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
             for r in conn.execute(
                 "SELECT COALESCE(NULLIF(operation, ''), 'other') op, COUNT(*) n, "
                 "SUM(COALESCE(input_tokens,0)+COALESCE(output_tokens,0)) tok "
-                "FROM qwen_cache GROUP BY op ORDER BY n DESC"
+                "FROM llm_cache GROUP BY op ORDER BY n DESC"
             ):
                 by_operation[r["op"]] = {"calls": r["n"], "tokens": r["tok"] or 0}
         except sqlite3.Error:
@@ -302,7 +302,7 @@ def get_call_stats(conn: sqlite3.Connection | None = None) -> dict:
                 "SELECT model, COUNT(*) AS calls, "
                 "COALESCE(SUM(input_tokens), 0) AS in_tok, "
                 "COALESCE(SUM(output_tokens), 0) AS out_tok "
-                "FROM qwen_cache GROUP BY model"
+                "FROM llm_cache GROUP BY model"
             ).fetchall()
             for r in rows:
                 b = _bucket(r["model"])
@@ -382,15 +382,15 @@ def get_route_stats() -> dict:
 
 def get_cache_stats_db(conn: sqlite3.Connection) -> dict:
     try:
-        total = conn.execute("SELECT COUNT(*) FROM qwen_cache").fetchone()[0]
+        total = conn.execute("SELECT COUNT(*) FROM llm_cache").fetchone()[0]
         by_model = conn.execute(
-            "SELECT model, COUNT(*) as cnt, SUM(input_tokens) as in_tok, SUM(output_tokens) as out_tok FROM qwen_cache GROUP BY model"
+            "SELECT model, COUNT(*) as cnt, SUM(input_tokens) as in_tok, SUM(output_tokens) as out_tok FROM llm_cache GROUP BY model"
         ).fetchall()
         by_op = conn.execute(
-            "SELECT operation, COUNT(*) as cnt FROM qwen_cache WHERE operation != '' GROUP BY operation"
+            "SELECT operation, COUNT(*) as cnt FROM llm_cache WHERE operation != '' GROUP BY operation"
         ).fetchall()
         tokens_saved = conn.execute(
-            "SELECT SUM(input_tokens + output_tokens) FROM qwen_cache"
+            "SELECT SUM(input_tokens + output_tokens) FROM llm_cache"
         ).fetchone()[0] or 0
         return {
             "cached_responses": total,

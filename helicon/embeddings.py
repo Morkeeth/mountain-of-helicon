@@ -302,7 +302,7 @@ def semantic_search(
 # genuinely different candidate set still gets a live call, because the key
 # includes the documents. This also removes ~13 network round trips from every
 # `rot` run (R8 took 21s).
-# In-process memo AND a durable one in qwen_cache. In-process alone is not
+# In-process memo AND a durable one in llm_cache. In-process alone is not
 # enough: every CLI invocation is a fresh process, so `helicon rot` run three
 # times still gave CLEAN / CLEAN / ROT FOUND — which is precisely what a judge
 # would hit. The verdict has to survive the process that produced it.
@@ -315,7 +315,7 @@ def _rerank_cache_get(conn, key: str):
         return None
     try:
         row = conn.execute(
-            "SELECT response FROM qwen_cache WHERE cache_key = ?", (key,)).fetchone()
+            "SELECT response FROM llm_cache WHERE cache_key = ?", (key,)).fetchone()
         if row:
             import json as _json
             return [(int(i), float(s)) for i, s in _json.loads(row[0])]
@@ -330,14 +330,15 @@ def _rerank_cache_put(conn, key: str, out: list):
     try:
         import json as _json
         from datetime import datetime, timezone
-        # Same table as helicon.llm declares. The name stays: it is in users'
-        # databases, and it caches calls to any provider.
-        conn.execute("""CREATE TABLE IF NOT EXISTS qwen_cache (
+        # Same table as helicon.llm declares.
+        from helicon.db import migrate_llm_cache
+        migrate_llm_cache(conn)
+        conn.execute("""CREATE TABLE IF NOT EXISTS llm_cache (
             cache_key TEXT PRIMARY KEY, model TEXT, operation TEXT,
             response TEXT, input_tokens INTEGER, output_tokens INTEGER,
             created_at TEXT)""")
         conn.execute(
-            "INSERT OR REPLACE INTO qwen_cache (cache_key, model, operation, "
+            "INSERT OR REPLACE INTO llm_cache (cache_key, model, operation, "
             "response, input_tokens, output_tokens, created_at) VALUES (?,?,?,?,?,?,?)",
             (key, "qwen3-rerank", "rerank", _json.dumps(out), 0, 0,
              datetime.now(timezone.utc).replace(tzinfo=None).isoformat()))
