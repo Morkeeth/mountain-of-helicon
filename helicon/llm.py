@@ -206,7 +206,7 @@ def complete(client, system: str, user: str, model: str | None = None, operation
     the live store, the identity judge at default temperature called the same
     pair ('Machine is a content curation tool' vs 'Machine is the eval loop')
     clean on one run and contradicted on the next. The exam has already been
-    burned once by a non-deterministic remote call (the reranker, 11/12/11 across
+    burned once by a non-deterministic remote call (a reranker since removed, 11/12/11 across
     three runs); it does not get to happen twice."""
     if client is None:
         return ""

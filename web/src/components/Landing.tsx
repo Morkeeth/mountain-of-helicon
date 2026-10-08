@@ -45,7 +45,7 @@ const CARDS_DASH = [
   ['Golden Rules', 'The precedent', "Your rulings compiled into your agent's operating law, each with provenance."],
 ];
 const STACK = [
-  ['Retrieval', 'retrieve → rerank', 'Embeddings + FTS, fused by Reciprocal Rank Fusion, with an optional reranker. Any OpenAI-compatible embeddings endpoint, or local keyword + MiniLM.'],
+  ['Retrieval', 'semantic + keyword', 'Embeddings + FTS, fused by Reciprocal Rank Fusion. Any OpenAI-compatible embeddings endpoint, or local keyword + MiniLM.'],
   ['Two-judge court', 'κ, not one voice', 'Each contradiction adjudicated by your model and, when you name one, a second judge from another model family. Splits escalate to you; Cohen’s κ reported.'],
   ['Tiered + honest', 'fast / default / deep', 'Routed by difficulty, structured outputs, response-cached, cost-tracked. Degrades honestly without a key.'],
   ['Alibaba proof', 'runs in Cloud Shell', 'scripts/cloudshell-run.sh boots the backend inside Alibaba Cloud Shell. Local-first everywhere else.'],
@@ -133,7 +133,7 @@ $ `}<CMD c="helicon doctor" />{`
   `}<P c='"helicon"' />{`: { `}<CMD c='"command":"helicon","args":["mcp"]' />{` }
 
 `}<DIM c="agent ▸" />{` load what you know about the auth refactor
-`}<OK c="helicon_context ▸" />{` 6 memories, ranked (embeddings + rerank)
+`}<OK c="helicon_context ▸" />{` 6 memories, ranked (embeddings + keyword)
    #a1f2  "auth uses JWT rotation"   `}<DIM c="verified 3d · used 5x" />{`
    #c8e1  "sessions in Redis"        `}<DIM c="verified 41d" />{`  `}<ROT c="⚠ stale" />{`
 `}<DIM c="agent ▸" />{` #c8e1 is wrong, we moved off Redis, flag it
