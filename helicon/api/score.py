@@ -95,8 +95,7 @@ async def health_report():
     try:
         client = _get_client(config)
         resp = client.chat.completions.create(
-            model=resolve_model("default", config,
-                                legacy_fallback=config.get("qwen_model", "qwen-plus")),
+            model=resolve_model("default", config),
             messages=[
                 {"role": "system", "content": "You are a memory health analyst. Given memory system statistics, write a concise 3-paragraph health report. Be specific about numbers. Use plain language. No markdown headers."},
                 {"role": "user", "content": f"Generate a health report for this memory system:\n{json.dumps(context, indent=2)}"}

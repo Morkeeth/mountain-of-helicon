@@ -372,11 +372,7 @@ def rerank_health() -> dict:
         e = cfg.get("embeddings") or {}
         base_url = (e.get("base_url") or "").lower()
         has_dashscope_key = bool(
-            e.get("api_key")
-            or cfg.get("qwen_api_key")
-            or os.environ.get("QWEN_API_KEY")
-            or os.environ.get("DASHSCOPE_API_KEY")
-        )
+e.get("api_key"))
         if "dashscope" in base_url and not has_dashscope_key:
             return {"ok": None,
                     "reason": "no DashScope key — rerank probe skipped (BYOK); "

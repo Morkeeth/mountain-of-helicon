@@ -188,7 +188,7 @@ def _patch_judge(monkeypatch, fake):
             raise RuntimeError("judge unreachable")
         return {"contradicts": client.verdicts.get(a, False), "explanation": "x",
                 "severity": "critical"}
-    monkeypatch.setattr("helicon.qwen.detect_contradictions", _fake_detect)
+    monkeypatch.setattr("helicon.llm.detect_contradictions", _fake_detect)
 
 
 def test_judge_drops_the_rephrasing_and_keeps_the_real_fork(monkeypatch):
@@ -233,12 +233,12 @@ def test_a_ruled_name_is_never_re_argued_by_the_model(monkeypatch):
 def test_the_judge_is_greedy_by_default():
     """A verdict that changes between identical calls is not a verdict."""
     import inspect
-    from helicon.qwen import detect_contradictions
+    from helicon.llm import detect_contradictions
     assert inspect.signature(detect_contradictions).parameters["temperature"].default == 0.0
 
 
 def test_cache_key_separates_greedy_from_sampled():
-    from helicon.qwen import _cache_key
+    from helicon.llm import _cache_key
     assert _cache_key("s", "u", "m", 0.0) != _cache_key("s", "u", "m", None)
 
 

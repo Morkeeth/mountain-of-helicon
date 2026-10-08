@@ -6,8 +6,8 @@ import sqlite3
 
 import pytest
 
-from helicon import qwen
-from helicon.qwen import get_call_stats, TIER_COST_PER_1K
+from helicon import llm as qwen
+from helicon.llm import get_call_stats, TIER_COST_PER_1K
 
 
 @pytest.fixture

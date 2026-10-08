@@ -41,8 +41,8 @@ async def stores_audit():
         os.remove(db)
     conn = init_db(db)
     scfg = {"db_path": db, "embeddings": cfg.get("embeddings", {}),
-            **{k: cfg[k] for k in ("llm_api_key", "llm_base_url", "llm_model", "llm_models",
-                                   "qwen_api_key", "qwen_base_url", "qwen_models") if k in cfg},
+            **{k: cfg[k] for k in ("llm_api_key", "llm_base_url", "llm_model", "llm_models")
+               if k in cfg},
             "connectors": {"mem0": {"api_key": m["api_key"], "user_id": m.get("user_id", "default"), "limit": 500}}}
     stats = run_scan(scfg)
     if m.get("rename") and len(m["rename"]) == 2:

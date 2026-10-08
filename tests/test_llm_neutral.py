@@ -1,9 +1,9 @@
-"""The model layer is provider-neutral, and an old config still works.
+"""The model layer is provider-neutral and has no memory of its first vendor.
 
 Three promises, each pinned here:
-  1. Resolution order: neutral config key, neutral env, old qwen_* config key,
-     old QWEN_API_KEY env.
-  2. A config that only has qwen_* keys behaves exactly as it did before.
+  1. Resolution order: config key, then the HELICON_LLM_* env.
+  2. Settings from before the layer went neutral are ignored. A config that
+     only has those means "no model configured", and doctor says so in one line.
   3. Nothing configured means OFF with a plain message. No default vendor, no
      guessed model name.
 
@@ -14,10 +14,15 @@ import json
 
 import pytest
 
-from helicon.config import LEGACY_LLM_BASE_URL, load_config, resolve_llm
+from helicon.config import ignored_old_llm_settings, load_config, resolve_llm
+
+# The settings Helicon no longer reads, spelled once for the tests below.
+OLD_KEY, OLD_URL, OLD_MODEL, OLD_TIERS = (
+    "qwen_api_key", "qwen_base_url", "qwen_model", "qwen_models")
+OLD_ENV = "QWEN_API_KEY"
 
 _ENV = ("HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL", "HELICON_LLM_MODEL",
-        "QWEN_API_KEY", "DASHSCOPE_API_KEY", "HELICON_CONFIG")
+        OLD_ENV, "HELICON_CONFIG")
 
 
 @pytest.fixture(autouse=True)
@@ -36,50 +41,29 @@ def _config(tmp_path, data: dict) -> dict:
 
 # --- 1. resolution order ---------------------------------------------------
 
-def test_neutral_config_key_wins_over_everything(tmp_path, monkeypatch):
+def test_config_key_wins_over_env(tmp_path, monkeypatch):
     monkeypatch.setenv("HELICON_LLM_API_KEY", "env-neutral")
-    monkeypatch.setenv("QWEN_API_KEY", "env-old")
-    cfg = _config(tmp_path, {"llm_api_key": "file-neutral", "qwen_api_key": "file-old"})
+    cfg = _config(tmp_path, {"llm_api_key": "file-neutral"})
     r = resolve_llm(cfg)
     assert r["api_key"] == "file-neutral"
     assert r["key_source"] == "config llm_api_key"
 
 
-def test_neutral_env_beats_both_old_sources(tmp_path, monkeypatch):
+def test_env_is_the_fallback(tmp_path, monkeypatch):
     monkeypatch.setenv("HELICON_LLM_API_KEY", "env-neutral")
-    monkeypatch.setenv("QWEN_API_KEY", "env-old")
-    r = resolve_llm(_config(tmp_path, {"qwen_api_key": "file-old"}))
+    r = resolve_llm(_config(tmp_path, {}))
     assert r["api_key"] == "env-neutral"
     assert r["key_source"] == "HELICON_LLM_API_KEY env"
-
-
-def test_old_config_key_beats_old_env(tmp_path, monkeypatch):
-    monkeypatch.setenv("QWEN_API_KEY", "env-old")
-    r = resolve_llm(_config(tmp_path, {"qwen_api_key": "file-old"}))
-    assert r["api_key"] == "file-old"
-    assert r["key_source"] == "config qwen_api_key"
-
-
-def test_old_env_is_the_last_source(tmp_path, monkeypatch):
-    monkeypatch.setenv("QWEN_API_KEY", "env-old")
-    r = resolve_llm(_config(tmp_path, {}))
-    assert r["api_key"] == "env-old"
-    assert r["key_source"] == "QWEN_API_KEY env"
 
 
 def test_base_url_and_model_follow_the_same_order(tmp_path, monkeypatch):
     monkeypatch.setenv("HELICON_LLM_BASE_URL", "http://env.example/v1")
     monkeypatch.setenv("HELICON_LLM_MODEL", "env-model")
-    old = {"qwen_base_url": "http://old.example/v1"}
-    r = resolve_llm(_config(tmp_path, old))
+    r = resolve_llm(_config(tmp_path, {}))
     assert (r["base_url"], r["model"]) == ("http://env.example/v1", "env-model")
-    r = resolve_llm(_config(tmp_path, {**old, "llm_base_url": "http://file.example/v1",
+    r = resolve_llm(_config(tmp_path, {"llm_base_url": "http://file.example/v1",
                                        "llm_model": "file-model"}))
     assert (r["base_url"], r["model"]) == ("http://file.example/v1", "file-model")
-    monkeypatch.delenv("HELICON_LLM_BASE_URL")
-    r = resolve_llm(_config(tmp_path, old))
-    assert r["base_url"] == "http://old.example/v1"
-    assert r["base_url_source"] == "config qwen_base_url"
 
 
 def test_status_never_carries_the_key(tmp_path):
@@ -91,59 +75,58 @@ def test_status_never_carries_the_key(tmp_path):
     assert "sk-secret-value" not in json.dumps(status)
 
 
-# --- 2. an old config is unchanged -----------------------------------------
+# --- 2. old settings are ignored --------------------------------------------
 
-def test_old_only_config_resolves_as_before(tmp_path):
-    from helicon.llm import MODELS, resolve_model
-    cfg = _config(tmp_path, {"qwen_api_key": "file-old",
-                             "qwen_base_url": "http://old.example/v1"})
+def test_old_only_config_means_no_model_configured(tmp_path, monkeypatch):
+    from helicon.llm import get_client, resolve_model
+    monkeypatch.setenv(OLD_ENV, "env-old")
+    cfg = _config(tmp_path, {OLD_KEY: "file-old", OLD_URL: "http://old.example/v1",
+                             OLD_MODEL: "old-model", OLD_TIERS: {"fast": "old-fast"}})
     r = resolve_llm(cfg)
-    assert r["enabled"] is True
-    assert (r["api_key"], r["base_url"]) == ("file-old", "http://old.example/v1")
-    assert cfg["qwen_api_key"] == "file-old"
-    for tier in ("fast", "default", "deep"):
-        assert resolve_model(tier, cfg) == MODELS[tier]
-
-
-def test_old_key_without_base_url_keeps_the_endpoint_it_implied(tmp_path):
-    r = resolve_llm(_config(tmp_path, {"qwen_api_key": "file-old"}))
-    assert r["enabled"] is True
-    assert r["base_url"] == LEGACY_LLM_BASE_URL
-    assert r["base_url_source"] == "legacy default"
-
-
-def test_old_tier_override_still_applies(tmp_path):
-    from helicon.llm import MODELS, resolve_model
-    cfg = _config(tmp_path, {"qwen_api_key": "k", "qwen_models": {"fast": "my-fast"}})
-    assert resolve_model("fast", cfg) == "my-fast"
-    assert resolve_model("deep", cfg) == MODELS["deep"]
-
-
-def test_old_init_config_with_empty_key_stays_off(tmp_path):
-    # What `helicon init` wrote before: the endpoint and an empty key slot.
-    from helicon.llm import get_client
-    cfg = _config(tmp_path, {"qwen_api_key": "", "qwen_model": "qwen3.6-plus",
-                             "qwen_base_url": LEGACY_LLM_BASE_URL})
-    assert resolve_llm(cfg)["enabled"] is False
+    assert r["enabled"] is False
+    assert "no model configured" in r["reason"]
+    assert (r["api_key"], r["base_url"], r["model"]) == ("", "", "")
     assert get_client(cfg) is None
+    for tier in ("fast", "default", "deep"):
+        assert resolve_model(tier, cfg) is None
+
+
+def test_old_settings_do_not_leak_into_a_neutral_config(tmp_path, monkeypatch):
+    from helicon.llm import resolve_model
+    monkeypatch.setenv(OLD_ENV, "env-old")
+    cfg = _config(tmp_path, {"llm_base_url": "http://x.example/v1", "llm_model": "main",
+                             OLD_KEY: "file-old", OLD_TIERS: {"fast": "old-fast"}})
+    r = resolve_llm(cfg)
+    assert r["enabled"] is True and r["api_key"] == ""
+    assert resolve_model("fast", cfg) == "main"
+
+
+def test_ignored_old_settings_are_named_never_valued(tmp_path, monkeypatch):
+    monkeypatch.setenv(OLD_ENV, "env-old-secret")
+    cfg = _config(tmp_path, {OLD_KEY: "file-old-secret", OLD_URL: ""})
+    found = ignored_old_llm_settings(cfg)
+    assert found == [OLD_KEY, f"{OLD_ENV} env"]
+    assert "secret" not in " ".join(found)
+    monkeypatch.delenv(OLD_ENV)
+    assert ignored_old_llm_settings(_config(tmp_path, {"llm_model": "m"})) == []
 
 
 def test_load_config_does_not_rewrite_the_file(tmp_path):
     path = tmp_path / "config.json"
-    before = json.dumps({"db_path": str(tmp_path / "h.db"), "qwen_api_key": "file-old"})
+    before = json.dumps({"db_path": str(tmp_path / "h.db"), OLD_KEY: "file-old"})
     path.write_text(before)
     cfg = load_config(str(path))
     resolve_llm(cfg)
     assert path.read_text() == before
 
 
-def test_old_client_carries_the_old_models(tmp_path):
+def test_no_second_judge_unless_the_config_names_one(tmp_path):
     pytest.importorskip("openai")
-    from helicon.llm import MODELS, default_model, get_client
-    client = get_client(_config(tmp_path, {"qwen_api_key": "file-old"}))
-    assert str(client.base_url).rstrip("/") == LEGACY_LLM_BASE_URL
-    assert default_model(client) == MODELS["default"]
-    assert default_model(client, "fast") == MODELS["fast"]
+    from helicon.llm import default_model, get_client
+    base = {"llm_base_url": "http://x.example/v1", "llm_model": "main"}
+    assert default_model(get_client(_config(tmp_path, base)), "judge2") is None
+    named = get_client(_config(tmp_path, {**base, "llm_judge2_model": "second"}))
+    assert default_model(named, "judge2") == "second"
 
 
 # --- 3. nothing configured means off, said plainly -------------------------
@@ -159,15 +142,6 @@ def test_nothing_configured_is_off_with_a_plain_message(tmp_path):
     assert get_client(cfg) is None
     assert resolve_model("default", cfg) is None   # no guessed model name
     assert get_client({}) is None and resolve_model("default") is None
-
-
-def test_hand_built_config_ignores_the_old_env_key(monkeypatch):
-    # The old env key enters through load_config only, as before. A dict with
-    # no key must never become a live client because of what the shell exports.
-    from helicon.llm import get_client
-    monkeypatch.setenv("QWEN_API_KEY", "x")
-    assert resolve_llm({})["enabled"] is False
-    assert get_client({}) is None
 
 
 def test_neutral_key_alone_gets_no_default_vendor(tmp_path):
@@ -265,27 +239,15 @@ def test_no_vendor_model_name_is_a_default_argument():
                     pytest.fail(f"{mod.__name__}.{name}({p.name}={p.default!r})")
 
 
-# --- the shim ---------------------------------------------------------------
+# --- the old module name is gone ---------------------------------------------
 
-def test_old_import_path_still_works():
-    from helicon.qwen import (complete, complete_json, detect_contradictions,
-                              get_client, resolve_model, set_cache_db)
-    import helicon.llm as llm
-    assert complete is llm.complete and complete_json is llm.complete_json
-    assert get_client is llm.get_client and resolve_model is llm.resolve_model
-    assert detect_contradictions is llm.detect_contradictions
-    assert set_cache_db is llm.set_cache_db
-
-
-def test_shim_and_new_module_are_one_module(monkeypatch):
-    # One object, so the cache, the call log and a monkeypatch are shared.
-    import helicon.llm as llm
-    import helicon.qwen as old
-    from helicon import qwen
-    assert old is llm and qwen is llm
-    assert old._cache is llm._cache and old._call_log is llm._call_log
-    monkeypatch.setattr("helicon.qwen.complete_json", lambda *a, **kw: {"patched": True})
-    assert llm.complete_json(None, "", "") == {"patched": True}
+def test_old_module_name_is_gone():
+    # Asked of THIS package directory. A plain import can be answered by an
+    # editable install of another checkout, which would hide a real removal.
+    import helicon
+    from importlib.machinery import PathFinder
+    old_name = "helicon." + OLD_KEY.split("_")[0]
+    assert PathFinder.find_spec(old_name, helicon.__path__) is None
 
 
 def test_cache_table_keeps_its_name():
@@ -340,17 +302,32 @@ def test_init_writes_no_vendor_and_says_what_works_keyless(tmp_path):
     assert "HELICON_LLM_API_KEY" in out
 
 
-def test_init_keeps_the_old_shape_for_a_shell_with_the_old_key(tmp_path):
+def test_init_ignores_the_old_env_key(tmp_path):
     home = tmp_path / "home"
     home.mkdir()
-    run = _cli(home, "init", extra_env={"QWEN_API_KEY": "old-test-key"})
+    run = _cli(home, "init", extra_env={OLD_ENV: "old-test-key"})
     assert run.returncode == 0, run.stderr
-    written = json.loads((home / ".helicon" / "config.json").read_text())
-    assert written["qwen_api_key"] == "old-test-key"
-    assert written["qwen_base_url"] == LEGACY_LLM_BASE_URL
-    assert "llm_api_key" not in written
-    assert "old-test-key" not in run.stdout + run.stderr
-    assert resolve_llm(written)["enabled"] is True
+    text = (home / ".helicon" / "config.json").read_text()
+    written = json.loads(text)
+    assert written["llm_api_key"] == "" and OLD_KEY not in written
+    assert "old-test-key" not in text + run.stdout + run.stderr
+    assert resolve_llm(written)["enabled"] is False
+
+
+def test_doctor_says_old_settings_are_ignored_in_one_line(tmp_path):
+    home = tmp_path / "home"
+    (home / ".helicon").mkdir(parents=True)
+    cfg = {"db_path": str(home / ".helicon" / "helicon.db"),
+           OLD_KEY: "sk-old-secret", OLD_URL: "http://old.example/v1"}
+    (home / ".helicon" / "config.json").write_text(json.dumps(cfg))
+    out = _cli(home, "doctor", extra_env={OLD_ENV: "sk-env-secret"}).stdout
+    assert "model features off:" in out and "no model configured" in out
+    lines = [ln for ln in out.splitlines() if "old Qwen settings found and ignored" in ln]
+    assert len(lines) == 1, out
+    for name in (OLD_KEY, OLD_URL, f"{OLD_ENV} env", "llm_base_url", "llm_model",
+                 "llm_api_key", "HELICON_LLM_BASE_URL"):
+        assert name in lines[0], name
+    assert "secret" not in out and "old.example" not in out
 
 
 def test_doctor_names_the_source_and_never_the_key(tmp_path):

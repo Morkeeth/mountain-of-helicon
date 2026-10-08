@@ -61,7 +61,7 @@ def test_full_cli_avoids_model_config_and_store_initialization(tmp_path):
     script = '''import sys, importlib.abc, socket
 class Refuse(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname in ('helicon.config','helicon.db','helicon.qwen','helicon.llm','openai','requests'):
+        if fullname in ('helicon.config','helicon.db','helicon.llm','openai','requests'):
             raise AssertionError('forbidden import: '+fullname)
 sys.meta_path.insert(0,Refuse())
 def no(*a,**k): raise AssertionError('network')
