@@ -18,7 +18,7 @@ def conn(tmp_path):
 
 def _open(conn, mode="compact"):
     return tr.open_run(conn, "summarise the user's current diet", "the summary matches the latest ruling",
-                       task_class="content-draft", model="qwen3.6-flash", harness="cc",
+                       task_class="content-draft", model="model-small", harness="cc",
                        skill_versions=["frame@1"], context_mode=mode)
 
 

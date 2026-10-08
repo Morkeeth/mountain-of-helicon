@@ -145,7 +145,7 @@ def test_workgraph_trace_joins_work_to_task_context_memory_skills_and_evidence(c
     import helicon.taskrun as taskrun
     run_id = taskrun.open_run(
         conn, "make a governed prompt", "a contract is emitted", task_class="feature",
-        model="qwen", harness="claude-code", skill_versions=["workgraph@1"],
+        model="model-small", harness="claude-code", skill_versions=["workgraph@1"],
     )
     taskrun.build_packet(conn, run_id, query="")
     taskrun.attach_artifact(conn, run_id, [{"path_or_ref": "helicon/wager.py", "content_hash": "abc", "observed_at": "now"}])
