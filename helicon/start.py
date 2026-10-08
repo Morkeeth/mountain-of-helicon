@@ -121,6 +121,18 @@ def read_skills(home=None):
     if not db:
         return {"found": True, "installed": len(names), "opened_known": False,
                 "why": "no transcript index, so use is unknown"}
+    # The scan reads every message, which takes seconds. The answer only changes when
+    # the index or the installed set changes, so it is kept until one of them does.
+    stat = os.stat(db)
+    key = [stat.st_size, int(stat.st_mtime), sorted(names)]
+    cache = os.path.join(os.path.expanduser("~"), ".helicon", "skills-cache.json") if home is None else None
+    if cache:
+        try:
+            saved = json.load(open(cache, encoding="utf-8"))
+            if saved.get("key") == key:
+                return saved["result"]
+        except (OSError, ValueError, KeyError):
+            pass
     opened = set()
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
@@ -142,8 +154,15 @@ def read_skills(home=None):
     finally:
         con.close()
     never = sorted(names - opened)
-    return {"found": True, "read": db, "installed": len(names), "opened_known": True,
-            "never_opened": len(never), "never_opened_names": never}
+    result = {"found": True, "read": db, "installed": len(names), "opened_known": True,
+              "never_opened": len(never), "never_opened_names": never}
+    if cache:
+        try:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            json.dump({"key": key, "result": result}, open(cache, "w", encoding="utf-8"))
+        except OSError:
+            pass
+    return result
 
 
 def read_index(home=None):
@@ -701,6 +720,46 @@ def menu_line(card):
     if not parts:
         return "All in order", 0
     return " · ".join(parts[:3]), len(parts)
+
+
+def line_path():
+    return os.path.join(os.path.expanduser("~"), ".helicon", "start-line.json")
+
+
+def save_line(card, when, path=None):
+    """Keep the one line on disk, so a session start or a menu bar can show it
+    without building the card. Overwritten on each build; holds no path or name."""
+    path = path or line_path()
+    line, to_fix = menu_line(card)
+    row = {"at": when, "line": line, "to_fix": to_fix}
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(row, handle)
+    except OSError:
+        pass
+    return row
+
+
+def saved_line(path=None, now=None):
+    """The last saved line as one sentence with its age, or None when there is none."""
+    from datetime import datetime
+
+    try:
+        row = json.load(open(path or line_path(), encoding="utf-8"))
+        then = datetime.fromisoformat(row["at"])
+        line = row["line"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    now = now or datetime.now().astimezone()
+    minutes = max(0, int((now - then).total_seconds() // 60))
+    if minutes < 60:
+        age = "just now" if minutes < 2 else f"{minutes} minutes ago"
+    elif minutes < 48 * 60:
+        age = _n(minutes // 60, "hour") + " ago"
+    else:
+        age = _n(minutes // 1440, "day") + " ago"
+    return f"Helicon: {line} (read {age})"
 
 
 def next_steps(card):
