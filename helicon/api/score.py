@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from helicon.api.app import get_conn, get_config
 from helicon.score import compute_score, get_score_history, backfill_score_history, record_score_snapshot
 from helicon.forgetting import apply_decay, get_decay_stats
-from helicon.llm import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, resolve_model, TIER_COST_PER_1K
+from helicon.llm import get_client as _get_client, get_call_stats, get_route_stats, get_cache_stats_db, model_prices, resolve_model
 
 router = APIRouter()
 
@@ -133,9 +133,9 @@ async def score_snapshot(event_label: str = None):
 
 @router.get("/llm/stats")
 async def llm_stats():
-    # Pass the DB conn so stats cover Qwen usage from ALL processes
+    # Pass the DB conn so stats cover model usage from ALL processes
     # (CLI report/battery/rule runs), not just this server process.
-    stats = get_call_stats(get_conn())
+    stats = get_call_stats(get_conn(), get_config())
     return stats
 
 
@@ -149,7 +149,10 @@ async def llm_models():
             "default": resolve_model("default", config),
             "deep": resolve_model("deep", config),
         },
-        "cost_per_1k_tokens": TIER_COST_PER_1K,
+        # What the user configured in llm_prices, per million tokens. Empty
+        # means no price is known, and every cost is then reported as null.
+        "prices_per_million_tokens": {
+            m: {"input": p[0], "output": p[1]} for m, p in model_prices(config).items()},
         "usage": {
             "fast": "Novelty gate (ADD/NOOP/MERGE), summarization, tag extraction",
             "default": "Pattern detection, health reports, entity extraction",
