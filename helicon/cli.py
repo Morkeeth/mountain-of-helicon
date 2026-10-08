@@ -1694,9 +1694,14 @@ def cmd_start(args):
 
     from datetime import datetime
 
-    from helicon.start import load_history, record_reading, trend
+    from helicon.start import load_history, record_reading, save_line, saved_line, trend
 
+    if getattr(args, "line", False):
+        # The saved line only: instant, builds nothing, so a session start can run it.
+        print(saved_line() or "Helicon: no reading yet. Run: helicon start")
+        return
     card = build_card(getattr(args, "path", ".") or ".")
+    save_line(card, datetime.now().astimezone().isoformat(timespec="seconds"))
     if not getattr(args, "no_record", False):
         record_reading(card, datetime.now().astimezone().isoformat(timespec="seconds"))
     history = load_history()
@@ -4940,6 +4945,8 @@ def main():
     start_p.add_argument("--json", action="store_true", help="machine-readable card")
     start_p.add_argument("--share", action="store_true",
                          help="print counts and rates only: no paths, names or text, safe to send to someone")
+    start_p.add_argument("--line", action="store_true",
+                         help="print the last saved one-line state and its age; instant, reads nothing new")
     start_p.add_argument("--no-record", action="store_true",
                          help="do not append this reading to ~/.helicon/start-history.jsonl")
     start_p.add_argument("--html", nargs="?", const="", default=None,

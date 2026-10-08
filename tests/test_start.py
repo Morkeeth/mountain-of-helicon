@@ -239,3 +239,78 @@ def test_menu_line_names_problems_in_plain_words_or_says_all_in_order():
     assert start.menu_line(card) == ("All in order", 0)
     card["install"] = {"behind_main": 38}
     assert start.menu_line(card)[0] == "Helicon is out of date"
+
+
+def test_the_saved_line_is_one_sentence_with_its_age(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from helicon.start import save_line, saved_line
+
+    path = str(tmp_path / "line.json")
+    assert saved_line(path) is None  # nothing saved yet is said, not invented
+    then = datetime(2026, 10, 8, 9, 0, tzinfo=timezone.utc)
+    card = {"memory": {"found": True, "rotten": 1}, "routines": {"known": True, "failed": 14}}
+    row = save_line(card, then.isoformat(), path)
+    assert row["line"] == "1 note out of date · 14 jobs failing" and row["to_fix"] == 2
+    assert saved_line(path, then + timedelta(seconds=30)) == "Helicon: 1 note out of date · 14 jobs failing (read just now)"
+    assert saved_line(path, then + timedelta(hours=3)).endswith("(read 3 hours ago)")
+    assert saved_line(path, then + timedelta(days=4)).endswith("(read 4 days ago)")
+    (tmp_path / "line.json").write_text("not json")
+    assert saved_line(path) is None
+
+
+def test_the_saved_line_holds_no_path_or_name(tmp_path):
+    import json
+
+    from helicon.start import save_line
+
+    card = {"instructions": {"found": True, "broken": 2, "read": "/Users/someone/secret-project"}}
+    save_line(card, "2026-10-08T09:00:00+00:00", str(tmp_path / "line.json"))
+    saved = json.loads((tmp_path / "line.json").read_text())
+    assert sorted(saved) == ["at", "line", "to_fix"] and "someone" not in json.dumps(saved)
+
+
+def test_a_law_refresh_keeps_the_blocks_other_tools_own():
+    from helicon.gold import kept_blocks
+
+    old = ("<!-- RESEARCH-RECALL:start -->\nrecall\n<!-- RESEARCH-RECALL:end -->\n\n"
+           "<!-- STATE:start -->\nstate\n<!-- STATE:end -->\n\n# law\nold law\n"
+           "<!-- HELICON:start -->\nline\n<!-- HELICON:end -->\n")
+    blocks = kept_blocks(old)
+    assert [b.split(":")[0] for b in blocks] == ["<!-- RESEARCH-RECALL", "<!-- STATE", "<!-- HELICON"]
+    assert "old law" not in "".join(blocks)
+    assert kept_blocks("no blocks here") == []
+    assert kept_blocks("<!-- STATE:end --> backwards <!-- STATE:start -->") == []
+
+
+def test_spend_across_tools_reads_a_stored_period_and_names_what_it_cannot_read():
+    from helicon.start import _pick_period, _tools_spend_plain, read_tools_spend
+
+    names = ["2026-03-08_2026-10-06", "2026-10-05_2026-10-06", "2026-09-28_2026-10-04"]
+    assert _pick_period(names) == ("2026-09-28", "2026-10-04")  # a week beats two days and seven months
+    assert _pick_period(["2026-10-05_2026-10-06"]) == ("2026-10-05", "2026-10-06")
+    assert _pick_period([]) is None and _pick_period(["nonsense"]) is None
+    asked = []
+
+    def fetch(path):
+        asked.append(path)
+        if path == "/api/meta":
+            return {"periods": names}
+        return {"usage": {
+            "claude": {"totals": {"est_usd": 647.04}},
+            "codex": {"totals": {"known_priced_usd": 3183.83, "unpriced_tokens": 107075904}, "complete": False},
+            "no_adapter": [{"harness": "Cursor", "status": "unknown"}]}}
+
+    assert read_tools_spend(fetch=fetch)["claude_usd"] == 647.04  # with no day given, as the card calls it
+    del asked[:]
+    spend = read_tools_spend("2026-10-08", fetch=fetch)
+    assert asked[1] == "/api/period?start=2026-09-28&end=2026-10-04"
+    row = _tools_spend_plain(spend)[0]
+    assert row["number"] == "$3,831" and row["unit"] == "or more, at list price"
+    assert "Claude Code $647" in row["text"] and "Codex $3,184 or more" in row["text"]
+    assert "Not readable: Cursor." in row["text"] and "from 28 Sep to 4 Oct" in row["text"]
+
+    def down(path):
+        raise OSError("refused")
+
+    assert read_tools_spend("2026-10-08", fetch=down) is None and _tools_spend_plain(None) == []

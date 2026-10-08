@@ -55,6 +55,21 @@ TARGETS = {
 DEFAULT_TARGETS = ("claude",)
 STATE_START = "<!-- STATE:start -->"
 STATE_END = "<!-- STATE:end -->"
+# Blocks in Codex's global file that other tools own. A refresh of the law keeps them,
+# in the order they stand. Before 8 Oct 2026 only STATE was kept, so a refresh erased
+# the research block without a word.
+KEPT_BLOCKS = ("RESEARCH-RECALL", "STATE", "HELICON")
+
+
+def kept_blocks(old: str) -> list:
+    """The marked blocks of `old` that a refresh must not erase, in file order."""
+    found = []
+    for name in KEPT_BLOCKS:
+        start, end = f"<!-- {name}:start -->", f"<!-- {name}:end -->"
+        if start in old and end in old and old.index(start) < old.index(end):
+            at = old.index(start)
+            found.append((at, old[at:old.index(end) + len(end)].rstrip()))
+    return [block for _, block in sorted(found)]
 
 
 def _clip(text: str, limit: int = RULE_MAX) -> str:
@@ -385,9 +400,10 @@ def inject(conn: sqlite3.Connection, config: dict, apply: bool = False,
                 old = f.read()
         # fleet-ops owns the live STATE block in Codex's global AGENTS.md.
         # A policy refresh must replace the law without erasing today's state.
-        if name == "codex" and STATE_START in old and STATE_END in old:
-            end = old.index(STATE_END) + len(STATE_END)
-            text = old[old.index(STATE_START):end].rstrip() + "\n\n" + text.lstrip()
+        if name == "codex":
+            kept = kept_blocks(old)
+            if kept:
+                text = "\n\n".join(kept) + "\n\n" + text.lstrip()
         if not apply:
             results[name] = {"applied": False, "target": target,
                              "chars": len(text), "sections": scoped,

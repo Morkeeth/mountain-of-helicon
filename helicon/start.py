@@ -121,6 +121,18 @@ def read_skills(home=None):
     if not db:
         return {"found": True, "installed": len(names), "opened_known": False,
                 "why": "no transcript index, so use is unknown"}
+    # The scan reads every message, which takes seconds. The answer only changes when
+    # the index or the installed set changes, so it is kept until one of them does.
+    stat = os.stat(db)
+    key = [stat.st_size, int(stat.st_mtime), sorted(names)]
+    cache = os.path.join(os.path.expanduser("~"), ".helicon", "skills-cache.json") if home is None else None
+    if cache:
+        try:
+            saved = json.load(open(cache, encoding="utf-8"))
+            if saved.get("key") == key:
+                return saved["result"]
+        except (OSError, ValueError, KeyError):
+            pass
     opened = set()
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
@@ -142,8 +154,15 @@ def read_skills(home=None):
     finally:
         con.close()
     never = sorted(names - opened)
-    return {"found": True, "read": db, "installed": len(names), "opened_known": True,
-            "never_opened": len(never), "never_opened_names": never}
+    result = {"found": True, "read": db, "installed": len(names), "opened_known": True,
+              "never_opened": len(never), "never_opened_names": never}
+    if cache:
+        try:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            json.dump({"key": key, "result": result}, open(cache, "w", encoding="utf-8"))
+        except OSError:
+            pass
+    return result
 
 
 def read_index(home=None):
@@ -240,6 +259,77 @@ def _spend(days, today):
     return spend
 
 
+TOKEN_TOOL = "http://127.0.0.1:58620"
+
+
+def _pick_period(names):
+    """The newest stored period of one week to one month; else the newest of any length."""
+    from datetime import date as _date
+
+    spans = []
+    for name in names or []:
+        try:
+            start, end = name.split("_")
+            length = (_date.fromisoformat(end) - _date.fromisoformat(start)).days + 1
+        except ValueError:
+            continue
+        spans.append((7 <= length <= 31, end, -length, start))
+    if not spans:
+        return None
+    _, end, _, start = max(spans)
+    return start, end
+
+
+def read_tools_spend(today=None, fetch=None, cache=None):
+    """Spend across tools, from the local token tool when it is running. It already
+    reads Claude Code and Codex and says which tools it cannot read. This asks only
+    for a period the tool has stored, so it never starts a scan. None when the tool
+    is not there."""
+    import urllib.request
+    from datetime import date
+
+    base = os.environ.get("HELICON_TOKEN_TOOL") or TOKEN_TOOL
+    today = today or date.today().isoformat()
+    if fetch is None:
+        cache = cache or os.path.join(os.path.expanduser("~"), ".helicon", "tools-spend-cache.json")
+        try:
+            saved = json.load(open(cache, encoding="utf-8"))
+            if saved.get("day") == today:
+                return saved["spend"]
+        except (OSError, ValueError, KeyError):
+            pass
+
+        def fetch(path):
+            with urllib.request.urlopen(base + path, timeout=20) as reply:
+                return json.load(reply)
+    try:
+        picked = _pick_period(fetch("/api/meta").get("periods"))
+        if not picked:
+            return None
+        start, end = picked
+        usage = fetch(f"/api/period?start={start}&end={end}").get("usage") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    claude = (usage.get("claude") or {}).get("totals") or {}
+    codex = (usage.get("codex") or {}).get("totals") or {}
+    if claude.get("est_usd") is None and codex.get("known_priced_usd") is None:
+        return None
+    spend = {
+        "start": start, "end": end,
+        "claude_usd": claude.get("est_usd"), "codex_usd": codex.get("known_priced_usd"),
+        "codex_tokens_without_price": codex.get("unpriced_tokens") or 0,
+        "codex_complete": bool((usage.get("codex") or {}).get("complete")),
+        "unknown": [row.get("harness") for row in usage.get("no_adapter") or [] if row.get("harness")],
+    }
+    if cache:
+        try:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            json.dump({"day": today, "spend": spend}, open(cache, "w", encoding="utf-8"))
+        except OSError:
+            pass
+    return spend
+
+
 def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
     """What the person did with agents in the last `days` days: things typed, sessions,
     and what it cost. Typed turns and sessions come from the transcript index; spend
@@ -274,6 +364,7 @@ def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
     out = {"found": True, "read": db, "days": days, "typed": sum(by_tool.values()), "by_tool": by_tool,
            "sessions": sessions, "last_14_days": series}
     out["spend"] = _spend(days, today) if with_spend and home is None else None
+    out["tools_spend"] = read_tools_spend(today) if with_spend and home is None else None
     return out
 
 
@@ -611,6 +702,7 @@ def work_plain(work):
         {"label": "Sessions", "number": work["sessions"], "unit": "sessions",
          "text": f"of work with agents in {days} days."},
     ]
+    rows.extend(_tools_spend_plain(work.get("tools_spend")))
     spend = work.get("spend")
     if not spend or spend.get("usd") is None:
         rows.append({"label": "Spend", "number": None, "unit": "",
@@ -634,6 +726,22 @@ def work_plain(work):
                      "text": "were the agent reading earlier context again. A token is a small piece of text the model reads or writes.",
                      "part": spend["tokens_reread"], "whole": spend["tokens"]})
     return rows
+
+
+def _tools_spend_plain(tools):
+    """One row: spend across every tool that can be read, and the ones that cannot."""
+    if not tools:
+        return []
+    claude, codex = tools.get("claude_usd") or 0, tools.get("codex_usd") or 0
+    floor = bool(tools.get("codex_tokens_without_price")) or not tools.get("codex_complete")
+    parts = [f"Claude Code ${claude:,.0f}", f"Codex ${codex:,.0f}" + (" or more" if floor else "")]
+    unknown = [name for name in tools.get("unknown") or []]
+    not_read = f" Not readable: {', '.join(unknown)}." if unknown else ""
+    return [{"label": "All tools", "number": f"${claude + codex:,.0f}",
+             "unit": ("or more, " if floor else "") + "at list price",
+             "text": (f"from {_day(tools['start'])} to {_day(tools['end'])}. {'. '.join(parts)}. "
+                      f"On a subscription this is not a bill.{not_read}"),
+             "part": round(claude), "whole": round(claude + codex) or None}]
 
 
 def share(card):
@@ -701,6 +809,46 @@ def menu_line(card):
     if not parts:
         return "All in order", 0
     return " · ".join(parts[:3]), len(parts)
+
+
+def line_path():
+    return os.path.join(os.path.expanduser("~"), ".helicon", "start-line.json")
+
+
+def save_line(card, when, path=None):
+    """Keep the one line on disk, so a session start or a menu bar can show it
+    without building the card. Overwritten on each build; holds no path or name."""
+    path = path or line_path()
+    line, to_fix = menu_line(card)
+    row = {"at": when, "line": line, "to_fix": to_fix}
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(row, handle)
+    except OSError:
+        pass
+    return row
+
+
+def saved_line(path=None, now=None):
+    """The last saved line as one sentence with its age, or None when there is none."""
+    from datetime import datetime
+
+    try:
+        row = json.load(open(path or line_path(), encoding="utf-8"))
+        then = datetime.fromisoformat(row["at"])
+        line = row["line"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    now = now or datetime.now().astimezone()
+    minutes = max(0, int((now - then).total_seconds() // 60))
+    if minutes < 60:
+        age = "just now" if minutes < 2 else f"{minutes} minutes ago"
+    elif minutes < 48 * 60:
+        age = _n(minutes // 60, "hour") + " ago"
+    else:
+        age = _n(minutes // 1440, "day") + " ago"
+    return f"Helicon: {line} (read {age})"
 
 
 def next_steps(card):
