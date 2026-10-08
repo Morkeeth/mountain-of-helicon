@@ -5,7 +5,7 @@ holds: who and what recur, the kind of work you make, how much of the record is
 still true, and the three moves the record itself argues for.
 
 The digest is deterministic and free (counts, entities, output mix, health).
-Qwen does one thing: turn that digest into a grounded reading, in the Court's
+The model does one thing: turn that digest into a grounded reading, in the Court's
 voice, inventing nothing the digest does not contain.
 """
 import re

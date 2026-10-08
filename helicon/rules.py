@@ -1,7 +1,7 @@
 """Prompted rules — the human states the rule; the system gathers and grades.
 
 The Review 2.0 inversion: instead of deriving rules from hundreds of clicks,
-Oscar says "kill code edits older than 30 days unless tagged decision", Qwen
+Oscar says "kill code edits older than 30 days unless tagged decision", the model
 compiles it to a RESTRICTED predicate (whitelisted fields, never freeform
 code — predicate meaning must not drift), and before anything is approved the
 preview shows the Snorkel-style numbers: coverage, samples, empirical
@@ -42,7 +42,7 @@ COMPILER_SYSTEM = (
 
 
 def compile_rule(client, nl_text: str, model: str | None = None) -> dict:
-    """NL -> {action, match} via Qwen, strictly validated. Returns
+    """NL -> {action, match} via the model, strictly validated. Returns
     {"error": ...} when it can't be expressed or the model output is invalid."""
     from helicon.llm import complete_json
 

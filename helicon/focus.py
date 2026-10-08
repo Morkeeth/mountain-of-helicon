@@ -7,7 +7,7 @@ what to *do* about it is the human act this surfaces.
 Every move must cite the exact memory it came from (Trust-Align, arXiv
 2409.11242) and the citation must point at the memory that actually justifies
 the move, not a vaguely-related one (Correctness != Faithfulness, 2412.18004).
-So we hand Qwen a fixed set of ref-ids and drop any move whose citations do not
+So we hand the model a fixed set of ref-ids and drop any move whose citations do not
 resolve back to one of them, no free-floating advice ever ships.
 """
 

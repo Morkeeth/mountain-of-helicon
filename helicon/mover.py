@@ -9,7 +9,7 @@ Code / Codex without carrying the rot along.
 v0 verification:
   - deterministic + free: volatility markers (TODO/WIP/"as of"/"currently"/...)
     and stale dates (a past date older than a threshold) are held back.
-  - optional Qwen judge (validated in judge-bench): --verify-contradictions runs
+  - optional model judge (validated in judge-bench): --verify-contradictions runs
     the kept items pairwise and holds any that contradict an earlier kept item.
 Writes are DRY-RUN by default; --apply backs up the target first.
 """
@@ -83,7 +83,7 @@ def plan_move(items: list[dict], now: datetime | None = None, stale_days: int = 
 
 
 def verify_contradictions(config: dict, kept: list[dict], cap: int = 20) -> dict:
-    """Optional Qwen-judge pass: hold any kept item that contradicts an earlier
+    """Optional model-judge pass: hold any kept item that contradicts an earlier
     kept one. Bounded to `cap` items (pairwise is O(n^2)). Reuses the judge
     validated in judge-bench."""
     from helicon.llm import detect_contradictions, get_client, resolve_model

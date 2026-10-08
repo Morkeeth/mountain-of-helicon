@@ -44,7 +44,7 @@ def _terms(text: str) -> set[str]:
 @router.get("/integrity/battery")
 async def integrity_battery(llm: bool = False):
     """Live context-quality battery over the real benchmark tasks. With ?llm=true
-    the Contradiction/Grounding tests are judged live by Qwen (slower, needs a
+    the Contradiction/Grounding tests are judged live by the model (slower, needs a
     key); default is deterministic-only for a fast dashboard load."""
     conn = get_conn()
     client = model = None

@@ -3,12 +3,13 @@
   "llm_api_key": "",
   "llm_base_url": "",
   "llm_model": "",
+  "llm_prices": {},
   "openrouter_api_key": "",
   "embeddings": {
     "api_key": "",
-    "base_url": "https://openrouter.ai/api/v1",
-    "model": "openai/text-embedding-3-small",
-    "dim": 1536
+    "base_url": "",
+    "model": "",
+    "dim": 0
   },
   "connectors": {
     "claude-code": {

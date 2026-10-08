@@ -101,7 +101,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
 
     # R1 cross-source contradiction — the pair selector (helicon.pairing)
     # finds disjoint dated facts about the same person across source files;
-    # the Qwen detector rules on what it finds.
+    # the model detector rules on what it finds.
     # Verdict scope: live conflicts + open PAIRING findings only. An open
     # agent-flag about something else must not pin R1 at ROT FOUND forever
     # (that would mute watch's flip alert for real contradictions).

@@ -23,7 +23,7 @@ ENTITY_PATTERNS = {
         r"\b([A-ZÀ-Þ][a-zà-öø-ÿ]+)\s(?:said|mentioned|reviewed|approved|killed|decided)\b",
     ],
     "tool": [
-        r"\b(Claude Code|Obsidian|Cursor|ChatGPT|Qwen|FastAPI|React|Vite|SQLite|Docker)\b",
+        r"\b(Claude Code|Obsidian|Cursor|ChatGPT|FastAPI|React|Vite|SQLite|Docker)\b",
         r"\b(MCP|Vercel|GitHub|Linear|Telegram|Slack)\b",
     ],
     "concept": [

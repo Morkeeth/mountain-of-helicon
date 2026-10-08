@@ -273,20 +273,23 @@ def main():
           f"did not banner (staleness beyond the human pass)")
 
 
-    banner("5. QWEN SECOND PASS — the misses, judged (with un-bannered controls)")
+    banner("5. MODEL SECOND PASS — the misses, judged (with un-bannered controls)")
     from helicon.config import load_config
-    from helicon.llm import get_client, complete_json, set_cache_db
-    client = get_client(load_config())
+    from helicon.llm import get_client, complete_json, llm_status, resolve_model, set_cache_db
+    bench_config = load_config()
+    client = get_client(bench_config)
     if client is None:
-        print("   no Qwen key configured; the deterministic numbers above stand alone")
+        print(f"   {llm_status(bench_config)['reason']}; "
+              "the deterministic numbers above stand alone")
         return
+    judge_model = resolve_model("default", bench_config)
     set_cache_db(conn)
     from helicon.snapshots import _retrieve
 
     root_map = {os.path.basename(os.path.normpath(r)): r for r in roots}
 
     def judge(rel):
-        """Qwen reads the stripped doc + 5 related memories from the same
+        """The model reads the stripped doc + 5 related memories from the same
         store, and rules conservatively. The answer key never enters."""
         label, _, sub = rel.partition("/")
         try:
@@ -320,7 +323,7 @@ def main():
             '{"rot_found": true|false, "findings": [{"claim": "...", '
             '"why": "...", "class": "R1|R3|R4", "grounds_type": "date|memory", '
             '"grounds": "verbatim quote"}]}',
-            model="qwen3.6-plus", operation="second_pass")
+            model=judge_model, operation="second_pass")
 
     def grounded(v, rel):
         """A finding whose quoted grounds do not appear in what the judge was
@@ -348,7 +351,7 @@ def main():
             f0 = v["findings"][0]
             caught2.append(rel)
             print(f"   CAUGHT [{f0.get('class','?')}] {rel}")
-            print(f"          qwen: {str(f0.get('claim',''))[:95]}")
+            print(f"          model: {str(f0.get('claim',''))[:95]}")
         else:
             print(f"   miss   {rel} — {what}")
 
@@ -367,16 +370,16 @@ def main():
         if kept:
             flagged.append(cf)
             print(f"   control FLAGGED {cf}")
-            print(f"          qwen: {str(v['findings'][0].get('claim',''))[:95]}")
+            print(f"          model: {str(v['findings'][0].get('claim',''))[:95]}")
         else:
             print(f"   control clean   {cf}")
 
     print(f"\n   second pass: +{len(caught2)}/{len(missed)} deterministic "
-          f"misses caught by Qwen")
+          f"misses caught by the model")
     print(f"   un-bannered controls flagged: {len(flagged)}/{len(controls)} "
           f"(false positive OR human miss — review the claims above)")
     print(f"   layered result: {len(caught)}/{denom} keyless, "
-          f"{len(caught) + len(caught2)}/{denom} with a Qwen key")
+          f"{len(caught) + len(caught2)}/{denom} with a model configured")
 
     print(f"\nReproduce: python3 scripts/rot_bench_lifeos.py  "
           f"(read-only; throwaway DB; banners stripped as answer key)")

@@ -1,6 +1,6 @@
 """Cross-source contradiction pairing — the R1 selector.
 
-ROT.md R1 said it out loud: the Qwen detector was proven on the real birthday
+ROT.md R1 said it out loud: the model detector was proven on the real birthday
 pair, but *production pairing across sources* was the gap — nothing selected
 which two cubes to hand the detector, so the conflict only surfaced when a
 human already knew where to look.
@@ -11,7 +11,7 @@ range) inside a small window around an event keyword ("birthday", "wedding",
 ...). Assertions group by (person, topic); a group where two different source
 files assert two *disjoint* intervals is a candidate contradiction ("Sep
 11-13" vs "Sep 13" overlap, so they agree; "Jul 13" vs "Jul 18" cannot both
-be true). The selector finds, the Qwen judge (detect_contradictions) rules;
+be true). The selector finds, the model judge (detect_contradictions) rules;
 with no key the disjoint-interval mismatch itself is the verdict. Zero LLM
 calls in the selector.
 
@@ -371,7 +371,7 @@ def find_conflicts(conn: sqlite3.Connection) -> list[dict]:
             if not by_iv:
                 continue  # resolved, and nothing new contradicts the truth
             # The truth's representative is the CORRECTION CUBE resolve_pair
-            # wrote — a real DB row, so the Qwen judge downstream always has
+            # wrote — a real DB row, so the model judge downstream always has
             # real content to rule on (a synthetic marker here crashed
             # pair_scan the moment the guard fired with a client configured).
             crow = conn.execute(
@@ -648,7 +648,7 @@ def _cohen_kappa(p: dict) -> float | None:
 def pair_scan(conn: sqlite3.Connection, client=None, model: str | None = None,
               judge2_model: str | None = None) -> dict:
     """Find cross-source conflicts and file each new one as a factual audit
-    finding. With a Qwen client, every candidate pair is confirmed by
+    finding. With a model client, every candidate pair is confirmed by
     detect_contradictions before filing (the judge can veto the selector);
     without one, the disjoint-interval mismatch is the verdict. Idempotent:
     a pair_key already in audit_log is never filed twice."""

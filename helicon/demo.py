@@ -271,10 +271,10 @@ def seed(db_path: str | None = None) -> dict:
         ("claude-opus-4-8", "backend-fix", "verified"), ("claude-opus-4-8", "backend-fix", "verified"),
         ("claude-opus-4-8", "backend-fix", "verified"), ("claude-opus-4-8", "backend-fix", "verified"),
         ("claude-opus-4-8", "backend-fix", "verified"), ("claude-opus-4-8", "backend-fix", "contradicted"),
-        ("qwen3.6-plus", "backend-fix", "verified"), ("qwen3.6-plus", "backend-fix", "contradicted"),
-        ("qwen3.6-plus", "copy-writing", "verified"), ("qwen3.6-plus", "copy-writing", "verified"),
-        ("qwen3.6-plus", "copy-writing", "verified"), ("qwen3.6-plus", "copy-writing", "verified"),
-        ("qwen3.6-plus", "copy-writing", "verified"), ("claude-opus-4-8", "copy-writing", "verified"),
+        ("small-model", "backend-fix", "verified"), ("small-model", "backend-fix", "contradicted"),
+        ("small-model", "copy-writing", "verified"), ("small-model", "copy-writing", "verified"),
+        ("small-model", "copy-writing", "verified"), ("small-model", "copy-writing", "verified"),
+        ("small-model", "copy-writing", "verified"), ("claude-opus-4-8", "copy-writing", "verified"),
     ]
     for i, (model, tc, verdict) in enumerate(_route):
         conn.execute(
@@ -287,7 +287,7 @@ def seed(db_path: str | None = None) -> dict:
     # not earn it sits next to the cheap one that did.
     _runs = [
         ("run-2026-07-18", "claude-opus-4-8", 90, 8, 10, 0.80, 12.40, 0.62),
-        ("run-2026-07-17", "qwen3.6-plus", 60, 5, 6, 0.83, 6.20, 0.11),
+        ("run-2026-07-17", "small-model", 60, 5, 6, 0.83, 6.20, 0.11),
         ("run-2026-07-16", "claude-opus-4-8", 60, 3, 7, 0.43, 3.10, 0.90),
     ]
     for rid, model, dur, ver, chk, ratio, cost, score in _runs:

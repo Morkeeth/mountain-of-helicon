@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/focus/moves")
 async def focus_moves():
-    """Generate cited next-moves from the current memory state (Qwen)."""
+    """Generate cited next-moves from the current memory state (model)."""
     return generate_next_moves(get_conn(), get_config())
 
 
@@ -126,7 +126,7 @@ async def focus_route(body: RouteBody):
 @router.get("/portrait")
 async def portrait():
     """The reading: a grounded portrait of who the record shows you are, plus
-    the process arc. Qwen narrates a deterministic digest (heavy-ish, so it is
+    the process arc. The model narrates a deterministic digest (heavy-ish, so it is
     an explicit tab load, not an auto-poll)."""
     from helicon.portrait import build_portrait
     from helicon.llm import get_client
@@ -150,7 +150,7 @@ async def consistency():
 @router.get("/volatility/scan")
 async def volatility_scan():
     """The volatility gate: which stored memories are fast facts that belong in
-    the live layer, not memory. Deterministic suspects, then Qwen sentences the
+    the live layer, not memory. Deterministic suspects, then the model sentences the
     top ones with a tier + the event that would make each wrong."""
     from helicon.llm import get_client
     from helicon.volatility import scan_volatility

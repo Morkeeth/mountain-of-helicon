@@ -1,7 +1,7 @@
-"""Mem0 connector — memories from the store Alibaba itself recommends.
+"""Mem0 connector — memories from a widely used agent memory store.
 
-Alibaba Cloud documents three memory backends for Qwen agents: Model Studio
-Memory Bank, Mem0 + Hologres, and Mem0 + AnalyticDB. This read-side adapter
+Mem0 is offered standalone and as the memory layer under several cloud
+agent stacks. This read-side adapter
 lets Mountain of Helicon audit all the Mem0-shaped ones: pull every memory for a
 user and hand it to the same battery/snapshot/reconcile machinery as any
 other source. We audit; the store keeps the write path.
