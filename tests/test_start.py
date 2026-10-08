@@ -281,3 +281,34 @@ def test_a_law_refresh_keeps_the_blocks_other_tools_own():
     assert "old law" not in "".join(blocks)
     assert kept_blocks("no blocks here") == []
     assert kept_blocks("<!-- STATE:end --> backwards <!-- STATE:start -->") == []
+
+
+def test_spend_across_tools_reads_a_stored_period_and_names_what_it_cannot_read():
+    from helicon.start import _pick_period, _tools_spend_plain, read_tools_spend
+
+    names = ["2026-03-08_2026-10-06", "2026-10-05_2026-10-06", "2026-09-28_2026-10-04"]
+    assert _pick_period(names) == ("2026-09-28", "2026-10-04")  # a week beats two days and seven months
+    assert _pick_period(["2026-10-05_2026-10-06"]) == ("2026-10-05", "2026-10-06")
+    assert _pick_period([]) is None and _pick_period(["nonsense"]) is None
+    asked = []
+
+    def fetch(path):
+        asked.append(path)
+        if path == "/api/meta":
+            return {"periods": names}
+        return {"usage": {
+            "claude": {"totals": {"est_usd": 647.04}},
+            "codex": {"totals": {"known_priced_usd": 3183.83, "unpriced_tokens": 107075904}, "complete": False},
+            "no_adapter": [{"harness": "Cursor", "status": "unknown"}]}}
+
+    spend = read_tools_spend("2026-10-08", fetch=fetch)
+    assert asked[1] == "/api/period?start=2026-09-28&end=2026-10-04"
+    row = _tools_spend_plain(spend)[0]
+    assert row["number"] == "$3,831" and row["unit"] == "or more, at list price"
+    assert "Claude Code $647" in row["text"] and "Codex $3,184 or more" in row["text"]
+    assert "Not readable: Cursor." in row["text"] and "from 28 Sep to 4 Oct" in row["text"]
+
+    def down(path):
+        raise OSError("refused")
+
+    assert read_tools_spend("2026-10-08", fetch=down) is None and _tools_spend_plain(None) == []

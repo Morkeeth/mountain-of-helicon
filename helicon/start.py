@@ -259,6 +259,76 @@ def _spend(days, today):
     return spend
 
 
+TOKEN_TOOL = "http://127.0.0.1:58620"
+
+
+def _pick_period(names):
+    """The newest stored period of one week to one month; else the newest of any length."""
+    from datetime import date as _date
+
+    spans = []
+    for name in names or []:
+        try:
+            start, end = name.split("_")
+            length = (_date.fromisoformat(end) - _date.fromisoformat(start)).days + 1
+        except ValueError:
+            continue
+        spans.append((7 <= length <= 31, end, -length, start))
+    if not spans:
+        return None
+    _, end, _, start = max(spans)
+    return start, end
+
+
+def read_tools_spend(today=None, fetch=None, cache=None):
+    """Spend across tools, from the local token tool when it is running. It already
+    reads Claude Code and Codex and says which tools it cannot read. This asks only
+    for a period the tool has stored, so it never starts a scan. None when the tool
+    is not there."""
+    import urllib.request
+
+    base = os.environ.get("HELICON_TOKEN_TOOL") or TOKEN_TOOL
+    today = today or date.today().isoformat()
+    if fetch is None:
+        cache = cache or os.path.join(os.path.expanduser("~"), ".helicon", "tools-spend-cache.json")
+        try:
+            saved = json.load(open(cache, encoding="utf-8"))
+            if saved.get("day") == today:
+                return saved["spend"]
+        except (OSError, ValueError, KeyError):
+            pass
+
+        def fetch(path):
+            with urllib.request.urlopen(base + path, timeout=20) as reply:
+                return json.load(reply)
+    try:
+        picked = _pick_period(fetch("/api/meta").get("periods"))
+        if not picked:
+            return None
+        start, end = picked
+        usage = fetch(f"/api/period?start={start}&end={end}").get("usage") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    claude = (usage.get("claude") or {}).get("totals") or {}
+    codex = (usage.get("codex") or {}).get("totals") or {}
+    if claude.get("est_usd") is None and codex.get("known_priced_usd") is None:
+        return None
+    spend = {
+        "start": start, "end": end,
+        "claude_usd": claude.get("est_usd"), "codex_usd": codex.get("known_priced_usd"),
+        "codex_tokens_without_price": codex.get("unpriced_tokens") or 0,
+        "codex_complete": bool((usage.get("codex") or {}).get("complete")),
+        "unknown": [row.get("harness") for row in usage.get("no_adapter") or [] if row.get("harness")],
+    }
+    if cache:
+        try:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            json.dump({"day": today, "spend": spend}, open(cache, "w", encoding="utf-8"))
+        except OSError:
+            pass
+    return spend
+
+
 def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
     """What the person did with agents in the last `days` days: things typed, sessions,
     and what it cost. Typed turns and sessions come from the transcript index; spend
@@ -293,6 +363,7 @@ def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
     out = {"found": True, "read": db, "days": days, "typed": sum(by_tool.values()), "by_tool": by_tool,
            "sessions": sessions, "last_14_days": series}
     out["spend"] = _spend(days, today) if with_spend and home is None else None
+    out["tools_spend"] = read_tools_spend(today) if with_spend and home is None else None
     return out
 
 
@@ -630,6 +701,7 @@ def work_plain(work):
         {"label": "Sessions", "number": work["sessions"], "unit": "sessions",
          "text": f"of work with agents in {days} days."},
     ]
+    rows.extend(_tools_spend_plain(work.get("tools_spend")))
     spend = work.get("spend")
     if not spend or spend.get("usd") is None:
         rows.append({"label": "Spend", "number": None, "unit": "",
@@ -653,6 +725,22 @@ def work_plain(work):
                      "text": "were the agent reading earlier context again. A token is a small piece of text the model reads or writes.",
                      "part": spend["tokens_reread"], "whole": spend["tokens"]})
     return rows
+
+
+def _tools_spend_plain(tools):
+    """One row: spend across every tool that can be read, and the ones that cannot."""
+    if not tools:
+        return []
+    claude, codex = tools.get("claude_usd") or 0, tools.get("codex_usd") or 0
+    floor = bool(tools.get("codex_tokens_without_price")) or not tools.get("codex_complete")
+    parts = [f"Claude Code ${claude:,.0f}", f"Codex ${codex:,.0f}" + (" or more" if floor else "")]
+    unknown = [name for name in tools.get("unknown") or []]
+    not_read = f" Not readable: {', '.join(unknown)}." if unknown else ""
+    return [{"label": "All tools", "number": f"${claude + codex:,.0f}",
+             "unit": ("or more, " if floor else "") + "at list price",
+             "text": (f"from {_day(tools['start'])} to {_day(tools['end'])}. {'. '.join(parts)}. "
+                      f"On a subscription this is not a bill.{not_read}"),
+             "part": round(claude), "whole": round(claude + codex) or None}]
 
 
 def share(card):
