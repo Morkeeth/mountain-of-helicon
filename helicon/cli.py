@@ -8,7 +8,7 @@ Usage:
   helicon fix-skills    Write descriptions into SKILL.md files missing one (dry-run by default)
   helicon serve         Start the web UI
   helicon triage        Run auto-triage (autonomous decisions)
-  helicon doctor        Health check: PATH, config, Qwen key, DB, last scan
+  helicon doctor        Health check: PATH, config, model key, DB, last scan
   helicon mcp           Run the MCP server on stdio (for agent clients)
   helicon science       Grade your live store against published agent-research thresholds
   helicon measurement-bench  Science + weekly series + store truth (one pass)
@@ -183,26 +183,46 @@ def cmd_init(args):
                 print(f"    {k}: {v}")
         print()
 
-    # BYOK: write the Alibaba endpoints, not just an empty key slot. init used to
-    # emit `qwen_api_key: ""` and nothing else, so a new user who pasted a key got
-    # inference (qwen_base_url fell through to the DashScope default in
-    # qwen.get_client) but NOT embeddings: with no `embeddings` block,
-    # _embed_provider silently drops to the local MiniLM fallback. So the claim
-    # "the retrieval stack is Qwen-native" was true of a hand-edited config and
-    # false on a fresh install, which is the worst possible split. Write both
-    # endpoints; the keys stay empty and the user brings them.
+    # No default vendor. Helicon was born on one provider's endpoint and init
+    # used to write that endpoint into every new config, so "bring your own
+    # key" really meant "bring that provider's key". A new config now carries
+    # empty neutral slots: the user names any OpenAI-compatible endpoint, a
+    # local one included, or names none and runs the deterministic half.
+    # The HELICON_LLM_* env vars are read at run time (config.resolve_llm), so
+    # nothing from the environment is copied into the file.
+    #
+    # One exception, for the people already here: a shell that still exports
+    # QWEN_API_KEY and nothing neutral gets the old shape, endpoint included.
+    # An old key in a neutral slot with no endpoint would turn their model
+    # features off on the next `init --force`. The embeddings block in that
+    # shape is the 2026 fix it always was: without it _embed_provider drops to
+    # the local MiniLM fallback while inference stays remote.
     env_key = os.environ.get("QWEN_API_KEY", "")
+    neutral_env = any(os.environ.get(k) for k in (
+        "HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL", "HELICON_LLM_MODEL"))
+    legacy_shape = bool(env_key) and not neutral_env
+    if legacy_shape:
+        model_block = {
+            "qwen_api_key": env_key,
+            "qwen_model": "qwen3.6-plus",
+            "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "embeddings": {
+                "api_key": os.environ.get("DASHSCOPE_API_KEY", env_key),
+                "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                "model": "text-embedding-v4",
+                "dim": 1024,
+            },
+        }
+    else:
+        model_block = {
+            "llm_api_key": "",
+            "llm_base_url": "",
+            "llm_model": "",
+            "embeddings": {"api_key": "", "base_url": "", "model": ""},
+        }
     config = {
         "db_path": os.path.join(helicon_home(), "helicon.db"),
-        "qwen_api_key": env_key,
-        "qwen_model": "qwen3.6-plus",
-        "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-        "embeddings": {
-            "api_key": os.environ.get("DASHSCOPE_API_KEY", env_key),
-            "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-            "model": "text-embedding-v4",
-            "dim": 1024,
-        },
+        **model_block,
         "connectors": {},
         "audit": {"temporal_stale_days": 7},
         "weibull": {
@@ -257,17 +277,22 @@ def cmd_init(args):
     # mentioned BYOK at all, so you could follow the instructions exactly and end
     # up with a keyless install wondering why half the exam said n/a. Only
     # `doctor` mentioned it, and only if you thought to run it.
-    if env_key:
-        print("Qwen key picked up from $QWEN_API_KEY (Model Studio + DashScope wired)")
+    from helicon.llm import llm_status
+    status = llm_status(config)
+    if status["enabled"]:
+        key = f"key from {status['key_source']}" if status["key_source"] else "no key"
+        print(f"Model configured ({status['base_url_source']}, {key}).")
     else:
-        print("\n  BYOK - one step left. Helicon is local-first and ships no key:")
-        print("    export QWEN_API_KEY='sk-...'   &&  helicon init --force")
-        print("    (or paste it into config.json -> qwen_api_key + embeddings.api_key)")
-        print("    Get one: https://modelstudio.console.alibabacloud.com  (Model Studio)")
-        print("\n  Without it: the deterministic exam, decay, guard and the rot")
-        print("  classes all still run keyless. What you lose is the Qwen-judged")
-        print("  half - contradiction, identity, grounding - and DashScope")
-        print("  embeddings (retrieval falls back to local keyword+MiniLM).")
+        print("\n  Works now, with no key at all: the deterministic review, the truth")
+        print("  scan, the start card, guard and decay.")
+        print("\n  Optional - a model key. The model-judged half (contradiction,")
+        print("  identity, grounding) uses any OpenAI-compatible endpoint,")
+        print("  including a local one. Helicon ships no key and picks no provider:")
+        print(f"    edit {config_path} -> llm_base_url, llm_model, llm_api_key")
+        print("    or export HELICON_LLM_BASE_URL, HELICON_LLM_MODEL, HELICON_LLM_API_KEY")
+        print("    (a local endpoint needs no key; an old QWEN_API_KEY still works)")
+        print("  Embeddings are a separate block (embeddings.base_url, .model,")
+        print("  .api_key). Without it retrieval uses local keyword + MiniLM.")
     if detected:
         print("\nNext: run `helicon scan` to extract memory items")
     else:
@@ -371,7 +396,7 @@ def cmd_fix(args):
 
 
 def cmd_fix_skills(args):
-    """Write back Qwen-generated descriptions into SKILL.md files that the
+    """Write back model-generated descriptions into SKILL.md files that the
     skills audit flags as missing one. Dry-run by default; --apply writes with
     a .bak backup per modified file."""
     from helicon.config import load_config
@@ -386,8 +411,9 @@ def cmd_fix_skills(args):
     mode = "APPLY" if args.apply else "dry-run"
     print(f"Mountain of Helicon fix-skills ({mode})  dir: {skills_dir}\n")
     if client is None:
-        print("No Qwen key configured (set QWEN_API_KEY). Descriptions can't be "
-              "generated; listing files that need one:\n")
+        from helicon.llm import llm_status
+        print(f"Model features are off: {llm_status(config)['reason']}.\n"
+              "Descriptions can't be generated; listing files that need one:\n")
 
     result = fix_skills(skills_dir, client=client, model=model, apply=args.apply)
     if not result["records"]:
@@ -398,9 +424,9 @@ def cmd_fix_skills(args):
         if r["action"] == "has_description":
             continue
         if r["action"] == "skipped_no_client":
-            print(f"  [skip] {r['rel']}  (missing description; no Qwen key)")
+            print(f"  [skip] {r['rel']}  (missing description; no model key)")
         elif r["action"] == "failed":
-            print(f"  [fail] {r['rel']}  (Qwen returned nothing usable)")
+            print(f"  [fail] {r['rel']}  (the model returned nothing usable)")
         elif r["action"] == "proposed":
             print(f"  [would fix] {r['rel']}")
             print(f"      description: {r['description']}")
@@ -1845,7 +1871,7 @@ def cmd_move(args):
 
 
 def cmd_judge_bench(args):
-    """Slice 1: benchmark Qwen tiers as the memory-rot judge vs human labels."""
+    """Slice 1: benchmark model tiers as the memory-rot judge vs human labels."""
     from helicon.config import load_config
     from helicon.judge_bench import run_judge_bench, format_judge_bench, TIERS
 
@@ -2002,7 +2028,7 @@ def cmd_battery(args):
         return
     config = load_config()
     conn = init_db(config["db_path"])
-    # Build a Qwen client when possible so Contradiction/Grounding are judged
+    # Build a model client when possible so Contradiction/Grounding are judged
     # live; --no-llm forces deterministic-only.
     client = None
     if not getattr(args, "no_llm", False):
@@ -2026,7 +2052,7 @@ def cmd_battery(args):
     print(f"Verdict: {res['verdict']}\n")
     for r in res["results"]:
         crit = " *" if r.get("critical") and r["status"] == "FAIL" else ""
-        judged = " (qwen)" if r.get("judged_by") == "qwen" else ""
+        judged = " (model)" if r.get("judged_by") in ("model", "qwen") else ""
         print(f"  [{r['status']}] {r['name']:<13} {r['reason']}{crit}{judged}")
 
     print(f"\n  context cost: ~{res['context_tokens']} tokens for top-{res['top_k']}")
@@ -2042,7 +2068,7 @@ def cmd_battery(args):
             print(f"  ! scan age exceeds the freshness half-life ({half_life_days:.0f}d) — "
                   "this verdict may reflect a stale scan, not stale memory. Run: helicon scan")
     if not res.get("llm_ran") and res["llm_tests"]:
-        print(f"\n  llm-judged (needs a Qwen key): {', '.join(res['llm_tests'])}")
+        print(f"\n  llm-judged (needs a model key): {', '.join(res['llm_tests'])}")
     if getattr(args, "prompt", False):
         from helicon.battery import _fetch
         hits = _retrieve(conn, args.task, args.k)
@@ -2096,7 +2122,7 @@ def cmd_rot(args):
     """The rot exam: ROT.md's 13 documented failure classes checked live
     against the real store. Deterministic, zero LLM calls, free to run daily.
 
-    --judge opts R11 into the Qwen identity judge. Off by default on purpose:
+    --judge opts R11 into the model identity judge. Off by default on purpose:
     the exam's contract is deterministic-and-free (a daily cron runs it), and
     the judge costs a call per fork candidate. Without it R11 prints
     'cosine-only, unjudged' rather than passing the weaker gate off as the exam."""
@@ -2115,7 +2141,7 @@ def cmd_rot(args):
             judge_client = get_client(config)
             judge_model = resolve_model("fast", config)
             if judge_client is None:
-                print("No Qwen key; R11 stays on the cosine gate.\n")
+                print("No model key; R11 stays on the cosine gate.\n")
         except Exception as e:
             print(f"judge unavailable ({e}); R11 stays on the cosine gate.\n")
 
@@ -2264,7 +2290,7 @@ def _render_portrait(res: dict):
         print()
 
     if not reading:
-        print(f"  {c['dim']}(no Qwen key — the reading needs one. The record above is real.){c['r']}")
+        print(f"  {c['dim']}(no model key, and the reading needs one. The record above is real.){c['r']}")
         print(f"  {c['dim']}run helicon volatility and helicon audit for the full audit.{c['r']}")
         print()
 
@@ -2531,7 +2557,7 @@ def _render_heal(env, applied: bool):
 def cmd_read(args):
     """The reading: open the record and it tells you who you are. Composes a
     grounded portrait from your memory (who recurs, what you make, the record's
-    health) and lets Qwen narrate it in the Court's voice."""
+    health) and lets the model narrate it in the Court's voice."""
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon.portrait import build_portrait
@@ -2551,7 +2577,7 @@ def cmd_volatility(args):
     """The volatility gate: truth = fact + timestamp + decay. Flags stored
     memories that are fast facts (a %, a live count, a price, a ranking,
     "currently") and belong in the live layer, not memory. Deterministic
-    suspects, then Qwen sentences each with a tier + when it goes wrong."""
+    suspects, then the model sentences each with a tier + when it goes wrong."""
     from helicon.config import load_config
     from helicon.db import init_db
     from helicon.llm import get_client
@@ -2569,14 +2595,14 @@ def cmd_volatility(args):
         print("No fast-fact signals in your memory. Nothing volatile stored as durable.")
         return
     if res.get("keyless"):
-        print(f"Volatility gate (no Qwen key — suspects only, unsentenced):\n")
+        print(f"Volatility gate (no model key: suspects only, unsentenced):\n")
         for s in res.get("unsentenced", [])[:20]:
             print(f"  • {s['title'][:70]}")
             print(f"      signal: {', '.join(s['signals'])}  ·  {s['source']}")
-        print(f"\n{res['suspects']} suspect(s). Add a Qwen key to sentence them (tier + stale_when).")
+        print(f"\n{res['suspects']} suspect(s). Add a model key to sentence them (tier + stale_when).")
         return
 
-    print(f"Volatility gate — {res['suspects']} suspects, {res['judged']} sentenced by Qwen\n")
+    print(f"Volatility gate — {res['suspects']} suspects, {res['judged']} sentenced by the model\n")
     fast = res["fast"]
     print(f"FAST FACTS IN MEMORY ({len(fast)}) — these belong in the live layer, not memory:")
     for f in fast[:20]:
@@ -2595,7 +2621,7 @@ def cmd_ci(args):
     """CI for agent memory: scan THIS repo's committed rules files
     (CLAUDE.md / AGENTS.md / .cursorrules / .clinerules / copilot-instructions)
     and run the deterministic rot exam. Emits GitHub Actions annotations + a job
-    summary and exits non-zero on rot. Slim: no embeddings, no Qwen, no torch."""
+    summary and exits non-zero on rot. Slim: no embeddings, no model call, no torch."""
     import os
     import sys
     import tempfile
@@ -3492,7 +3518,8 @@ def cmd_rule(args):
     set_cache_db(conn)
     client = get_client(config)
     if client is None:
-        print("Rule compilation needs a Qwen key (BYOK — set QWEN_API_KEY).")
+        from helicon.llm import llm_status
+        print(f"Rule compilation needs a model. {llm_status(config)['reason']}.")
         return
     model = resolve_model("default", config)
 
@@ -3521,7 +3548,7 @@ def cmd_rule(args):
 
 
 def cmd_doctor(_args):
-    """Health check: PATH, config, Qwen key, DB, last scan. The front door —
+    """Health check: PATH, config, model key, DB, last scan. The front door:
     if any line here is broken, nothing else enters a daily loop."""
     import shutil
     from helicon.config import config_file, load_config
@@ -3554,12 +3581,19 @@ def cmd_doctor(_args):
         level = "OK" if n else "WARN"
         checks.append((level, f"config.json loaded ({n} connector(s))"))
 
-    if config.get("qwen_api_key"):
-        src = "QWEN_API_KEY env" if os.environ.get("QWEN_API_KEY") else "config.json"
-        checks.append(("OK", f"Qwen key configured ({src})"))
+    # Names where the key came from, never the key. Any OpenAI-compatible
+    # endpoint counts, a local one with no key included.
+    from helicon.llm import llm_status, resolve_model
+    llm = llm_status(config)
+    if llm["enabled"]:
+        key = f"key from {llm['key_source']}" if llm["key_source"] else "no key (local endpoint)"
+        checks.append(("OK", f"model configured: {llm['base_url_source']}, {key}, "
+                             f"model {resolve_model('default', config)}"))
     else:
-        checks.append(("WARN", "no Qwen key — deterministic tests still run; "
-                               "Contradiction/Grounding won't (BYOK: set QWEN_API_KEY)"))
+        checks.append(("WARN", f"model features off: {llm['reason']}. "
+                               "Works with no key: the deterministic review, truth scan, "
+                               "start card, guard, decay. Contradiction/Grounding need a "
+                               "model: any OpenAI-compatible endpoint, including a local one"))
 
     db_path = config.get("db_path", "data/helicon.db")
     if not os.path.exists(db_path):
@@ -3618,7 +3652,7 @@ def cmd_doctor(_args):
         from helicon.embeddings import semantic_health
         sh = semantic_health(conn)
         semantic_key = (
-            config.get("qwen_api_key")
+            llm["key_source"]
             or (config.get("embeddings") or {}).get("api_key")
         )
         semantic_level = "OK" if sh["ok"] else ("FAIL" if semantic_key else "WARN")
@@ -3806,9 +3840,9 @@ def cmd_report(args):
             # stderr, NOT stdout. With --json this line used to land at byte 0 of
             # the document, so `json.load` died on "Expecting value: line 1
             # column 1" and the nightly exited 1 every night launchd ran without
-            # QWEN_API_KEY in its environment. A human diagnostic on the
+            # a model key in its environment. A human diagnostic on the
             # machine-readable stream is a corrupt document, not a helpful note.
-            print("No Qwen key; running deterministic-only.\n", file=sys.stderr)
+            print("No model key; running deterministic-only.\n", file=sys.stderr)
 
     rep = memoryagent_report(conn, client=client, model=model)
     if getattr(args, "json", False):
@@ -3943,17 +3977,19 @@ def cmd_stack(args):
 
     from helicon.config import load_config
     config = load_config()
-    if config.get("qwen_api_key"):
-        print(f"\n  Qwen Cloud: configured")
+    from helicon.llm import llm_status
+    llm = llm_status(config)
+    if llm["enabled"]:
+        print(f"\n  Model: configured ({llm['base_url_source']})")
     else:
-        print(f"\n  Qwen Cloud: not configured (set QWEN_API_KEY)")
+        print(f"\n  Model: off ({llm['reason']})")
 
     print(f"\nStack completeness:")
     total_sources = len(detected)
-    has_qwen = bool(config.get("qwen_api_key"))
+    has_qwen = llm["enabled"]
     has_db = os.path.exists(config.get("db_path", "data/helicon.db"))
     completeness = (total_sources * 20 + (30 if has_qwen else 0) + (20 if has_db else 0))
-    print(f"  {min(completeness, 100)}% - {total_sources} source(s), {'Qwen active' if has_qwen else 'no Qwen'}, {'DB seeded' if has_db else 'no DB'}")
+    print(f"  {min(completeness, 100)}% - {total_sources} source(s), {'model active' if has_qwen else 'no model'}, {'DB seeded' if has_db else 'no DB'}")
 
 
 def cmd_optimize(args):
@@ -3999,7 +4035,7 @@ Decay stats:
 
     client = get_client(config)
     if not client:
-        print("Qwen API key not set. Showing rule-based analysis:\n")
+        print("No model configured. Showing rule-based analysis:\n")
         print(f"Helicon Score: {score['score']}%")
         if score['pending'] > score['reviewed']:
             print(f"  Issue: {score['pending']} pending vs {score['reviewed']} reviewed. Review backlog growing.")
@@ -4173,7 +4209,7 @@ def cmd_consolidation_eval(args):
         qwen_client = get_client(config)
 
     sample = getattr(args, "sample", 12)
-    print(f"Consolidation eval: raw memories vs consolidated synthesis (sample {sample}{', Qwen-judged' if qwen_client else ', tokens only'})...\n")
+    print(f"Consolidation eval: raw memories vs consolidated synthesis (sample {sample}{', model-judged' if qwen_client else ', tokens only'})...\n")
     result = run_consolidation_eval(conn, qwen_client, sample)
 
     if result.get("error"):
@@ -4186,7 +4222,7 @@ def cmd_consolidation_eval(args):
     print(f"  Consolidated memory: {s['consolidated_tokens_total']:>7,} tokens")
     print(f"  ── {s['avg_compression']}x more token-efficient ({s['token_reduction_pct']}% reduction) ──")
     if "avg_quality_delta" in s:
-        print(f"\n  Answer quality (Qwen-judged, {s['judged']} queries):")
+        print(f"\n  Answer quality (model-judged, {s['judged']} queries):")
         print(f"    Raw memories: {s['avg_raw_quality']}/100")
         print(f"    Consolidated: {s['avg_consolidated_quality']}/100  (delta {s['avg_quality_delta']:+})")
         print(f"    Consolidated >= raw on {s['consolidated_at_least_as_good']}/{s['judged']} queries")
@@ -4552,7 +4588,7 @@ def main():
     rec_p.add_argument("--apply", action="store_true", help="Actually mark orphans superseded (default: dry-run)")
     rec_p.add_argument("--source", help="Only reconcile this source (e.g. agent-rules, obsidian, skills)")
 
-    fix_p = sub.add_parser("fix-skills", help="Write Qwen descriptions into SKILL.md files missing one (dry-run by default)")
+    fix_p = sub.add_parser("fix-skills", help="Write model-generated descriptions into SKILL.md files missing one (dry-run by default)")
     fix_p.add_argument("--apply", action="store_true", help="Write files (creates .bak backups; default: dry-run)")
     fix_p.add_argument("--skills-dir", help="Skills directory to fix (default: ~/.claude/skills, the dir the audit scans)")
 
@@ -4631,9 +4667,9 @@ def main():
     move_p.add_argument("--to", required=True, choices=["claude-code", "cursor", "markdown"], help="Target platform format")
     move_p.add_argument("--out", metavar="FILE", help="Target file (required with --apply)")
     move_p.add_argument("--apply", action="store_true", help="Write the target file (backs up an existing one to .bak); default is dry-run")
-    move_p.add_argument("--verify-contradictions", action="store_true", dest="verify_contradictions", help="Also run the Qwen judge to hold items that contradict earlier ones")
+    move_p.add_argument("--verify-contradictions", action="store_true", dest="verify_contradictions", help="Also run the model judge to hold items that contradict earlier ones")
 
-    jb_p = sub.add_parser("judge-bench", help="Benchmark Qwen tiers as the memory-rot judge against human-labeled ground truth")
+    jb_p = sub.add_parser("judge-bench", help="Benchmark model tiers as the memory-rot judge against human-labeled ground truth")
     jb_p.add_argument("--tiers", help="Comma list of tiers (default fast,default,deep)")
     jb_p.add_argument("--set", choices=["ruled", "hard", "all"], default="ruled",
                       help="Probe set: ruled (easy, from rulings) | hard (paraphrase/overlap/dead-name) | all")
@@ -4711,11 +4747,11 @@ def main():
     battery_p.add_argument("task", nargs="?", help="task or query text")
     battery_p.add_argument("-k", type=int, default=5, help="top-K context to test (default 5)")
     battery_p.add_argument("--prompt", action="store_true", help="also print the LLM prompt for subjective tests")
-    battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live Qwen judging")
+    battery_p.add_argument("--no-llm", action="store_true", help="deterministic tests only; skip live model judging")
     battery_p.add_argument("--json", action="store_true", help="machine-readable result (for scripts/CI)")
 
     report_p = sub.add_parser("report", help="MemoryAgent compliance report: checks grouped under the track's four sub-goals")
-    report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with Qwen (slower)")
+    report_p.add_argument("--llm", action="store_true", help="judge Contradiction/Grounding live with the model (slower)")
     report_p.add_argument("--json", action="store_true", help="machine-readable result")
 
     complaints_p = sub.add_parser(
@@ -4730,7 +4766,7 @@ def main():
     rot_p = sub.add_parser("audit", aliases=["rot"], help="Memory audit: 13 documented staleness/contradiction failure classes, checked live")
     rot_p.add_argument("--json", action="store_true", help="machine-readable result")
     rot_p.add_argument("--file", action="store_true", help="file the rulable findings (R1/R4/R11/R12) so `resolve --list` can surface them (opt-in write)")
-    rot_p.add_argument("--judge", action="store_true", help="R11: confirm identity forks with the Qwen judge (the cosine gate cannot separate a fork from a rephrasing); costs one call per candidate")
+    rot_p.add_argument("--judge", action="store_true", help="R11: confirm identity forks with the model judge (the cosine gate cannot separate a fork from a rephrasing); costs one call per candidate")
 
     heal_p = sub.add_parser("repair", aliases=["heal"], help="Self-repair loop: score the 4 truth gates, propose repairs, apply, re-score")
     heal_p.add_argument("--demo", action="store_true", help="Run on the seeded demo store (universally-legible drift), not your real store")
@@ -4739,7 +4775,7 @@ def main():
     heal_p.add_argument("--reset", action="store_true", help="Re-seed the demo store before running (with --demo)")
     heal_p.add_argument("--json", action="store_true", help="Emit the raw envelope")
 
-    read_p = sub.add_parser("read", help="The reading: open the record and it tells you who you are (portrait + Qwen narration)")
+    read_p = sub.add_parser("read", help="The reading: open the record and it tells you who you are (portrait + model narration)")
     read_p.add_argument("--json", action="store_true", help="Emit JSON")
 
     cons_p = sub.add_parser("consistency", help="The consistency gate: does your memory index still match its directory? (deterministic)")
@@ -4971,7 +5007,7 @@ def main():
     rule_p.add_argument("--run", action="store_true", help="run approved rules (dry-run unless --apply)")
     rule_p.add_argument("--apply", action="store_true", help="with --run: actually write decisions")
 
-    sub.add_parser("doctor", help="Health check: PATH, config, Qwen key, DB, last scan")
+    sub.add_parser("doctor", help="Health check: PATH, config, model key, DB, last scan")
     export_p = sub.add_parser("export", help="Export a governed TaskRun as JSON (run, events, packets, receipt)")
     export_p.add_argument("run_id", help="Task run id, e.g. tr_abc123def456")
     export_p.add_argument("-o", "--output", help="Write JSON to file instead of stdout")
@@ -5055,10 +5091,11 @@ def main():
 
     consolidate_p = sub.add_parser("consolidate", help="Find and merge related memories")
     consolidate_p.add_argument("--max", "-m", type=int, default=10, help="Max clusters to consolidate")
-    consolidate_p.add_argument("--qwen", action="store_true", help="Use Qwen LLM for synthesis")
+    # --qwen stays as an alias: scripts and crons call these flags by that name.
+    consolidate_p.add_argument("--llm", "--qwen", dest="qwen", action="store_true", help="Use the model for synthesis")
 
     coneval_p = sub.add_parser("eval-consolidation", help="Before/after: raw memories vs consolidated synthesis (tokens + quality)")
-    coneval_p.add_argument("--qwen", action="store_true", help="Qwen-judge answer quality (raw vs consolidated)")
+    coneval_p.add_argument("--llm", "--qwen", dest="qwen", action="store_true", help="Model-judge answer quality (raw vs consolidated)")
     coneval_p.add_argument("--sample", "-n", type=int, default=12, help="Consolidations to evaluate")
 
     args = parser.parse_args()

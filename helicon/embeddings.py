@@ -330,6 +330,8 @@ def _rerank_cache_put(conn, key: str, out: list):
     try:
         import json as _json
         from datetime import datetime, timezone
+        # Same table as helicon.llm declares. The name stays: it is in users'
+        # databases, and it caches calls to any provider.
         conn.execute("""CREATE TABLE IF NOT EXISTS qwen_cache (
             cache_key TEXT PRIMARY KEY, model TEXT, operation TEXT,
             response TEXT, input_tokens INTEGER, output_tokens INTEGER,

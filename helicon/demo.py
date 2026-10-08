@@ -5,7 +5,7 @@ NOT real data and NOT the user's store: a separate `helicon-demo.db` of PLANTED
 memories that everyone understands at a glance — the classic agent-memory drift
 cases. The detectors that fire on them are the REAL ones; only the data is
 seeded, and it is labelled `demo` everywhere so it can never be mistaken for a
-live audit. Keyless: the deterministic exam is the demo and needs no Qwen key.
+live audit. Keyless: the deterministic exam is the demo and needs no model key.
 
 Moved here from scripts/demo_seed.py (which now re-exports this) so the demo is
 importable from the installed package, not just when the repo is the CWD.
@@ -314,9 +314,9 @@ def write_demo_config(path: str | None = None, db_path: str | None = None) -> tu
     os.makedirs(os.path.dirname(path), exist_ok=True)
     cfg = {
         "db_path": db_path,
-        "qwen_api_key": "",
-        "qwen_model": "qwen3.6-flash",
-        "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "llm_api_key": "",
+        "llm_base_url": "",
+        "llm_model": "",
         "connectors": {},
         "server": {"host": "127.0.0.1", "port": 8420, "password": ""},
     }

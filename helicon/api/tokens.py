@@ -57,9 +57,9 @@ PROVENANCE = {
 }
 
 UNAVAILABLE_BECAUSE = {
-    "total_cost_usd": "qwen_cache stores no price and the Qwen key is BYOK, so "
+    "total_cost_usd": "qwen_cache stores no price and the model key is BYOK, so "
                       "there is no per call cost to read or derive.",
-    "cost_usd": "qwen_cache stores no price and the Qwen key is BYOK, so there "
+    "cost_usd": "qwen_cache stores no price and the model key is BYOK, so there "
                 "is no per call cost to read or derive.",
     "avg_latency": "qwen_cache has no latency column. Call duration is not "
                    "recorded anywhere in this store.",

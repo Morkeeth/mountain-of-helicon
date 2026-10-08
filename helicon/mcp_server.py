@@ -213,7 +213,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "max_clusters": {"type": "integer", "description": "Max clusters to consolidate. Default 10", "default": 10},
-                "use_qwen": {"type": "boolean", "description": "Use Qwen LLM for synthesis. Default false (uses extractive summary)", "default": False},
+                "use_qwen": {"type": "boolean", "description": "Use the configured model for synthesis. Default false (uses extractive summary)", "default": False},
             },
         },
     },
