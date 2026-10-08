@@ -19,7 +19,7 @@ intact.
 ## Stack
 
 - Python (CLI scanner + FastAPI backend)
-- Qwen Cloud API (qwen3.6-flash/plus + qwen3.7-max via OpenAI-compatible SDK)
+- Provider-neutral model layer (`helicon/llm.py`): any OpenAI-compatible endpoint, including a local one, set by `llm_base_url` / `llm_model` / `llm_api_key` or the `HELICON_LLM_*` env vars. No default vendor: with nothing configured the model-judged features are off and the deterministic half runs. Old `qwen_*` keys, `QWEN_API_KEY` and `helicon.qwen` imports still work; the `qwen_cache` table keeps its name
 - Distribution: BYOK + local-first. v0.1 advertises no hosted personal-store
   service; container/Function Compute files are deployment starting points, not
   a production availability claim.
@@ -44,7 +44,7 @@ helicon score                # show Helicon Score + decay by type
 helicon stack                # audit your AI tool setup
 helicon optimize             # LLM-powered optimization suggestions
 helicon battery "<task>"     # context-quality battery on retrieved memory (relevance/freshness/redundancy/thinness + LLM contradiction/grounding); every verdict prints last-scan age
-helicon doctor               # health check: PATH, config, Qwen key, DB, last scan
+helicon doctor               # health check: PATH, config, model key, DB, last scan
 helicon mcp                  # run the MCP server on stdio (bare `helicon` stays a CLI)
 ```
 
@@ -80,7 +80,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - Entity-boosted retrieval (41 entities wired)
 - Semantic embeddings: text-embedding-v4 (Dashscope), 1024 dims per config.json. NOT all memories: 187 of 4,507 live cubes embedded (4,214 embedding rows mostly cover retired cubes) — measured 2026-08-20; the old "all-MiniLM-L6-v2, 384 dims, all memories embedded" claim was false at the object
 - Hybrid search: 60% semantic + 40% FTS5 keyword, numpy vector ops
-- Embedding-based consolidation: cosine similarity clustering + Qwen synthesis
+- Embedding-based consolidation: cosine similarity clustering + model synthesis
 - Core Memory Compiler: compiles reviewed memory to injectable files (data/compiled/)
 
 ## Honest eval numbers (no self-grading, no divide-by-zero)
@@ -88,7 +88,7 @@ Zero fake data. Demo uses Oscar's real Claude Code transcripts (210+), Obsidian 
 - Composite: **~67** (as of 2026-07-13; run `helicon eval` to recompute. Retrieval P@3 + MRR + decay-AUC; audit excluded, no labeled ground truth)
 - Retrieval: P@3 0.615, MRR 0.596 (n=13, auto-built internal benchmark, one label/query - disclose this)
 - Decay predicts human kills: **rank-AUC 0.781** (mean confidence of killed memories 0.141 vs approved 0.268) - a real, independent signal
-- Consolidation: ~9-10x fewer tokens (char-estimated), Qwen-judged quality favors synthesis (self-graded, show as direction not proof)
+- Consolidation: ~9-10x fewer tokens (char-estimated), model-judged quality favors synthesis (self-graded, show as direction not proof)
 
 ## Known gaps (do not overclaim in demo)
 
