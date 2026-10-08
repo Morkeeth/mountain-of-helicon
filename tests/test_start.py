@@ -301,6 +301,8 @@ def test_spend_across_tools_reads_a_stored_period_and_names_what_it_cannot_read(
             "codex": {"totals": {"known_priced_usd": 3183.83, "unpriced_tokens": 107075904}, "complete": False},
             "no_adapter": [{"harness": "Cursor", "status": "unknown"}]}}
 
+    assert read_tools_spend(fetch=fetch)["claude_usd"] == 647.04  # with no day given, as the card calls it
+    del asked[:]
     spend = read_tools_spend("2026-10-08", fetch=fetch)
     assert asked[1] == "/api/period?start=2026-09-28&end=2026-10-04"
     row = _tools_spend_plain(spend)[0]

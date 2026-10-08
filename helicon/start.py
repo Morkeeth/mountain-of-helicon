@@ -286,6 +286,7 @@ def read_tools_spend(today=None, fetch=None, cache=None):
     for a period the tool has stored, so it never starts a scan. None when the tool
     is not there."""
     import urllib.request
+    from datetime import date
 
     base = os.environ.get("HELICON_TOKEN_TOOL") or TOKEN_TOOL
     today = today or date.today().isoformat()
