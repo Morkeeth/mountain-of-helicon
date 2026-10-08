@@ -103,7 +103,7 @@ build command when nothing is built, and the API stays up either way.
 
 ## What needs real credentials (and therefore cannot be verified in this VM)
 
-- `config.json` is gitignored and absent here. Anything reading it — live connectors, model calls, embeddings — cannot run.
+- `config.json` is gitignored and absent here. Anything reading it (live connectors, model calls, embeddings) cannot run.
 - The real memory store (~47 MB) lives only on the author's machine.
 
 If a task depends on either, **stop and say so** rather than mocking it and reporting success. Claiming a verified result that was never probed is the single worst failure mode in this repo.

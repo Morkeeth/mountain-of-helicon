@@ -16,7 +16,7 @@ Three tiers:
 Two stages, honest about cost:
   1. deterministic pre-filter (free) — flag cubes whose text carries a
      fast-fact SIGNAL. High recall, no judgment, no false confidence.
-  2. Model classifier (paid, cached) — sentence each suspect: tier, a one-line
+  2. Model classifier (paid, cached): sentence each suspect: tier, a one-line
      reason, and the named event that would make it wrong (`stale_when`).
 
 Only the suspects reach the model, so the scan stays cheap. Keyless degrade is

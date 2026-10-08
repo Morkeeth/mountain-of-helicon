@@ -273,7 +273,7 @@ def main():
           f"did not banner (staleness beyond the human pass)")
 
 
-    banner("5. MODEL SECOND PASS — the misses, judged (with un-bannered controls)")
+    banner("5. MODEL SECOND PASS: the misses, judged (with un-bannered controls)")
     from helicon.config import load_config
     from helicon.llm import get_client, complete_json, llm_status, resolve_model, set_cache_db
     bench_config = load_config()
