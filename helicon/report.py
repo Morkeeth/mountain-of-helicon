@@ -214,7 +214,7 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
         {"id": s["snapshot_id"], "task": s["task"], "status": s.get("status"),
          "age_days": s.get("age_days"), "stale_task": s.get("stale_task")}
         for s in snaps if s.get("needs_recapture")]
-    contra_rate = _rate("Contradiction")  # only present when Qwen judged live
+    contra_rate = _rate("Contradiction")  # only present when the model judged live
     grounding_rate = _rate("Grounding")
 
     # Cross-source pairing (the R1 selector): every report run scans live

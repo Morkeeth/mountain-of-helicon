@@ -140,7 +140,7 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str | None = None)
 def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
                 model: str | None = None, stale_after_hours: float | None = None) -> dict:
     """Run the battery on what `task` retrieves. Deterministic tests always run;
-    if a Qwen `client` is given, Contradiction/Grounding are judged live by Qwen
+    if a model `client` is given, Contradiction/Grounding are judged live by the model
     and folded into the verdict (non-critical: they degrade, never break).
 
     Every verdict carries `last_scan` (age of the last completed ingest): a
@@ -251,7 +251,7 @@ def run_battery(conn: sqlite3.Connection, task: str, k: int = 5, client=None,
     context_budget = _assess_budget(context_tokens)
     add("Context budget", context_budget["status"] != "over", context_budget["note"])
 
-    # Qwen-judged tests (Contradiction/Grounding), folded in if a client is
+    # model-judged tests (Contradiction/Grounding), folded in if a client is
     # given. The judge gets title + content excerpt — grading claims requires
     # seeing them (see _judge_lines).
     judged_hits = [{"id": h["id"], "title": h.get("title", ""),

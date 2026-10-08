@@ -5,7 +5,7 @@ about ONE object and false about another — the defect Agent Science exists to 
 surfaced as plain language with repro SQL on every line.
 
 Ported from the hackathon measurement-bench collab (Claude Lane B); lives here under
-a distinct name because `helicon portrait` is the Qwen-narrated identity reading.
+a distinct name because `helicon portrait` is the model-narrated identity reading.
 """
 from __future__ import annotations
 

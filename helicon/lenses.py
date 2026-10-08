@@ -5,7 +5,7 @@ Each lens shapes the Next Move (and, later, the review dimensions) for that outp
 """
 import re
 
-# Ordered: first match wins. Each: signals + the next-prompt shape Qwen should follow.
+# Ordered: first match wins. Each: signals + the next-prompt shape the model should follow.
 LENSES: dict[str, dict] = {
     "frontend": {
         "ext": (".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss", ".html"),

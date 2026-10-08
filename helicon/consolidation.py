@@ -84,7 +84,7 @@ def _embedding_clusters(conn: sqlite3.Connection, threshold: float = 0.75) -> li
         anchor = cube_map.get(ids[i])
         raw_title = anchor["title"] if anchor else ids[i]
         # Strip scan-artifact prefixes ("Created: route.ts" -> "route.ts") so the
-        # seed reads as a concept, not a git action. Final topic is Qwen's title anyway.
+        # seed reads as a concept, not a git action. Final topic is the model's title anyway.
         for prefix in ("Created:", "Edited:", "Deleted:", "[world-relay]", "[helicon]"):
             if raw_title.startswith(prefix):
                 raw_title = raw_title[len(prefix):].strip()
@@ -216,9 +216,9 @@ Return JSON:
     cons_id = make_id()
 
     # The stored topic drives both the UI label and the consolidation eval query.
-    # Qwen's synthesized title is far cleaner than the raw cluster seed (which for
+    # The model's synthesized title is far cleaner than the raw cluster seed (which for
     # code/git cubes is a filename), so prefer it. Fall back to the seed only if
-    # Qwen returned no title.
+    # the model returned no title.
     topic = result.get("title") or cluster["topic"]
 
     conn.execute(

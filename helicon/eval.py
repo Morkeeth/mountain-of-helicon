@@ -364,7 +364,7 @@ freedom from contradiction/noise). Return JSON only:
 
 
 def run_consolidation_eval(conn: sqlite3.Connection, llm_client=None, sample: int = 12) -> dict:
-    """Before/after consolidation eval: token efficiency + (optional) Qwen-judged answer
+    """Before/after consolidation eval: token efficiency + (optional) model-judged answer
     quality, comparing raw source cubes against their consolidated synthesis."""
     from helicon.consolidation import get_consolidations
 
