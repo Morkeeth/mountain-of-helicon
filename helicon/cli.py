@@ -2602,7 +2602,7 @@ def cmd_volatility(args):
         print(f"\n{res['suspects']} suspect(s). Add a model key to sentence them (tier + stale_when).")
         return
 
-    print(f"Volatility gate — {res['suspects']} suspects, {res['judged']} sentenced by the model\n")
+    print(f"Volatility gate: {res['suspects']} suspects, {res['judged']} sentenced by the model\n")
     fast = res["fast"]
     print(f"FAST FACTS IN MEMORY ({len(fast)}) — these belong in the live layer, not memory:")
     for f in fast[:20]:

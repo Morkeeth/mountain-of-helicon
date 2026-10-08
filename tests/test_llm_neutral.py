@@ -161,6 +161,15 @@ def test_nothing_configured_is_off_with_a_plain_message(tmp_path):
     assert get_client({}) is None and resolve_model("default") is None
 
 
+def test_hand_built_config_ignores_the_old_env_key(monkeypatch):
+    # The old env key enters through load_config only, as before. A dict with
+    # no key must never become a live client because of what the shell exports.
+    from helicon.llm import get_client
+    monkeypatch.setenv("QWEN_API_KEY", "x")
+    assert resolve_llm({})["enabled"] is False
+    assert get_client({}) is None
+
+
 def test_neutral_key_alone_gets_no_default_vendor(tmp_path):
     from helicon.llm import get_client
     cfg = _config(tmp_path, {"llm_api_key": "k"})

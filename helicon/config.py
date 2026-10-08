@@ -57,8 +57,12 @@ def _first(sources: list[tuple[str, str | None]]) -> tuple[str, str]:
 
 def resolve_llm(config: dict | None) -> dict:
     """Where the model layer points, and why. Pure: reads the config dict and
-    the environment, writes nothing, so it gives the same answer on a dict from
-    load_config and on a hand-built one.
+    the HELICON_LLM_* environment, writes nothing.
+
+    The old QWEN_API_KEY env is NOT read here. load_config folds it into
+    config["qwen_api_key"], as it always did, so a hand-built dict with no key
+    stays keyless whatever the shell exports. That is how it worked before, and
+    tests that stub the config to {} rely on it to stay off the network.
 
     Order for each setting: neutral config key, neutral env, old qwen_* config
     key, old QWEN_API_KEY env. A config that only has qwen_* keys resolves
@@ -70,14 +74,15 @@ def resolve_llm(config: dict | None) -> dict:
     """
     cfg = config or {}
     env = os.environ
-    # load_config folds QWEN_API_KEY into config["qwen_api_key"] and marks it,
-    # so the source line stays true for a key that only lives in the env.
-    file_legacy_key = "" if cfg.get("_qwen_api_key_from_env") else cfg.get("qwen_api_key")
+    # load_config marks a key it took from QWEN_API_KEY, so the source line
+    # stays true for a key that only lives in the env.
+    from_env = bool(cfg.get("_qwen_api_key_from_env"))
+    legacy_key = cfg.get("qwen_api_key")
     api_key, key_source = _first([
         ("config llm_api_key", cfg.get("llm_api_key")),
         ("HELICON_LLM_API_KEY env", env.get("HELICON_LLM_API_KEY")),
-        ("config qwen_api_key", file_legacy_key),
-        ("QWEN_API_KEY env", env.get("QWEN_API_KEY") or cfg.get("qwen_api_key")),
+        ("config qwen_api_key", "" if from_env else legacy_key),
+        ("QWEN_API_KEY env", legacy_key if from_env else ""),
     ])
     base_url, url_source = _first([
         ("config llm_base_url", cfg.get("llm_base_url")),
