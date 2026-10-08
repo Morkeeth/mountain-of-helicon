@@ -197,6 +197,86 @@ def read_install():
     }
 
 
+WORK_DAYS = 30
+
+
+def _work_cache_path():
+    return os.path.join(os.path.expanduser("~"), ".helicon", "work-cache.json")
+
+
+def _spend(days, today):
+    """Token spend from Transcripto, the tool that owns that number. None when it is
+    not installed or gives nothing. Cached for the day: it takes about ten seconds."""
+    import shutil
+
+    command = os.environ.get("HELICON_TRANSCRIPTO") or shutil.which("transcripto")
+    if not command:
+        return None
+    cache = _work_cache_path()
+    try:
+        saved = json.load(open(cache, encoding="utf-8"))
+        if saved.get("day") == today and saved.get("days") == days:
+            return saved["spend"]
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        done = subprocess.run([command, "cost", "--days", str(days), "--json"],
+                              capture_output=True, text=True, timeout=120)
+        raw = json.loads(done.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+    tokens = raw.get("tokens") or {}
+    messages, unpriced = raw.get("agent_messages") or 0, raw.get("unpriced_messages") or 0
+    spend = {
+        "usd": raw.get("usd"), "typed": raw.get("decisions"),
+        "agent_messages": messages, "unpriced_messages": unpriced,
+        "tokens": tokens.get("total"), "tokens_reread": tokens.get("cache_read"),
+    }
+    try:
+        os.makedirs(os.path.dirname(cache), exist_ok=True)
+        json.dump({"day": today, "days": days, "spend": spend}, open(cache, "w", encoding="utf-8"))
+    except OSError:
+        pass
+    return spend
+
+
+def read_work(home=None, days=WORK_DAYS, today=None, with_spend=True):
+    """What the person did with agents in the last `days` days: things typed, sessions,
+    and what it cost. Typed turns and sessions come from the transcript index; spend
+    comes from Transcripto. Counts only, never the text of a turn."""
+    from datetime import date, timedelta
+
+    db = _trace_db(home)
+    if not db:
+        return {"found": False, "why": "no searchable work history yet"}
+    today = today or date.today().isoformat()
+    since = (date.fromisoformat(today) - timedelta(days=days)).isoformat()
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        columns = {row[1] for row in con.execute("PRAGMA table_info(messages)")}
+        if "is_human" not in columns:
+            return {"found": False, "read": db, "why": "the work history does not say which turns were typed"}
+        typed = "is_human=1 AND text!='' AND ts>=?"
+        if "harness" in columns:
+            by_tool = dict(con.execute(
+                f"SELECT COALESCE(harness, 'unknown'), COUNT(*) FROM messages WHERE {typed} GROUP BY 1", (since,)))
+        else:
+            by_tool = {"all": con.execute(f"SELECT COUNT(*) FROM messages WHERE {typed}", (since,)).fetchone()[0]}
+        sessions = con.execute(f"SELECT COUNT(DISTINCT session_id) FROM messages WHERE {typed}", (since,)).fetchone()[0]
+        per_day = dict(con.execute(
+            f"SELECT substr(ts, 1, 10), COUNT(*) FROM messages WHERE {typed} GROUP BY 1", (since,)))
+    except sqlite3.Error:
+        return {"found": False, "read": db, "why": "the work history could not be read"}
+    finally:
+        con.close()
+    start = date.fromisoformat(today) - timedelta(days=13)
+    series = [per_day.get((start + timedelta(days=n)).isoformat(), 0) for n in range(14)]
+    out = {"found": True, "read": db, "days": days, "typed": sum(by_tool.values()), "by_tool": by_tool,
+           "sessions": sessions, "last_14_days": series}
+    out["spend"] = _spend(days, today) if with_spend and home is None else None
+    return out
+
+
 def history_path():
     return os.path.join(os.path.expanduser("~"), ".helicon", "start-history.jsonl")
 
@@ -324,6 +404,8 @@ def plain(card):
                     + (f" {warned} could not be read in full." if warned else ""),
                     None, "work history " + _short(idx.get("read"))))
 
+    work_rows = work_plain(card.get("work") or {})
+
     steps = []
     if behind:
         steps.append(("Update Helicon first. It is out of date.", f"git -C {_short(inst.get('read'))} pull"))
@@ -337,7 +419,46 @@ def plain(card):
         steps.append(("Start saving your decisions. Without them an agent cannot know what you decided.", ""))
     if not idx.get("found"):
         steps.append(("Make your work history searchable, so use and drift can be measured.", ""))
-    return {"status": status, "rows": rows, "steps": steps[:3]}
+    return {"status": status, "rows": rows, "work": work_rows, "steps": steps[:3]}
+
+
+def work_plain(work):
+    """The work of the last weeks in plain words. Each row: label, number, unit, text,
+    and for the first row the last 14 days as a series."""
+    if not work.get("found"):
+        return []
+    days = work["days"]
+    tools = ", ".join(f"{name.capitalize()} {count:,}" for name, count in
+                      sorted(work["by_tool"].items(), key=lambda item: -item[1]))
+    rows = [
+        {"label": "Prompts", "number": work["typed"], "unit": "typed",
+         "text": f"to your agents in {days} days. {tools}.", "series": work["last_14_days"]},
+        {"label": "Sessions", "number": work["sessions"], "unit": "sessions",
+         "text": f"of work with agents in {days} days."},
+    ]
+    spend = work.get("spend")
+    if not spend or spend.get("usd") is None:
+        rows.append({"label": "Spend", "number": None, "unit": "",
+                     "text": "nothing found: the tool that reads token spend is not installed."})
+        return rows
+    messages, unpriced = spend.get("agent_messages") or 0, spend.get("unpriced_messages") or 0
+    more = "or more, " if unpriced else ""
+    gap = (f" {round(100 * unpriced / messages)}% of agent replies have no price on record, so the real figure is higher."
+           if messages and unpriced else "")
+    rows.append({"label": "Spend", "number": f"${spend['usd']:,.0f}", "unit": f"{more}at list price",
+                 "text": f"in {days} days, Claude Code only. On a subscription this is not a bill.{gap}"})
+    if spend.get("typed"):
+        per = spend["usd"] / spend["typed"]
+        steps_each = round(messages / spend["typed"]) if messages else None
+        rows.append({"label": "Per prompt", "number": f"${per:,.2f}", "unit": f"{more}each",
+                     "text": (f"and about {steps_each} agent replies for each thing you typed." if steps_each
+                              else "for each thing you typed.")})
+    if spend.get("tokens") and spend.get("tokens_reread") is not None:
+        share = round(100 * spend["tokens_reread"] / spend["tokens"])
+        rows.append({"label": "Re-reading", "number": f"{share}%", "unit": "of all tokens",
+                     "text": "were the agent reading earlier context again. A token is a small piece of text the model reads or writes.",
+                     "part": spend["tokens_reread"], "whole": spend["tokens"]})
+    return rows
 
 
 def share(card):
@@ -370,6 +491,15 @@ def share(card):
     out["history"] = (
         {"sessions": idx.get("sessions", 0), "not_fully_read": idx.get("files_with_warnings")}
         if idx.get("found") else None)
+    work = card.get("work") or {}
+    if work.get("found"):
+        spend = work.get("spend") or {}
+        out["work"] = {"days": work["days"], "typed": work["typed"], "sessions": work["sessions"],
+                       "by_tool": work["by_tool"], "list_price_usd": spend.get("usd"),
+                       "agent_replies": spend.get("agent_messages"), "replies_without_price": spend.get("unpriced_messages"),
+                       "tokens": spend.get("tokens"), "tokens_reread": spend.get("tokens_reread")}
+    else:
+        out["work"] = None
     out["readings_found"] = sum(1 for key in ("instructions", "memory", "decisions", "skills", "history") if out[key])
     return out
 
@@ -387,6 +517,7 @@ def build_card(path=".", home=None):
         "decisions": read_decisions(),
         "skills": read_skills(home),
         "index": read_index(home),
+        "work": read_work(home),
     }
     card["next"] = next_steps(card)
     return card
@@ -424,6 +555,17 @@ def format_card(card, colour=False):
         lines.append(f"  {label}{num(number)} {row['unit']} {row['text']}".rstrip())
         if row["whole"]:
             lines.append(f"  {'':<14}{_bar(row['part'], row['whole'], colour)}")
+    if view.get("work"):
+        lines += ["", f"  {head('YOUR WORK')}"]
+        for row in view["work"]:
+            number = f"{row['number']:,}" if isinstance(row["number"], int) else (row["number"] or "")
+            lines.append(f"  {head(row['label'].ljust(14))}{num(number)} {row['unit']} {row['text']}".replace("  nothing", " nothing").rstrip())
+            if row.get("series") and any(row["series"]):
+                top = max(row["series"])
+                marks = "".join(" ▁▂▃▄▅▆▇█"[round(8 * value / top)] for value in row["series"])
+                lines.append(f"  {'':<14}{_paint(marks, '38;5;68', colour)}  the last 14 days")
+            elif row.get("whole"):
+                lines.append(f"  {'':<14}{_bar(row['part'], row['whole'], colour)}")
     lines.append("")
     if view["steps"]:
         lines.append(f"  {head('Do next')}")
