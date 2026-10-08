@@ -277,7 +277,7 @@ def memoryagent_report(conn: sqlite3.Connection, client=None,
                     "verdict on it made HEALTHY unreachable by construction.",
         },
         "mechanisms": "snapshot regression (CI for memory) + cross-source pair selector "
-                      "+ Qwen-judged Contradiction/Grounding",
+                      "+ model-judged Contradiction/Grounding",
         # No baselines captured = unmeasured, not broken. DEGRADED with a
         # pointer beats a fake BROKEN.
         "verdict": acc["verdict"],

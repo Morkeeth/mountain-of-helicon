@@ -10,7 +10,7 @@ Safety model:
   - --apply writes a `.bak` of the original next to each file BEFORE modifying
   - files that already have a non-empty description are never touched, so a
     second run is a no-op
-  - no Qwen key -> skip with a message, never write
+  - no model key -> skip with a message, never write
 """
 import os
 import re

@@ -370,7 +370,7 @@ def run_consolidation_eval(conn: sqlite3.Connection, qwen_client=None, sample: i
 
     cons = get_consolidations(conn)
     if not cons:
-        return {"error": "no consolidations found - run `helicon consolidate --qwen` first", "summary": {"consolidations_evaluated": 0}}
+        return {"error": "no consolidations found - run `helicon consolidate --llm` first", "summary": {"consolidations_evaluated": 0}}
 
     if qwen_client:
         from helicon.llm import complete_json

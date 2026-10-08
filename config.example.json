@@ -1,6 +1,8 @@
 {
   "db_path": "~/.helicon/helicon.db",
-  "qwen_api_key": "",
+  "llm_api_key": "",
+  "llm_base_url": "",
+  "llm_model": "",
   "openrouter_api_key": "",
   "embeddings": {
     "api_key": "",
@@ -8,7 +10,6 @@
     "model": "openai/text-embedding-3-small",
     "dim": 1536
   },
-  "qwen_base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
   "connectors": {
     "claude-code": {
       "enabled": true,

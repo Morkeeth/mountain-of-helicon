@@ -124,7 +124,7 @@ def build_judges(config: dict, tiers) -> tuple[list, list]:
     """(judges, notes). Each judge = (label, client, model). Qwen tiers always
     (if a Qwen key exists); competitor models only when OPENROUTER_API_KEY is set."""
     import os
-    from helicon.llm import get_client, resolve_model
+    from helicon.llm import get_client, llm_status, resolve_model
     judges, notes = [], []
     qc = get_client(config)
     if qc:
@@ -132,7 +132,7 @@ def build_judges(config: dict, tiers) -> tuple[list, list]:
             m = resolve_model(t, config)
             judges.append((m, qc, m))
     else:
-        notes.append("no Qwen key (set QWEN_API_KEY)")
+        notes.append(f"no model judge: {llm_status(config)['reason']}")
     orc = _openrouter_client()
     if orc:
         for m in (os.environ.get("OPENROUTER_JUDGES",
@@ -142,7 +142,7 @@ def build_judges(config: dict, tiers) -> tuple[list, list]:
                 judges.append((m, orc, m))
     else:
         notes.append("set OPENROUTER_API_KEY (+ optional OPENROUTER_JUDGES) to compare "
-                     "Qwen vs GPT/Claude on the same probes")
+                     "your model vs GPT/Claude on the same probes")
     return judges, notes
 
 
@@ -219,7 +219,7 @@ def format_judge_bench(scored: dict) -> str:
     rows = scored["rows"]
     if not rows:
         return "\n  No probes to judge.\n"
-    out = ["", f"  QWEN AS MEMORY JUDGE — vs human-ruled ground truth "
+    out = ["", f"  THE MODEL AS MEMORY JUDGE, vs human-ruled ground truth "
            f"({scored['probes']} probes: {scored['probes']//2} real contradictions + "
            f"{scored['probes']//2} consistent controls)", ""]
     out.append(f"  {'tier / model':22}  {'recall':>7}  {'specificity':>11}  "

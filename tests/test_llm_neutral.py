@@ -293,3 +293,76 @@ def test_cache_table_keeps_its_name():
         llm._cache.update(saved)
     names = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
     assert "qwen_cache" in names
+
+
+# --- first run: init and doctor --------------------------------------------
+
+def _cli(home, *args, extra_env=None):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+    env = dict(os.environ)
+    for name in _ENV:
+        env.pop(name, None)
+    env.pop("HELICON_HOME", None)
+    env["HOME"] = str(home)
+    env.update(extra_env or {})
+    return subprocess.run([sys.executable, "-m", "helicon", *args],
+                          cwd=Path(__file__).resolve().parents[1], env=env,
+                          capture_output=True, text=True)
+
+
+def test_init_writes_no_vendor_and_says_what_works_keyless(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    run = _cli(home, "init")
+    assert run.returncode == 0, run.stderr
+    text = (home / ".helicon" / "config.json").read_text()
+    written = json.loads(text)
+    assert written["llm_api_key"] == "" and written["llm_base_url"] == ""
+    assert written["llm_model"] == ""
+    assert "dashscope" not in text.lower() and "qwen" not in text.lower()
+    out = run.stdout
+    assert "Qwen" not in out and "alibaba" not in out.lower()
+    assert "any OpenAI-compatible endpoint" in out and "including a local one" in out
+    for works in ("deterministic review", "truth", "start card", "guard", "decay"):
+        assert works in out, works
+    assert "HELICON_LLM_API_KEY" in out
+
+
+def test_init_keeps_the_old_shape_for_a_shell_with_the_old_key(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    run = _cli(home, "init", extra_env={"QWEN_API_KEY": "old-test-key"})
+    assert run.returncode == 0, run.stderr
+    written = json.loads((home / ".helicon" / "config.json").read_text())
+    assert written["qwen_api_key"] == "old-test-key"
+    assert written["qwen_base_url"] == LEGACY_LLM_BASE_URL
+    assert "llm_api_key" not in written
+    assert "old-test-key" not in run.stdout + run.stderr
+    assert resolve_llm(written)["enabled"] is True
+
+
+def test_doctor_names_the_source_and_never_the_key(tmp_path):
+    home = tmp_path / "home"
+    (home / ".helicon").mkdir(parents=True)
+    cfg = {"db_path": str(home / ".helicon" / "helicon.db"),
+           "llm_api_key": "sk-doctor-secret", "llm_base_url": "http://localhost:9/v1",
+           "llm_model": "local-model"}
+    (home / ".helicon" / "config.json").write_text(json.dumps(cfg))
+    out = _cli(home, "doctor").stdout
+    assert "model configured" in out and "config llm_api_key" in out
+    assert "sk-doctor-secret" not in out
+    assert "Qwen" not in out
+
+
+def test_doctor_with_nothing_configured_says_off_and_what_still_works(tmp_path):
+    home = tmp_path / "home"
+    (home / ".helicon").mkdir(parents=True)
+    (home / ".helicon" / "config.json").write_text(
+        json.dumps({"db_path": str(home / ".helicon" / "helicon.db")}))
+    out = _cli(home, "doctor").stdout
+    assert "model features off:" in out and "no model configured" in out
+    assert "including a local one" in out
+    assert "Qwen" not in out

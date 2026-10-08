@@ -47,7 +47,9 @@ def _run_report_without_key(config_path):
     suite was green — the same shape as the npm-build gap, one directory over.
     """
     env = dict(os.environ)
-    env.pop("QWEN_API_KEY", None)
+    for name in ("QWEN_API_KEY", "HELICON_LLM_API_KEY", "HELICON_LLM_BASE_URL",
+                 "HELICON_LLM_MODEL"):
+        env.pop(name, None)
     env["HELICON_CONFIG"] = str(config_path)
     return subprocess.run(
         [sys.executable, "-m", "helicon.cli", "report", "--llm", "--json"],
@@ -71,7 +73,8 @@ def helicon_config(tmp_path_factory):
     with open(os.path.join(REPO, "config.example.json"), encoding="utf-8") as f:
         config = json.load(f)
     config["db_path"] = str(tmp / "helicon.db")
-    config["qwen_api_key"] = ""
+    config["llm_api_key"] = ""
+    config["llm_base_url"] = ""
     for connector in config.get("connectors", {}).values():
         connector["enabled"] = False
     path = tmp / "config.json"
@@ -113,7 +116,7 @@ def test_the_warning_still_reaches_a_human(report_run):
     that made the nightly pass by muting the reason would trade a loud failure
     for a quiet one, which is the exact trade this repo exists to refuse.
     """
-    assert "No Qwen key" in report_run.stderr, (
+    assert "No model key" in report_run.stderr, (
         "the no-key warning vanished entirely; it belongs on stderr, not nowhere"
     )
 

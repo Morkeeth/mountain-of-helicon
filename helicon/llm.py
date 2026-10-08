@@ -197,7 +197,7 @@ def complete(client, system: str, user: str, model: str | None = None, operation
     _cache_stats["misses"] += 1
     start = time.time()
     # Structured output: on some endpoints JSON mode / function-calling is only
-    # valid with thinking OFF, and only on some models — fall back to a plain call if
+    # valid with thinking OFF, and only on some models. Fall back to a plain call if
     # the endpoint rejects the extra args so existing callers never break.
     kwargs: dict = {
         "model": model,

@@ -500,7 +500,7 @@ def run_rot_exam(conn: sqlite3.Connection, repo_root: str | None = None,
             # fork from a rephrasing (real 0.354 vs artifact 0.367 on the live
             # store), so a cosine-only R11 is over-reporting and must say so
             # rather than sell its candidates as confirmed rot.
-            gate = "qwen-judged" if judge_client else "cosine-only, unjudged"
+            gate = "model-judged" if judge_client else "cosine-only, unjudged"
             note = (f" (+{unconfirmed} genus candidate(s) dropped by the {gate} gate)"
                     if unconfirmed else f" [{gate}]")
             checks.append(_check(
