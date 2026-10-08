@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { api, type JudgeRow, type JudgeRun } from '../api';
 
-/* THE JUDGE — the configured model benchmarked as the memory-rot judge
+/* THE JUDGE: the configured model benchmarked as the memory-rot judge
    against human-ruled ground truth.
 
    Two rules govern this file, and they outrank how good the chart looks:
