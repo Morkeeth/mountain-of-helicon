@@ -684,6 +684,25 @@ def share(card):
     return out
 
 
+def menu_line(card):
+    """One line for the menu bar, and how many things need a person. Problems only,
+    worst first, in plain words; "All in order" when none was found."""
+    ins, mem = card.get("instructions") or {}, card.get("memory") or {}
+    rt, inst = card.get("routines") or {}, card.get("install") or {}
+    parts = []
+    if inst.get("behind_main"):
+        parts.append("Helicon is out of date")
+    if ins.get("found") and ins.get("broken"):
+        parts.append(f"{_n(ins['broken'], 'instruction')} wrong")
+    if mem.get("found") and mem.get("rotten"):
+        parts.append(f"{_n(mem['rotten'], 'note')} out of date")
+    if rt.get("known") and rt.get("failed"):
+        parts.append(f"{_n(rt['failed'], 'job')} failing")
+    if not parts:
+        return "All in order", 0
+    return " · ".join(parts[:3]), len(parts)
+
+
 def next_steps(card):
     """At most three things to do, worst first, in plain words."""
     return [text for text, _ in plain(card)["steps"]]
