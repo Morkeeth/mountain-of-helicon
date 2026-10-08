@@ -52,6 +52,8 @@ struct SentryPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider().overlay(Wash.line)
+            StartRow()
+            Divider().overlay(Wash.line)
 
             switch store.connection {
             case .down(let reason):
@@ -272,7 +274,7 @@ struct SentryPanel: View {
             Image(systemName: "lock.fill")
                 .font(.system(size: 8))
                 .foregroundStyle(Wash.faint)
-            Text("local · BYOK")
+            Text("local")
                 .font(.iface(9.5))
                 .foregroundStyle(Wash.faint)
             Spacer()
