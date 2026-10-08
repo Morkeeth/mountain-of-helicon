@@ -86,7 +86,7 @@ def verify_contradictions(config: dict, kept: list[dict], cap: int = 20) -> dict
     """Optional Qwen-judge pass: hold any kept item that contradicts an earlier
     kept one. Bounded to `cap` items (pairwise is O(n^2)). Reuses the judge
     validated in judge-bench."""
-    from helicon.qwen import detect_contradictions, get_client, resolve_model
+    from helicon.llm import detect_contradictions, get_client, resolve_model
     client = get_client(config)
     if client is None:
         return {"kept": kept, "held_contradiction": [], "ran": False}

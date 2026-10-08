@@ -113,7 +113,7 @@ def run_llm_tests(client, task: str, hits: list[dict], model: str = "qwen3.6-plu
     fabricating a verdict."""
     if client is None or not hits:
         return []
-    from helicon.qwen import complete_json
+    from helicon.llm import complete_json
     llm = [t for t in CONTEXT_TESTS if t["mode"] == "llm"]
     lines = [f"Task the agent retrieves context for:\n  {task}\n", "Retrieved memories:"]
     lines.extend(_judge_lines(hits))

@@ -833,14 +833,14 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         use_qwen = arguments.get("use_qwen", False)
         qwen_client = None
         if use_qwen:
-            from helicon.qwen import get_client
+            from helicon.llm import get_client
             qwen_client = get_client(load_config())
         result = run_consolidation(conn, qwen_client, max_clusters)
         return json.dumps(result, indent=2)
 
     elif name == "helicon_portrait":
         from helicon.portrait import build_portrait
-        from helicon.qwen import get_client
+        from helicon.llm import get_client
         cfg = load_config()
         return json.dumps(build_portrait(conn, cfg, client=get_client(cfg)), indent=2, default=str)
 

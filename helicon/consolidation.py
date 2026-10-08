@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from helicon.qwen import complete_json
+from helicon.llm import complete_json
 
 
 def make_id() -> str:

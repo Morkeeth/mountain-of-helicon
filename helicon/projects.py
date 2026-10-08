@@ -239,7 +239,7 @@ def get_recommendations(conn, config: dict | None = None) -> list[dict]:
 
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    from helicon.qwen import get_client, complete
+    from helicon.llm import get_client, complete
     client = get_client(config or {})
     if client:
         _enrich_with_qwen(client, scored, config)
@@ -265,7 +265,7 @@ def _pick_action(p: dict, reasons: list[str]) -> str:
 
 
 def _enrich_with_qwen(client, projects: list[dict], config: dict | None = None):
-    from helicon.qwen import complete, resolve_model
+    from helicon.llm import complete, resolve_model
     model = resolve_model("fast", config)
 
     summary = "\n".join(

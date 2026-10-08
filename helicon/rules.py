@@ -44,7 +44,7 @@ COMPILER_SYSTEM = (
 def compile_rule(client, nl_text: str, model: str = "qwen3.6-plus") -> dict:
     """NL -> {action, match} via Qwen, strictly validated. Returns
     {"error": ...} when it can't be expressed or the model output is invalid."""
-    from helicon.qwen import complete_json
+    from helicon.llm import complete_json
 
     user = (f'Rule: "{nl_text}"\n\n'
             'Return ONLY JSON: {"action": "kill"|"approve", "match": {<fields>}}\n'

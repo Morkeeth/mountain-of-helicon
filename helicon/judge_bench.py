@@ -1,6 +1,6 @@
 """Slice 1: benchmark Qwen as the memory-rot JUDGE against human-ruled ground truth.
 
-The rot exam's contradiction judge (`helicon.qwen.detect_contradictions`) is
+The rot exam's contradiction judge (`helicon.llm.detect_contradictions`) is
 Qwen-powered and tier-swappable. This measures how well each Qwen tier judges
 contradictions, and it is the keystone of the moonshot: the whole "Qwen is the
 verification brain" claim rests on Qwen being a measurably good judge.
@@ -124,7 +124,7 @@ def build_judges(config: dict, tiers) -> tuple[list, list]:
     """(judges, notes). Each judge = (label, client, model). Qwen tiers always
     (if a Qwen key exists); competitor models only when OPENROUTER_API_KEY is set."""
     import os
-    from helicon.qwen import get_client, resolve_model
+    from helicon.llm import get_client, resolve_model
     judges, notes = [], []
     qc = get_client(config)
     if qc:
@@ -150,7 +150,7 @@ def judge_probes(config: dict, probes: list[dict], tiers) -> dict:
     """Run every judge (Qwen tiers + any competitor) over every probe. Returns
     per-judge verdicts + latency + cost (cost only for models with known pricing).
     Uses the Qwen cache so reruns are free."""
-    from helicon.qwen import detect_contradictions, _call_log, TIER_COST_PER_1K
+    from helicon.llm import detect_contradictions, _call_log, TIER_COST_PER_1K
     judges, notes = build_judges(config, tiers)
     if not judges:
         return {"error": "; ".join(notes) or "no judges available"}

@@ -13,7 +13,7 @@ resolve back to one of them, no free-floating advice ever ships.
 
 from datetime import datetime, timezone
 
-from helicon.qwen import get_client, complete_json
+from helicon.llm import get_client, complete_json
 from helicon.lenses import detect_lens, lens_guidance
 
 

@@ -140,7 +140,7 @@ def watch_once(conn: sqlite3.Connection, config: dict, scan: bool = True,
     from helicon.aliases import alias_scan
     client = None
     try:
-        from helicon.qwen import get_client, set_cache_db
+        from helicon.llm import get_client, set_cache_db
         set_cache_db(conn)
         client = get_client(config)
     except Exception:

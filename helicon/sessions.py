@@ -2,7 +2,7 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-from helicon.qwen import complete_json, resolve_model
+from helicon.llm import complete_json, resolve_model
 
 
 def detect_session(conn: sqlite3.Connection, window_minutes: int = 60) -> dict | None:

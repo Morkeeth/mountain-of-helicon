@@ -5,7 +5,7 @@ import uuid
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
-from helicon.qwen import complete_json
+from helicon.llm import complete_json
 
 
 def make_id(prefix: str = "ent") -> str:

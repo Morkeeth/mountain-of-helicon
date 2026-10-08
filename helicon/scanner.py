@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from helicon.models import ConnectorResult, HeliconCube
 from helicon.connectors import scan_all
 from helicon.db import init_db, insert_cube, log_scan_complete, log_scan_start
-from helicon.qwen import get_client, summarize_cube, check_novelty, resolve_model
+from helicon.llm import get_client, summarize_cube, check_novelty, resolve_model
 
 
 def make_id() -> str:

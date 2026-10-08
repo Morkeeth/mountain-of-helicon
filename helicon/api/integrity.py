@@ -50,7 +50,7 @@ async def integrity_battery(llm: bool = False):
     client = model = None
     if llm:
         from helicon.api.app import get_config
-        from helicon.qwen import get_client, resolve_model
+        from helicon.llm import get_client, resolve_model
         config = get_config()
         client = get_client(config)
         model = resolve_model("default", config)
