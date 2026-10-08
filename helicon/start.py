@@ -223,12 +223,24 @@ def _work_cache_path():
     return os.path.join(os.path.expanduser("~"), ".helicon", "work-cache.json")
 
 
+def _find_tool(name, beside=None):
+    """A command by name. A background service has a short search path, so a tool that
+    was installed with the same Python is also looked for beside that Python."""
+    import shutil
+    import sys
+
+    found = shutil.which(name)
+    if found:
+        return found
+    near = os.path.join(beside or os.path.dirname(sys.executable), name)
+    return near if os.path.isfile(near) and os.access(near, os.X_OK) else None
+
+
 def _spend(days, today):
     """Token spend from Transcripto, the tool that owns that number. None when it is
     not installed or gives nothing. Cached for the day: it takes about ten seconds."""
-    import shutil
 
-    command = os.environ.get("HELICON_TRANSCRIPTO") or shutil.which("transcripto")
+    command = os.environ.get("HELICON_TRANSCRIPTO") or _find_tool("transcripto")
     if not command:
         return None
     cache = _work_cache_path()
