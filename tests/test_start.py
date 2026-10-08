@@ -239,3 +239,45 @@ def test_menu_line_names_problems_in_plain_words_or_says_all_in_order():
     assert start.menu_line(card) == ("All in order", 0)
     card["install"] = {"behind_main": 38}
     assert start.menu_line(card)[0] == "Helicon is out of date"
+
+
+def test_the_saved_line_is_one_sentence_with_its_age(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    from helicon.start import save_line, saved_line
+
+    path = str(tmp_path / "line.json")
+    assert saved_line(path) is None  # nothing saved yet is said, not invented
+    then = datetime(2026, 10, 8, 9, 0, tzinfo=timezone.utc)
+    card = {"memory": {"found": True, "rotten": 1}, "routines": {"known": True, "failed": 14}}
+    row = save_line(card, then.isoformat(), path)
+    assert row["line"] == "1 note out of date · 14 jobs failing" and row["to_fix"] == 2
+    assert saved_line(path, then + timedelta(seconds=30)) == "Helicon: 1 note out of date · 14 jobs failing (read just now)"
+    assert saved_line(path, then + timedelta(hours=3)).endswith("(read 3 hours ago)")
+    assert saved_line(path, then + timedelta(days=4)).endswith("(read 4 days ago)")
+    (tmp_path / "line.json").write_text("not json")
+    assert saved_line(path) is None
+
+
+def test_the_saved_line_holds_no_path_or_name(tmp_path):
+    import json
+
+    from helicon.start import save_line
+
+    card = {"instructions": {"found": True, "broken": 2, "read": "/Users/someone/secret-project"}}
+    save_line(card, "2026-10-08T09:00:00+00:00", str(tmp_path / "line.json"))
+    saved = json.loads((tmp_path / "line.json").read_text())
+    assert sorted(saved) == ["at", "line", "to_fix"] and "someone" not in json.dumps(saved)
+
+
+def test_a_law_refresh_keeps_the_blocks_other_tools_own():
+    from helicon.gold import kept_blocks
+
+    old = ("<!-- RESEARCH-RECALL:start -->\nrecall\n<!-- RESEARCH-RECALL:end -->\n\n"
+           "<!-- STATE:start -->\nstate\n<!-- STATE:end -->\n\n# law\nold law\n"
+           "<!-- HELICON:start -->\nline\n<!-- HELICON:end -->\n")
+    blocks = kept_blocks(old)
+    assert [b.split(":")[0] for b in blocks] == ["<!-- RESEARCH-RECALL", "<!-- STATE", "<!-- HELICON"]
+    assert "old law" not in "".join(blocks)
+    assert kept_blocks("no blocks here") == []
+    assert kept_blocks("<!-- STATE:end --> backwards <!-- STATE:start -->") == []
