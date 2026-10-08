@@ -314,3 +314,12 @@ def test_spend_across_tools_reads_a_stored_period_and_names_what_it_cannot_read(
         raise OSError("refused")
 
     assert read_tools_spend("2026-10-08", fetch=down) is None and _tools_spend_plain(None) == []
+
+
+def test_a_job_restarted_by_hand_is_not_a_failed_job():
+    from helicon.start import _job_failed
+
+    assert _job_failed("-", "1") and _job_failed("-", "78") and _job_failed("412", "1")
+    assert _job_failed("-", "-15")  # killed and not running: still a failure
+    assert not _job_failed("60881", "-15")  # stopped by a signal, alive again: a restart
+    assert not _job_failed("60881", "0") and not _job_failed("-", "0") and not _job_failed("-", "-")
