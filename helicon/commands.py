@@ -21,28 +21,55 @@ from __future__ import annotations
 import json
 import re
 
-from helicon.pointers import _NEGATION, _exists, instruction_files, read_repo_text
+from helicon.pointers import (_NEGATION, _exists, _segment_excluded, _tree, instruction_files,
+                              read_repo_text, workspace_dirs)
 
 # Command references inside inline code spans. Each group 1 = the token we resolve.
-_RE_NPM = re.compile(r"`(?:npm run|yarn|pnpm(?: run)?)\s+([\w:.-]+)`")
+_RE_NPM = re.compile(r"`(npm run|yarn|pnpm run|pnpm)\s+([\w:.-]+)`")
+# Subcommands the package manager itself provides. `pnpm install` (vercel/ai
+# AGENTS.md:60) is not a script and no package.json has to declare it. Only a
+# bare `pnpm X` or `yarn X` can be one; `npm run X` is always a script.
+_PM_BUILTINS = frozenset({
+    "install", "i", "add", "remove", "rm", "uninstall", "un", "update", "up", "upgrade",
+    "ci", "link", "unlink", "exec", "dlx", "create", "init", "publish", "pack", "outdated",
+    "audit", "why", "ls", "list", "prune", "dedupe", "rebuild", "store", "patch",
+    "patch-commit", "env", "setup", "import", "licenses", "root", "bin", "cache", "config",
+    "login", "logout", "whoami", "version", "view", "info", "search", "help", "workspace",
+    "workspaces", "set-version", "fetch", "approve-builds",
+})
 _RE_MAKE = re.compile(r"`make\s+([\w.-]+)`")
 _RE_PY = re.compile(r"`python3?\s+(?:-m\s+([\w.]+)|([\w./-]+\.py))[^`]*`")
 _RE_SCRIPT = re.compile(r"`(?:bash|sh|\./)\s*([\w./-]+\.(?:sh|bash|py|js|ts))`")
 
 
 def _pkg_scripts(repo_root: str) -> set[str]:
-    raw = read_repo_text(repo_root, "package.json")
-    if not raw:
-        return set()
-    try:
-        return set(json.loads(raw).get("scripts", {}) or {})
-    except Exception:
-        return set()
+    """Scripts of the root package.json and of every workspace package. In a
+    monorepo the root AGENTS.md says `pnpm test:node` and the script lives in
+    packages/ai/package.json (vercel/ai AGENTS.md:78)."""
+    out: set[str] = set()
+    for base in ("", *workspace_dirs(repo_root)):
+        raw = read_repo_text(repo_root, f"{base}/package.json" if base else "package.json")
+        if not raw:
+            continue
+        try:
+            out |= set(json.loads(raw).get("scripts", {}) or {})
+        except Exception:
+            continue
+    return out
+
+
+_MAKEFILE_NAMES = ("Makefile", "makefile", "GNUmakefile")
 
 
 def _make_targets(repo_root: str) -> set[str]:
+    """Targets of the root Makefile and of every Makefile outside a vendored,
+    sample or dot directory. humanlayer's root CLAUDE.md:72 says `make mocks`;
+    the target is in hld/Makefile."""
     out: set[str] = set()
-    for name in ("Makefile", "makefile", "GNUmakefile"):
+    _names, _dirs, files = _tree(repo_root)
+    nested = [f for f in files if f.rsplit("/", 1)[-1] in _MAKEFILE_NAMES
+              and not any(_segment_excluded(seg) for seg in f.split("/")[:-1])]
+    for name in (*_MAKEFILE_NAMES, *sorted(nested)):
         text = read_repo_text(repo_root, name)
         if not text:
             continue
@@ -81,8 +108,11 @@ def check_commands(repo_root: str, files: list[str] | None = None) -> dict:
         read_files.append(rel)
         for i, line in enumerate(lines, 1):
             for m in _RE_NPM.finditer(line):
-                _grade(checked, "npm", m.group(1), m.group(1) in scripts, rel, i, line,
-                       f"no '{m.group(1)}' in package.json scripts")
+                form, name = m.group(1), m.group(2)
+                if form in ("yarn", "pnpm") and name in _PM_BUILTINS:
+                    continue
+                _grade(checked, "npm", name, name in scripts, rel, i, line,
+                       f"no '{name}' in package.json scripts")
             for m in _RE_MAKE.finditer(line):
                 _grade(checked, "make", m.group(1), m.group(1) in targets_mk, rel, i, line,
                        f"no '{m.group(1)}' target in Makefile")
