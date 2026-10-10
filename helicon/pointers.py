@@ -73,7 +73,7 @@ _PLACEHOLDER = ("<", ">", "{", "}", "YYYY", "…", "...")
 # gone, and grading it as a dead reference is the crying-wolf false positive the review
 # caught. If the line negates near the pointer, the missing path is intentional.
 _NEGATION = re.compile(
-    r"\b(not|no longer|never|isn'?t|aren'?t|was|were|used to|removed|deleted|dropped|"
+    r"\b(not|no longer|never|isn'?t|aren'?t|don'?t|do not|was|were|used to|removed|deleted|dropped|"
     r"vendored|absent|missing|gone|moved to|renamed|instead of|replaced by|superseded)\b",
     re.I,
 )
@@ -100,6 +100,15 @@ class Pointer:
     base: str = ""     # which directory the path resolved against (own dir / repo root / under X/)
 
 
+# Runtime objects whose members read like `Name.ext`. humanlayer's apps/daemon/CLAUDE.md:16
+# says "`Bun.sql` for Postgres" and 0.2.4 graded it as a missing .sql file.
+_RUNTIME_GLOBALS = frozenset({
+    "Bun", "Deno", "Node", "process", "window", "document", "globalThis", "console",
+    "Math", "JSON", "Object", "Array", "String", "Number", "Promise", "Date", "Intl",
+    "Reflect", "Symbol", "Buffer", "React", "Vue", "jQuery",
+})
+
+
 def _is_bare_extension(tok: str) -> bool:
     """`.js` or `.ts` names a kind of file. `.env` is a filename and stays a path."""
     t = tok.strip()
@@ -118,6 +127,8 @@ def _looks_like_path(tok: str) -> bool:
         return False
     if tok == "process.env":
         return False                                   # Node member access, not a `.env` file
+    if "/" not in tok and tok.split(".", 1)[0] in _RUNTIME_GLOBALS:
+        return False                                   # `Bun.sql` is an API, not a .sql file
     if _is_bare_extension(tok):
         return False                                   # `.js` / `.tsx` with no stem is not a path
     if not re.search(r"\w", tok):
@@ -150,6 +161,8 @@ def _tree(repo_root: str) -> tuple[set[str], list[str], list[str]]:
         ds[:] = [d for d in ds if d not in (".git", "node_modules", "__pycache__", ".venv", "venv")]
         rel = os.path.relpath(r, root).replace(os.sep, "/")
         for d in ds:
+            # A bare name can be a directory too: vercel/ai keeps `sitemap.md/route.ts`.
+            names.add(d.lower())
             dirs.append(d if rel == "." else f"{rel}/{d}")
         for f in fs:
             names.add(f.lower())
@@ -164,6 +177,8 @@ BASE_OWN = "own dir"        # the directory holding the instruction file
 BASE_ROOT = "repo root"     # fallback when the own dir does not have it
 BASE_SUFFIX = "under"       # found as a suffix of a real tree path, e.g. under codex-rs/
 BASE_PKG = "package"        # found relative to a monorepo package, e.g. package packages/zod/src/v4/
+BASE_BARE = "basename anywhere in tree"   # a slash-less name, matched by basename only
+BASE_ONLY_EXCLUDED = "only under"         # exists only inside examples/, fixtures/, vendor/ or a dot dir
 
 # `/*param_name*/` is a Rust/C comment, not a path. Neither is a glob whose first
 # segment is not a plain name.
@@ -190,6 +205,33 @@ def _suffix_prefixes(repo_root: str, rel: str) -> list[str]:
                               for seg in e[: -len(tail)].split("/"))},
                  key=lambda x: (x.count("/"), x))
     return out
+
+
+_EXAMPLE_DIRS = frozenset({"examples", "samples"})
+
+
+def _excluded_suffix_prefix(repo_root: str, rel: str) -> str | None:
+    """The first examples/ or samples/ prefix P such that P/rel exists, when no
+    clean prefix does. Such a copy must not turn a stale pointer green, but it is
+    not proof of a dead pointer either: vercel/ai's AGENTS.md runs
+    `src/stream-text/openai/basic.ts` inside examples/ai-functions/. The caller
+    reports it as not graded. A fixture, bench, vendored or dot-directory copy
+    stays red: that is where a stale pointer hides a copy, not where it runs."""
+    rel = rel.rstrip("/")
+    if "/" not in rel:
+        return None
+    _names, dirs, files = _tree(repo_root)
+    tail = "/" + rel
+    hits: set[str] = set()
+    for e in (*dirs, *files):
+        if not e.endswith(tail):
+            continue
+        prefix = e[: -len(tail)]
+        segs = prefix.split("/")
+        excluded = [s for s in segs if _segment_excluded(s)]
+        if excluded and all(s.casefold() in _EXAMPLE_DIRS for s in excluded):
+            hits.add(prefix)
+    return sorted(hits, key=lambda x: (x.count("/"), x))[0] if hits else None
 
 
 def _has_path_evidence(repo_root: str, rel: str, anchors: tuple[str, ...]) -> bool:
@@ -295,7 +337,7 @@ def _stem(part: str) -> str:
 def _token_start(line: str, body: str) -> int | None:
     quoted = re.search(r"`" + re.escape(body) + r"`", line)
     if quoted:
-        return quoted.start(1)
+        return quoted.start() + 1
     bare = re.search(r"(?<![\w`./-])" + re.escape(body) + r"(?![\w`./-])", line)
     if bare:
         return bare.start()
@@ -334,7 +376,9 @@ def _naming_or_placeholder(tok: str, line: str, at: int | None = None) -> bool:
         return False
     if any(_PLACEHOLDER_SEG.fullmatch(_stem(p)) for p in parts):
         return True
-    if _CASE_STEM.fullmatch(_stem(parts[-1])):
+    # Every extension comes off: `kebab-case.test.ts` and `kebab-case.test-d.ts`
+    # are the pattern as much as `kebab-case.ts` is (vercel/ai AGENTS.md:168).
+    if _CASE_STEM.fullmatch(parts[-1].split(".", 1)[0]):
         return True
     if _beside_case_style(line, body, at):
         return True
@@ -486,7 +530,7 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
     if "/" not in rel:                                 # `campaign-unlock.ts` names a file, not a root path
         # A bare basename found deeper passes, as in 0.2.3. Flagging it cost 49 false
         # flags on 13 public repos (`Cargo.toml` in codex lives at codex-rs/Cargo.toml).
-        return rel, rel.lower() in names, "basename anywhere in tree"
+        return rel, rel.lower() in names, BASE_BARE
     if tok.startswith("/") and not rel.lower().endswith(_CODE_EXT):
         # `/api/escrow-v2` is route-shaped: resolved if any directory ends with it, else not gradable
         return (rel, True, "route suffix in tree") if any(
@@ -496,6 +540,9 @@ def _resolve(repo_root: str, raw: str, file_dir: str = "",
         own = [p for p in prefixes if not file_dir or p == file_dir or p.startswith(file_dir + "/")]
         pick = (own or prefixes)[0]
         return rel, True, f"{BASE_SUFFIX} {pick}/"
+    only = _excluded_suffix_prefix(repo_root, rel)
+    if only is not None:
+        return rel, False, f"{BASE_ONLY_EXCLUDED} {only}/"
     # Monorepo: a root doc names `core/` or `src/` relative to a package, not the root.
     # A single segment has no tail for the suffix rule above, so it lands here.
     # Try the bases this file's other paths resolved under, then each workspace package
@@ -982,6 +1029,12 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             adopted = _parent_relative(line, raw, repo_root, file_dir, learned)
             if adopted and adopted[1]:
                 target, ok, base = adopted
+        if not ok and base.startswith(BASE_ONLY_EXCLUDED + " "):
+            note_unverified(
+                kind, display, line_no, line,
+                f"found {base} (an examples copy, not where the repo keeps it); not graded",
+            )
+            return
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,

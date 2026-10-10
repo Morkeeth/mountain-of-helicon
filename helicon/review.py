@@ -299,6 +299,11 @@ def main(argv=None) -> int:
         args.pop(i)
         html_path = args.pop(i) if i < len(args) and not args[i].startswith("-") else ""
     repo = os.path.abspath(args[0]) if args else os.getcwd()
+    if not os.path.isdir(repo):
+        # Cold on 2026-10-11, 0.2.4 told a stranger to "Add AGENTS.md or CLAUDE.md"
+        # to a path that did not exist.
+        print(f"review: not a directory: {repo}", file=sys.stderr)
+        return 2
     res = review(repo)
     if as_json:
         print(json.dumps(review_summary(repo, res), indent=2))

@@ -34,7 +34,11 @@ PY=/Library/Frameworks/Python.framework/Versions/3.12/bin/python3
 # that moves out of the repo takes its evidence with it. Hardcoding data/ here
 # split the writer from the reader: the nightly wrote a healthy record into the
 # repo while the detector looked in the store and filed "never completed".
-STORE=$($PY -c "import json,os;print(os.path.dirname(json.load(open('config.json'))['db_path']) or 'data')" 2>/dev/null || echo data)
+# Resolve through helicon.config, not a bare open('config.json'): the config
+# moved to ~/.helicon/config.json on 2026-08-30 and a worktree checkout has no
+# config.json at its root, so the old line fell back to 'data' and wrote the
+# run record where `helicon doctor` never looks (found 2026-10-11).
+STORE=$($PY -c "import os;from helicon.config import load_config;print(os.path.dirname(load_config()['db_path']) or 'data')" 2>/dev/null || echo data)
 mkdir -p "$STORE"
 LOG=$STORE/nightly.log
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
