@@ -4455,14 +4455,27 @@ def cmd_truth(args):
         sys.exit("usage: helicon truth <path-to-memory-or-notes-dir>\n"
                  "  e.g. helicon truth ~/.claude/projects/<you>/memory\n"
                  "       helicon truth ./docs")
+    recursive = getattr(args, "recursive", False)
     res = scan_store(path,
                      include_archive=getattr(args, "archive", False),
-                     recursive=getattr(args, "recursive", False))
+                     recursive=recursive)
+    # A missing path or an empty folder must never read as a clean store.
+    # Cold on 2026-10-11, 0.2.4 printed "store looks fresh" for an empty
+    # directory and exited 0 for a path that did not exist.
+    if res.get("error"):
+        print(f"truth: {res['error']}", file=sys.stderr)
+        sys.exit(1)
+    if not res.get("total"):
+        hint = "" if recursive else " Add --recursive to read subdirectories."
+        print(f"truth: 0 files scanned under {os.path.expanduser(path)}: "
+              f"no .md, .jsonl or .ndjson here.{hint}", file=sys.stderr)
+        if getattr(args, "json", False):
+            import json as _json
+            print(_json.dumps(res, indent=2, default=str, ensure_ascii=False))
+        sys.exit(2)
     if getattr(args, "count", False):
         # Stability probe: the rot count alone, so a run can be measured
-        # before/after. An error must never read as a clean 0.
-        if res.get("error"):
-            sys.exit(f"truth: {res['error']}")
+        # before/after.
         print(res["flagged"])
         return
     if getattr(args, "json", False):
