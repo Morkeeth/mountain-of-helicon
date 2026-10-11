@@ -62,7 +62,7 @@ def test_question_is_not_an_assertion():
 
 
 def test_places_are_not_people():
-    # live false positive Jul 5: 'Avery's birthday (Paris)' filed 'Paris birthday'
+    # live false positive May 5: 'Avery's birthday (Paris)' filed 'Paris birthday'
     got = extract_assertions("| May 18 | Avery's birthday (Paris) | plan dinner |")
     assert {a["person"] for a in got} == {"Avery"}
     got = extract_assertions("Casey's wedding in Lisbon, Apr 13")
@@ -74,7 +74,7 @@ def test_places_are_not_people():
 def test_person_window_drops_far_capitalized_words():
     # 'Lisbon' sits outside PERSON_WINDOW of 'Wedding' — a place name in the
     # same sentence must not become the subject of the event.
-    got = extract_assertions("~~ETHGlobal Lisbon~~ -- DROPPED early. Wedding conflict Jul 24-26.")
+    got = extract_assertions("~~ETHGlobal Lisbon~~ -- DROPPED early. Wedding conflict May 24-26.")
     assert all(a["person"] != "Lisbon" for a in got)
 
 
@@ -252,7 +252,7 @@ def test_pre_resolution_stale_cubes_stay_closed(conn):
     assert find_conflicts(conn) == []
 
 
-# --- audit regressions (Jul 5 adversarial review) ------------------------
+# --- audit regressions (May 5 adversarial review) ------------------------
 
 def test_resurfaced_pair_scan_with_judge_does_not_crash(conn, monkeypatch):
     """P0 from the audit: with a model client, the resurfaced conflict's truth
@@ -310,7 +310,7 @@ def test_best_pair_shift_does_not_file_orphan_sibling(conn):
     assert len(pair_scan(conn)["filed"]) == 1
     # a third date gains majority support -> best pair changes
     for i, ref in enumerate(["a.md", "b.md", "c.md"]):
-        _cube(conn, f"Avery birthday: Jul 20 (v{i})", ref)
+        _cube(conn, f"Avery birthday: May 20 (v{i})", ref)
     res = pair_scan(conn)
     assert res["filed"] == []  # skipped: fact already has an open finding
     open_rows = conn.execute(

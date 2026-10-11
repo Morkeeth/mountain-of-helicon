@@ -14,7 +14,7 @@ so it does not live in the store.
 Delivery: a drift-report.md written where config points (default data/,
 point it at an Obsidian dashboard to make drift a note that greets you), and
 a macOS notification when there is something to say. `--install` writes the
-crontab line, sample-radar style; `--uninstall` removes it.
+crontab line, scheduled-job style; `--uninstall` removes it.
 """
 import json
 import os

@@ -2,7 +2,7 @@
 
 Recording a ruling manufactured the evidence that the ruling had been violated.
 `resolve --list` showed "Casey wedding: 03-14..03-22 vs 04-11..04-13" as a LIVE
-critical contradiction — a fact ruled on Jul 11 (#322) and already compiled into
+critical contradiction — a fact ruled on May 11 (#322) and already compiled into
 GOLDEN_RULES. The source of the "wrong" side was the correction itself:
 
     #322 Casey wedding = **04-11..04-13** (the "Mar 14-22" cube was mislabeled)
@@ -46,7 +46,7 @@ def _cube(conn, cid, title, content, created_at):
 
 @pytest.fixture
 def ruled(tmp_path):
-    """A store where Casey's wedding was ruled 04-11..04-13 on Jul 11."""
+    """A store where Casey's wedding was ruled 04-11..04-13 on May 11."""
     conn = init_db(str(tmp_path / "helicon.db"))
     insert_audit(conn, AuditResult(
         audit_type="factual", target_type="cube", target_id="gc_x",

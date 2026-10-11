@@ -7,8 +7,8 @@ an artifact manifest, a change summary, and a needs-human flag.
 
 Privacy is enforced twice: an explicit terminal allowlist (never auto-discover
 trading/wallet/personal repos) AND a hard-private substring filter on the repo
-path and closeout path. `review_terminals.discover_terminals` auto-includes
-sample-private (trading) and sample-oracle (wallet); this module drops them.
+path and closeout path. Local terminal discovery may include private repos;
+this module drops them.
 """
 import hashlib
 import os
@@ -19,32 +19,39 @@ from helicon.review_terminals import (
     discover_terminals, ingest, extract_claims, verify, _claim_key, _RANK,
 )
 
-# Explicit allowlist. Only these terminals ever reach the cockpit. Trading,
-# wallet, treasury, oracle, receipt, journal, finance repos are NEVER listed.
-# "helicon" is the FROZEN submission checkout; "mountain-of-helicon" is where
-# this code now lives and every session actually runs. The allowlist named the
-# dead one and omitted the live one, so the tool could not deliver context into
-# its own repo — precisely the stale-config failure it exists to catch. Both are
-# listed: the frozen tree is still readable, the live tree now works.
-SAFE_TERMINALS = {
-    "helicon", "mountain-of-helicon", "world-relay", "taste-machine",
-    "worldcup-agent", "x-engine", "glaze", "favour",
-}
+# The public default is intentionally narrow. Local additions live in config.
+SAFE_TERMINALS = {"helicon", "mountain-of-helicon"}
 
 # Defense-in-depth: even if a name slips the allowlist, a repo/closeout path
 # hitting any of these is dropped (mirrors context_policy's default-deny terms).
 PRIVATE_RX = re.compile(
     r"journal|diary|financ|wallet|seed.?phrase|private.?key|salary|passport|"
-    r"\bssn\b|password|credential|\bbank\b|net.?worth|rekt|treasury|okx|"
-    r"oracle|receipt|sample-radar|sample-agent|sample-assessment|booking|"
-    r"country.?bounce|sample-person|sample-record", re.I)
+    r"\bssn\b|password|credential|\bbank\b|net.?worth|treasury|"
+    r"oracle|receipt|booking", re.I)
+
+
+def _privacy_config(config=None):
+    if config is None:
+        from helicon.config import load_config
+        config = load_config()
+    section = (config or {}).get("review_terminals", {})
+    return section if isinstance(section, dict) else {}
+
+
+def _safe_terminals(config=None):
+    configured = _privacy_config(config).get("safe_repos", [])
+    return SAFE_TERMINALS | {name.lower() for name in configured if isinstance(name, str)}
 
 _H1_RX = re.compile(r"^#\s+(.+?)\s*$")
 _HEADING_RX = re.compile(r"^#{1,3}\s+")
 
 
 def _is_private(path: str) -> bool:
-    return bool(PRIVATE_RX.search(path or ""))
+    if PRIVATE_RX.search(path or ""):
+        return True
+    lowered = (path or "").lower()
+    private = _privacy_config().get("private_repo_terms", [])
+    return any(isinstance(term, str) and term and term.lower() in lowered for term in private)
 
 
 CODE_ROOT = os.path.realpath(os.path.expanduser("~/CODE"))
@@ -65,7 +72,7 @@ def _safe_repo_root(repo: str, allowed_roots=None) -> str | None:
     if os.path.dirname(rr) != CODE_ROOT:
         return None
     name = os.path.basename(rr).lower()
-    if not (name in {s.lower() for s in SAFE_TERMINALS} or name.startswith("helicon")):
+    if not (name in _safe_terminals() or name.startswith("helicon")):
         return None
     if _is_private(rr):
         return None
@@ -192,7 +199,8 @@ def cockpit_view(conn, config=None, only=None, run=False, terminals=None) -> dic
     `terminals` (a list of (name, repo) pairs) overrides live discovery — used
     by tests to run the pipeline on a synthetic fixture deterministically."""
     ruled = _ruled_keys(conn)
-    allow = {t.lower() for t in (only or SAFE_TERMINALS)}
+    safe = _safe_terminals(config)
+    allow = {t.lower() for t in (only or safe)}
     discovered = terminals if terminals is not None else discover_terminals(config)
     out_terminals = []
     for name, repo in discovered:
@@ -236,7 +244,7 @@ def cockpit_view(conn, config=None, only=None, run=False, terminals=None) -> dic
         "terminals": out_terminals,
         "needs_you": sum(1 for t in out_terminals if t["needs_human"]),
         "total": len(out_terminals),
-        "safe_set": sorted(SAFE_TERMINALS),
+        "safe_set": sorted(safe),
     }
 
 

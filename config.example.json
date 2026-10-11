@@ -22,7 +22,10 @@
       "enabled": true,
       "vault_path": "~/Documents/MyVault",
       "max_depth": 3,
-      "skip_dirs": [".obsidian", ".trash"]
+      "skip_dirs": [
+        ".obsidian",
+        ".trash"
+      ]
     },
     "git": {
       "enabled": true,
@@ -31,7 +34,9 @@
     },
     "skills": {
       "enabled": true,
-      "skill_roots": ["~/.claude/skills"]
+      "skill_roots": [
+        "~/.claude/skills"
+      ]
     },
     "chatgpt": {
       "enabled": false,
@@ -55,7 +60,7 @@
     }
   },
   "aliases": {
-    "_comment": "R4's code arm: where a declared dead name may be searched for as EXECUTABLE code. Unset means the arm does not run and the exam reports it unmeasured — it never falls back to scanning your home directory. Falls back to connectors.git.repos_dir when omitted. The checkout Helicon itself runs from is always excluded.",
+    "_comment": "R4's code arm: where a declared dead name may be searched for as EXECUTABLE code. Unset means the arm does not run and the exam reports it unmeasured \u2014 it never falls back to scanning your home directory. Falls back to connectors.git.repos_dir when omitted. The checkout Helicon itself runs from is always excluded.",
     "repos_dir": "~/projects"
   },
   "forgetting": {
@@ -79,5 +84,16 @@
     "host": "127.0.0.1",
     "port": 8420,
     "password": ""
+  },
+  "review_terminals": {
+    "named_repos": {
+      "Sample": "sample-project"
+    },
+    "safe_repos": [
+      "sample-project"
+    ],
+    "private_repo_terms": [
+      "sample-private"
+    ]
   }
 }

@@ -43,7 +43,7 @@ RULED_CONTRADICTIONS = [
 # The HARD set: contradictions with no shared keywords (paraphrase), overlapping
 # ranges, a dead name asserted as current, and unit drift; plus hard NEGATIVES
 # that share a subject but do NOT contradict (a lexical judge over-flags these).
-# category, is_contradiction, a, b. Facts are Oscar's real ones (vault + rulings).
+# category, is_contradiction, a, b. Personal examples here are synthetic.
 HARD_PROBES = [
     # --- contradictions the judge SHOULD flag (no easy lexical overlap) ---
     ("paraphrase", True,
@@ -51,7 +51,7 @@ HARD_PROBES = [
      "Yieldbound just reads balances across wallets; it only shows numbers."),
     ("overlapping-range", True,
      "The Ligurian coast trip runs March 14 to 22.",
-     "The Ligurian itinerary is booked August 15 to 24."),
+     "The Ligurian itinerary is booked March 15 to 24."),
     ("dead-name-as-current", True,
      "Our project RELAY just shipped its points-sink feature this week.",
      "FAVOUR is the project's current name; RELAY is the dead pre-rebrand name."),
@@ -63,11 +63,11 @@ HARD_PROBES = [
      "This is the twenty-fifth episode we have published."),
     ("status-flip", True,
      "The security audit says the escrow bug is NOT patched.",
-     "The escrow drain fix was merged into main on July 4."),
+     "The escrow drain fix was merged into main on May 4."),
     # --- hard NEGATIVES: same subject, different facts, NOT a contradiction ---
     ("same-subject-diff-fact", False,
      "Avery's birthday is May 18.",
-     "Avery's wedding is in September."),
+     "Avery's wedding is in April."),
     ("definition-plus-history", False,
      "Yieldbound is a yield treasury.",
      "Yieldbound shipped at the Synthesis hackathon."),
@@ -75,7 +75,7 @@ HARD_PROBES = [
      "Training for the Berlin marathon in March.",
      "Also signed up for a trail race in the fall."),
     ("refinement", False,
-     "The wedding is the second weekend of September.",
+     "The wedding is the second weekend of April.",
      "The wedding is April 11 to 13."),
     ("whole-vs-part", False,
      "FAVOUR is live with real money.",

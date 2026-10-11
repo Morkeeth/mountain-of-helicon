@@ -63,7 +63,7 @@ _NOT_A_PROJECT = {"node_modules", "__pycache__", ".venv", "venv", "tmp", "scratc
 def slug(text: str) -> str:
     """Fold a human name and a repo name onto the same key.
 
-    'REKT Capital' and 'sample-private' are the same project. Markdown, emoji,
+    'Sample Private' and 'sample-private' are the same project. Markdown, emoji,
     arrows and punctuation are noise here. A leading article is dropped because
     row titles carry one and repo names never do.
     """
@@ -93,7 +93,7 @@ def matches(repo_slug: str, index_slugs: set) -> bool:
 def _row_names(cell: str) -> list[str]:
     """Every name a single Initiative cell offers, including aliases.
 
-    A row reads like `HL tool _(dashboard = a detail)_ / **REKT Capital**` or
+    A row reads like `HL tool _(dashboard = a detail)_ / **Sample Private**` or
     `People Radar -> **context-radar**`. Matching only the first name reports a
     false gap for the majority of them, because the repo is usually named by the
     alias, not by the title.

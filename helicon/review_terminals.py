@@ -23,15 +23,8 @@ import subprocess
 from helicon.models import AuditResult
 from helicon.claims import extract_status_claims, insert_audit
 
-# Terminal -> repo. Auto-detection covers the rest; this just names the known ones.
-DEFAULT_TERMINALS = {
-    "Helicon": "helicon",
-    "FAVOUR": "world-relay",
-    "Rekt": "sample-private",
-    "Taste Machine": "taste-machine",
-    "KYA/OKX": "sample-oracle",
-    "Portfolio": "sample-portfolio",
-}
+# Machine-specific terminal names belong in the local config, not the package.
+DEFAULT_TERMINALS = {}
 CODE_DIR = os.path.expanduser("~/CODE")
 CLOSEOUT_RX = re.compile(r"(nightrun|closeout|god-?mode|status|sesh)", re.I)
 
@@ -76,8 +69,17 @@ def _base_ref(repo):
 def discover_terminals(config=None):
     """Known terminals + any ~/CODE repo on a non-main branch with commits ahead
     of base (an unreviewed working branch = a terminal with pending output)."""
+    if config is None:
+        from helicon.config import load_config
+        config = load_config()
+    configured = (config or {}).get("review_terminals", {})
+    known = configured.get("named_repos", DEFAULT_TERMINALS)
+    if not isinstance(known, dict):
+        known = DEFAULT_TERMINALS
     seen, out = set(), []
-    for name, rel in DEFAULT_TERMINALS.items():
+    for name, rel in known.items():
+        if not isinstance(name, str) or not isinstance(rel, str) or os.path.basename(rel) != rel:
+            continue
         repo = os.path.join(CODE_DIR, rel)
         if os.path.isdir(os.path.join(repo, ".git")):
             out.append((name, repo)); seen.add(os.path.realpath(repo))

@@ -30,7 +30,7 @@ def test_a_repo_with_no_row_is_the_gap(tmp_path):
 def test_the_alias_counts_as_a_row(tmp_path):
     """Row titles carry the human name; the repo is usually named by the alias.
     Matching only the title reports a false gap for most of the table."""
-    reg = _registry(tmp_path, "| 011 | HL tool _(dashboard)_ / **REKT Capital** | MONEY | 🔵 | p | n |\n")
+    reg = _registry(tmp_path, "| 011 | HL tool _(dashboard)_ / **Sample Private** | MONEY | 🔵 | p | n |\n")
     res = audit_registry(reg, str(tmp_path), repos=[_repo("sample-private")])
     assert res["unlisted"] == []
 

@@ -9,7 +9,7 @@ This closes the gap deterministically. From every live cube it extracts
 (person, topic, interval) assertions — a person name and a calendar date (or
 range) inside a small window around an event keyword ("birthday", "wedding",
 ...). Assertions group by (person, topic); a group where two different source
-files assert two *disjoint* intervals is a candidate contradiction ("Sep
+files assert two *disjoint* intervals is a candidate contradiction ("Apr
 11-13" vs "Apr 13" overlap, so they agree; "May 13" vs "May 18" cannot both
 be true). The selector finds, the model judge (detect_contradictions) rules;
 with no key the disjoint-interval mismatch itself is the verdict. Zero LLM
@@ -45,11 +45,11 @@ _MONTHS = {m: i + 1 for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun",
      "jul", "aug", "sep", "oct", "nov", "dec"])}
 
-_MON = r"(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?"
+_MON = r"(Jan|Feb|Mar|Apr|May|Jun|May|Mar|Apr|Oct|Nov|Dec)[a-z]*\.?"
 _DATE_RES = [
     # May 13 / May 13 / Apr 11-13 (optional range end)
     re.compile(rf"\b{_MON}\s+(\d{{1,2}})(?:\s*[-–]\s*(\d{{1,2}}))?\b"),
-    # 13 May / 13 Mayy
+    # 13 May / 13 May
     re.compile(rf"\b(\d{{1,2}})\s+{_MON}\b"),
     # 2026-05-13
     re.compile(r"\b\d{4}-(\d{2})-(\d{2})\b"),

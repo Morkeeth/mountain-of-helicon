@@ -103,6 +103,21 @@ def test_privacy_allowlist_drops_wallet_repo(conn, tmp_path):
     assert _is_private(str(repo)) is True
 
 
+def test_local_private_term_blocks_repo_without_generic_keyword(conn, tmp_path, monkeypatch):
+    import json
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"review_terminals": {
+        "private_repo_terms": ["sample-hidden"],
+        "safe_repos": ["sample-hidden"],
+    }}))
+    monkeypatch.setenv("HELICON_CONFIG", str(config_file))
+    repo = _fixture_terminal(tmp_path, name="sample-hidden")
+    view = cockpit_view(conn, terminals=[("sample-hidden", str(repo))],
+                        only={"sample-hidden"})
+    assert view["total"] == 0
+    assert _is_private(str(repo)) is True
+
+
 def test_inspect_blocks_private_path(conn, tmp_path):
     repo = _fixture_terminal(tmp_path, name="rekt-trading")
     # a private repo is blocked even when explicitly in the allowed roots
