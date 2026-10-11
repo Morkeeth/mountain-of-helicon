@@ -118,8 +118,14 @@ def test_local_private_term_blocks_repo_without_generic_keyword(conn, tmp_path, 
     assert _is_private(str(repo)) is True
 
 
-def test_inspect_blocks_private_path(conn, tmp_path):
-    repo = _fixture_terminal(tmp_path, name="rekt-trading")
+def test_inspect_blocks_private_path(conn, tmp_path, monkeypatch):
+    import json
+    config_file = tmp_path / "config.json"
+    config_file.write_text(json.dumps({"review_terminals": {
+        "private_repo_terms": ["sample-hidden"],
+    }}))
+    monkeypatch.setenv("HELICON_CONFIG", str(config_file))
+    repo = _fixture_terminal(tmp_path, name="sample-hidden")
     # a private repo is blocked even when explicitly in the allowed roots
     blocked = load_artifact(str(repo), "markdown", "NIGHTRUN.md",
                             allowed_roots={os.path.realpath(str(repo))})
