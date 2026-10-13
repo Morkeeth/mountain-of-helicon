@@ -25,8 +25,34 @@ def _topics_in_task(resolutions: list[dict], task: str) -> list[dict]:
     return [r for r in resolutions if r["topic"] and r["topic"].lower() in low]
 
 
+def _standing(conn, memory: dict, today=None) -> dict:
+    """Label one retrieved memory current or history, by the signals of `helicon truth`.
+
+    The retriever returns a note that says RETIRED on its first line, or that holds a
+    deadline long past, the same way it returns a live one. This reads the stored
+    note and says which it is, so an old claim is not handed over as today's."""
+    import json
+
+    from helicon.truth import history_reason
+
+    try:
+        row = conn.execute("SELECT content, metadata FROM helicon_cubes WHERE id = ?", (memory["id"],)).fetchone()
+    except Exception:
+        row = None
+    text = (row["content"] if row else "") or f"{memory.get('title', '')}\n{memory.get('content_preview', '')}"
+    status = ""
+    try:
+        meta = json.loads(row["metadata"]) if row and row["metadata"] else {}
+        front = meta.get("frontmatter") if isinstance(meta.get("frontmatter"), dict) else {}
+        status = str(meta.get("status") or front.get("status") or "")
+    except (ValueError, TypeError, AttributeError):
+        pass
+    reason = history_reason(text, status=status, today=today)
+    return {**memory, "standing": "history" if reason else "current", "history_reason": reason}
+
+
 def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000,
-                    include_private: bool = False) -> dict:
+                    include_private: bool = False, today=None) -> dict:
     """Retrieve context for `task`, then screen every retrieved memory through the
     compiled rulings. `conn` must have `row_factory = sqlite3.Row` (as the API and CLI
     connect it) — the ruling loader reads rows by column name.
@@ -66,7 +92,9 @@ def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000,
                 }
             )
         else:
-            safe.append(m)
+            safe.append(_standing(conn, m, today=today))
+    # Current notes first. A note that is history stays readable, labelled as history.
+    safe.sort(key=lambda m: m["standing"] == "history")
 
     return {
         "task": task,
@@ -75,6 +103,7 @@ def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000,
         "safe_context": safe,               # retrieved memory no ruling contradicts
         "flagged_context": flagged,         # retrieved memory that still asserts a ruled-wrong value
         "suppressed_count": len(flagged),
+        "history_count": sum(1 for m in safe if m["standing"] == "history"),
         "memory_health": base.get("memory_health"),
         "open_contradictions": base.get("open_contradictions", []),
     }
@@ -114,6 +143,9 @@ def format_guarded_context(res: dict) -> str:
 
     lines.append(f"\n  Safe context ({len(res['safe_context'])} memories, no ruling contradicts):")
     for m in res["safe_context"][:8]:
-        lines.append(f"    ✓ [{m['id']}] {m.get('title', '')}")
+        if m.get("standing") == "history":
+            lines.append(f"    ◷ [{m['id']}] HISTORY, not a current claim ({m.get('history_reason', '')}): {m.get('title', '')}")
+        else:
+            lines.append(f"    ✓ [{m['id']}] {m.get('title', '')}")
 
     return "\n".join(lines) + "\n"
