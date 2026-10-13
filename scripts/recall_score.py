@@ -29,11 +29,15 @@ def score(questions_path, rulings_file=None, include_private=False):
     if "include_private" in inspect.signature(dated_rulings.load_rulings).parameters:
         kwargs["include_private"] = include_private
     rulings = dated_rulings.load_rulings(path, **kwargs)
+    # The private rows, weighed and never shown, as the agent path holds them.
+    hidden = {}
+    if not include_private and hasattr(dated_rulings, "load_hidden"):
+        hidden = {"hidden": dated_rulings.load_hidden(path)}
     results = []
     for q in questions:
         gold_row = rows[q["ruling_index"]]
         gold = gold_row["text"]
-        got = dated_rulings.match_rulings(q["question"], rulings=rulings, limit=3)
+        got = dated_rulings.match_rulings(q["question"], rulings=rulings, limit=3, **hidden)
         current = [g for g in got if g["standing"] == "current"]
         results.append({
             "id": q["id"],
@@ -44,6 +48,7 @@ def score(questions_path, rulings_file=None, include_private=False):
             "current_row_holds_answer_word": any(
                 any(t in (g["text"] + g["quote"]).lower() for t in q["gold_any"]) for g in current),
             "other_current": sum(1 for g in current if g["text"] != gold),
+            "possibly_superseded": sum(1 for g in got if g["standing"] == "possibly_superseded"),
         })
     return {
         "at": datetime.datetime.now().astimezone().isoformat(),
@@ -69,7 +74,8 @@ def main():
     report = score(os.path.expanduser(args.questions), args.rulings and os.path.expanduser(args.rulings), args.include_private)
     for r in report["results"]:
         print(r["id"], r["split"], "RET" if r["returned"] else "-  ", "CUR" if r["current"] else "-  ",
-              "PRIVATE-GOLD" if r["gold_is_private"] else "")
+              "PRIVATE-GOLD" if r["gold_is_private"] else "",
+              f"NEWER-HIDDEN x{r['possibly_superseded']}" if r["possibly_superseded"] else "")
     print(f"gold is current: {report['score']} of {report['of']} | returned {sum(r['returned'] for r in report['results'])}"
           f" | rulings read {report['rulings_read']} of {report['rulings_with_text']}")
     if args.out:

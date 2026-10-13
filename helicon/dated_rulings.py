@@ -13,6 +13,13 @@ operator keeps off every agent surface, so the MCP server can never read them. T
 one opt-in is the keyword `include_private`, which only the operator's own terminal
 command (`helicon ask --include-private`) passes.
 
+A private row can still be the newest decision on a subject. Dropping it would leave
+an older public ruling standing as current, which is a wrong answer shown as the
+latest word. So the matcher weighs the private rows too, shows none of them, and
+when one is newer on the same subject it marks the public rulings
+`possibly_superseded` with `newer_hidden`. Nothing else about the private row
+leaves: no text, title, quote, source, date or count.
+
 The log path comes from HELICON_RULINGS_FILE. With the variable unset, the shared
 fleet log is used when it exists. Set it to an empty string to turn the reader off.
 """
@@ -63,6 +70,16 @@ def load_rulings(path=None, include_private=False):
     A broken line is skipped, never guessed. A row with `"private": true` is dropped
     unless `include_private` is set; no agent-facing caller sets it.
     """
+    return _load(path, private=None if include_private else False)
+
+
+def load_hidden(path=None):
+    """The private rows only. For the matcher's newer-exists check, never for output."""
+    return _load(path, private=True)
+
+
+def _load(path, private):
+    """Rows of the log. `private` False keeps public rows, True private ones, None all."""
     path = path or rulings_path()
     if not path:
         return []
@@ -78,7 +95,7 @@ def load_rulings(path=None, include_private=False):
                 continue
             if not isinstance(row, dict) or not row.get("text"):
                 continue
-            if row.get("private") and not include_private:
+            if private is not None and bool(row.get("private")) is not private:
                 continue
             out.append(
                 {
@@ -99,7 +116,7 @@ def _named(question):
     return {_stem(t.lower()) for t in tokens[1:] if t[0].isupper() and t.lower() not in _STOP}
 
 
-def match_rulings(question, rulings=None, limit=3, include_private=False):
+def match_rulings(question, rulings=None, limit=3, include_private=False, hidden=None):
     """Rulings that cover the question, with the current one marked.
 
     Lexical on purpose: each question word is weighted by how rare it is across the
@@ -112,8 +129,17 @@ def match_rulings(question, rulings=None, limit=3, include_private=False):
     newest of those is current, and every ruling of that same day with it. A weaker
     match is listed after them as related, whatever its date, so a later ruling about
     something else cannot pass for the latest word on this subject.
+
+    `hidden` holds the private rows the caller may not read. They are weighed with the
+    public word weights, so they change no public score, and none is returned. When
+    one is on the same subject and newer than the current public ruling, the public
+    rulings on that subject get the standing `possibly_superseded` and `newer_hidden`.
+    Read from the log, `hidden` is filled here unless the caller may read private rows.
     """
-    rulings = load_rulings(include_private=include_private) if rulings is None else rulings
+    if rulings is None:
+        rulings = load_rulings(include_private=include_private)
+        if hidden is None and not include_private:
+            hidden = load_hidden()
     asked = set(_words(question))
     if not rulings or not asked:
         return []
@@ -141,13 +167,35 @@ def match_rulings(question, rulings=None, limit=3, include_private=False):
     same = sorted((r for r in scored if r["score"] >= floor), key=lambda r: r["date"], reverse=True)
     related = [r for r in scored if r["score"] < floor]
     newest_day = same[0]["date"]
+    newer_hidden = False
+    for row in hidden or ():
+        if row["date"] > newest_day:
+            bag = set(_words(f"{row['title']} {row['text']} {row['quote']}"))
+            if sum(weight[w] for w in asked if w in bag) / full >= floor:
+                newer_hidden = True
+                break
     out = []
     for ruling in same + related:
         on_subject = ruling["score"] >= floor
         ruling["standing"] = (
-            "current" if on_subject and ruling["date"] == newest_day
-            else "older" if on_subject else "related"
+            "related" if not on_subject
+            else "possibly_superseded" if newer_hidden
+            else "current" if ruling["date"] == newest_day
+            else "older"
         )
         ruling["newest"] = ruling["standing"] == "current"
+        if newer_hidden and on_subject:
+            ruling["newer_hidden"] = True
         out.append(ruling)
     return out[:limit]
+
+
+HIDDEN_NOTICE = (
+    "A newer ruling on this subject exists that this caller cannot read. "
+    "No ruling shown here is confirmed current. Ask the operator before acting on one."
+)
+
+
+def hidden_notice(matched):
+    """The sentence an answer carries when a shown ruling may be superseded, else ''."""
+    return HIDDEN_NOTICE if any(r.get("newer_hidden") for r in matched or ()) else ""
