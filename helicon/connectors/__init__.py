@@ -1,4 +1,4 @@
-from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, cursor_cloud, codex, agent_rules, skills, letta_memfs, graphiti, mem0, lifeos, setup_rules
+from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, cursor_cloud, codex, agent_rules, skills, letta_memfs, graphiti, mem0, lifeos, setup_rules, learnings
 from helicon.models import ConnectorResult
 
 CONNECTORS = {
@@ -22,6 +22,9 @@ CONNECTORS = {
     # Rule files and the hooks that enforce them. Counted before, never held, so
     # ask could not say which rule a hook enforces. Opt-in via claude_home.
     "setup-rules": setup_rules.scan,
+    # Measured results the operator curated, each with the file that proves it.
+    # Opt-in via files.
+    "learnings": learnings.scan,
     # Store adapters — opt-in: they return [] unless their key config
     # ("memfs_dir" / "uri" / "api_key" / "local") is present in
     # config["connectors"][name].

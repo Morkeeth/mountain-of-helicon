@@ -1,4 +1,6 @@
+import fnmatch
 import os
+import re
 from datetime import datetime
 from glob import glob
 
@@ -67,6 +69,40 @@ def classify_by_path(rel_path: str) -> tuple[str, list[str]]:
     return cube_type, tags
 
 
+PREVIEW_CHARS = 1000  # what a note cube holds; the rest of a long note is not searchable
+SECTION_CHARS = 1200  # the size of one section cube of a note read in full
+
+
+def split_sections(body: str, size: int = SECTION_CHARS) -> list[tuple[str, str]]:
+    """Cut a note into (heading, text) pieces of at most `size` characters.
+
+    A heading starts a new piece. A long section is cut at line ends, so a table
+    row or a list item is never split in two.
+    """
+    pieces = []
+    heading, lines, used = "", [], 0
+
+    def close():
+        nonlocal lines, used
+        text = "\n".join(lines).strip()
+        if text:
+            pieces.append((heading, text))
+        lines, used = [], 0
+
+    for line in body.split("\n"):
+        match = re.match(r"^#{1,6}\s+(.*)", line)
+        if match:
+            close()
+            heading = match.group(1).strip()
+            continue
+        if lines and used + len(line) + 1 > size:
+            close()
+        lines.append(line[:size])
+        used += min(len(line), size) + 1
+    close()
+    return pieces
+
+
 def scan(config: dict) -> list[ConnectorResult]:
     vault_path = config.get("vault_path", "")
     if not vault_path or not os.path.exists(vault_path):
@@ -74,6 +110,10 @@ def scan(config: dict) -> list[ConnectorResult]:
 
     skip_dirs = set(config.get("skip_dirs", [".obsidian", ".trash"]))
     max_depth = config.get("max_depth", 3)
+    # A note cube holds the first PREVIEW_CHARS only. A fact deeper in a long note
+    # is in no cube, whatever the folder depth. Notes that match one of these
+    # vault-relative patterns are also held section by section, in full.
+    full_text = [p for p in (config.get("full_text_paths") or []) if isinstance(p, str) and p]
 
     results = []
 
@@ -129,7 +169,7 @@ def scan(config: dict) -> list[ConnectorResult]:
                     break
             title = heading or title_base
 
-            content_preview = body[:1000]
+            content_preview = body[:PREVIEW_CHARS]
 
             results.append(ConnectorResult(
                 source="obsidian",
@@ -146,5 +186,26 @@ def scan(config: dict) -> list[ConnectorResult]:
                     "status": status,
                 },
             ))
+
+            posix_path = rel_path.replace(os.sep, "/")
+            if len(body) > PREVIEW_CHARS and any(fnmatch.fnmatch(posix_path, p) for p in full_text):
+                for number, (heading, text) in enumerate(split_sections(body), 1):
+                    results.append(ConnectorResult(
+                        source="obsidian",
+                        source_ref=f"{rel_path}#section-{number}",
+                        type=cube_type,
+                        title=f"{title}: {heading}" if heading and heading != title else f"{title} (part {number})",
+                        content=text,
+                        created_at=created_at,
+                        tags=list(set(all_tags + ["full-text"])),
+                        metadata={
+                            "file_path": filepath,
+                            "vault_relative": rel_path,
+                            "frontmatter_source": source,
+                            "status": status,
+                            "section": number,
+                            "heading": heading,
+                        },
+                    ))
 
     return results
