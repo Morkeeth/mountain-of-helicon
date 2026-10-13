@@ -1,4 +1,4 @@
-from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, cursor_cloud, codex, agent_rules, skills, letta_memfs, graphiti, mem0, lifeos
+from helicon.connectors import claude_code, obsidian, git, chatgpt, cursor, cursor_cloud, codex, agent_rules, skills, letta_memfs, graphiti, mem0, lifeos, setup_rules
 from helicon.models import ConnectorResult
 
 CONNECTORS = {
@@ -19,6 +19,9 @@ CONNECTORS = {
     # connector was written and never registered here — so the skills pillar was
     # dark for the one reason no config could fix. Opt-in via skill_roots.
     "skills": skills.scan,
+    # Rule files and the hooks that enforce them. Counted before, never held, so
+    # ask could not say which rule a hook enforces. Opt-in via claude_home.
+    "setup-rules": setup_rules.scan,
     # Store adapters — opt-in: they return [] unless their key config
     # ("memfs_dir" / "uri" / "api_key" / "local") is present in
     # config["connectors"][name].
