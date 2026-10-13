@@ -25,10 +25,14 @@ def _topics_in_task(resolutions: list[dict], task: str) -> list[dict]:
     return [r for r in resolutions if r["topic"] and r["topic"].lower() in low]
 
 
-def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000) -> dict:
+def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000,
+                    include_private: bool = False) -> dict:
     """Retrieve context for `task`, then screen every retrieved memory through the
     compiled rulings. `conn` must have `row_factory = sqlite3.Row` (as the API and CLI
-    connect it) — the ruling loader reads rows by column name."""
+    connect it) — the ruling loader reads rows by column name.
+
+    `include_private` lets the operator's own terminal read rulings marked private.
+    The MCP server never passes it, so an agent cannot reach those rows."""
     from helicon.mcp_server import _proactive_context
 
     base = _proactive_context(conn, task, limit=limit, max_tokens=max_tokens)
@@ -67,7 +71,7 @@ def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000) ->
     return {
         "task": task,
         "trusted_answer": trusted,          # what the rulings say is true, for topics asked about
-        "dated_rulings": match_rulings(task),  # the operator's quoted decisions that cover the question
+        "dated_rulings": match_rulings(task, include_private=include_private),  # the operator's quoted decisions that cover the question
         "safe_context": safe,               # retrieved memory no ruling contradicts
         "flagged_context": flagged,         # retrieved memory that still asserts a ruled-wrong value
         "suppressed_count": len(flagged),

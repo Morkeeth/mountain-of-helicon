@@ -8,6 +8,11 @@ recorded elsewhere, as one JSON line with the operator's words, a date and a sou
 This module reads that log, read only, and returns the rulings that match a question,
 current one first. It never writes and returns nothing when the log is absent.
 
+A row marked `"private": true` is dropped at load. Private rows hold matters the
+operator keeps off every agent surface, so the MCP server can never read them. The
+one opt-in is the keyword `include_private`, which only the operator's own terminal
+command (`helicon ask --include-private`) passes.
+
 The log path comes from HELICON_RULINGS_FILE. With the variable unset, the shared
 fleet log is used when it exists. Set it to an empty string to turn the reader off.
 """
@@ -52,8 +57,12 @@ def _words(text):
     return [_stem(w) for w in _WORD.findall((text or "").lower()) if w not in _STOP]
 
 
-def load_rulings(path=None):
-    """Every well-formed ruling in the log. A broken line is skipped, never guessed."""
+def load_rulings(path=None, include_private=False):
+    """Every well-formed ruling in the log that is not private.
+
+    A broken line is skipped, never guessed. A row with `"private": true` is dropped
+    unless `include_private` is set; no agent-facing caller sets it.
+    """
     path = path or rulings_path()
     if not path:
         return []
@@ -68,6 +77,8 @@ def load_rulings(path=None):
             except ValueError:
                 continue
             if not isinstance(row, dict) or not row.get("text"):
+                continue
+            if row.get("private") and not include_private:
                 continue
             out.append(
                 {
@@ -88,7 +99,7 @@ def _named(question):
     return {_stem(t.lower()) for t in tokens[1:] if t[0].isupper() and t.lower() not in _STOP}
 
 
-def match_rulings(question, rulings=None, limit=3):
+def match_rulings(question, rulings=None, limit=3, include_private=False):
     """Rulings that cover the question, with the current one marked.
 
     Lexical on purpose: each question word is weighted by how rare it is across the
@@ -102,7 +113,7 @@ def match_rulings(question, rulings=None, limit=3):
     match is listed after them as related, whatever its date, so a later ruling about
     something else cannot pass for the latest word on this subject.
     """
-    rulings = load_rulings() if rulings is None else rulings
+    rulings = load_rulings(include_private=include_private) if rulings is None else rulings
     asked = set(_words(question))
     if not rulings or not asked:
         return []

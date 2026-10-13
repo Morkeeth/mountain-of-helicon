@@ -1738,7 +1738,8 @@ def cmd_ask(args):
 
     config = load_config()
     conn = init_db(config["db_path"])
-    res = guarded_context(conn, args.question, limit=getattr(args, "limit", 10))
+    res = guarded_context(conn, args.question, limit=getattr(args, "limit", 10),
+                          include_private=bool(getattr(args, "include_private", False)))
     print(format_guarded_context(res))
 
 
@@ -4967,6 +4968,8 @@ def main():
     ask_p = sub.add_parser("ask", help="Guarded retrieve: what is safe to believe about a topic (read-side mirror of guard)")
     ask_p.add_argument("question", help="what you want the trusted answer + safe context for")
     ask_p.add_argument("--limit", type=int, default=10, help="max retrieved memories to screen (default 10)")
+    ask_p.add_argument("--include-private", action="store_true",
+                       help="also read rulings marked private; for your own terminal only, never offered to an agent")
 
     teach_p = sub.add_parser(
         "teach",
