@@ -1,0 +1,7 @@
+[
+ {"id": "HR1", "split": "heldout", "category": "rule", "question": "Which rule says a green check can be correct about the wrong object?", "gold_any": ["evidence.md"]},
+ {"id": "HR2", "split": "heldout", "category": "rule", "question": "Which rule says to name the sending identity before any send?", "gold_any": ["outward.md"]},
+ {"id": "HR3", "split": "heldout", "category": "rule", "question": "Which rule says to delegate a fan-out read to a subagent only when the answer is a conclusion?", "gold_any": ["session.md"]},
+ {"id": "HR4", "split": "heldout", "category": "rule", "question": "Which rule says that finished media only goes in Downloads, never a note?", "gold_any": ["hoard.md"]},
+ {"id": "HR5", "split": "heldout", "category": "rule", "question": "Which rule bans hype vocabulary such as delve and testament?", "gold_any": ["write.md"]}
+]

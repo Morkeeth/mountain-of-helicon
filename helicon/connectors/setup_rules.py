@@ -8,7 +8,10 @@ hook enforces.
 This connector reads one agent home (for example `~/.claude`) and gives:
 
   - one cube per rule file: its name, what it says in one line, the hook that
-    enforces it (if any), whether that hook is wired in settings.json, and its path;
+    enforces it (if any), whether that hook is wired in settings.json, its path, and
+    the text of the rule. A question that quotes a sentence of a rule can only find
+    the rule if the cube holds that sentence. A rule longer than one cube continues
+    in part cubes;
   - one cube per hook file: its name, the events it runs on, the rule it enforces
     (if a rule names it), what it does in one line, and its path;
   - one index cube that lists the rules a hook enforces and the rules with no hook.
@@ -51,6 +54,29 @@ def _plain(text: str, cap: int = 220) -> str:
     text = re.sub(r"[*_`>#]+", "", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text[:cap].rstrip()
+
+
+RULE_TEXT_CHARS = 1200  # rule text one cube holds; a longer rule continues in part cubes
+
+
+def _rule_text(body: str, size: int = RULE_TEXT_CHARS) -> list[str]:
+    """The rule's own sentences as plain lines, in pieces of at most `size` characters.
+
+    Cut at line ends, so one numbered rule is never split in two."""
+    pieces, lines, used = [], [], 0
+    for raw in body.splitlines():
+        # Lighter than _plain: a name such as full_text_paths keeps its underscores.
+        line = re.sub(r"\s+", " ", re.sub(r"[*`]+", "", raw).strip().lstrip("#>").strip())[:size]
+        if not line:
+            continue
+        if lines and used + len(line) + 1 > size:
+            pieces.append("\n".join(lines))
+            lines, used = [], 0
+        lines.append(line)
+        used += len(line) + 1
+    if lines:
+        pieces.append("\n".join(lines))
+    return pieces
 
 
 def _frontmatter(text: str) -> tuple[dict, str]:
@@ -185,7 +211,7 @@ def scan(config: dict) -> list[ConnectorResult]:
                     broken.append(f"{hook_name} (file is there, settings.json does not wire it)")
                 else:
                     broken.append(f"{hook_name} (no such file)")
-            rules.append({"name": name, "path": path, "says": _rule_says(fields, body),
+            rules.append({"name": name, "path": path, "says": _rule_says(fields, body), "text": _rule_text(body),
                           "enforced_by": enforced, "broken": broken,
                           "loaded": "only for matching paths" if "paths" in fields else "every session"})
 
@@ -201,7 +227,20 @@ def scan(config: dict) -> list[ConnectorResult]:
         lines = [f"Rule: {rule['name']}", f"Enforced by hook: {hook_line}"]
         if rule["broken"]:
             lines.append("Names a hook that does not enforce it: " + "; ".join(rule["broken"]))
+        head = list(lines)
         lines += [f"Says: {rule['says']}", f"Loaded: {rule['loaded']}", f"Path: {rule['path']}"]
+        if rule["text"]:
+            lines += ["Text:", rule["text"][0]]
+        for number, piece in enumerate(rule["text"][1:], 2):
+            results.append(ConnectorResult(
+                source="setup-rules", source_ref=f"rules/{rule['name']}#part-{number}", type="agent_rule",
+                title=f"{title} (part {number})",
+                content="\n".join(head + [f"Path: {rule['path']}", f"Text (part {number}):", piece]),
+                created_at=_mdate(rule["path"]),
+                tags=["setup-rules", "rule", "rule-text", "hook-enforced" if rule["enforced_by"] else "not-enforced"],
+                metadata={"kind": "rule-text", "rule": rule["name"], "part": number,
+                          "hook_enforced": bool(rule["enforced_by"]), "file_path": rule["path"]},
+            ))
         results.append(ConnectorResult(
             source="setup-rules", source_ref=f"rules/{rule['name']}", type="agent_rule",
             title=title, content="\n".join(lines), created_at=_mdate(rule["path"]),

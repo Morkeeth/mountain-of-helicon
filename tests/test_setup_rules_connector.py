@@ -101,3 +101,42 @@ def test_ask_names_the_rule_a_hook_enforces(agent_home, tmp_path, monkeypatch):
     assert enforced_titles and all("EVIDENCE.md" not in t and "LUNCH.md" not in t for t in enforced_titles)
     text = format_guarded_context(res)
     assert "WRITE.md" in text and "write-rules.sh" in text
+
+
+def test_a_question_that_quotes_a_sentence_deep_in_a_rule_finds_the_rule(tmp_path, agent_home, monkeypatch):
+    """Keyword-only store: the rule cube must hold the rule's own sentences, not only its description."""
+    from helicon.connectors import setup_rules
+    from helicon.db import init_db, insert_cube
+    from helicon.mcp_server import handle_tool_call
+    from helicon.models import ConnectorResult
+    from helicon.scanner import result_to_cube
+
+    (agent_home / "rules" / "KITES.md").write_text(
+        "---\ndescription: How the stall is run.\n---\n\n# KITES\n\n"
+        + "".join(f"{n}. Filler line number {n} about the till and the awning.\n" for n in range(1, 30))
+        + "30. **Never fly a `box_kite` near the harbour crane.**\n", encoding="utf-8")
+    monkeypatch.setenv("HELICON_RULINGS_FILE", "")
+    db = str(tmp_path / "store.db")
+    init_db(db)
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    found = setup_rules.scan({"claude_home": str(agent_home)})
+    noise = [ConnectorResult(source="obsidian", source_ref=f"n{n}.md", type="project", title=f"Harbour note {n}",
+                             content=f"The harbour crane lifts crates at berth {n}. A kite was seen once.",
+                             created_at="2026-10-01T00:00:00") for n in range(30)]
+    for result in found + noise:
+        insert_cube(conn, result_to_cube(result))
+    conn.commit()
+
+    parts = [r for r in found if r.source_ref.startswith("rules/KITES.md")]
+    assert len(parts) >= 2, "a rule longer than one cube continues in part cubes"
+    assert all(len(r.content) <= setup_rules.RULE_TEXT_CHARS + 400 for r in parts)
+    deep = next(r for r in parts if "harbour crane" in r.content)
+    assert "KITES.md" in deep.title and "box_kite" in deep.content and "**" not in deep.content
+
+    answer = json.loads(handle_tool_call(
+        "helicon_ask", {"question": "Which rule says never fly a box_kite near the harbour crane?", "limit": 10}, conn))
+    assert any("KITES.md" in m["title"] for m in answer["safe_context"])
+    # A short rule stays one cube and now holds its sentence.
+    evidence = next(r for r in found if r.source_ref == "rules/EVIDENCE.md")
+    assert "Probe the object, not the document about the object." in evidence.content
