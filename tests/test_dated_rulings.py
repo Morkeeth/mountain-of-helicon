@@ -125,3 +125,42 @@ def test_cli_ask_reads_private_only_with_the_flag(log_with_private, tmp_path, mo
     assert "zebra" not in capsys.readouterr().out
     cli.cmd_ask(type("A", (), {"question": question, "limit": 5, "include_private": True})())
     assert "zebra" in capsys.readouterr().out
+
+
+def _mention_log(tmp_path, monkeypatch, later):
+    rows = [
+        {"ts": "2026-10-02T10:00:00+02:00", "title": "Lunch Stall priority",
+         "text": "The Lunch Stall ships first for the Harbour Fair. Then the tracker.", "quote": "stall first"},
+        {"ts": "2026-10-06T22:30:00+02:00", "title": "Lunch Stall killed",
+         "text": "The Lunch Stall is killed, and with it the Harbour Fair entry. Work stays on disk.", "quote": "we kill it"},
+        {"ts": "2026-09-27T10:00:00+02:00", "text": "Videos are longer and cinematic.", "quote": "longer ones"},
+    ] + later
+    path = tmp_path / "rulings.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setenv("HELICON_RULINGS_FILE", str(path))
+
+
+def test_a_later_ruling_that_only_mentions_the_names_does_not_become_current(tmp_path, monkeypatch):
+    """The decay case: the log grows, a later row names the same things in passing."""
+    question = "Is the Lunch Stall still built for the Harbour Fair?"
+    _mention_log(tmp_path, monkeypatch, [])
+    alone = dated_rulings.match_rulings(question, limit=3)
+    assert alone[0]["standing"] == "current" and "killed" in alone[0]["text"]
+
+    later = [{"ts": f"2026-10-{7 + i:02d}T09:00:00+02:00", "title": f"Review desk step {i}",
+              "text": f"Oscar approves step {i} of the review desk. It takes one idea from the Lunch Stall "
+                      "work for the Harbour Fair and nothing else.", "quote": "go"} for i in range(6)]
+    _mention_log(tmp_path, monkeypatch, later)
+    grown = dated_rulings.match_rulings(question, limit=3)
+    assert grown[0]["standing"] == "current" and "killed" in grown[0]["text"]
+    assert [r for r in grown if r["standing"] == "current"] == grown[:1]
+    assert all(r["standing"] == "related" for r in dated_rulings.match_rulings(question, limit=20) if "review desk" in r["text"])
+
+
+def test_a_later_ruling_that_decides_the_subject_in_its_lead_still_wins(tmp_path, monkeypatch):
+    _mention_log(tmp_path, monkeypatch, [
+        {"ts": "2026-10-09T09:00:00+02:00", "title": "Lunch Stall back",
+         "text": "The Lunch Stall is built again for the Harbour Fair.", "quote": "bring it back"}])
+    found = dated_rulings.match_rulings("Is the Lunch Stall still built for the Harbour Fair?", limit=3)
+    assert found[0]["date"] == "2026-10-09" and found[0]["standing"] == "current"
+    assert found[1]["standing"] == "older" and "killed" in found[1]["text"]

@@ -41,6 +41,8 @@ _STOP = frozenset(
 _WORD = re.compile(r"[a-z0-9][a-z0-9'\-]{1,}")
 MIN_SCORE = 0.34  # share of the question's weighted words a ruling must cover
 SAME_SUBJECT = 0.75  # a ruling this close to the best cover is about the same subject
+BODY_SHARE = 0.5  # a question word found only after the lead counts this much of a word in the lead
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 
 def rulings_path():
@@ -110,6 +112,17 @@ def _load(path, private):
     return out
 
 
+def _bags(ruling):
+    """(lead words, all words) of a ruling.
+
+    The lead is the title and the first sentence of the text: where a ruling says what
+    it decides. A word that only comes later, or only in the quote, is a mention.
+    """
+    first = _SENTENCE_END.split(ruling["text"].strip(), maxsplit=1)[0]
+    lead = set(_words(f"{ruling['title']} {first}"))
+    return lead, lead | set(_words(f"{ruling['text']} {ruling['quote']}"))
+
+
 def _named(question):
     """Words the asker wrote with a capital inside the sentence: the named things."""
     tokens = re.findall(r"[A-Za-z0-9][A-Za-z0-9'\-]+", question or "")
@@ -123,6 +136,12 @@ def match_rulings(question, rulings=None, limit=3, include_private=False, hidden
     log, a named thing counts double, and a ruling scores the share of that weight it
     contains. It will miss a ruling phrased with none of the question's words; that
     miss is measurable.
+
+    Topic before recency: a word in the ruling's lead (title and first sentence) counts
+    in full, a word found only later counts BODY_SHARE. Without this a later ruling
+    that only mentions the same names scored like the ruling that decides the matter,
+    and being newer it took the label current. Every such row that the log gained
+    cost a right answer: 15 of 20 at 272 rows fell to 11 at 1,221.
 
     Which ruling is current: only rulings that cover the question about as well as
     the best one (SAME_SUBJECT of its score) are treated as the same subject. The
@@ -144,20 +163,24 @@ def match_rulings(question, rulings=None, limit=3, include_private=False, hidden
     if not rulings or not asked:
         return []
     named = _named(question)
-    bags = [set(_words(f"{r['title']} {r['text']} {r['quote']}")) for r in rulings]
+    bags = [_bags(r) for r in rulings]
     total = len(rulings)
     weight = {}
     for word in asked:
-        seen = sum(1 for bag in bags if word in bag)
+        seen = sum(1 for _, bag in bags if word in bag)
         base = math.log((total + 1) / (seen + 1)) + 1.0 if seen else 0.0
         weight[word] = base * (2.0 if word in named else 1.0)
     full = sum(weight.values())
     if not full:
         return []
+
+    def cover(lead, bag):
+        return sum(weight[w] * (1.0 if w in lead else BODY_SHARE) for w in asked if w in bag) / full
+
     scored = []
-    for ruling, bag in zip(rulings, bags):
+    for ruling, (lead, bag) in zip(rulings, bags):
         hit = sorted(w for w in asked if w in bag)
-        score = sum(weight[w] for w in hit) / full
+        score = cover(lead, bag)
         if score >= MIN_SCORE:
             scored.append({**ruling, "score": round(score, 3), "matched": hit})
     if not scored:
@@ -170,8 +193,7 @@ def match_rulings(question, rulings=None, limit=3, include_private=False, hidden
     newer_hidden = False
     for row in hidden or ():
         if row["date"] > newest_day:
-            bag = set(_words(f"{row['title']} {row['text']} {row['quote']}"))
-            if sum(weight[w] for w in asked if w in bag) / full >= floor:
+            if cover(*_bags(row)) >= floor:
                 newer_hidden = True
                 break
     out = []
