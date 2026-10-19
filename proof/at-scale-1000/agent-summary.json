@@ -1,0 +1,57 @@
+{
+  "schema": "helicon-eval-at-scale-v2",
+  "run_at": "2026-10-19T09:23:01.117174+00:00",
+  "claim": "multi-step model agents ran unattended against frozen public repositories",
+  "population": {
+    "frozen_repositories": 1000,
+    "frozen_sha256": "82af619f96dfa6dd6a525ac642a0d4c7fe97e9047a51843f296c63f341daa70e",
+    "agent_runs": 1000
+  },
+  "execution": {
+    "unattended_runs": 1000,
+    "unattended_pct": 100.0,
+    "complete_six_step_protocol": 1000,
+    "complete_protocol_pct": 100.0,
+    "outcomes": {
+      "no_workflows": 442,
+      "finding": 463,
+      "clean": 93,
+      "error": 2
+    },
+    "failures": 2,
+    "failure_rate": 0.002,
+    "median_seconds": 24.05
+  },
+  "model": {
+    "name": "claude-sonnet-5-5",
+    "auth": "claude.ai Max subscription",
+    "tokens": {
+      "cache_creation": 6788715,
+      "cache_read": 101853371,
+      "input": 9834,
+      "output": 1616664
+    }
+  },
+  "cost": {
+    "actual_api_spend_usd": 0.0,
+    "actual_per_run_usd": 0.0,
+    "list_price_proxy_usd": 53.526513,
+    "cap_usd": 20.0,
+    "hard_stop_usd": 18.0
+  },
+  "definition": "External GitHub Action uses-reference not pinned to a full 40-character commit SHA.",
+  "outward_actions": 0,
+  "precision": {
+    "population": "random 50 completed repository runs",
+    "sample_n": 50,
+    "agent_initial_precision": 1.0,
+    "agent_initial_recall": 1.0,
+    "agent_final_precision": 1.0,
+    "agent_final_recall": 1.0,
+    "static_precision": 1.0,
+    "static_recall": 1.0,
+    "agent_initial_exact_match": 1.0,
+    "agent_final_exact_match": 1.0,
+    "static_exact_match": 1.0
+  }
+}

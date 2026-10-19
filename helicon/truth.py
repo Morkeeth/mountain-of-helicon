@@ -182,6 +182,29 @@ def _dated_claims(body: str, today: date) -> list[dict]:
     return uniq
 
 
+def history_reason(text: str, status: str = "", today: date | None = None) -> str:
+    """Why a stored note is history and not a current claim, or "" when it is neither.
+
+    The same two signals `helicon truth` scores on a file, applied to one note's
+    text so a read surface can label it: a retired marker in the status or the
+    first lines, and a dated claim whose date has passed. A note the operator
+    closed (`history: closed <date>`) is history by its own word.
+    """
+    today = today or date.today()
+    fm, body, _ = _parse_frontmatter(text or "")
+    status = str(fm.get("status", "") or status or "")
+    if str(fm.get("history", "")).strip().lower().startswith("closed"):
+        return "closed by the operator"
+    rmatch = _RETIRED.search(status + "\n" + _first_lines(body, 4))
+    if rmatch:
+        return f"retired marker ({rmatch.group(1).upper()})"
+    claims = _dated_claims(body, today)
+    if claims:
+        worst = max(claims, key=lambda c: c["days_past"])
+        return f"expired dated claim ({worst['days_past']}d past, {worst['date']})"
+    return ""
+
+
 def _is_personal(fp: str, fm: dict) -> bool:
     if _PERSONAL.search(os.path.basename(fp)):
         return True

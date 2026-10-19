@@ -790,7 +790,8 @@ def handle_tool_call(name: str, arguments: dict, conn) -> str:
         from helicon.retrieve_guard import guarded_context
         question = arguments.get("question", "")
         limit = arguments.get("limit", 10)
-        return json.dumps(guarded_context(conn, question, limit=limit), indent=2)
+        # Private rulings never leave through this path: no argument can turn them on.
+        return json.dumps(guarded_context(conn, question, limit=limit, include_private=False), indent=2)
 
     elif name == "helicon_brief":
         from helicon.brief import build_brief
@@ -881,7 +882,7 @@ def handle_rpc_message(msg: dict, conn, *, allowed_tool_names=None):
             "result": {
                 "protocolVersion": protocol_version,
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "helicon", "version": "0.2.4"},
+                "serverInfo": {"name": "helicon", "version": "0.3.0"},
             },
         }
 

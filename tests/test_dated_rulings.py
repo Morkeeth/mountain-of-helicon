@@ -63,3 +63,104 @@ def test_a_newer_ruling_on_another_subject_is_not_current(log):
     found = dated_rulings.match_rulings("Is the lunch stall still shipping for the fair deadline?", limit=5)
     assert found[0]["standing"] == "current" and "killed" in found[0]["text"]
     assert all(r["standing"] != "current" for r in found if "tax form" in r["text"])
+
+
+@pytest.fixture
+def log_with_private(tmp_path, monkeypatch):
+    rows = [
+        {"ts": "2026-10-02T17:40:00+02:00", "text": "The kite workshop runs on Saturday.",
+         "quote": "saturday kites", "source": "chat 2 Oct", "private": False},
+        {"ts": "2026-10-06T22:30:00+02:00", "text": "The kite workshop budget is the zebra envelope.",
+         "quote": "zebra envelope", "source": "chat 6 Oct", "private": True},
+        {"ts": "2026-10-05T09:00:00+02:00", "text": "The kite workshop needs twelve spools.",
+         "quote": "twelve spools", "source": "chat 5 Oct"},
+    ]
+    path = tmp_path / "rulings.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setenv("HELICON_RULINGS_FILE", str(path))
+    return path
+
+
+def test_private_rows_are_dropped_by_default(log_with_private):
+    loaded = dated_rulings.load_rulings()
+    assert len(loaded) == 2
+    assert all("zebra" not in r["text"] + r["quote"] for r in loaded)
+    found = dated_rulings.match_rulings("What is the kite workshop budget envelope?", limit=5)
+    assert all("zebra" not in r["text"] + r["quote"] for r in found)
+
+
+def test_private_rows_need_the_explicit_opt_in(log_with_private):
+    assert len(dated_rulings.load_rulings(include_private=True)) == 3
+    found = dated_rulings.match_rulings("What is the kite workshop budget envelope?", limit=5, include_private=True)
+    assert any("zebra" in r["text"] for r in found)
+
+
+def test_mcp_ask_never_returns_a_private_ruling(log_with_private, tmp_path):
+    import sqlite3
+
+    from helicon.db import init_db
+    from helicon.mcp_server import TOOLS, handle_tool_call
+
+    db = str(tmp_path / "store.db")
+    init_db(db)
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    out = handle_tool_call("helicon_ask", {"question": "What is the kite workshop budget envelope?",
+                                           "include_private": True}, conn)
+    assert "zebra" not in out
+    assert "kite workshop" in out  # the public rulings still answer
+    ask = next(t for t in TOOLS if t["name"] == "helicon_ask")
+    assert "include_private" not in ask["inputSchema"]["properties"]
+
+
+def test_cli_ask_reads_private_only_with_the_flag(log_with_private, tmp_path, monkeypatch, capsys):
+    from helicon import cli
+    from helicon.db import init_db
+
+    db = str(tmp_path / "store.db")
+    init_db(db)
+    monkeypatch.setattr("helicon.config.load_config", lambda *a, **k: {"db_path": db})
+    question = "What is the kite workshop budget envelope?"
+    cli.cmd_ask(type("A", (), {"question": question, "limit": 5})())
+    assert "zebra" not in capsys.readouterr().out
+    cli.cmd_ask(type("A", (), {"question": question, "limit": 5, "include_private": True})())
+    assert "zebra" in capsys.readouterr().out
+
+
+def _mention_log(tmp_path, monkeypatch, later):
+    rows = [
+        {"ts": "2026-10-02T10:00:00+02:00", "title": "Lunch Stall priority",
+         "text": "The Lunch Stall ships first for the Harbour Fair. Then the tracker.", "quote": "stall first"},
+        {"ts": "2026-10-06T22:30:00+02:00", "title": "Lunch Stall killed",
+         "text": "The Lunch Stall is killed, and with it the Harbour Fair entry. Work stays on disk.", "quote": "we kill it"},
+        {"ts": "2026-09-27T10:00:00+02:00", "text": "Videos are longer and cinematic.", "quote": "longer ones"},
+    ] + later
+    path = tmp_path / "rulings.jsonl"
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setenv("HELICON_RULINGS_FILE", str(path))
+
+
+def test_a_later_ruling_that_only_mentions_the_names_does_not_become_current(tmp_path, monkeypatch):
+    """The decay case: the log grows, a later row names the same things in passing."""
+    question = "Is the Lunch Stall still built for the Harbour Fair?"
+    _mention_log(tmp_path, monkeypatch, [])
+    alone = dated_rulings.match_rulings(question, limit=3)
+    assert alone[0]["standing"] == "current" and "killed" in alone[0]["text"]
+
+    later = [{"ts": f"2026-10-{7 + i:02d}T09:00:00+02:00", "title": f"Review desk step {i}",
+              "text": f"Oscar approves step {i} of the review desk. It takes one idea from the Lunch Stall "
+                      "work for the Harbour Fair and nothing else.", "quote": "go"} for i in range(6)]
+    _mention_log(tmp_path, monkeypatch, later)
+    grown = dated_rulings.match_rulings(question, limit=3)
+    assert grown[0]["standing"] == "current" and "killed" in grown[0]["text"]
+    assert [r for r in grown if r["standing"] == "current"] == grown[:1]
+    assert all(r["standing"] == "related" for r in dated_rulings.match_rulings(question, limit=20) if "review desk" in r["text"])
+
+
+def test_a_later_ruling_that_decides_the_subject_in_its_lead_still_wins(tmp_path, monkeypatch):
+    _mention_log(tmp_path, monkeypatch, [
+        {"ts": "2026-10-09T09:00:00+02:00", "title": "Lunch Stall back",
+         "text": "The Lunch Stall is built again for the Harbour Fair.", "quote": "bring it back"}])
+    found = dated_rulings.match_rulings("Is the Lunch Stall still built for the Harbour Fair?", limit=3)
+    assert found[0]["date"] == "2026-10-09" and found[0]["standing"] == "current"
+    assert found[1]["standing"] == "older" and "killed" in found[1]["text"]

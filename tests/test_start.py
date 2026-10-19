@@ -75,6 +75,21 @@ def test_a_stale_install_is_the_first_next_step():
     assert "commit" not in text and "/tree" not in text.split("Do next")[0]  # no plumbing in the readings
 
 
+def test_an_install_on_rewritten_history_is_told_to_reinstall_not_pull():
+    card = {
+        "install": {"found": True, "read": "/tree", "git": True, "branch": "live-main", "behind_main": 726,
+                    "unrelated_history": True, "changed_files": 0},
+        "instructions": {"found": False, "why": "x"}, "memory": {"found": False, "why": "x"},
+        "decisions": {"found": True, "rulings": 1, "newest": "2026-10-19"},
+        "skills": {"found": False, "why": "x"}, "index": {"found": True, "sessions": 1, "newest": "2026-10-19"},
+    }
+    card["next"] = start.next_steps(card)
+    assert card["next"][0].startswith("Install Helicon again from a checkout of main.")
+    text = start.format_card(card)
+    assert "old history that main no longer shares" in text
+    assert "726 updates behind" not in text and "git -C" not in text
+
+
 def test_install_row_reads_the_tree_this_code_runs_from():
     part = start.read_install()
     assert part["found"] is True and os.path.isdir(part["read"])

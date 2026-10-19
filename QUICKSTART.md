@@ -60,7 +60,7 @@ Copy `.github/workflows/helicon-ci.yml` from this repo, or:
 | Command | Question |
 |---------|----------|
 | `helicon truth <dir>` | Are my notes / agent memory files stale? |
-| `helicon witness --latest` | Did the last agent session's claims match the transcript? |
+| `helicon witness` | Did the last agent session's claims match the transcript? |
 | `helicon ci --path .` | Full rot exam + executable probes (CI-shaped) |
 
 The memory lab (`helicon init`, `helicon scan`, `helicon serve`) is optional — see

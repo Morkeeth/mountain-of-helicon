@@ -15,7 +15,7 @@ Same rulings, other direction: the guard stops bad writes; this stops bad belief
 It is read-only — it retrieves and screens, it never mutates a memory or a ruling.
 """
 
-from helicon.dated_rulings import match_rulings
+from helicon.dated_rulings import hidden_notice, match_rulings
 from helicon.guard import _load_factual_resolutions, guard_output
 
 
@@ -25,10 +25,40 @@ def _topics_in_task(resolutions: list[dict], task: str) -> list[dict]:
     return [r for r in resolutions if r["topic"] and r["topic"].lower() in low]
 
 
-def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000) -> dict:
+def _standing(conn, memory: dict, today=None) -> dict:
+    """Label one retrieved memory current or history, by the signals of `helicon truth`.
+
+    The retriever returns a note that says RETIRED on its first line, or that holds a
+    deadline long past, the same way it returns a live one. This reads the stored
+    note and says which it is, so an old claim is not handed over as today's."""
+    import json
+
+    from helicon.truth import history_reason
+
+    try:
+        row = conn.execute("SELECT content, metadata FROM helicon_cubes WHERE id = ?", (memory["id"],)).fetchone()
+    except Exception:
+        row = None
+    text = (row["content"] if row else "") or f"{memory.get('title', '')}\n{memory.get('content_preview', '')}"
+    status = ""
+    try:
+        meta = json.loads(row["metadata"]) if row and row["metadata"] else {}
+        front = meta.get("frontmatter") if isinstance(meta.get("frontmatter"), dict) else {}
+        status = str(meta.get("status") or front.get("status") or "")
+    except (ValueError, TypeError, AttributeError):
+        pass
+    reason = history_reason(text, status=status, today=today)
+    return {**memory, "standing": "history" if reason else "current", "history_reason": reason}
+
+
+def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000,
+                    include_private: bool = False, today=None) -> dict:
     """Retrieve context for `task`, then screen every retrieved memory through the
     compiled rulings. `conn` must have `row_factory = sqlite3.Row` (as the API and CLI
-    connect it) — the ruling loader reads rows by column name."""
+    connect it) — the ruling loader reads rows by column name.
+
+    `include_private` lets the operator's own terminal read rulings marked private.
+    The MCP server never passes it, so an agent cannot reach those rows."""
     from helicon.mcp_server import _proactive_context
 
     base = _proactive_context(conn, task, limit=limit, max_tokens=max_tokens)
@@ -62,15 +92,20 @@ def guarded_context(conn, task: str, limit: int = 10, max_tokens: int = 4000) ->
                 }
             )
         else:
-            safe.append(m)
+            safe.append(_standing(conn, m, today=today))
+    # Current notes first. A note that is history stays readable, labelled as history.
+    safe.sort(key=lambda m: m["standing"] == "history")
 
+    dated = match_rulings(task, include_private=include_private)
     return {
         "task": task,
         "trusted_answer": trusted,          # what the rulings say is true, for topics asked about
-        "dated_rulings": match_rulings(task),  # the operator's quoted decisions that cover the question
+        "dated_rulings": dated,             # the operator's quoted decisions that cover the question
+        "rulings_notice": hidden_notice(dated),  # set when a newer ruling exists that this caller cannot read
         "safe_context": safe,               # retrieved memory no ruling contradicts
         "flagged_context": flagged,         # retrieved memory that still asserts a ruled-wrong value
         "suppressed_count": len(flagged),
+        "history_count": sum(1 for m in safe if m["standing"] == "history"),
         "memory_health": base.get("memory_health"),
         "open_contradictions": base.get("open_contradictions", []),
     }
@@ -93,8 +128,11 @@ def format_guarded_context(res: dict) -> str:
 
     if res.get("dated_rulings"):
         lines.append("\n  Rulings on record (the newest decision on a subject wins):")
+        if res.get("rulings_notice"):
+            lines.append(f"    ! {res['rulings_notice']}")
         for r in res["dated_rulings"]:
             mark = {"current": "CURRENT", "older": "older, replaced by the current one",
+                    "possibly_superseded": "POSSIBLY SUPERSEDED, a newer ruling is not readable here",
                     "related": "related, another subject"}.get(r.get("standing"), "CURRENT" if r.get("newest") else "older")
             lines.append(f"    • {r['date']}  [{mark}]  {r['text']}")
             if r["quote"]:
@@ -110,6 +148,9 @@ def format_guarded_context(res: dict) -> str:
 
     lines.append(f"\n  Safe context ({len(res['safe_context'])} memories, no ruling contradicts):")
     for m in res["safe_context"][:8]:
-        lines.append(f"    ✓ [{m['id']}] {m.get('title', '')}")
+        if m.get("standing") == "history":
+            lines.append(f"    ◷ [{m['id']}] HISTORY, not a current claim ({m.get('history_reason', '')}): {m.get('title', '')}")
+        else:
+            lines.append(f"    ✓ [{m['id']}] {m.get('title', '')}")
 
     return "\n".join(lines) + "\n"
