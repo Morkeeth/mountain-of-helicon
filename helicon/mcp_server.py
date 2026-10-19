@@ -882,7 +882,7 @@ def handle_rpc_message(msg: dict, conn, *, allowed_tool_names=None):
             "result": {
                 "protocolVersion": protocol_version,
                 "capabilities": {"tools": {"listChanged": False}},
-                "serverInfo": {"name": "helicon", "version": "0.2.4"},
+                "serverInfo": {"name": "helicon", "version": "0.3.0"},
             },
         }
 
