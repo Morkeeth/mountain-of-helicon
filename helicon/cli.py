@@ -5212,7 +5212,7 @@ def main():
         "init", "doctor", "truth", "mcp", "ci", "board", "bench", "demo",
         "doorway", "sweep", "magnet", "setup", "witness", "followed", "skills-review",
         "review", "fix", "outcomes", "judge-preview", "judge-compare",
-        "teach",
+        "teach", "start",
     )
     has_explicit_bench_db = (
         args.command == "measurement-bench" and bool(getattr(args, "db", None))

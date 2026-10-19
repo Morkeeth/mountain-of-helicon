@@ -391,6 +391,9 @@ def test_self_configuring_commands_are_declared():
     from helicon import cli
     src = inspect.getsource(cli.main)
     assert '"ci"' in src.split("SELF_CONFIGURING")[1].split(")")[0]
+    # `helicon start` is the first-run card. On a fresh machine (19 Oct, 0.3.0 wheel) the gate
+    # sent a stranger to `helicon init` before the card could say anything.
+    assert '"start"' in src.split("SELF_CONFIGURING")[1].split(")")[0]
 
 
 def test_context_findings_reads_a_dotfiles_symlink(tmp_path, monkeypatch):
