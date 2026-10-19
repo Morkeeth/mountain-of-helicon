@@ -1,0 +1,516 @@
+{
+  "seed": 20261019,
+  "population": "random 50 completed repository runs",
+  "sample_n": 50,
+  "agent_initial_precision": 1.0,
+  "agent_initial_recall": 1.0,
+  "agent_final_precision": 1.0,
+  "agent_final_recall": 1.0,
+  "static_precision": 1.0,
+  "static_recall": 1.0,
+  "agent_initial_exact_match": 1.0,
+  "agent_final_exact_match": 1.0,
+  "static_exact_match": 1.0,
+  "labels": [
+    {
+      "repo": "carbiecarbie/MMModern",
+      "sha": "6cd13835981ccef82b81865294a7b1568823952b",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "vivekdavara/switchboard",
+      "sha": "06306be2b6c6dd15a3750a3af256edde5b209c85",
+      "ground_truth": 4,
+      "agent_initial": 4,
+      "agent_final": 4,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "damianivanov/FitMate",
+      "sha": "c640c79a4f17debc783444a6d6cd5619d4710450",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "cMiller73/action_mcp",
+      "sha": "adf1d8f607af5df353f176c2754569946aae531c",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "sglkbrk/sinnalR-Chat-vueapp",
+      "sha": "4ef1578f428b6d5faaf20a68052c1372f939c2ce",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Kai-Hacks-AI/KAAL",
+      "sha": "e229573015775c8990450cfa338e3bbaf2c3af74",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "JourneyCX/studio-app",
+      "sha": "3b16f87e5bca154719479a46853eeb4ced547070",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "wisent-ai/brama",
+      "sha": "5ef7c2a66506aa8e19e87a6369bcfc7344dcfe9b",
+      "ground_truth": 9,
+      "agent_initial": 9,
+      "agent_final": 9,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "LuckyKuang/infoq-scaffold-ai",
+      "sha": "d5f2119b1464b35562870ca4c6a58585578a0dc7",
+      "ground_truth": 41,
+      "agent_initial": 41,
+      "agent_final": 41,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "TopClassUI/topclassui",
+      "sha": "3f65ebd07999d07993ee9ba3fd5eb8418f212e50",
+      "ground_truth": 6,
+      "agent_initial": 6,
+      "agent_final": 6,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "UWOrbital/sdc-inventory-tracker",
+      "sha": "11ca07ba921c03e2c883b3d3afd555a8416ee041",
+      "ground_truth": 15,
+      "agent_initial": 15,
+      "agent_final": 15,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "tofutools/homebrew-tap",
+      "sha": "bbea36e44a0d024335eff5af4353f3f1f9a74275",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "oakvillechen/iota-train-at-home-watchdog",
+      "sha": "01de3871199afbaf9fe07d22916e66d141aaa52f",
+      "ground_truth": 9,
+      "agent_initial": 9,
+      "agent_final": 9,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "henrick-tissink/loom",
+      "sha": "9dcf854fbc213b186703809234cc3f59633b4f09",
+      "ground_truth": 2,
+      "agent_initial": 2,
+      "agent_final": 2,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "SumitDalavi/url-shortener-analytics",
+      "sha": "abf12feff932f17bd27341e966c7fdaf91837789",
+      "ground_truth": 8,
+      "agent_initial": 8,
+      "agent_final": 8,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "ellijane11/mediRep",
+      "sha": "33b698b219d41e0c350a5e108761e406cf8330c2",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "AhmedPeaRL/rx-hcm-grid-node-01",
+      "sha": "8e607303ae0bd0c5927ce57c1fb5d59a06725149",
+      "ground_truth": 12,
+      "agent_initial": 12,
+      "agent_final": 12,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "omepikyainfo/OmepikyaCommandCenter",
+      "sha": "5e46a59fbe5b2421a734ae58ba9f1dcad8e3972f",
+      "ground_truth": 9,
+      "agent_initial": 9,
+      "agent_final": 9,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "KHG420/agenstra",
+      "sha": "0c5c14f1567a7fad1969ca5ae51c883376fc5d42",
+      "ground_truth": 4,
+      "agent_initial": 4,
+      "agent_final": 4,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "capyatelier/capycanvas",
+      "sha": "2cbd78926c9752a6f7651c7486cf479985334079",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Ritage-Ashraf/9498-lab3",
+      "sha": "3fce1c63a3cfbf6cadae6e147971bbfd7ab2d033",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "PorwanyPL/Projekt_Grupowy",
+      "sha": "147d7723a37dd81194e7a6b01709e067010f7f23",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "wertgzhj/poe-leveling-overlay",
+      "sha": "77376a7de8381266cc88a3159078a5ef89065b19",
+      "ground_truth": 8,
+      "agent_initial": 8,
+      "agent_final": 8,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "leig950/SDC330L_Project_Rolodex",
+      "sha": "c4b6975f17a6b0449af442a26b07f723ba02479e",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "crtsh/ctsubmit",
+      "sha": "ac1b4a5541e0c83728f42c88dc477800331a0780",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Minion9705/La-Cinta",
+      "sha": "663fd34bc755f89f99887ceadbcf3be1aa9f16ac",
+      "ground_truth": 2,
+      "agent_initial": 2,
+      "agent_final": 2,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "enzomaneira/safiel_social_listening",
+      "sha": "14eb18e006c5e7d6b65b2fc17269773fb703f560",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "scottdensmore/PetSpotR",
+      "sha": "ad5cd9b39e35a77313758ccd0ac129fc9f7098ea",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Nitrajsinh-Solanki/nitrajsinh-solanki-portfolio",
+      "sha": "4d005034452d0f85189ae0e25ed937c95d444b0d",
+      "ground_truth": 2,
+      "agent_initial": 2,
+      "agent_final": 2,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "ibragims-niso/maths-for-economics",
+      "sha": "ce00e09c4ebf0e608dc601077cbe17fd192d2f14",
+      "ground_truth": 7,
+      "agent_initial": 7,
+      "agent_final": 7,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "ascribed-dev/ascribe",
+      "sha": "395fe80d0e8bdd1a9039426ed711fd6fba238371",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "igor-makarov/beetle-in-the-anthill",
+      "sha": "cec96b30e958bd39bcf1f6d1631e47880953ff05",
+      "ground_truth": 9,
+      "agent_initial": 9,
+      "agent_final": 9,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "abbyjohnson6391/csc336-fall2026",
+      "sha": "b51f0b91e69d9e99099003a2f2f9f32c359c9ab3",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "bradcrit/guildhub-dps-engine",
+      "sha": "e760ea1256aea6ddec4c1f71221aa8c1bbe1eafa",
+      "ground_truth": 33,
+      "agent_initial": 33,
+      "agent_final": 33,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "JJJP-Dev/Coop2D",
+      "sha": "52ee3d69a60806ff302c23dbc63299f75ffb5864",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "austinginder/minn-admin",
+      "sha": "c13d4271ed69a566e255ef68570f114e17da78b2",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "riba2534/herdrx",
+      "sha": "52b25013843b3f1329dccca42b980e3e3521388c",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Dongyang-Mirae-University-software/project-check",
+      "sha": "fe2473dcc9b0fc79228bf462a4d8f888c57826ff",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "sylar-db-cloner/sylar",
+      "sha": "af3b0e0e36946c6d5dcf47c8e1a52edc6b0d0dda",
+      "ground_truth": 5,
+      "agent_initial": 5,
+      "agent_final": 5,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Fnavarro81/payroll-calculator",
+      "sha": "a7f4dbf6fd7fd62324db10ec55cc1af09c0087a2",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "trajcheangjelovski-blip/TheTrueDefender",
+      "sha": "bc2087ffa18d594bad276b02304c0c35ae918daf",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "KRKRKRKRKRKRKRKRKRKR/KREngine",
+      "sha": "a2e3b46ea6dbf5b5e70fd2786fe404a570a90060",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "Ferranarna/GenteFit",
+      "sha": "cd373ad94a4ebcbf2bc80572a38bd25b5fa46562",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "ananya-mh/batch-inference",
+      "sha": "c26bdb83573d3dd5f946c30e9967727e400df84b",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "kl3pt0gr4ph/OpenTube-Frontend",
+      "sha": "51fbbbe573aa628957e3074e331a0304b70d6866",
+      "ground_truth": 8,
+      "agent_initial": 8,
+      "agent_final": 8,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "saad-trying-to-code/TP03-SAAD-ETTOUSY",
+      "sha": "c75f56e199002b2a5c8281f8287042a04e096d21",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "rom1-dev/stats_boucherie",
+      "sha": "4e8bb7de7c98873a268cc900d80736685ffafaef",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "CmdBiscuit/CommandCookies-Electronics-Mod",
+      "sha": "d02a301c9786d3b80a1b5df9ca6f362a99fecec1",
+      "ground_truth": 0,
+      "agent_initial": 0,
+      "agent_final": 0,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "mrbugimposter3-ship-it/quran-recorder",
+      "sha": "31525c049e6ab23de48ee0a1ddee6d9e33b83bfe",
+      "ground_truth": 2,
+      "agent_initial": 2,
+      "agent_final": 2,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    },
+    {
+      "repo": "bassetthomas-design/virgil-2.0",
+      "sha": "94d41a9662592072e04b5ee0785810091457ff7b",
+      "ground_truth": 3,
+      "agent_initial": 3,
+      "agent_final": 3,
+      "initial_exact_match": true,
+      "final_exact_match": true,
+      "static_exact_match": true
+    }
+  ]
+}

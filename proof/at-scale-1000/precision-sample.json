@@ -1,0 +1,860 @@
+{
+  "seed": 20261018,
+  "population": "all detected unpinned action references",
+  "sample_n": 50,
+  "true_positives": 50,
+  "false_positives": 0,
+  "precision": 1.0,
+  "labels": [
+    {
+      "repo": "renderbit-technologies/faq-jsonld-wordpress-plugin",
+      "sha": "31a1552f95347a526fbfa06b01e1767b4fdd57c2",
+      "action": "actions/checkout",
+      "excerpt": "uses: actions/checkout@v7",
+      "line": 17,
+      "path": ".github/workflows/draft-release.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/renderbit-technologies/faq-jsonld-wordpress-plugin/31a1552f95347a526fbfa06b01e1767b4fdd57c2/.github/workflows/draft-release.yml",
+      "source_match": {
+        "line": 17,
+        "excerpt": "uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "AhmedPeaRL/rx-hcm-grid-node-01",
+      "sha": "8e607303ae0bd0c5927ce57c1fb5d59a06725149",
+      "action": "actions/checkout",
+      "excerpt": "uses: actions/checkout@v4",
+      "line": 20,
+      "path": ".github/workflows/cluster-generator.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/AhmedPeaRL/rx-hcm-grid-node-01/8e607303ae0bd0c5927ce57c1fb5d59a06725149/.github/workflows/cluster-generator.yml",
+      "source_match": {
+        "line": 20,
+        "excerpt": "uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "unxed/f4",
+      "sha": "37fe96df840d5eccdf332368b4f153dff3e2a7c5",
+      "action": "actions/checkout",
+      "excerpt": "uses: actions/checkout@v7",
+      "line": 2395,
+      "path": ".github/workflows/build.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/unxed/f4/37fe96df840d5eccdf332368b4f153dff3e2a7c5/.github/workflows/build.yml",
+      "source_match": {
+        "line": 107,
+        "excerpt": "uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "bombpersons/mdx",
+      "sha": "d6a003820171e1de7663b2d87168f108954f5c02",
+      "action": "dtolnay/rust-toolchain",
+      "excerpt": "- uses: dtolnay/rust-toolchain@stable",
+      "line": 16,
+      "path": ".github/workflows/ci.yml",
+      "ref": "stable",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/bombpersons/mdx/d6a003820171e1de7663b2d87168f108954f5c02/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 16,
+        "excerpt": "- uses: dtolnay/rust-toolchain@stable"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "DevSysEngineer/puppet-modules",
+      "sha": "f91b1ba77da732fce754152ae26ea997c7e1fc80",
+      "action": "actions/upload-artifact",
+      "excerpt": "uses: actions/upload-artifact@v7",
+      "line": 307,
+      "path": ".github/workflows/checks.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/DevSysEngineer/puppet-modules/f91b1ba77da732fce754152ae26ea997c7e1fc80/.github/workflows/checks.yml",
+      "source_match": {
+        "line": 70,
+        "excerpt": "uses: actions/upload-artifact@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "theelitegrey/Stryker-trading-academy-",
+      "sha": "c343c244145d656ca716bb947d2f47c4b35260b9",
+      "action": "actions/setup-node",
+      "excerpt": "",
+      "line": 42,
+      "path": ".github/workflows/deploy-site.yml",
+      "ref": "v6",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/theelitegrey/Stryker-trading-academy-/c343c244145d656ca716bb947d2f47c4b35260b9/.github/workflows/deploy-site.yml",
+      "source_match": {
+        "line": 43,
+        "excerpt": "- uses: actions/setup-node@v6"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "choichoi3227-crypto/cp-ac8451c3-site-ac8451c3",
+      "sha": "23c382855c5aaa2c172345848000b481333937d6",
+      "action": "actions/configure-pages",
+      "excerpt": "uses: actions/configure-pages@v5",
+      "line": 65,
+      "path": ".github/workflows/astro.yml",
+      "ref": "v5",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/choichoi3227-crypto/cp-ac8451c3-site-ac8451c3/23c382855c5aaa2c172345848000b481333937d6/.github/workflows/astro.yml",
+      "source_match": {
+        "line": 65,
+        "excerpt": "uses: actions/configure-pages@v5"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions-rust-lang/setup-rust-toolchain",
+      "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1",
+      "line": 22,
+      "path": ".github/workflows/das2-iowa-cdn.yml",
+      "ref": "v1",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/das2-iowa-cdn.yml",
+      "source_match": {
+        "line": 22,
+        "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions-rust-lang/setup-rust-toolchain",
+      "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1",
+      "line": 20,
+      "path": ".github/workflows/iers-eop-c04-cdn.yml",
+      "ref": "v1",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/iers-eop-c04-cdn.yml",
+      "source_match": {
+        "line": 20,
+        "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions-rust-lang/setup-rust-toolchain",
+      "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1",
+      "line": 29,
+      "path": ".github/workflows/register-coverage.yml",
+      "ref": "v1",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/register-coverage.yml",
+      "source_match": {
+        "line": 29,
+        "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "sue445/pribirthdaybot",
+      "sha": "10f10cfb36c496d99d5ee2ae33b2691c340de161",
+      "action": "google-github-actions/auth",
+      "excerpt": "uses: google-github-actions/auth@v3",
+      "line": 82,
+      "path": ".github/workflows/build.yml",
+      "ref": "v3",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/sue445/pribirthdaybot/10f10cfb36c496d99d5ee2ae33b2691c340de161/.github/workflows/build.yml",
+      "source_match": {
+        "line": 82,
+        "excerpt": "uses: google-github-actions/auth@v3"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "janetyoon85/shadowstadium-data",
+      "sha": "e8d394eb2ec1f04af181fe0edb9a4c66ef52f345",
+      "action": "actions/setup-node",
+      "excerpt": "- uses: actions/setup-node@v4",
+      "line": 25,
+      "path": ".github/workflows/test.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/janetyoon85/shadowstadium-data/e8d394eb2ec1f04af181fe0edb9a4c66ef52f345/.github/workflows/test.yml",
+      "source_match": {
+        "line": 25,
+        "excerpt": "- uses: actions/setup-node@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "Emmakex/eduardoyauriluna-research",
+      "sha": "7ea028568a93a9920023e0078cc375f976e8fea5",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v4",
+      "line": 38,
+      "path": ".github/workflows/research-manager-remote-m1-quality.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/Emmakex/eduardoyauriluna-research/7ea028568a93a9920023e0078cc375f976e8fea5/.github/workflows/research-manager-remote-m1-quality.yml",
+      "source_match": {
+        "line": 38,
+        "excerpt": "- uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "jwetzell/showbridge-go",
+      "sha": "534c618fb0f63f53833ef545b04fa6e44133e257",
+      "action": "actions/checkout",
+      "excerpt": "uses: actions/checkout@v7",
+      "line": 120,
+      "path": ".github/workflows/release-showbridge.yaml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/jwetzell/showbridge-go/534c618fb0f63f53833ef545b04fa6e44133e257/.github/workflows/release-showbridge.yaml",
+      "source_match": {
+        "line": 20,
+        "excerpt": "uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "NikaNats/NetCommerce",
+      "sha": "e498f755d53af290937503f48d7329796d2989d4",
+      "action": "actions/upload-artifact",
+      "excerpt": "uses: actions/upload-artifact@v4",
+      "line": 64,
+      "path": ".github/workflows/load-tests.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/NikaNats/NetCommerce/e498f755d53af290937503f48d7329796d2989d4/.github/workflows/load-tests.yml",
+      "source_match": {
+        "line": 64,
+        "excerpt": "uses: actions/upload-artifact@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "griasdi/schwitzer",
+      "sha": "e7c3619ab2951f1af5028f3b410e753f07e4213e",
+      "action": "Swatinem/rust-cache",
+      "excerpt": "- uses: Swatinem/rust-cache@v2",
+      "line": 38,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v2",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/griasdi/schwitzer/e7c3619ab2951f1af5028f3b410e753f07e4213e/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 22,
+        "excerpt": "- uses: Swatinem/rust-cache@v2"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "spectrayan/spector",
+      "sha": "d72581055414e87d68e8f76e44d6bff34e5f0719",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v7",
+      "line": 27,
+      "path": ".github/workflows/openclaw-plugin.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/spectrayan/spector/d72581055414e87d68e8f76e44d6bff34e5f0719/.github/workflows/openclaw-plugin.yml",
+      "source_match": {
+        "line": 27,
+        "excerpt": "- uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "tsouza/cerberus",
+      "sha": "e5b2ef2d2d504a86070ebe254aa371e3cecb1104",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v7",
+      "line": 263,
+      "path": ".github/workflows/post-merge-drift.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/tsouza/cerberus/e5b2ef2d2d504a86070ebe254aa371e3cecb1104/.github/workflows/post-merge-drift.yml",
+      "source_match": {
+        "line": 67,
+        "excerpt": "- uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "tsouza/cerberus",
+      "sha": "e5b2ef2d2d504a86070ebe254aa371e3cecb1104",
+      "action": "actions/cache",
+      "excerpt": "uses: actions/cache@v6",
+      "line": 559,
+      "path": ".github/workflows/chdb.yml",
+      "ref": "v6",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/tsouza/cerberus/e5b2ef2d2d504a86070ebe254aa371e3cecb1104/.github/workflows/chdb.yml",
+      "source_match": {
+        "line": 231,
+        "excerpt": "uses: actions/cache@v6"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v7",
+      "line": 27,
+      "path": ".github/workflows/vnp46a3-cdn.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/vnp46a3-cdn.yml",
+      "source_match": {
+        "line": 27,
+        "excerpt": "- uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "abolfazl-moeini/wp-starter-kit",
+      "sha": "f7b39355fa498a1c8443465a7e95a76ec51d7e96",
+      "action": "actions/setup-node",
+      "excerpt": "uses: actions/setup-node@v4",
+      "line": 254,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/abolfazl-moeini/wp-starter-kit/f7b39355fa498a1c8443465a7e95a76ec51d7e96/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 29,
+        "excerpt": "uses: actions/setup-node@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "afjcjsbx/picoclaw",
+      "sha": "8fe3967dad0c8a9f8f6f634fd402cd4b7e7d3a8d",
+      "action": "actions/setup-go",
+      "excerpt": "uses: actions/setup-go@v7",
+      "line": 22,
+      "path": ".github/workflows/create_dmg.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/afjcjsbx/picoclaw/8fe3967dad0c8a9f8f6f634fd402cd4b7e7d3a8d/.github/workflows/create_dmg.yml",
+      "source_match": {
+        "line": 22,
+        "excerpt": "uses: actions/setup-go@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "SpiralCloudOmega/DevTeam6",
+      "sha": "fd859227f1c9bce28952dd5effaca71fb8067106",
+      "action": "hmarr/auto-approve-action",
+      "excerpt": "uses: hmarr/auto-approve-action@v4",
+      "line": 23,
+      "path": ".github/workflows/auto-merge.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/SpiralCloudOmega/DevTeam6/fd859227f1c9bce28952dd5effaca71fb8067106/.github/workflows/auto-merge.yml",
+      "source_match": {
+        "line": 23,
+        "excerpt": "uses: hmarr/auto-approve-action@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions-rust-lang/setup-rust-toolchain",
+      "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1",
+      "line": 20,
+      "path": ".github/workflows/pioneer-telemetry-cdn.yml",
+      "ref": "v1",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/pioneer-telemetry-cdn.yml",
+      "source_match": {
+        "line": 20,
+        "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v7",
+      "line": 20,
+      "path": ".github/workflows/jwst-cdn-watch.yml",
+      "ref": "v7",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/jwst-cdn-watch.yml",
+      "source_match": {
+        "line": 20,
+        "excerpt": "- uses: actions/checkout@v7"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "arlac77/svelte-session-manager",
+      "sha": "52877fcc63dacb3f814c489670f04e14a412d982",
+      "action": "actions/setup-node",
+      "excerpt": "uses: actions/setup-node@v7.1.0",
+      "line": 68,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v7.1.0",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/arlac77/svelte-session-manager/52877fcc63dacb3f814c489670f04e14a412d982/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 29,
+        "excerpt": "uses: actions/setup-node@v7.1.0"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "Vincamok/goproxify",
+      "sha": "35f048a67aec255691cc94b23fd16856156fa672",
+      "action": "docker/build-push-action",
+      "excerpt": "uses: docker/build-push-action@v6",
+      "line": 89,
+      "path": ".github/workflows/build-push.yml",
+      "ref": "v6",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/Vincamok/goproxify/35f048a67aec255691cc94b23fd16856156fa672/.github/workflows/build-push.yml",
+      "source_match": {
+        "line": 47,
+        "excerpt": "uses: docker/build-push-action@v6"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "choichoi3227-crypto/cp-ac8451c3-site-ac8451c3",
+      "sha": "23c382855c5aaa2c172345848000b481333937d6",
+      "action": "shivammathur/setup-php",
+      "excerpt": "- uses: shivammathur/setup-php@v2",
+      "line": 30,
+      "path": ".github/workflows/php-keepalive.yml",
+      "ref": "v2",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/choichoi3227-crypto/cp-ac8451c3-site-ac8451c3/23c382855c5aaa2c172345848000b481333937d6/.github/workflows/php-keepalive.yml",
+      "source_match": {
+        "line": 30,
+        "excerpt": "- uses: shivammathur/setup-php@v2"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "rkh/farce",
+      "sha": "d130eb6cf194653cf99cf6f93a53beb642e648d0",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v6",
+      "line": 49,
+      "path": ".github/workflows/test.yml",
+      "ref": "v6",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/rkh/farce/d130eb6cf194653cf99cf6f93a53beb642e648d0/.github/workflows/test.yml",
+      "source_match": {
+        "line": 49,
+        "excerpt": "- uses: actions/checkout@v6"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "Alisa007/business-obligations",
+      "sha": "a943a6e68639651ed75f2626a9fb86531bf9ceea",
+      "action": "actions/deploy-pages",
+      "excerpt": "uses: actions/deploy-pages@v5",
+      "line": 41,
+      "path": ".github/workflows/pages.yml",
+      "ref": "v5",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/Alisa007/business-obligations/a943a6e68639651ed75f2626a9fb86531bf9ceea/.github/workflows/pages.yml",
+      "source_match": {
+        "line": 41,
+        "excerpt": "uses: actions/deploy-pages@v5"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "CustomCodeCR/DholeAgentService",
+      "sha": "975da23ddc4eae13178726edd8e81149084ff7e2",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v4",
+      "line": 22,
+      "path": ".github/workflows/diagnose-generation-dispatch.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/CustomCodeCR/DholeAgentService/975da23ddc4eae13178726edd8e81149084ff7e2/.github/workflows/diagnose-generation-dispatch.yml",
+      "source_match": {
+        "line": 22,
+        "excerpt": "- uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "lucee/Lucee",
+      "sha": "667d537364a7a1c338cdb93bf9de995587c1fc1f",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v3",
+      "line": 10,
+      "path": ".github/workflows/osv-scanner.yml",
+      "ref": "v3",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/lucee/Lucee/667d537364a7a1c338cdb93bf9de995587c1fc1f/.github/workflows/osv-scanner.yml",
+      "source_match": {
+        "line": 10,
+        "excerpt": "- uses: actions/checkout@v3"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "janetyoon85/shadowstadium-data",
+      "sha": "e8d394eb2ec1f04af181fe0edb9a4c66ef52f345",
+      "action": "actions/checkout",
+      "excerpt": "uses: actions/checkout@v4",
+      "line": 20,
+      "path": ".github/workflows/fetch-espn-baseball.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/janetyoon85/shadowstadium-data/e8d394eb2ec1f04af181fe0edb9a4c66ef52f345/.github/workflows/fetch-espn-baseball.yml",
+      "source_match": {
+        "line": 20,
+        "excerpt": "uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "paperjs/paper.js",
+      "sha": "c8485e7d381c598287109b619f48319698e08e9b",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v4",
+      "line": 39,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/paperjs/paper.js/c8485e7d381c598287109b619f48319698e08e9b/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 12,
+        "excerpt": "- uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "kanga-prog/watyouface-backend",
+      "sha": "8970ea509d2d4dd4c7784e1f0be14b56ea461caa",
+      "action": "actions/setup-java",
+      "excerpt": "uses: actions/setup-java@v4",
+      "line": 23,
+      "path": ".github/workflows/backend-ci.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/kanga-prog/watyouface-backend/8970ea509d2d4dd4c7784e1f0be14b56ea461caa/.github/workflows/backend-ci.yml",
+      "source_match": {
+        "line": 23,
+        "excerpt": "uses: actions/setup-java@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "sue445/rb-wasm-vdom",
+      "sha": "81d6f859e281e0db69fb83021f5503f838303ba6",
+      "action": "sue445/workflows/.github/workflows/rbs-collection-updater.yml",
+      "excerpt": "uses: sue445/workflows/.github/workflows/rbs-collection-updater.yml@main",
+      "line": 10,
+      "path": ".github/workflows/rbs-collection-updater.yml",
+      "ref": "main",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/sue445/rb-wasm-vdom/81d6f859e281e0db69fb83021f5503f838303ba6/.github/workflows/rbs-collection-updater.yml",
+      "source_match": {
+        "line": 10,
+        "excerpt": "uses: sue445/workflows/.github/workflows/rbs-collection-updater.yml@main"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "jwetzell/showbridge-go",
+      "sha": "534c618fb0f63f53833ef545b04fa6e44133e257",
+      "action": "go-task/setup-task",
+      "excerpt": "uses: go-task/setup-task@v2",
+      "line": 198,
+      "path": ".github/workflows/release-showbridge.yaml",
+      "ref": "v2",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/jwetzell/showbridge-go/534c618fb0f63f53833ef545b04fa6e44133e257/.github/workflows/release-showbridge.yaml",
+      "source_match": {
+        "line": 56,
+        "excerpt": "uses: go-task/setup-task@v2"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "waelhe/app-java-v3",
+      "sha": "1146802fbb271f6bd594ef25b53cae83c9cb09a5",
+      "action": "actions/setup-java",
+      "excerpt": "uses: actions/setup-java@v6.1.0",
+      "line": 601,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v6.1.0",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/waelhe/app-java-v3/1146802fbb271f6bd594ef25b53cae83c9cb09a5/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 107,
+        "excerpt": "uses: actions/setup-java@v6.1.0"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "elektronaut/badline",
+      "sha": "0079ef4b8572c14adcf5e27dc6e90e426e124030",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v6.1.0",
+      "line": 36,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v6.1.0",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/elektronaut/badline/0079ef4b8572c14adcf5e27dc6e90e426e124030/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 36,
+        "excerpt": "- uses: actions/checkout@v6.1.0"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "Emmakex/eduardoyauriluna-research",
+      "sha": "7ea028568a93a9920023e0078cc375f976e8fea5",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v4",
+      "line": 25,
+      "path": ".github/workflows/m8-insight-production-acceptance-quality.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/Emmakex/eduardoyauriluna-research/7ea028568a93a9920023e0078cc375f976e8fea5/.github/workflows/m8-insight-production-acceptance-quality.yml",
+      "source_match": {
+        "line": 25,
+        "excerpt": "- uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "MotherTruck/Fleetview",
+      "sha": "d9e21c818c3e06d421df50fd5b8871476e364d89",
+      "action": "Swatinem/rust-cache",
+      "excerpt": "uses: Swatinem/rust-cache@v2",
+      "line": 46,
+      "path": ".github/workflows/docker-publish.yml",
+      "ref": "v2",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/MotherTruck/Fleetview/d9e21c818c3e06d421df50fd5b8871476e364d89/.github/workflows/docker-publish.yml",
+      "source_match": {
+        "line": 46,
+        "excerpt": "uses: Swatinem/rust-cache@v2"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "NikaNats/NetCommerce",
+      "sha": "e498f755d53af290937503f48d7329796d2989d4",
+      "action": "actions/upload-artifact",
+      "excerpt": "uses: actions/upload-artifact@v4",
+      "line": 59,
+      "path": ".github/workflows/frontend.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/NikaNats/NetCommerce/e498f755d53af290937503f48d7329796d2989d4/.github/workflows/frontend.yml",
+      "source_match": {
+        "line": 59,
+        "excerpt": "uses: actions/upload-artifact@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions-rust-lang/setup-rust-toolchain",
+      "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1",
+      "line": 24,
+      "path": ".github/workflows/sb-radar-cdn.yml",
+      "ref": "v1",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/sb-radar-cdn.yml",
+      "source_match": {
+        "line": 24,
+        "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "omegaflow/omegaflow",
+      "sha": "dfef178311e60702589e020564e00dc3c5eb7f86",
+      "action": "actions-rust-lang/setup-rust-toolchain",
+      "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1",
+      "line": 304,
+      "path": ".github/workflows/hyperscanning-te.yml",
+      "ref": "v1",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/omegaflow/omegaflow/dfef178311e60702589e020564e00dc3c5eb7f86/.github/workflows/hyperscanning-te.yml",
+      "source_match": {
+        "line": 65,
+        "excerpt": "- uses: actions-rust-lang/setup-rust-toolchain@v1"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "Xhy333/QuantumultX",
+      "sha": "06cbb2db42f1258f2ab465aac1e08baebaaa743c",
+      "action": "actions/upload-artifact",
+      "excerpt": "uses: actions/upload-artifact@v2",
+      "line": 37,
+      "path": ".github/workflows/blank.yml",
+      "ref": "v2",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/Xhy333/QuantumultX/06cbb2db42f1258f2ab465aac1e08baebaaa743c/.github/workflows/blank.yml",
+      "source_match": {
+        "line": 37,
+        "excerpt": "uses: actions/upload-artifact@v2"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "SamirZebbouche/InvoiceKata",
+      "sha": "083fd38f234f6965419d9cf07ef28550a7894038",
+      "action": "actions/deploy-pages",
+      "excerpt": "uses: actions/deploy-pages@v4",
+      "line": 67,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/SamirZebbouche/InvoiceKata/083fd38f234f6965419d9cf07ef28550a7894038/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 67,
+        "excerpt": "uses: actions/deploy-pages@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "gansm/finalcut",
+      "sha": "90ba28f8edb00ea4cd04ff1d2c5199c3a54e595b",
+      "action": "actions/checkout",
+      "excerpt": "uses: actions/checkout@v3",
+      "line": 33,
+      "path": ".github/workflows/codeql-analysis.yml",
+      "ref": "v3",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/gansm/finalcut/90ba28f8edb00ea4cd04ff1d2c5199c3a54e595b/.github/workflows/codeql-analysis.yml",
+      "source_match": {
+        "line": 33,
+        "excerpt": "uses: actions/checkout@v3"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "nima20002000/foreman-code-ci",
+      "sha": "aee6a966e44ef10153236d6b4e8edc7b278395d3",
+      "action": "actions/cache",
+      "excerpt": "uses: actions/cache@v4",
+      "line": 100,
+      "path": ".github/workflows/ci.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/nima20002000/foreman-code-ci/aee6a966e44ef10153236d6b4e8edc7b278395d3/.github/workflows/ci.yml",
+      "source_match": {
+        "line": 100,
+        "excerpt": "uses: actions/cache@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "falseywinchnet/gui_forms",
+      "sha": "c0294288cf54f474be45568bdf798eb28859cfce",
+      "action": "actions/checkout",
+      "excerpt": "- uses: actions/checkout@v4",
+      "line": 38,
+      "path": ".github/workflows/release.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/falseywinchnet/gui_forms/c0294288cf54f474be45568bdf798eb28859cfce/.github/workflows/release.yml",
+      "source_match": {
+        "line": 38,
+        "excerpt": "- uses: actions/checkout@v4"
+      },
+      "source_error": null
+    },
+    {
+      "repo": "marivaldojunior/stowise",
+      "sha": "bfb502213c05a7c1a73d8fe2a8c8d862729ddf7d",
+      "action": "actions/upload-artifact",
+      "excerpt": "uses: actions/upload-artifact@v4",
+      "line": 54,
+      "path": ".github/workflows/api.yml",
+      "ref": "v4",
+      "label": "true_positive",
+      "label_method": "fresh raw source at frozen SHA",
+      "source_url": "https://raw.githubusercontent.com/marivaldojunior/stowise/bfb502213c05a7c1a73d8fe2a8c8d862729ddf7d/.github/workflows/api.yml",
+      "source_match": {
+        "line": 54,
+        "excerpt": "uses: actions/upload-artifact@v4"
+      },
+      "source_error": null
+    }
+  ]
+}
