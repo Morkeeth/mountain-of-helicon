@@ -208,10 +208,14 @@ def read_install():
     if git("rev-parse", "--is-inside-work-tree") != "true":
         return {"found": True, "read": tree, "git": False}
     behind = git("rev-list", "--count", "HEAD..origin/main")
+    # After a history rewrite this copy and main share no commit. Then "behind" counts every
+    # commit on main, and "pull" cannot work: the copy must be installed again from main.
+    unrelated = bool(git("rev-parse", "--verify", "--quiet", "origin/main")) and git("merge-base", "HEAD", "origin/main") is None
     return {
         "found": True, "read": tree, "git": True,
         "branch": git("rev-parse", "--abbrev-ref", "HEAD") or "",
         "behind_main": int(behind) if behind and behind.isdigit() else None,
+        "unrelated_history": unrelated,
         "changed_files": len((git("status", "--porcelain") or "").splitlines()),
     }
 
@@ -641,7 +645,9 @@ def plain(card):
     ins, mem, dec, ski, idx = (card[k] for k in ("instructions", "memory", "decisions", "skills", "index"))
     inst = card.get("install") or {}
     behind = inst.get("behind_main")
-    if behind:
+    if inst.get("unrelated_history"):
+        status = ("This copy of Helicon is on an old history that main no longer shares. Install it again from main before you trust the numbers below.", True)
+    elif behind:
         status = (f"This copy of Helicon is out of date, {_n(behind, 'update')} behind. Update it before you trust the numbers below.", True)
     elif inst.get("git") and behind == 0:
         status = ("Helicon is up to date.", False)
@@ -690,7 +696,9 @@ def plain(card):
     work_rows = work_plain(card.get("work") or {})
 
     steps = []
-    if behind:
+    if inst.get("unrelated_history"):
+        steps.append(("Install Helicon again from a checkout of main. A pull cannot work: this copy shares no history with main.", "pip install -e <checkout of main>"))
+    elif behind:
         steps.append(("Update Helicon first. It is out of date.", f"git -C {_short(inst.get('read'))} pull"))
     if ins.get("found") and broken:
         steps.append((f"Fix the {_n(broken, 'thing')} your instructions point to that {'is' if broken == 1 else 'are'} missing or wrong.", f"helicon review {_short(ins['read'])}"))
