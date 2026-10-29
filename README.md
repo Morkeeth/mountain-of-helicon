@@ -1,9 +1,14 @@
 # Mountain of Helicon
 
-**Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
-commands that no longer exist, paths the repo reorganized away. Your agent loads
-those rules as fact at the start of every session. Nothing tells you until
-something breaks.
+**Mountain of Helicon checks the instruction files your coding agent reads (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) against the repository on disk, so your agent stops starting every session on rules that are no longer true.**
+
+The problem: those files point at files that moved and commands that no longer exist, the agent loads them as fact, and nothing tells you until something breaks.
+
+For anyone who commits agent rules to a repo and wants them checked in CI.
+
+It reads the rules, checks every pointer against the tree, prints a grade where each finding cites the line it fired on, and exits non-zero when a repo-local claim fails. A second command, `helicon witness`, grades your agent's last session: which of its "done / fixed" claims have tool evidence in the trace.
+
+No API key, no config, no upload, no third-party packages. Try it: `pip install mountain-of-helicon && helicon review .`
 
 ```bash
 pip install mountain-of-helicon
