@@ -1,5 +1,25 @@
 # Mountain of Helicon
 
+## TLDR
+
+Check agent instruction files against the repository they describe.<br>
+For maintainers whose agent rules can outlive the files, commands and decisions they reference.<br>
+Findings cite the checked object; additional memory and session-claim tools have their own documented scope.
+
+## The problem and approach
+
+The problem: those files point at files that moved and commands that no longer exist, the agent loads them as fact, and nothing tells you until something breaks.
+
+It reads the rules, checks every pointer against the tree, prints a grade where each finding cites the line it fired on, and exits non-zero when a repo-local claim fails. A second command, `helicon witness`, grades your agent's last session: which of its "done / fixed" claims have tool evidence in the trace.
+
+No API key, no config, no upload, no third-party packages. Try it: `pip install mountain-of-helicon && helicon review .`
+
+## Review and pick up the work
+
+[Agent guide](AGENTS.md)
+
+Start with the linked source, setup and evidence. Recorded demos and sample data keep their original scope; use the repository instructions for a fresh run.
+
 **Your `AGENTS.md` is lying to your coding agent.** It points at files that moved,
 commands that no longer exist, paths the repo reorganized away. Your agent loads
 those rules as fact at the start of every session. Nothing tells you until
@@ -198,12 +218,12 @@ on it, and neither of you finds out.
 
 Mountain of Helicon runs the claims in those files against the repository in
 front of it, before the work starts. Every contradiction it reports carries the
-command and the stdout that proved it — so you are ruling on evidence, not on a
+command and the stdout that proved it ;  so you are ruling on evidence, not on a
 model's opinion about your docs.
 
 ### One line, no clone
 
-Review any repo's agent setup in one command — no clone, no key, no LLM:
+Review any repo's agent setup in one command ;  no clone, no key, no LLM:
 
 ```bash
 uvx --from mountain-of-helicon helicon-review ~/your-repo
@@ -215,9 +235,9 @@ pointer, command, and version claim against the actual tree, and prints a graded
 verdict with the exact `file:line` of each broken reference. Exit code is non-zero
 when the setup lies to its agent, so it drops straight into CI.
 
-> Runs the existence + version tier by default. The execute-and-compare wedge — it
+> Runs the existence + version tier by default. The execute-and-compare wedge ;  it
 > *runs* a documented test/build command and grades the doc's "this passes" claim
-> against the real exit code — is opt-in (`HELICON_EXECUTE=1`), because running a
+> against the real exit code ;  is opt-in (`HELICON_EXECUTE=1`), because running a
 > stranger's code should be a choice.
 
 ### From a clone (the full lab)
@@ -238,7 +258,7 @@ probes each claim against **your** code, and prints every contradiction with the
 command and the stdout that proved it. Nothing is uploaded, no key is asked for, and
 no configuration file is written.
 
-It is fast because there is nothing heavy in the path — no model download, no build
+It is fast because there is nothing heavy in the path ;  no model download, no build
 step, no index to warm. The scan is `git` and subprocess calls, so on a cold clone it
 finishes in seconds; two different machines measured 3.5s and 2s for the scan itself.
 Time it on yours rather than trusting either number.
@@ -261,7 +281,7 @@ uninstalled. It can also audit longer-lived memory, let a human rule on
 contradictions, and compile those rulings into policy your agents query over CLI
 or MCP.
 
-**What it does not do:** it settles what the filesystem can settle — a named path
+**What it does not do:** it settles what the filesystem can settle ;  a named path
 that is gone, a quoted command's output, a retired capability. It cannot tell you
 whether a sentence is *true*. Silence is not a clean bill of health; it means no
 executable probe could bind. `helicon review` does not read `.clinerules` yet, so
@@ -284,7 +304,7 @@ Release gates and intentionally deferred work are tracked in
 ## Installing on a Mac
 
 **It took six cold clones before one ran clean.** Not six errors found by reading
-the code — six real clones from GitHub into `/tmp`, installed into an empty
+the code ;  six real clones from GitHub into `/tmp`, installed into an empty
 `HOME`, driven with the stock macOS interpreter, following the block above
 exactly. Attempts 1, 3 and 5 each surfaced something the previous one had not:
 output that greeted a stranger by the author's name, `pip install` blaming the
@@ -298,7 +318,7 @@ and a stock Mac fails this two different ways, neither of which names the real
 cause. `/usr/bin/python3` is 3.9 and dies on a PEP 604 annotation
 (`TypeError: unsupported operand type(s) for |`). Its bundled pip is 21.2.4,
 which predates PEP 660 and refuses with
-`ERROR: File "setup.py" or "setup.cfg" not found` — that one reads as *this repo
+`ERROR: File "setup.py" or "setup.cfg" not found` ;  that one reads as *this repo
 is missing a file* rather than *your pip is three years old*. The preflight
 checks both and prints the exact command for each.
 
@@ -374,7 +394,7 @@ verdict. Semantic embeddings are an optional install; the core remains slim.
 
 ## CI for agent memory (GitHub Action)
 
-The same `helicon ci` from the section above also runs in CI, so a pull request that drifts your agent's instruction files fails the build — CI for memory, literally. It scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs 13 documented failure classes through the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
+The same `helicon ci` from the section above also runs in CI, so a pull request that drifts your agent's instruction files fails the build ;  CI for memory, literally. It scans a repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` / copilot-instructions, runs 13 documented failure classes through the 13-class deterministic exam (no key, no torch, no LLM), emits GitHub annotations + a job-summary table, and exits non-zero on rot. R13 goes further than reading: it runs a probe against the repo's own running code and reports which sentences the system contradicts.
 
 ```yaml
 # .github/workflows/memory-ci.yml
@@ -413,7 +433,7 @@ helicon receipt <session>     # did the harness actually RECEIVE the injection?
 
 The gate a stranger installs is **keyless and config-free**: `helicon doorway install`
 writes one `UserPromptSubmit` hook (shown as a diff, backed up first, idempotent,
-and exactly reversible), and the hook — `python3 -m helicon doorway gate` — needs no
+and exactly reversible), and the hook ;  `python3 -m helicon doorway gate` ;  needs no
 `config.json` to run. On the next prompt in any repo whose loaded docs its own code
 disproves, the warning appears in your terminal and the run continues. Warnings and
 explicit overrides log into your configured store (so they show up in `helicon runs`
@@ -429,13 +449,13 @@ Three rules it obeys, all from the same law:
   it cannot poison a run and must not stop one. `--demote` is a real exit, not advice.
 - **Fail open, loudly.** Any error lets the prompt through; a doorway that bricks a
   terminal gets uninstalled, and then it governs nothing. Logged warning/override
-  events make intervention inspectable — the absence of one proves nothing.
+  events make intervention inspectable ;  the absence of one proves nothing.
 
 `helicon receipt` is the honest half of delivery. Every other step can be satisfied by
 a row Helicon itself wrote; this one opens the transcript the **harness** wrote and
 looks for a content-derived token, ruling `RECEIVED` / `NOT_FOUND` / `UNVERIFIABLE`.
 UNVERIFIABLE is a verdict, never rounded up. Injections are checked against the
-~32k context-rot onset first and trimmed if they would exceed it — a memory tool that
+~32k context-rot onset first and trimmed if they would exceed it ;  a memory tool that
 quietly causes the rot it detects is the joke writing itself.
 
 ## Headline Features
@@ -491,8 +511,8 @@ Agents audit their own memory mid-conversation. Add to `.claude.json`:
 | `helicon_recent_reviews` | What the human approved/killed |
 | `helicon_patterns` | Learned behavioral patterns |
 | `helicon_guard` | Check a proposed claim against the compiled law *before* writing it: `blocked` / `warn` / `clean` |
-| `helicon_ask` | Guarded retrieve — what is safe to believe about a topic: the ruled-true answer + retrieved context split into safe vs. ruled-wrong |
-| `helicon_brief` | The morning brief — all five pillars in one call: truth, continuity, direction, reflection, calm |
+| `helicon_ask` | Guarded retrieve ;  what is safe to believe about a topic: the ruled-true answer + retrieved context split into safe vs. ruled-wrong |
+| `helicon_brief` | The morning brief ;  all five pillars in one call: truth, continuity, direction, reflection, calm |
 | `helicon_portrait` | Grounded portrait of what the record shows about the person, plus its health |
 | `helicon_context` | Proactive memory injection for a task -- every memory carries its id, last_verified, used_count |
 | `helicon_flag` | Point-of-use correction: flag a memory stale/wrong/useful by id; stale/wrong become findings the human confirms |
@@ -576,9 +596,9 @@ contents, search results, and diffs are never ingested.
 
 Four of them answer to a second name, kept working so older muscle memory doesn't break: `battery` = `check`, `rot` = `audit`, `heal` = `repair`, `gold` = `policy`. Aliases, not extra commands, so they are not counted above.
 
-`helicon truth` is the **stranger-facing cold path**: point it at any agent memory directory (Claude Code, Cursor, Cline, Obsidian vault) and get a ranked, evidence-cited staleness+rot report — no Helicon DB, no API key, no LLM. Deterministic; every row cites the line it fired on.
+`helicon truth` is the **stranger-facing cold path**: point it at any agent memory directory (Claude Code, Cursor, Cline, Obsidian vault) and get a ranked, evidence-cited staleness+rot report ;  no Helicon DB, no API key, no LLM. Deterministic; every row cites the line it fired on.
 
-`helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store — the verified verdicts `review-queue --terminals` produced — and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
+`helicon route` turns output-verification into a **model-routing recommendation**: it reads the eval store ;  the verified verdicts `review-queue --terminals` produced ;  and ranks models by Wilson-scored verified-pass-rate per task-class, with sample size and confidence attached. The model is attributed from the git co-author trailer of the commits that produced the output; the outcome is a real reality-check, never a guess. Below a sample threshold it says *insufficient evidence*, never a fabricated number. `helicon route --record --run` builds the evidence first. See [docs/ROUTE.md](docs/ROUTE.md).
 
 `helicon score-runs` and `helicon runs` score whole RUNS, the same output-verification one level up and made cost-aware: `score = verified yield / cost - damage`. Cost comes from the real transcript token usage, yield from the `review-queue --terminals` verdicts, damage from an incident flag. Every term traces to a real source; nothing is vibed. `score-runs --card` cuts one run card, `runs` renders the scored history, `runs --suggest` reads what to run next off it. See [docs/RUNS.md](docs/RUNS.md).
 
@@ -588,41 +608,41 @@ Four of them answer to a second name, kept working so older muscle memory doesn'
 
 `helicon leaderboard` is the population-scale version: it reads git history across many repos (where multiple models and harnesses actually co-authored commits) and ranks models by how often their commits SURVIVE vs get REVERTED, Wilson-scored. Execution-free (git only, so it is bounded and cannot freeze a machine); the revert is the honest failure signal. On 927 attributed commits across 25 local repos it already separates opus-4.6 / opus-4.8 / fable-5 / cursor by reliability.
 
-`helicon repair` runs **the self-healing audit loop** — the thing no retriever can do. It scores the four truth gates (freshness / volatility / consistency / retrieval) on a store, surfaces each drift with its cross-source evidence, proposes a repair (retire the stale memory, move a fast fact to the live layer) as a diff you accept, applies the accepted ones, and re-scores so the gates visibly move. `helicon repair --demo` runs it on a seeded, universally-legible store (the classic "I told my agent I'm vegetarian, then started eating chicken again — it never updated" contradiction, plus a stale goal and a fast fact); `--apply` closes the loop.
+`helicon repair` runs **the self-healing audit loop** ;  the thing no retriever can do. It scores the four truth gates (freshness / volatility / consistency / retrieval) on a store, surfaces each drift with its cross-source evidence, proposes a repair (retire the stale memory, move a fast fact to the live layer) as a diff you accept, applies the accepted ones, and re-scores so the gates visibly move. `helicon repair --demo` runs it on a seeded, universally-legible store (the classic "I told my agent I'm vegetarian, then started eating chicken again ;  it never updated" contradiction, plus a stale goal and a fast fact); `--apply` closes the loop.
 
-`helicon audit` runs **the rot exam**: the 13 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 13 classes and says so — and as of Jul 5 all classes are fully tested, 0 partial.
+`helicon audit` runs **the rot exam**: the 13 documented memory-failure classes in [ROT.md](ROT.md) checked live against your real store -- deterministic, zero LLM calls, free to run daily. On this repo's own store it currently finds rot in several of 13 classes and says so ;  and as of Jul 5 all classes are fully tested, 0 partial.
 
-`helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots — no news, no noise. First run baselines silently.
+`helicon watch` makes the exam ambient: scan + selectors + rot exam on a timer (`helicon watch --install` writes the crontab line, every 6h), diffed against the last run. You get a macOS notification and a `drift-report.md` only when something NEW rots ;  no news, no noise. First run baselines silently.
 
-`helicon policy` compiles **GOLDEN RULES**: the stack's law, built from your rulings, dismissal precedents, approved triage rules, declared renames, canonical sources and standing feedback — every rule with its provenance (a rule without provenance is a vibe). `--inject` writes it to `~/.claude/GOLDEN_RULES.md` (dry-run default, `.bak` kept) so every session can obey it. `helicon evolve` is the night command: scan, every selector, the exam, a gold recompile, and the morning delta — what your stack learned while you slept.
+`helicon policy` compiles **GOLDEN RULES**: the stack's law, built from your rulings, dismissal precedents, approved triage rules, declared renames, canonical sources and standing feedback ;  every rule with its provenance (a rule without provenance is a vibe). `--inject` writes it to `~/.claude/GOLDEN_RULES.md` (dry-run default, `.bak` kept) so every session can obey it. `helicon evolve` is the night command: scan, every selector, the exam, a gold recompile, and the morning delta ;  what your stack learned while you slept.
 
 `helicon checkin` asks one harness for the live shared-state revision, exactly five open task IDs, and one next action. It scores the answer against `CURRENT.md` on a fixed 100-point denominator, reports Codex memories as review candidates rather than silently merging them, and reads the existing Transcripto views in read-only mode.
 
 `helicon report` prints a **MemoryAgent Compliance Report**: the track's four sub-goals (efficient storage/retrieval, timely forgetting, recall under limited context windows, cross-session accuracy) scored live from your real memory, thresholds printed with the numbers. Any memory stack a connector can scan could be graded by the same exam.
 
-`helicon fleet` is **one screen for the whole fleet**, and it is project-first because that is the unit a person thinks in. Every field is DERIVED and none is typed: where a project *stands* comes from git (branch, HEAD, uncommitted, unpushed, commits in 24h), *needs you* from runs that finished with no verdict, *friction* from the complaint log, *next* only from a prompt you actually accepted **and** that matches this project — otherwise it says `unmeasured` and names what would fill it. A hand-typed "next step" field is stale in a week, and then you have rebuilt the dashboard problem one layer down.
+`helicon fleet` is **one screen for the whole fleet**, and it is project-first because that is the unit a person thinks in. Every field is DERIVED and none is typed: where a project *stands* comes from git (branch, HEAD, uncommitted, unpushed, commits in 24h), *needs you* from runs that finished with no verdict, *friction* from the complaint log, *next* only from a prompt you actually accepted **and** that matches this project ;  otherwise it says `unmeasured` and names what would fill it. A hand-typed "next step" field is stale in a week, and then you have rebuilt the dashboard problem one layer down.
 
-It opens with IDLE, because that is the only line that costs money while you read it: terminal-hours sitting silent right now. Reported as a **floor, not a total** — a session thinking hard writes nothing and reads as idle — and counted only for sessions a human actually typed into. The first version counted every transcript and claimed 241 idle hours across 74 "terminals"; 68 were headless judge processes that had already exited.
+It opens with IDLE, because that is the only line that costs money while you read it: terminal-hours sitting silent right now. Reported as a **floor, not a total** ;  a session thinking hard writes nothing and reads as idle ;  and counted only for sessions a human actually typed into. The first version counted every transcript and claimed 241 idle hours across 74 "terminals"; 68 were headless judge processes that had already exited.
 
 It ends with **YOU CAN**, which is the section that is not about state. On the day this was built, eight terminals sat idle for two hours while prompts were hand-written for a human to carry between them, because no agent instance remembered that `ListAgents` and `SendMessage` address every peer session directly. A capability nobody recalls is not a capability, so the screen states it: an agent should leave this screen holding an ability it walked in without.
 
-`helicon complaints` is **the complaint log**: every time you pushed back on an agent, recovered from your own transcripts and grouped by kind. Every other signal in this repo is the machine grading itself — battery verdicts, judge runs, self-scored retrieval. A correction is a human saying *no, that is wrong* with nothing to gain by lying, and it is destroyed the moment the terminal closes.
+`helicon complaints` is **the complaint log**: every time you pushed back on an agent, recovered from your own transcripts and grouped by kind. Every other signal in this repo is the machine grading itself ;  battery verdicts, judge runs, self-scored retrieval. A correction is a human saying *no, that is wrong* with nothing to gain by lying, and it is destroyed the moment the terminal closes.
 
-It rests on two authorship gates, both measured before they were written. A `type: user` entry is **not** necessarily the human: across ~600 local transcripts, 46% of non-tool user turns were programmatic judge runs, task notifications, messages from *other* agent sessions, or injected skill files. Count those as feedback and an agent is grading itself on its own prose. And even a turn you typed is not always your writing — pasted lane prompts are long and any correction-shaped phrase inside them sits deep in the body, so position separates them. Raw user turns score 28% precision; both gates ~81% (self-graded, the author read all 46). Storage is a cube of `type='complaint'`, so it inherits FTS, decay and the review loop — no new table.
+It rests on two authorship gates, both measured before they were written. A `type: user` entry is **not** necessarily the human: across ~600 local transcripts, 46% of non-tool user turns were programmatic judge runs, task notifications, messages from *other* agent sessions, or injected skill files. Count those as feedback and an agent is grading itself on its own prose. And even a turn you typed is not always your writing ;  pasted lane prompts are long and any correction-shaped phrase inside them sits deep in the body, so position separates them. Raw user turns score 28% precision; both gates ~81% (self-graded, the author read all 46). Storage is a cube of `type='complaint'`, so it inherits FTS, decay and the review loop ;  no new table.
 
 On this repo's own store the largest category is not a wrong fact. It is **wrong-plan**: the agent choosing the wrong next thing to do.
 
 ## Audit a store you don't own
 
-The exam is not limited to your own memory. Any repo with a committed agent-rules file (AGENTS.md, CLAUDE.md, .cursorrules, ...) is a memory store someone's agent obeys every session — so it can be examined:
+The exam is not limited to your own memory. Any repo with a committed agent-rules file (AGENTS.md, CLAUDE.md, .cursorrules, ...) is a memory store someone's agent obeys every session ;  so it can be examined:
 
 ```bash
 bash scripts/demo_public_store.sh          # default: openai/codex AGENTS.md
 ```
 
-This replays the file across its REAL git history (no staging): ingests an old commit, snapshots retrieval, replays to HEAD, reconciles, runs the rot exam. On openai/codex (27 real commits of AGENTS.md edits, cited by SHA in the output): 5 sections retired as drifted, 1/1 retrieval snapshot regressed — R10 and R8, live, on a store we don't own. Reproducible by anyone.
+This replays the file across its REAL git history (no staging): ingests an old commit, snapshots retrieval, replays to HEAD, reconciles, runs the rot exam. On openai/codex (27 real commits of AGENTS.md edits, cited by SHA in the output): 5 sections retired as drifted, 1/1 retrieval snapshot regressed ;  R10 and R8, live, on a store we don't own. Reproducible by anyone.
 
-## The life-OS benchmark — scored against human-labeled rot
+## The life-OS benchmark ;  scored against human-labeled rot
 
 On Jul 5 a 5-agent manual audit swept the operator's real second brain (Obsidian vault + Claude Code memory dir), archived 33 stale docs and stamped 21 drifting docs with dated `> **LOUPE` correction banners. Those banners are a labeled dataset of real memory rot. The benchmark ingests the same corpora with the banners stripped (the answer key never enters the input) and scores the deterministic detectors against them:
 
@@ -630,13 +650,13 @@ On Jul 5 a 5-agent manual audit swept the operator's real second brain (Obsidian
 python3 scripts/rot_bench_lifeos.py    # read-only on sources, throwaway DB, zero LLM
 ```
 
-Honest numbers from the first run (232 files, 1,667 section memories): **6/16 file-level catches, 4/16 strict facet-match** — the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
+Honest numbers from the first run (232 files, 1,667 section memories): **6/16 file-level catches, 4/16 strict facet-match** ;  the output labels the difference itself. What it caught: both merge-status flips (audit doc still said 'NOT patched' after the fix merged), a stale dashboard doc, a dead 7-week-old plan. What it found that the humans missed: a win-count fight (9 vs 10) living in the resume and two application drafts, and 35 files still asserting a dead project name post-rebrand. Named misses, on the roadmap: overlapping-date-range drift (Aug 14-22 vs Aug 15-24 overlap, so interval semantics reads agreement), living-doc supersession without a declared rename, and content-based staleness (a young file asserting old facts).
 
 ## Access & trust model (read this before connecting your vault)
 
-A tool that audits your memory reads your memory. That access is scary, so here is exactly what Mountain of Helicon does with it — from the code, not a promise:
+A tool that audits your memory reads your memory. That access is scary, so here is exactly what Mountain of Helicon does with it ;  from the code, not a promise:
 
-**Reads (always read-only):** your configured sources — Claude Code transcripts, Obsidian vault, git repos, rules files, memory stores via adapters. Connectors never write to a source. The life-OS benchmark and the rot exam open the store read-only.
+**Reads (always read-only):** your configured sources ;  Claude Code transcripts, Obsidian vault, git repos, rules files, memory stores via adapters. Connectors never write to a source. The life-OS benchmark and the rot exam open the store read-only.
 
 **Writes, exhaustively:**
 - its own SQLite DB and `data/` (findings, verdicts, drift reports, compiled context)
@@ -648,10 +668,10 @@ A tool that audits your memory reads your memory. That access is scary, so here 
 
 **Leaves your machine:** nothing, unless you configure a model endpoint. Then excerpts of candidate memories (truncated content) go to the model for judging, and the response is cached locally. Keyless mode runs every deterministic check with zero egress and says so instead of degrading silently.
 
-**Decisions:** every destructive or state-changing action (kill, retire, resolve, dismiss, rule application) is either made by you or made by a written rule you previewed and approved — and automated decisions are quarantined from the learning loop (rot class R9), so the tool cannot launder its own output into your evidence.
+**Decisions:** every destructive or state-changing action (kill, retire, resolve, dismiss, rule application) is either made by you or made by a written rule you previewed and approved ;  and automated decisions are quarantined from the learning loop (rot class R9), so the tool cannot launder its own output into your evidence.
 ## Your domain, your lexicon (config, not code)
 
-The claim-conflict detectors ship with built-ins (win counts, episode numbers, merge status, decision status) and take the rest from `config.json` — an enterprise wiki or research vault declares its own counted things and polar statuses, and gets the same conflict machinery, evidence receipts and resolve loop:
+The claim-conflict detectors ship with built-ins (win counts, episode numbers, merge status, decision status) and take the rest from `config.json` ;  an enterprise wiki or research vault declares its own counted things and polar statuses, and gets the same conflict machinery, evidence receipts and resolve loop:
 
 ```json
 "claims": {
@@ -661,23 +681,23 @@ The claim-conflict detectors ship with built-ins (win counts, episode numbers, m
 }
 ```
 
-`canonical` encodes the single-source-of-truth rule: declare WHERE a fact's truth lives, and a conflict files as *"Drift from canon: canon says 9; 8, 10 asserted elsewhere"* — the human confirms a pre-decided direction instead of adjudicating from scratch.
+`canonical` encodes the single-source-of-truth rule: declare WHERE a fact's truth lives, and a conflict files as *"Drift from canon: canon says 9; 8, 10 asserted elsewhere"* ;  the human confirms a pre-decided direction instead of adjudicating from scratch.
 
-Doc honesty is enforced: `python3 -m helicon.docdrift` compares this README's numeric claims against counts computed from source, and it runs in the test suite — stale docs fail the build. (It caught this very README claiming 20 commands the hour the 21st landed.)
+Doc honesty is enforced: `python3 -m helicon.docdrift` compares this README's numeric claims against counts computed from source, and it runs in the test suite ;  stale docs fail the build. (It caught this very README claiming 20 commands the hour the 21st landed.)
 
 Everything destructive is dry-run by default and takes `--apply`.
 
 ## Honest eval numbers
 
 **None of the four numbers below reproduces on a fresh clone, and that is a gap, not
-a footnote.** They were computed against the author's own populated store — roughly
-6,900 memories carrying real human kill/approve rulings — which is personal data and
+a footnote.** They were computed against the author's own populated store ;  roughly
+6,900 memories carrying real human kill/approve rulings ;  which is personal data and
 is not in this repository. On a clean install `helicon eval` has no store to read and
 says so rather than printing anything. Treat these as *measured once, on a corpus you
 cannot see*, which is weaker evidence than the doorway numbers above, every one of
 which you can reproduce on your own repo in seconds.
 
-- Composite: **~67** (live, as of 2026-07-13 — run `helicon eval` to recompute; retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
+- Composite: **~67** (live, as of 2026-07-13 ;  run `helicon eval` to recompute; retrieval P@3 + MRR + decay-AUC; audit axis excluded -- no labeled ground truth).
 - Retrieval: P@3 0.615, MRR 0.596. Small internal benchmark (n=13, one label per query) -- disclosed, not hidden.
 - **Decay predicts human kills at rank-AUC 0.78** (mean confidence of killed memories 0.14 vs approved 0.27). A real, independent signal.
 - Consolidation: ~9-10x fewer tokens; model-judged quality favors synthesis (self-graded, shown as direction, not proof).
@@ -686,7 +706,7 @@ which you can reproduce on your own repo in seconds.
 
 ## Built on established patterns, extended
 
-Mountain of Helicon's capabilities stand on well-understood memory-systems patterns and take each one further. The lineage, stated honestly — the second column is the established idea, the third is our own build on top of it:
+Mountain of Helicon's capabilities stand on well-understood memory-systems patterns and take each one further. The lineage, stated honestly ;  the second column is the established idea, the third is our own build on top of it:
 
 | Capability | Established pattern | How Mountain of Helicon extends it |
 |-----------|--------|---------------------------|
@@ -695,8 +715,8 @@ Mountain of Helicon's capabilities stand on well-understood memory-systems patte
 | Weibull decay | Non-uniform forgetting curves | Per-type kappa, and decay rank-predicts human kills (AUC 0.78) |
 | Novelty gate | ADD/NOOP/MERGE at ingestion | Gate + provenance, so a merge never loses the source it came from |
 | Anti-confabulation | Challenge claims against evidence | Grounding check + R12 phantom-association catch |
-| Retrieval learning | Track surfaced vs acted-on | Q-value ranking rewarded by human rulings only — no self-echo |
-| Identity & phantom coherence | *(ours — no store or prior system does this)* | R11 fork detection, R12 phantom catch, rulings compiled to law |
+| Retrieval learning | Track surfaced vs acted-on | Q-value ranking rewarded by human rulings only ;  no self-echo |
+| Identity & phantom coherence | *(ours ;  no store or prior system does this)* | R11 fork detection, R12 phantom catch, rulings compiled to law |
 
 ## Architecture
 
@@ -715,3 +735,7 @@ Mountain of Helicon's capabilities stand on well-understood memory-systems patte
 ## License
 
 MIT
+
+## License and data boundaries
+
+Code terms: [LICENSE](LICENSE). Data, provider responses, media, fonts and other third-party assets may have separate terms. Repository access alone does not grant rights to those materials. 
