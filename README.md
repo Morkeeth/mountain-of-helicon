@@ -41,7 +41,7 @@ What it printed on our own public repo, `MorkeethHQ/world-relay`, from a fresh c
 ```
   ✗ 1 graded claim contradicted by repo evidence.
 
-    ✗ AGENTS.md:19  points at src/__tests__/e2e-api.test.ts  ;  not in this repo
+    ✗ AGENTS.md:19  points at src/__tests__/e2e-api.test.ts  — not in this repo
 
   GRADE B   ·   35 claim checks, 1 contradiction
   1 instruction claim conflicts with observed repo evidence.
