@@ -1,7 +1,7 @@
 """A dead name living inside the working tree of the dead-name detector.
 
 148 .pyc files under tests/, scripts/, helicon/, helicon/api/ and
-helicon/connectors/ carried the co_filename `/Users/morkeeth/CODE/helicon-v2` —
+helicon/connectors/ carried the co_filename `<home>/CODE/helicon-v2` —
 a directory that does not exist. Every traceback the suite produced, including
 the R4 failure this night run started from, pointed at a phantom path.
 
@@ -83,13 +83,13 @@ def test_no_bytecode_points_at_a_directory_that_does_not_exist():
 def test_the_check_actually_fires_on_the_pattern_that_was_here(tmp_path):
     """A guard that has never been seen to fail is not a guard. This is the
     exact byte shape found in 148 files in this tree: a co_filename naming
-    /Users/morkeeth/CODE/helicon-v2, a directory that does not exist."""
+    <home>/CODE/helicon-v2 (the author's old checkout), a directory that does not exist."""
     fake = tmp_path / "stale.pyc"
     fake.write_bytes(b"\xcb\x0d\x0d\x0a"
-                     b"/Users/morkeeth/CODE/helicon-v2/helicon/context_policy.py\x00"
+                     b"/Users/dev/CODE/helicon-v2/helicon/context_policy.py\x00"
                      b"junk")
     dirs = _referenced_dirs(fake)
-    assert pathlib.Path("/Users/morkeeth/CODE/helicon-v2/helicon") in dirs
+    assert pathlib.Path("/Users/dev/CODE/helicon-v2/helicon") in dirs
     assert [d for d in dirs if not d.exists()], "the dead path was not flagged"
 
 

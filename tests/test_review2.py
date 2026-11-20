@@ -205,7 +205,7 @@ def test_battery_expiry_does_not_flag_healthy_past_half_life(conn):
 def test_rot_exam_runs_all_thirteen_classes(conn):
     from helicon.rot import run_rot_exam
     # repo_root is THIS checkout, resolved from the test file. It was hardcoded
-    # to /Users/morkeeth/CODE/helicon — the frozen hackathon submission, a dead
+    # to the author's ~/CODE/helicon — the frozen hackathon submission, a dead
     # name for this repo and a path no other machine has. Same failure class as
     # the ~/CODE default in the R4 code arm: an exam that reads the author's
     # home directory.
