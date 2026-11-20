@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template. launchd does not expand ~ or $HOME, so replace /path/to/mountain-of-helicon
+     with the absolute path of your checkout before loading it with launchctl. -->
 <plist version="1.0"><dict>
 <key>Label</key><string>com.morkeeth.helicon-nightly</string>
-<key>ProgramArguments</key><array><string>/Users/morkeeth/CODE/helicon/scripts/nightly.sh</string></array>
+<key>ProgramArguments</key><array><string>/path/to/mountain-of-helicon/scripts/nightly.sh</string></array>
 <key>StartCalendarInterval</key><dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>47</integer></dict>
-<key>StandardErrorPath</key><string>/Users/morkeeth/CODE/helicon/data/nightly.log</string>
-<key>StandardOutPath</key><string>/Users/morkeeth/CODE/helicon/data/nightly.log</string>
-<key>WorkingDirectory</key><string>/Users/morkeeth/CODE/helicon</string>
+<key>StandardErrorPath</key><string>/path/to/mountain-of-helicon/data/nightly.log</string>
+<key>StandardOutPath</key><string>/path/to/mountain-of-helicon/data/nightly.log</string>
+<key>WorkingDirectory</key><string>/path/to/mountain-of-helicon</string>
 </dict></plist>

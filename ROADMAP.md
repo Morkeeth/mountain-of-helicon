@@ -106,7 +106,7 @@ must decide and why no probe can settle it. Every auto-resolved finding carries
 its probe output.
 
 **The store, located:** both repos read the same database.
-`config.json:2` here reads `"db_path": "/Users/morkeeth/CODE/helicon/data/helicon.db"`.
+`config.json:2` here reads `"db_path": "~/CODE/helicon/data/helicon.db"` (home directory shortened to `~`).
 The findings live in the `audit_log` table, selected by `human_decision IS NULL`
 (`~/CODE/helicon/helicon/cli.py:1599`, `cmd_resolve`). There is no `findings`
 table; a plan that greps for one will find nothing and conclude wrongly.

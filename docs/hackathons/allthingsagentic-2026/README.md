@@ -16,7 +16,7 @@ helicon measure                    # adoption ledger series only
 
 Prompt pack for Cursor Cloud and Gemini/ADK system instructions:
 
-`hackathon/adk/FOR-CURSOR-CLOUD.md` — **paste this into a Cursor Cloud run**
+`docs/archive/hackathon-adk/FOR-CURSOR-CLOUD.md` — **paste this into a Cursor Cloud run**
 
 ## Vault lanes (strategy — do not merge files)
 

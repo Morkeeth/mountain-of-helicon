@@ -24,7 +24,7 @@ Cloud lanes targeted `mount-helicon@main` while GitHub rulesets block **all writ
 ```bash
 cd ~/CODE/helicon
 git checkout cloud/agents-md-2026-08-29   # has docs/AGENTS.md
-# implement C1 export stub per BUILD-PLAN-2026-08-29.md
+# implement C1 export stub per docs/archive/BUILD-PLAN-2026-08-29.md
 pytest -q
 # push when rules allow
 ```
