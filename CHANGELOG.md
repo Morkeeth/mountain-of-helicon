@@ -12,6 +12,7 @@ Changes since 0.2.4. Full notes: [RELEASE-NOTES-0.3.0.md](RELEASE-NOTES-0.3.0.md
 - New: `helicon followed` lists instruction paths an agent followed and failed to open.
 - Changed: the model layer works with any OpenAI-compatible endpoint. There is no default vendor.
 - Fixed: `helicon review` gives fewer false alarms on other people's repositories.
+- Fixed: `helicon review` no longer flags folders listed under a parent named earlier in the file, or TOML `[[table]]` keys.
 - Fixed: `helicon start` runs on a fresh machine with no config file.
 - Repository: internal planning files and the August 2026 hackathon build moved from the
   root to `docs/archive/`. Public files no longer contain the author's home path.

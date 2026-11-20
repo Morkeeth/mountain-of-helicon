@@ -39,6 +39,9 @@ v0.3.0 is the first tag on the current history.
 
 - `helicon review` on strangers' repos: no flags for library names, naming patterns or monorepo
   scripts. Reads nested `.gitignore` files. Names a missing path instead of a missing AGENTS.md (#42).
+- `helicon review` on a folder list: `engineering/` written below "folders under `skills/`" resolves
+  under skills/. A `[[providers]]` key on a line about a .toml file is not read as a note link.
+  Found on two public repos, where 0.2.4 raised 8 contradictions that were all wrong.
 - `helicon truth` and `review`: a missing or empty path is not reported as a fresh store.
 - Weekday and full date are checked inside one context item (#46).
 - A judge that returns no verdict keeps the identity fork (#44).
