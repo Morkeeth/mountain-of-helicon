@@ -72,5 +72,5 @@ Typical agent loop: `helicon_context` → work → `helicon_flag` if wrong · `h
 ## Further reading
 
 - `README.md` — product overview
-- `BUILD-PLAN-2026-08-29.md` — C1 export · T2 named user (Oscar gate)
+- `docs/archive/BUILD-PLAN-2026-08-29.md` — C1 export · T2 named user (Oscar gate)
 - `helicon/mcp_server.py` — tool schemas (source of truth)

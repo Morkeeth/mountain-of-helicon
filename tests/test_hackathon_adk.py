@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
-ADK = REPO / "hackathon" / "adk"
+ADK = REPO / "docs" / "archive" / "hackathon-adk"
 
 
 def _load_agent_module():

@@ -5,9 +5,9 @@ Requires CURSOR_API_KEY (Cursor Dashboard → Integrations → API Keys).
 
 Usage:
   export CURSOR_API_KEY=cursor_...
-  python3 hackathon/adk/experiment/launch_cloud_agent.py
-  python3 hackathon/adk/experiment/launch_cloud_agent.py --pool hackathon-adk
-  python3 hackathon/adk/experiment/launch_cloud_agent.py --dry-run
+  python3 docs/archive/hackathon-adk/experiment/launch_cloud_agent.py
+  python3 docs/archive/hackathon-adk/experiment/launch_cloud_agent.py --pool hackathon-adk
+  python3 docs/archive/hackathon-adk/experiment/launch_cloud_agent.py --dry-run
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import os
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_PROMPT = Path(__file__).resolve().parent / "PROMPT.md"
 DEFAULT_REPO = "https://github.com/Morkeeth/mountain-of-helicon"
 DEFAULT_BRANCH = "main"

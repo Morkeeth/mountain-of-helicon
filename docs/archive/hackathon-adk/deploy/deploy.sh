@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
 PROJECT="${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT}"
 REGION="${REGION:-us-central1}"
@@ -34,8 +34,8 @@ if ! gcloud firestore databases describe --project="${PROJECT}" >/dev/null 2>&1;
 fi
 
 echo "==> Ensure demo DB exists locally (gitignored — seed before build)..."
-if [[ ! -f "${REPO_ROOT}/hackathon/adk/demo/helicon.db" ]]; then
-  python3 "${REPO_ROOT}/hackathon/adk/seed_demo_db.py"
+if [[ ! -f "${REPO_ROOT}/docs/archive/hackathon-adk/demo/helicon.db" ]]; then
+  python3 "${REPO_ROOT}/docs/archive/hackathon-adk/seed_demo_db.py"
 fi
 
 echo "==> Build + push agent image..."
@@ -126,4 +126,4 @@ echo ""
 echo "Trigger a run:"
 echo "  bash ${SCRIPT_DIR}/trigger.sh"
 echo ""
-echo "Append these URLs to hackathon/adk/CLOUD-LOG.md for the demo video."
+echo "Append these URLs to docs/archive/hackathon-adk/CLOUD-LOG.md for the demo video."

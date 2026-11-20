@@ -160,7 +160,7 @@
 
     function renderRun(run) {
       const headline = firstUnmeasurable(run.science);
-      const repro = run.repro_command || "helicon measurement-bench --json --db hackathon/adk/demo/helicon.db";
+      const repro = run.repro_command || "helicon measurement-bench --json --db docs/archive/hackathon-adk/demo/helicon.db";
       const recorded = run.finished_at || run.recorded_at || "—";
       const runId = run.run_id || "local";
 
@@ -210,7 +210,7 @@
       }
       renderError(
         "No run found. Cloud: POST agent /run then refresh. Local: " +
-        "<code>python3 hackathon/adk/run_local.py -o /tmp/run.json</code> then serve brief."
+        "<code>python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json</code> then serve brief."
       );
     }
 

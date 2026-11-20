@@ -70,5 +70,5 @@ runs/{runId}
 ## Cost control
 
 - Scale Cloud Run to zero; trigger only for demo + scheduled weekly tick
-- Demo uses **seeded** SQLite (`hackathon/adk/demo/helicon.db`), not Oscar's live store
+- Demo uses **seeded** SQLite (`docs/archive/hackathon-adk/demo/helicon.db`), not Oscar's live store
 - Brief UI is static fetch from Firestore — no always-on Gemini except on-demand narrate

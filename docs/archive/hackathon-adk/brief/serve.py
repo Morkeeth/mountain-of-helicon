@@ -57,7 +57,7 @@ def api_run():
         return JSONResponse(
             content={
                 "error": "no run found",
-                "hint": "POST agent /run or run: python3 hackathon/adk/run_local.py -o /tmp/run.json",
+                "hint": "POST agent /run or run: python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json",
             },
             status_code=404,
         )

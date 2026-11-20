@@ -19,8 +19,8 @@ Cloud agent: paste `FOR-CURSOR-CLOUD.md` into Cursor Cloud.
 Verified:
 
 ```bash
-python3 hackathon/adk/seed_demo_db.py
-python3 hackathon/adk/run_local.py -o /tmp/run.json
+python3 docs/archive/hackathon-adk/seed_demo_db.py
+python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json
 # science.unmeasurable_count >= 1, store_truth.findings non-empty
 ```
 
@@ -31,14 +31,14 @@ python3 hackathon/adk/run_local.py -o /tmp/run.json
 **Objective:** Thin `POST /run` agent subprocesses `helicon measurement-bench --json` on demo store; zero probe reimplementation.
 
 **Added:**
-- `hackathon/adk/agent/main.py` — FastAPI `/healthz`, `/run`
-- `hackathon/adk/agent/Dockerfile` — stub (python:3.12, pip install -e ., demo db)
-- `hackathon/adk/agent/README.md` — curl examples
+- `docs/archive/hackathon-adk/agent/main.py` — FastAPI `/healthz`, `/run`
+- `docs/archive/hackathon-adk/agent/Dockerfile` — stub (python:3.12, pip install -e ., demo db)
+- `docs/archive/hackathon-adk/agent/README.md` — curl examples
 
 **Verified local witness path:**
 ```bash
-python3 hackathon/adk/seed_demo_db.py
-python3 hackathon/adk/run_local.py --seed -o /tmp/run.json
+python3 docs/archive/hackathon-adk/seed_demo_db.py
+python3 docs/archive/hackathon-adk/run_local.py --seed -o /tmp/run.json
 # science.unmeasurable_count >= 1 ✓
 ```
 
@@ -65,23 +65,23 @@ for v in d['science']['verdicts']:
 **Objective:** After subprocess witness, write `runs/{uuid}` to Firestore; add Cloud Run deploy scripts, Pub/Sub topic, static brief UI (no Gemini v1).
 
 **Added:**
-- `hackathon/adk/agent/firestore_store.py` — optional Firestore write/read via `GOOGLE_CLOUD_PROJECT`
-- `hackathon/adk/agent/main.py` — Firestore doc on `POST /run`, `GET /runs/latest`, `X-Trigger` header
-- `hackathon/adk/deploy/` — `Dockerfile`, `Dockerfile.brief`, `cloudbuild.*.yaml`, `deploy.sh`, `trigger.sh`
-- `hackathon/adk/brief/index.html` + `serve.py` — UNMEASURABLE headline, repro command, `/api/run`
-- `hackathon/adk/spin-up.md` — exact deploy steps + IAM table
+- `docs/archive/hackathon-adk/agent/firestore_store.py` — optional Firestore write/read via `GOOGLE_CLOUD_PROJECT`
+- `docs/archive/hackathon-adk/agent/main.py` — Firestore doc on `POST /run`, `GET /runs/latest`, `X-Trigger` header
+- `docs/archive/hackathon-adk/deploy/` — `Dockerfile`, `Dockerfile.brief`, `cloudbuild.*.yaml`, `deploy.sh`, `trigger.sh`
+- `docs/archive/hackathon-adk/brief/index.html` + `serve.py` — UNMEASURABLE headline, repro command, `/api/run`
+- `docs/archive/hackathon-adk/spin-up.md` — exact deploy steps + IAM table
 
 **pytest:** `tests/test_hackathon_adk.py` — **4 passed**.
 
 **Local verify (no GCP):**
 ```bash
-python3 hackathon/adk/run_local.py -o /tmp/run.json
-python3 hackathon/adk/brief/serve.py &
+python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json
+python3 docs/archive/hackathon-adk/brief/serve.py &
 curl -s localhost:8080/api/run | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['science']['unmeasurable_count'])"
 # 1
 ```
 
-**Deploy:** `bash hackathon/adk/deploy/deploy.sh` — **not executed in this VM** (`gcloud` not installed). Oscar runs once with `GOOGLE_CLOUD_PROJECT` set; append URLs here:
+**Deploy:** `bash docs/archive/hackathon-adk/deploy/deploy.sh` — **not executed in this VM** (`gcloud` not installed). Oscar runs once with `GOOGLE_CLOUD_PROJECT` set; append URLs here:
 
 ```
 Agent URL:  (run deploy.sh)
@@ -123,14 +123,14 @@ The documented deploy remains:
 ```bash
 export GOOGLE_CLOUD_PROJECT=your-gcp-project
 export REGION=us-central1
-bash hackathon/adk/deploy/deploy.sh
-bash hackathon/adk/deploy/trigger.sh
+bash docs/archive/hackathon-adk/deploy/deploy.sh
+bash docs/archive/hackathon-adk/deploy/trigger.sh
 ```
 
 Local verification used the exact sanitized witness command:
 
 ```bash
-helicon measurement-bench --json --db hackathon/adk/demo/helicon.db
+helicon measurement-bench --json --db docs/archive/hackathon-adk/demo/helicon.db
 # unmeasurable_count: 1; store_truth findings: 2
 ```
 
@@ -140,6 +140,6 @@ the existing `test_doc_drift.py` count baseline (65 vs 67 CLI commands and
 related API/router/tab counts), outside this deploy slice.
 
 Cloud Build upload is pinned by `.gcloudignore`: the generated
-`hackathon/adk/demo/helicon.db` is explicitly included while personal
+`docs/archive/hackathon-adk/demo/helicon.db` is explicitly included while personal
 `config.json`, `.env`, `data/`, and `~/.helicon` remain excluded.
 

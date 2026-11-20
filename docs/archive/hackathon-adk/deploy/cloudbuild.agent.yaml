@@ -3,7 +3,7 @@ steps:
     args:
       - build
       - -f
-      - hackathon/adk/deploy/Dockerfile.brief
+      - docs/archive/hackathon-adk/deploy/Dockerfile
       - -t
       - $_IMAGE
       - .

@@ -3,9 +3,9 @@
 
 Same payload shape Firestore will store. Use before Cloud Run deploy:
 
-    python3 hackathon/adk/run_local.py
-    python3 hackathon/adk/run_local.py -o /tmp/run.json
-    python3 hackathon/adk/run_local.py --seed
+    python3 docs/archive/hackathon-adk/run_local.py
+    python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json
+    python3 docs/archive/hackathon-adk/run_local.py --seed
 """
 from __future__ import annotations
 

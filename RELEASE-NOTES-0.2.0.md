@@ -52,4 +52,4 @@ helicon witness --latest         # last session, if Claude Code is installed
 
 ---
 
-Built and cold-tested 31 Aug 2026. See `LAUNCH-0.2.0.md` for the wheel receipt.
+Built and cold-tested 31 Aug 2026. See `docs/archive/LAUNCH-0.2.0.md` for the wheel receipt.

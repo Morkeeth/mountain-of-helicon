@@ -1,6 +1,6 @@
 # Cloud agent experiment — hackathon ADK slice 1
 
-**Hypothesis:** A Cursor Cloud Agent can implement the ADK wrapper without reimplementing probes, using only `hackathon/adk/` + subprocess witness.
+**Hypothesis:** A Cursor Cloud Agent can implement the ADK wrapper without reimplementing probes, using only `docs/archive/hackathon-adk/` + subprocess witness.
 
 ## Arms
 
@@ -14,13 +14,13 @@
 
 NOT full GCP deploy. Only:
 
-1. Verify `python3 hackathon/adk/run_local.py --seed` exits 0
-2. Add `hackathon/adk/agent/main.py` — FastAPI (or stdlib HTTP) `POST /run` that:
-   - subprocess: `helicon measurement-bench --json --db hackathon/adk/demo/helicon.db`
+1. Verify `python3 docs/archive/hackathon-adk/run_local.py --seed` exits 0
+2. Add `docs/archive/hackathon-adk/agent/main.py` — FastAPI (or stdlib HTTP) `POST /run` that:
+   - subprocess: `helicon measurement-bench --json --db docs/archive/hackathon-adk/demo/helicon.db`
    - returns parsed JSON
    - never mutates verdict fields
-3. Add `hackathon/adk/agent/Dockerfile` stub (FROM python:3.12, pip install -e ., COPY demo db)
-4. Append results to `hackathon/adk/CLOUD-LOG.md`
+3. Add `docs/archive/hackathon-adk/agent/Dockerfile` stub (FROM python:3.12, pip install -e ., COPY demo db)
+4. Append results to `docs/archive/hackathon-adk/CLOUD-LOG.md`
 
 ## Success criteria
 
@@ -31,6 +31,6 @@ NOT full GCP deploy. Only:
 
 ## Fail signals
 
-- Cloud agent reimplements science probes in hackathon/adk/
+- Cloud agent reimplements science probes in docs/archive/hackathon-adk/
 - Gemini or agent picks one "interaction" reading
 - Uses `~/.helicon` instead of demo db

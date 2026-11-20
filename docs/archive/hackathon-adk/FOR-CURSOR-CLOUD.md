@@ -1,6 +1,6 @@
 # Cursor Cloud handoff — build the GCP slice (paste this whole file)
 
-**Oscar is AWAY.** Restate objective + done-when before writing code. Never ask clarifying questions — make the smallest reversible slice and document assumptions in `hackathon/adk/CLOUD-LOG.md`.
+**Oscar is AWAY.** Restate objective + done-when before writing code. Never ask clarifying questions — make the smallest reversible slice and document assumptions in `docs/archive/hackathon-adk/CLOUD-LOG.md`.
 
 ---
 
@@ -18,16 +18,16 @@ Deploy a **thin async wrapper** on Google Cloud that runs `helicon measurement-b
   helicon measurement-bench --db PATH    # demo store override
   ```
 - **Prompt files (read, do not rewrite verdict logic):**
-  - `hackathon/adk/prompts/adk-orchestrator.system.md`
-  - `hackathon/adk/prompts/gemini-narrator.system.md`
-  - `hackathon/adk/architecture.md`
+  - `docs/archive/hackathon-adk/prompts/adk-orchestrator.system.md`
+  - `docs/archive/hackathon-adk/prompts/gemini-narrator.system.md`
+  - `docs/archive/hackathon-adk/architecture.md`
 - **Hackathon:** All Things Agentic — Fortified Enterprise Fleet track
 - **Mandatory:** Gemini 3.5+ · Google ADK · Cloud Run · Firestore · Pub/Sub
 
 ## Constraints
 
-1. **Do NOT reimplement probes** in `hackathon/adk/`. Subprocess `helicon measurement-bench --json` only.
-2. **Do NOT use Oscar's live `~/.helicon/helicon.db` in cloud.** Ship `hackathon/adk/demo/helicon.db` — seeded, sanitized, must include ≥1 UNMEASURABLE interactions threshold.
+1. **Do NOT reimplement probes** in `docs/archive/hackathon-adk/`. Subprocess `helicon measurement-bench --json` only.
+2. **Do NOT use Oscar's live `~/.helicon/helicon.db` in cloud.** Ship `docs/archive/hackathon-adk/demo/helicon.db` — seeded, sanitized, must include ≥1 UNMEASURABLE interactions threshold.
 3. **Gemini is narrator-only.** Verdicts live in Firestore from CLI JSON; narrator output goes to `brief_text` only.
 4. **Scale to zero.** No always-on costs; Pub/Sub schedule + manual trigger for demo.
 5. **Source-only PR.** Do not commit secrets, `.env`, or service account JSON.
@@ -36,21 +36,21 @@ Deploy a **thin async wrapper** on Google Cloud that runs `helicon measurement-b
 
 ## Definition of done
 
-1. `hackathon/adk/` contains:
+1. `docs/archive/hackathon-adk/` contains:
    - ADK agent (Python) that runs on Cloud Run
    - Dockerfile that installs `pip install -e .` + copies demo DB
    - Firestore write on trigger (`runs/{runId}`)
-   - Pub/Sub topic + push/manual trigger script (`hackathon/adk/trigger.sh`)
-   - Minimal brief UI (`hackathon/adk/brief/`) reading latest run from Firestore
+   - Pub/Sub topic + push/manual trigger script (`docs/archive/hackathon-adk/trigger.sh`)
+   - Minimal brief UI (`docs/archive/hackathon-adk/brief/`) reading latest run from Firestore
 2. **Local proof (no GCP bill required to merge):**
    ```bash
-   python3 hackathon/adk/run_local.py
+   python3 docs/archive/hackathon-adk/run_local.py
    # writes /tmp/run.json with same schema as Firestore
    ```
 3. **Deploy proof (for video, can be separate commit):**
-   - Cloud Run URL or Console screenshot in `hackathon/adk/CLOUD-LOG.md`
+   - Cloud Run URL or Console screenshot in `docs/archive/hackathon-adk/CLOUD-LOG.md`
    - Demo video beat: trigger → Cloud Run log → Firestore doc → brief page
-4. `hackathon/adk/spin-up.md` filled with reproducible deploy steps
+4. `docs/archive/hackathon-adk/spin-up.md` filled with reproducible deploy steps
 5. Architecture diagram committed (mermaid from `architecture.md` is fine)
 
 ## Ranked queue
@@ -75,10 +75,10 @@ Deploy a **thin async wrapper** on Google Cloud that runs `helicon measurement-b
 ```bash
 git fetch origin && git checkout -b hackathon/adk-cloud
 python3 -m helicon measurement-bench --json | head -80
-cat hackathon/adk/prompts/adk-orchestrator.system.md
+cat docs/archive/hackathon-adk/prompts/adk-orchestrator.system.md
 ```
 
-Then implement `hackathon/adk/run_local.py` that wraps the same subprocess call and writes JSON to stdout.
+Then implement `docs/archive/hackathon-adk/run_local.py` that wraps the same subprocess call and writes JSON to stdout.
 
 ## Autonomy contract
 
@@ -94,7 +94,7 @@ Set in environment before deploy:
 
 ## Handback format
 
-Append to `hackathon/adk/CLOUD-LOG.md`:
+Append to `docs/archive/hackathon-adk/CLOUD-LOG.md`:
 
 ```
 ## [Agent YYYY-MM-DD]

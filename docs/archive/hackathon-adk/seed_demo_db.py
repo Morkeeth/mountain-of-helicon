@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Seed hackathon/adk/demo/helicon.db — sanitized store with UNMEASURABLE wedge.
+"""Seed docs/archive/hackathon-adk/demo/helicon.db — sanitized store with UNMEASURABLE wedge.
 
 Counts mirror the *shape* of a real measurement bench run (straddling readings,
 wrong-object ratios) without Oscar's personal data. Regenerate freely:
 
-    python3 hackathon/adk/seed_demo_db.py
+    python3 docs/archive/hackathon-adk/seed_demo_db.py
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-REPO = os.path.dirname(os.path.dirname(ROOT))
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(ROOT)))
 DEFAULT_DB = os.path.join(ROOT, "demo", "helicon.db")
 
 # Target witness shape (not Oscar's live store — same story, fake IDs)

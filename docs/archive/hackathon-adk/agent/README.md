@@ -7,8 +7,8 @@ Thin FastAPI wrapper around `helicon measurement-bench --json`. Verdicts come fr
 From repo root:
 
 ```bash
-python3 hackathon/adk/seed_demo_db.py   # once, or when demo db is missing
-python3 hackathon/adk/agent/main.py     # listens on :8080
+python3 docs/archive/hackathon-adk/seed_demo_db.py   # once, or when demo db is missing
+python3 docs/archive/hackathon-adk/agent/main.py     # listens on :8080
 ```
 
 ## Endpoints
@@ -34,7 +34,7 @@ On subprocess failure, `POST /run` returns HTTP 500 with stderr text — no gues
 
 ```bash
 # from repo root — demo db must exist (seed_demo_db.py)
-docker build -f hackathon/adk/agent/Dockerfile -t helicon-adk-agent .
+docker build -f docs/archive/hackathon-adk/agent/Dockerfile -t helicon-adk-agent .
 docker run --rm -p 8080:8080 helicon-adk-agent
 ```
 

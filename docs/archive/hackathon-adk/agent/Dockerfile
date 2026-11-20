@@ -7,8 +7,8 @@ COPY pyproject.toml README.md ./
 COPY helicon ./helicon
 RUN pip install --no-cache-dir -e .
 
-COPY hackathon/adk/demo/helicon.db /app/demo/helicon.db
-COPY hackathon/adk/agent/main.py /app/agent/main.py
+COPY docs/archive/hackathon-adk/demo/helicon.db /app/demo/helicon.db
+COPY docs/archive/hackathon-adk/agent/main.py /app/agent/main.py
 
 ENV HELICON_DEMO_DB=/app/demo/helicon.db
 ENV HELICON_REPO=/app

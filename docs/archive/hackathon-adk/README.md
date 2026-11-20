@@ -13,4 +13,4 @@
 **Track:** Fortified Enterprise Fleet  
 **Mandatory stack:** Gemini 3.5+ · ADK · Cloud Run · Firestore · Pub/Sub  
 
-**Do not reimplement probes in Python in `hackathon/adk/`.** Subprocess `helicon measurement-bench --json` (add flag if missing) or parse structured output from existing commands.
+**Do not reimplement probes in Python in `docs/archive/hackathon-adk/`.** Subprocess `helicon measurement-bench --json` (add flag if missing) or parse structured output from existing commands.

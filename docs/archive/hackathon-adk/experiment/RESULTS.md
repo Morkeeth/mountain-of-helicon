@@ -4,13 +4,13 @@
 
 | Arm | Status | Notes |
 |---|---|---|
-| **A — Hosted cloud (`POST /v1/agents`)** | Blocked | `CURSOR_API_KEY` not set. Launcher ready: `hackathon/adk/experiment/launch_cloud_agent.py` |
+| **A — Hosted cloud (`POST /v1/agents`)** | Blocked | `CURSOR_API_KEY` not set. Launcher ready: `docs/archive/hackathon-adk/experiment/launch_cloud_agent.py` |
 | **B — Pool worker (`--pool hackathon-adk`)** | Blocked | Requires **Enterprise service account** API key — personal Pro login insufficient |
 | **C — Local agent (`agent --print -f`)** | **Success** | Same prompt as cloud; built slice 1 in ~3.7 min |
 
 ## Slice 1 delivered (arm C)
 
-- `hackathon/adk/agent/main.py` — `POST /run` subprocesses bench --json, zero probe reimplementation
+- `docs/archive/hackathon-adk/agent/main.py` — `POST /run` subprocesses bench --json, zero probe reimplementation
 - Verified: `memory-accuracy-10k` → **UNMEASURABLE**, `unmeasurable_count: 1`
 - `tests/test_hackathon_adk.py`: 2 passed
 
@@ -24,16 +24,16 @@
 3. Launch:
    ```bash
    export CURSOR_API_KEY=cursor_...
-   python3 hackathon/adk/experiment/launch_cloud_agent.py --ref hackathon/adk-cloud
+   python3 docs/archive/hackathon-adk/experiment/launch_cloud_agent.py --ref hackathon/adk-cloud
    ```
-4. Or paste `hackathon/adk/experiment/PROMPT.md` into [cursor.com/agents](https://cursor.com/agents) UI
+4. Or paste `docs/archive/hackathon-adk/experiment/PROMPT.md` into [cursor.com/agents](https://cursor.com/agents) UI
 
 ## Pool worker (arm B) — Enterprise only
 
 ```bash
 export CURSOR_API_KEY=<service-account-key>
 agent worker start --pool hackathon-adk --worker-dir ~/CODE/mountain-of-helicon
-python3 hackathon/adk/experiment/launch_cloud_agent.py --pool hackathon-adk
+python3 docs/archive/hackathon-adk/experiment/launch_cloud_agent.py --pool hackathon-adk
 ```
 
 ## Experiment conclusion (so far)

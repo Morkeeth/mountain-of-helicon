@@ -21,13 +21,13 @@ helicon measurement-bench
 helicon measurement-bench --json
 
 # Demo store (after seeded DB exists)
-helicon measurement-bench --json --db hackathon/adk/demo/helicon.db
+helicon measurement-bench --json --db docs/archive/hackathon-adk/demo/helicon.db
 ```
 
 ## Build demo store
 
 ```bash
-python3 hackathon/adk/seed_demo_db.py   # creates hackathon/adk/demo/helicon.db
+python3 docs/archive/hackathon-adk/seed_demo_db.py   # creates docs/archive/hackathon-adk/demo/helicon.db
 # 15,001 cubes · 28 retrievals · UNMEASURABLE interactions wedge · 2 weeks measure
 ```
 
@@ -36,22 +36,22 @@ The demo DB is gitignored — **seed before Docker build** (deploy.sh does this 
 ## Local ADK runner (before Cloud Run)
 
 ```bash
-python3 hackathon/adk/run_local.py              # stdout JSON
-python3 hackathon/adk/run_local.py -o /tmp/run.json
-python3 hackathon/adk/run_local.py --seed       # reseed + run
+python3 docs/archive/hackathon-adk/run_local.py              # stdout JSON
+python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json
+python3 docs/archive/hackathon-adk/run_local.py --seed       # reseed + run
 ```
 
 ## Local agent + brief (no Firestore)
 
 ```bash
-python3 hackathon/adk/seed_demo_db.py
-python3 hackathon/adk/agent/main.py             # agent on :8080
+python3 docs/archive/hackathon-adk/seed_demo_db.py
+python3 docs/archive/hackathon-adk/agent/main.py             # agent on :8080
 
 # another terminal
 curl -s -X POST localhost:8080/run | python3 -m json.tool | head -20
 
-python3 hackathon/adk/run_local.py -o /tmp/run.json
-python3 hackathon/adk/brief/serve.py            # brief on :8080 — reads /tmp/run.json
+python3 docs/archive/hackathon-adk/run_local.py -o /tmp/run.json
+python3 docs/archive/hackathon-adk/brief/serve.py            # brief on :8080 — reads /tmp/run.json
 # open http://localhost:8080
 ```
 
@@ -64,7 +64,7 @@ export GOOGLE_CLOUD_PROJECT=your-gcp-project
 export REGION=us-central1
 
 # One-shot: APIs, Firestore native DB, both Cloud Run services, Pub/Sub topic, IAM
-bash hackathon/adk/deploy/deploy.sh
+bash docs/archive/hackathon-adk/deploy/deploy.sh
 ```
 
 What `deploy.sh` does:
@@ -97,7 +97,7 @@ gcloud projects add-iam-policy-binding "$GOOGLE_CLOUD_PROJECT" \
 
 ```bash
 export GOOGLE_CLOUD_PROJECT=your-gcp-project
-bash hackathon/adk/deploy/trigger.sh
+bash docs/archive/hackathon-adk/deploy/trigger.sh
 # POST /run on helicon-measurement-bench, prints run_id + unmeasurable_count
 ```
 
@@ -120,7 +120,7 @@ gcloud run services describe helicon-brief \
   --region us-central1 --format='value(status.url)'
 ```
 
-Append both to `hackathon/adk/CLOUD-LOG.md`.
+Append both to `docs/archive/hackathon-adk/CLOUD-LOG.md`.
 
 ## Verify for judges
 
@@ -134,7 +134,7 @@ Append both to `hackathon/adk/CLOUD-LOG.md`.
 Every number in Firestore must match:
 
 ```bash
-helicon measurement-bench --json --db hackathon/adk/demo/helicon.db
+helicon measurement-bench --json --db docs/archive/hackathon-adk/demo/helicon.db
 ```
 
 If they differ, the cloud layer is wrong — not the probes.

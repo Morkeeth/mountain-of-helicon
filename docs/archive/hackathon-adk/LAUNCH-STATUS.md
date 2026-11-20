@@ -9,7 +9,7 @@
 
 | Agent | Slice | Status | URL / log |
 |---|---|---|---|
-| Slice 1 ADK wrapper | Done | ✅ Shipped on branch | `hackathon/adk/agent/main.py` |
+| Slice 1 ADK wrapper | Done | ✅ Shipped on branch | `docs/archive/hackathon-adk/agent/main.py` |
 | Slice 2 GCP deploy | Running overnight | 🔄 Local `agent --print` | `/tmp/hackathon-slice2-agent.log` |
 | Hosted cloud slice 1 | Pending | ⏳ Needs `CURSOR_API_KEY` | — |
 | Hosted cloud slice 2 | Pending | ⏳ Needs `CURSOR_API_KEY` | — |
@@ -25,8 +25,8 @@ cd ~/CODE/mountain-of-helicon
 git checkout hackathon/adk-cloud
 git pull
 
-chmod +x hackathon/adk/experiment/launch_all.sh
-hackathon/adk/experiment/launch_all.sh hackathon/adk-cloud all
+chmod +x docs/archive/hackathon-adk/experiment/launch_all.sh
+docs/archive/hackathon-adk/experiment/launch_all.sh hackathon/adk-cloud all
 ```
 
 Opens two agents on GitHub branch with auto-PR:
@@ -39,13 +39,13 @@ Watch URLs print to terminal → paste into `LAUNCH-STATUS.md` Agent URLs sectio
 
 ## Present tomorrow
 
-**Runbook:** `hackathon/adk/PRESENT-2026-08-21.md`
+**Runbook:** `docs/archive/hackathon-adk/PRESENT-2026-08-21.md`
 
 **Pre-flight (5 min before):**
 ```bash
 cd ~/CODE/mountain-of-helicon && git checkout hackathon/adk-cloud
 helicon measurement-bench
-python3 hackathon/adk/agent/main.py &   # optional HTTP demo
+python3 docs/archive/hackathon-adk/agent/main.py &   # optional HTTP demo
 ```
 
 **8-second open:** "10K interactions, five readings, 536× — UNMEASURABLE, not a guess."
