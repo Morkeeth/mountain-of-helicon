@@ -434,6 +434,36 @@ def _parent_relative(line: str, raw: str, repo_root: str, file_dir: str,
     return _resolve(repo_root, parents[-1] + child, file_dir, learned)
 
 
+def _doc_parent_dirs(text: str, repo_root: str, file_dir: str) -> tuple[str, ...]:
+    """Directories this file names in code font that exist: `skills/`, `docs/`.
+    mattpocock/skills CLAUDE.md says "bucket folders under `skills/`:" and lists
+    `engineering/` and `misc/` on the next lines. Those are children of skills/."""
+    out: list[str] = []
+    for m in re.finditer(r"`([\w.-]+(?:/[\w.-]+)*/)`", text):
+        tok = m.group(1)
+        r = _resolve(repo_root, tok, file_dir)
+        if r and r[1] and r[2] in (BASE_ROOT, f"{BASE_OWN} {file_dir.strip('/')}/"):
+            if tok not in out:
+                out.append(tok)
+    return tuple(out)
+
+
+def _doc_parent(raw: str, parents: tuple[str, ...], repo_root: str, file_dir: str,
+                learned: tuple[str, ...]) -> tuple[str, bool, str] | None:
+    """Resolve a single-segment directory (`misc/`) under a directory the same file
+    names elsewhere. A child that exists under none of them stays unresolved."""
+    child = raw.strip().strip("`").strip("'\"")
+    if not re.fullmatch(r"[\w.-]+/", child):
+        return None
+    for parent in parents:
+        if parent == child:
+            continue
+        r = _resolve(repo_root, parent + child, file_dir, learned)
+        if r and r[1]:
+            return r[0], True, f"{BASE_SUFFIX} {parent}"
+    return None
+
+
 def _resolve(repo_root: str, raw: str, file_dir: str = "",
              learned: tuple[str, ...] = ()) -> tuple[str, bool, str] | None:
     """Classify a path-shaped token. Returns (target, resolved, base) or None when the
@@ -963,8 +993,17 @@ def _learned_bases(text: str, repo_root: str, file_dir: str) -> tuple[str, ...]:
     return tuple(learned)
 
 
+def _toml_table(raw: str, line: str) -> bool:
+    """`[[providers]]` on a line about a .toml file is a TOML array-of-tables header.
+    benchflow-ai/agents AGENTS.md: "a launch-written vtcode.toml [[custom_providers]]".
+    Only a bare lower-case key qualifies, so `[[Deploy Runbook]]` is still a note link."""
+    return bool(re.fullmatch(r"[a-z_][a-z0-9_.-]*", raw.strip())
+                and re.search(r"\.toml\b|\btoml\b", line, re.I))
+
+
 def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointer], list[dict]]:
     learned = _learned_bases(text, repo_root, file_dir)
+    doc_parents = _doc_parent_dirs(text, repo_root, file_dir)
     out: list[Pointer] = []
     unverified: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -1029,6 +1068,11 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             adopted = _parent_relative(line, raw, repo_root, file_dir, learned)
             if adopted and adopted[1]:
                 target, ok, base = adopted
+        if not ok:
+            # `misc/` listed below "bucket folders under `skills/`": a parent named elsewhere.
+            adopted = _doc_parent(raw, doc_parents, repo_root, file_dir, learned)
+            if adopted:
+                target, ok, base = adopted
         if not ok and base.startswith(BASE_ONLY_EXCLUDED + " "):
             note_unverified(
                 kind, display, line_no, line,
@@ -1088,6 +1132,8 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                            "linked path not in repo: {target}")
         for m in _RE_WIKILINK.finditer(line):
             raw = m.group(1)
+            if _toml_table(raw, line):
+                continue                               # `config.toml [[providers]]` is TOML, not a note
             ok = _wikilink_resolves(repo_root, raw)
             add("WIKILINK", f"[[{raw}]]", raw, i, line, ok,
                 "resolved" if ok else f"no note named '{raw}(.md)' in repo")
