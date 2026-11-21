@@ -1001,9 +1001,85 @@ def _toml_table(raw: str, line: str) -> bool:
                 and re.search(r"\.toml\b|\btoml\b", line, re.I))
 
 
+_EXAMPLE_PATH = re.compile(r"(?:^|/)path/(?:to/|test_foo\.[a-z]+$)")
+_SETTINGS_FILE = re.compile(r"\.[\w-]+/settings(?:\.local)?\.json")
+_SETTINGS_SCOPE = re.compile(r"\((?:project(?:-local)?|user-global)\)\s*$", re.I)
+_DOC_REPO = r"[\w.-]+/[\w.-]+"
+_DOC_PATH = r"`([\w./-]+)`"
+_UPSTREAM_SECTION = re.compile(
+    rf"\bin\s+`(?P<repo>{_DOC_REPO})`,\s+in\s+(?P<paths>`[\w./-]+`(?:\s*:(?:`[^`\n]+`|[^`.!?;])*)?)",
+    re.I,
+)
+_UPSTREAM_SOURCE = re.compile(
+    rf"\bcopies\s+`[\w./-]+`\s+from\s+{_DOC_PATH}", re.I,
+)
+_UPSTREAM_CHECKOUT = re.compile(
+    rf"\bcheckout of\s+`{_DOC_REPO}`", re.I,
+)
+_UPSTREAM_CHECKOUT_PATH = re.compile(
+    rf"\bfrom\s+{_DOC_PATH},\s+(?:a\s+)?{_UPSTREAM_CHECKOUT.pattern}",
+    re.I,
+)
+_UPSTREAM_POSSESSIVE = re.compile(rf"\bare its\s+{_DOC_PATH}", re.I)
+_RUNTIME_API = re.compile(
+    r"`([\w.-]+\.json)`(?:\s+(?:\w+\s+)?metadata)?"
+    r"\s+as the\s+(?:consumer|[\w -]+ discovery) API\b",
+    re.I,
+)
+
+_RUNTIME_SCHEMA_CHANGE = re.compile(r"`([\w.-]+\.json)`\s+schema change\b", re.I)
+_UPSTREAM_REASON = "documented as belonging to another repository"
+_RUNTIME_REASON = "documented as a runtime API artifact"
+
+
+def _document_path_context(text: str, repo_root: str, file_dir: str,
+                           code_lines: set[int]) -> dict[tuple[int, int], str]:
+    """Classify paths bound to an explicit repo or runtime role in the prose."""
+    declared = {}
+    # Scope an attribution to a paragraph or list item. A later local instruction
+    # can name the same path and should still be checked.
+    prose = "\n".join(
+        "" if line_no in code_lines or line.lstrip().startswith(("```", "~~~")) else line
+        for line_no, line in enumerate(text.splitlines(), 1)
+    )
+    chunks = re.split(r"(\n[ \t]*\n|\n(?=[ \t]*(?:[-*] |\d+\. |#+ )))", prose)
+    line_no = 1
+
+    def record(chunk: str, offset: int, reason: str):
+        column = offset - chunk.rfind("\n", 0, offset) - 1
+        declared[line_no + chunk.count("\n", 0, offset), column] = reason
+
+    for chunk in chunks:
+        for section in _UPSTREAM_SECTION.finditer(chunk):
+            slug = section["repo"]
+            if _is_dir_inside(repo_root, slug) or _is_dir_inside(repo_root, _join(file_dir, slug)):
+                continue
+            for path in _RE_BACKTICK.finditer(section["paths"]):
+                record(chunk, section.start("paths") + path.start(1), _UPSTREAM_REASON)
+        if re.search(r"\bupstream\b", chunk, re.I):
+            for path in _UPSTREAM_SOURCE.finditer(chunk):
+                record(chunk, path.start(1), _UPSTREAM_REASON)
+        for path in _UPSTREAM_CHECKOUT_PATH.finditer(chunk):
+            record(chunk, path.start(1), _UPSTREAM_REASON)
+        if _UPSTREAM_CHECKOUT.search(chunk):
+            for path in _UPSTREAM_POSSESSIVE.finditer(chunk):
+                record(chunk, path.start(1), _UPSTREAM_REASON)
+        runtime = list(_RUNTIME_API.finditer(chunk))
+        for match in runtime:
+            record(chunk, match.start(1), _RUNTIME_REASON)
+        runtime_names = {match[1] for match in runtime}
+        for span in _RUNTIME_SCHEMA_CHANGE.finditer(chunk):
+            if span[1] in runtime_names:
+                record(chunk, span.start(1), _RUNTIME_REASON)
+        line_no += chunk.count("\n")
+    return declared
+
+
 def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointer], list[dict]]:
     learned = _learned_bases(text, repo_root, file_dir)
     doc_parents = _doc_parent_dirs(text, repo_root, file_dir)
+    code_lines = _code_example_lines(text)
+    path_context = _document_path_context(text, repo_root, file_dir, code_lines)
     out: list[Pointer] = []
     unverified: list[dict] = []
     seen: set[tuple[str, str]] = set()
@@ -1046,7 +1122,12 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
         seen.add(key)
         out.append(Pointer(kind, raw, target, line_no, line.strip()[:160], resolved, receipt, base))
 
-    def grade_path(kind: str, raw: str, display: str, line_no: int, line: str, miss_msg: str):
+    def grade_path(kind: str, raw: str, display: str, line_no: int, line: str, miss_msg: str,
+                   column: int = -1):
+        reason = path_context.get((line_no, column))
+        if reason == _UPSTREAM_REASON:
+            note_unverified(kind, display, line_no, line, reason)
+            return
         resolved = _resolve(repo_root, raw, file_dir, learned)
         if resolved is None:
             if _machine_local(raw):
@@ -1079,6 +1160,17 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 f"found {base} (an examples copy, not where the repo keeps it); not graded",
             )
             return
+        if not ok and _EXAMPLE_PATH.search(target):
+            parent = os.path.dirname(target)
+            if not (_is_dir_inside(repo_root, parent)
+                    or _is_dir_inside(repo_root, _join(file_dir, parent))):
+                return
+        if not ok and kind == "BACKTICK":
+            if _SETTINGS_FILE.fullmatch(raw) and _SETTINGS_SCOPE.search(line):
+                reason = "documented as per-user or per-project settings"
+            if reason:
+                note_unverified(kind, display, line_no, line, reason)
+                return
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,
@@ -1101,7 +1193,6 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             f"resolved from {base}" if ok else miss_msg.format(target=target) + f" (tried {tried})",
             base)
 
-    code_lines = _code_example_lines(text)
     for i, line in enumerate(text.splitlines(), 1):
         if i in code_lines:
             continue
@@ -1142,8 +1233,11 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
             if _looks_like_path(raw) and " " not in raw.strip():
                 if _naming_or_placeholder(raw, line, m.start(1)):
                     continue
+                if (raw.startswith(".") and "/" not in raw
+                        and re.match(r"\s+(?:file )?(?:extension|suffix)\b", line[m.end():], re.I)):
+                    continue
                 grade_path("BACKTICK", raw, f"`{raw}`", i, line,
-                           "path in code font not in repo: {target}")
+                           "path in code font not in repo: {target}", column=m.start(1))
         # Code spans were graded above; scanning them again as bare prose is how
         # `~/.zen/zup-active.json` produced a second, mangled pointer `zen/zup-active.json`.
         bare_line = _RE_CODESPAN.sub(" ", line)
