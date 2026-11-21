@@ -34,8 +34,8 @@ that repo D on four pointers that all resolved; the fix and its fixtures are in
 [`docs/HELICON-ON-OUR-OWN-BOARD-2026-09-03.md`](docs/HELICON-ON-OUR-OWN-BOARD-2026-09-03.md).
 
 No API key. No config file. No upload. It reads the agent rules your repo already
-commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks every pointer against
-the tree on disk. External host paths and create-on-demand outputs are shown as
+commits (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and checks recognized
+repo-local references against the tree on disk. External host paths and create-on-demand outputs are shown as
 unverified and excluded from the grade; they cannot pad or lower it. Exit code is
 non-zero when a graded repo-local claim fails, so it drops straight into CI.
 
@@ -196,10 +196,9 @@ directory the monorepo split apart. It warns about a rail that was retired six
 weeks ago. Your agent loads all of it as fact at the start of every session, acts
 on it, and neither of you finds out.
 
-Mountain of Helicon runs the claims in those files against the repository in
-front of it, before the work starts. Every contradiction it reports carries the
-command and the stdout that proved it — so you are ruling on evidence, not on a
-model's opinion about your docs.
+Mountain of Helicon compares recognized claims in those files with the checkout
+before work starts. The report shows the source line and the repository
+evidence for each graded contradiction.
 
 ### One line, no clone
 
@@ -210,10 +209,17 @@ uvx --from mountain-of-helicon helicon-review ~/your-repo
 # or:  pipx run --spec mountain-of-helicon helicon-review ~/your-repo
 ```
 
-It reads that repo's `CLAUDE.md` / `AGENTS.md` / `.cursorrules`, checks every
-pointer, command, and version claim against the actual tree, and prints a graded
-verdict with the exact `file:line` of each broken reference. Exit code is non-zero
-when the setup lies to its agent, so it drops straight into CI.
+Replace `~/your-repo` with the path to an existing checkout. The review checks
+recognized repository paths, commands, and version claims and reports any graded
+contradiction with its source location. It exits nonzero when a graded check
+fails. Review the reported line before making it a required CI check.
+
+The published 0.3.0 wheel flags `tests/path/test_foo.py` in the MCP Python SDK's
+[targeted pytest example](https://github.com/modelcontextprotocol/python-sdk/blob/77001c96f9507be0f4d009b83210a384a5e08bda/AGENTS.md#L108-L115).
+In this checkout, review lists conventional placeholder selectors of that form
+as unverified when the named test directory is absent. A concrete missing test
+path still fails the check. Install from a clone as shown below to use this
+behavior before it ships in a new package version.
 
 > Runs the existence + version tier by default. The execute-and-compare wedge — it
 > *runs* a documented test/build command and grades the doc's "this passes" claim
@@ -234,8 +240,8 @@ helicon ci --path ~/your-repo       # your repo. no key, no config, no init.
 
 That last line is the product. It reads the `CLAUDE.md` / `AGENTS.md` /
 `.cursorrules` / `.clinerules` / copilot-instructions **your** repository commits,
-probes each claim against **your** code, and prints every contradiction with the
-command and the stdout that proved it. Nothing is uploaded, no key is asked for, and
+probes the claims it recognizes and reports contradictions with evidence from
+the checkout. Nothing is uploaded, no key is asked for, and
 no configuration file is written.
 
 It is fast because there is nothing heavy in the path — no model download, no build
@@ -339,8 +345,8 @@ helicon ci
 
 Use `--path <dir>` to check a repository you are not standing in. It reads that
 repo's committed `CLAUDE.md` / `AGENTS.md` / `.cursorrules` / `.clinerules` /
-copilot-instructions, probes each claim against the repository in front of it, and
-prints every contradiction with the command and the stdout that proved it.
+copilot-instructions, probes the claims it recognizes and reports contradictions
+with the probe and its output.
 
 ```
   CONTRADICTED  CLAUDE.md:9   [path]

@@ -297,6 +297,9 @@ _PLACEHOLDER_SEG = re.compile(
     r"hook-name|page-name|your-name|example-name|placeholder|ComponentName|ClassName|"
     r"FileName|ModuleName|PageName|HookName)$"
 )
+# Conventional placeholder for a pytest selection, as in tests/path/test_foo.py.
+_PYTEST_EXAMPLE_PATH = re.compile(r"(?:[\w.-]+/)*path/(?:to/)?test_foo\.py")
+_PYTEST_COMMAND = re.compile(r"^\s*(?:(?:uv run|python3? -m|coverage run)\b[^;&|`]*?\s)?pytest\s")
 _CASE_WORD = re.compile(
     r"\b(?:kebab-case|snake_case|camelCase|PascalCase|SCREAMING_SNAKE_CASE|"
     r"UPPER_SNAKE_CASE|TitleCase)\b"
@@ -1079,6 +1082,14 @@ def _extract(text: str, repo_root: str, file_dir: str = "") -> tuple[list[Pointe
                 f"found {base} (an examples copy, not where the repo keeps it); not graded",
             )
             return
+        if (not ok and kind == "BARE" and _PYTEST_COMMAND.match(line)
+                and _PYTEST_EXAMPLE_PATH.fullmatch(raw)):
+            parent = os.path.dirname(raw)
+            if not (_is_dir_inside(repo_root, parent)
+                    or _is_dir_inside(repo_root, _join(file_dir, parent))):
+                note_unverified(kind, display, line_no, line,
+                                "illustrative pytest selector; no matching test directory")
+                return
         if not ok and _expected_output(line, display):
             note_unverified(
                 kind, display, line_no, line,

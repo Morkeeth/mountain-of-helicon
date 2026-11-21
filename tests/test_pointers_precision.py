@@ -191,6 +191,20 @@ def test_bare_extension_is_not_a_path():
     assert _broken(d, "Copy `.env` before starting.") == [".env"]
 
 
+def test_illustrative_pytest_selector_leaves_real_paths_graded():
+    command = "uv run --frozen coverage run -m pytest tests/path/test_foo.py"
+    instructions = f"Targeted check while iterating:\n\n```bash\n{command}\n```"
+    repo = _repo({"tests/test_present.py": ""})
+    assert _broken(repo, instructions) == []
+    assert _broken(repo, instructions.replace("test_foo", "test_required")) == [
+        "tests/path/test_required.py"
+    ]
+    assert _broken(repo, "Run `tests/path/test_foo.py`.") == ["tests/path/test_foo.py"]
+
+    repo_with_parent = _repo({"tests/path/test_present.py": ""})
+    assert _broken(repo_with_parent, instructions) == ["tests/path/test_foo.py"]
+
+
 def test_data_fences_are_skipped_and_shell_fences_stay_graded():
     d = _repo({"CLAUDE.md": "x"})
     text = textwrap.dedent("""\

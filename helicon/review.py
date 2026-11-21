@@ -102,8 +102,8 @@ def format_review(repo_root: str, res: dict) -> str:
     L.append("  " + _p("❄ HELICON", "b", "cyan") + _p(f"  reviewing {name}", "dim"))
     L.append("")
 
-    # Headline names only what the deterministic checks established. Missing
-    # external/generated paths are surfaced below but excluded from the grade.
+    # Headline names only what the deterministic checks established. Paths with an
+    # unverified scope are surfaced below and excluded from the grade.
     if broken:
         L.append("  " + _p(f"✗ {broken} graded claim"
                            f"{'' if broken == 1 else 's'} contradicted by repo evidence.",
@@ -169,7 +169,7 @@ def format_review(repo_root: str, res: dict) -> str:
         L.append("    " + _p("·", "dim") + " " + _p(f"paths resolved from: {desc}", "dim"))
     if unverified:
         L.append("    " + _p("·", "dim") + " "
-                 + _p(f"{len(unverified)} external or generated path"
+                 + _p(f"{len(unverified)} unverified path"
                       f"{'' if len(unverified) == 1 else 's'} not graded", "dim"))
         for gap in unverified[:5]:
             where = f"{gap.get('file', '?')}:{gap.get('line_no', '?')}"

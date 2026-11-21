@@ -77,7 +77,7 @@ def test_unverified_external_path_is_visible_but_not_graded(monkeypatch, tmp_pat
     assert summary["grade"] == "A"
     assert summary["broken"] == 0
     assert len(summary["unverified_paths"]) == 1
-    assert "external or generated path not graded" in out
+    assert "unverified path not graded" in out
     assert "tells its agent the truth" not in out
 
 
@@ -89,4 +89,4 @@ def test_instruction_file_with_only_external_paths_is_unmeasured_not_missing(mon
     assert main([d]) == 2
     assert "No gradeable repo-local claim" in out
     assert "No agent instruction file" not in out
-    assert "external or generated path not graded" in out
+    assert "unverified path not graded" in out
