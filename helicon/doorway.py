@@ -703,6 +703,127 @@ def verdict(conn, repo: str, config: dict | None = None,
             "contradicted": lines}
 
 
+def cached_verdict(conn, repo: str, strict: bool = False) -> dict | None:
+    """The verdict for the repo AS IT IS NOW, or None. Never runs a probe and
+    never serves a row the repo has outgrown: the cache key is the fingerprint,
+    so a commit or a doc edit simply misses."""
+    import json as _json
+    repo = os.path.abspath(os.path.expanduser(repo))
+    fp = fingerprint(conn, repo)
+    key = f"{fp}:strict" if strict else fp
+    ensure_gate_table(conn)
+    row = conn.execute(
+        "SELECT payload, checked_at FROM doorway_gate_cache "
+        "WHERE repo_path = ? AND fingerprint = ?", (repo, key)).fetchone()
+    if not row:
+        return None
+    return {"repo": os.path.basename(os.path.normpath(repo)), "path": repo,
+            "fingerprint": fp, "revision": _git_revision(repo), "cached": True,
+            "checked_at": row["checked_at"],
+            "contradicted": _json.loads(row["payload"])}
+
+
+def _warm_lock(repo: str, fp: str) -> str:
+    import hashlib
+    import tempfile
+    h = hashlib.sha256(f"{repo}|{fp}".encode()).hexdigest()[:20]
+    return os.path.join(tempfile.gettempdir(), f"helicon-warm-{h}.lock")
+
+
+def warm_in_background(conn, repo: str) -> str:
+    """Start the slow probe in a detached process and return at once.
+
+    Why detached and silent: the hook's caller waits on the hook's stdout and
+    stderr. A child that inherits them keeps the prompt waiting until the probe
+    ends, which is the 2 to 4 s this exists to remove. One lock per repo and
+    fingerprint, so ten quick prompts start one probe, not ten.
+    Returns "started", "running" or "failed"."""
+    import subprocess
+    import sys
+    import time
+    repo = os.path.abspath(os.path.expanduser(repo))
+    fp = fingerprint(conn, repo)
+    lock = _warm_lock(repo, fp)
+    try:
+        if time.time() - os.path.getmtime(lock) < 180:
+            return "running"
+        os.unlink(lock)          # a stale lock from a probe that died
+    except OSError:
+        pass
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+    except OSError:
+        return "running"
+    pkg_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env = dict(os.environ)
+    env["PYTHONPATH"] = pkg_root + (os.pathsep + env["PYTHONPATH"]
+                                    if env.get("PYTHONPATH") else "")
+    env["PYTHONSAFEPATH"] = "1"
+    try:
+        subprocess.Popen(
+            [sys.executable, "-c",
+             "import sys; from helicon.doorway import _warm_main; "
+             "_warm_main(sys.argv[1], sys.argv[2], sys.argv[3])", repo, lock,
+             _db_file(conn)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True,
+            cwd=repo, env=env)
+    except OSError:
+        try:
+            os.unlink(lock)
+        except OSError:
+            pass
+        return "failed"
+    return "started"
+
+
+def _db_file(conn) -> str:
+    """The file behind this connection, so the background probe writes its
+    verdict into the store the hook will read, not whatever config it finds."""
+    for row in conn.execute("PRAGMA database_list").fetchall():
+        if row[1] == "main" and row[2]:
+            return row[2]
+    return ""
+
+
+def _warm_main(repo: str, lock: str, db_path: str = "") -> None:
+    """Entry point of the background probe: earn the verdict, cache it, unlock."""
+    try:
+        from helicon.db import init_db
+        if not db_path:
+            from helicon.config import load_config
+            db_path = load_config()["db_path"]
+        conn = init_db(db_path)
+        verdict(conn, repo)
+    finally:
+        try:
+            os.unlink(lock)
+        except OSError:
+            pass
+
+
+def verdict_within(conn, repo: str, wait_s: float = 0.8) -> tuple[dict | None, str]:
+    """The gate's verdict inside a time budget. A warm cache answers at once.
+    A cold one starts the probe in the background and waits up to `wait_s`
+    for it; past that the prompt goes through with nothing said, and the
+    finished verdict serves the NEXT prompt. Returns (verdict or None, state):
+    state is "cached", "fresh" (landed inside the wait) or "deferred"."""
+    import time
+    v = cached_verdict(conn, repo)
+    if v is not None:
+        return v, "cached"
+    warm_in_background(conn, repo)
+    end = time.monotonic() + max(0.0, wait_s)
+    while time.monotonic() < end:
+        time.sleep(0.05)
+        v = cached_verdict(conn, repo)
+        if v is not None:
+            v["cached"] = False
+            return v, "fresh"
+    return None, "deferred"
+
+
 def parse_override(prompt: str) -> str | None:
     """The reason, if this prompt is an override. Returns None when it is an
     ordinary prompt, and None when the prefix is present but carries no reason —

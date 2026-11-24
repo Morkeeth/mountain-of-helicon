@@ -178,6 +178,22 @@ _COPULA = re.compile(r"(?:==|=|→|->|:|\bis\b|\bare\b|\bwas\b|\bwere\b|\bset to
 _PATH_TOKEN = re.compile(r"`([A-Za-z0-9_./\[\]-]+\.(?:ts|tsx|js|jsx|mjs|py|go|rs|"
                          r"sol|rb|java|md|json|toml|ya?ml))`")
 
+# A backtick span that is a command, and the file arguments inside it. Only
+# runners whose file arguments are inputs; a path must carry a slash or a known
+# script extension, so `pytest -k foo` and `node --version` name nothing.
+_CMD_SPAN = re.compile(r"`([^`\n]{3,200})`")
+_RUNNER = re.compile(
+    r"^\s*(?:(?:uv|poetry|pipenv)\s+run\s+)?(?:pytest|python3?(?:\s+-m\s+pytest)?|"
+    r"node|npx\s+(?:vitest|jest|tsx|ts-node|playwright\s+test)|vitest|jest|tsx|"
+    r"ts-node|bun(?:\s+(?:run|test))?|deno\s+(?:run|test)|ruby|rspec|"
+    r"go\s+(?:run|test)|bash|sh)\b")
+_OUTPUT_FLAGS = (">", "-o", "-O", "--output", "--out", "--outfile", "--junitxml",
+                 "--junit-xml", "--log-file", "--html", "--json-report-file",
+                 "--report", "--cov-report")
+_CMD_ARG_PATH = re.compile(
+    r"(?<![\w/.$~-])((?:\./)?[A-Za-z0-9_\[\]-][A-Za-z0-9_./\[\]-]*\.(?:ts|tsx|js|jsx|"
+    r"mjs|py|go|rs|rb|sh)(?:::[\w:\[\]-]+)?)(?![\w/])")
+
 # Tokens too generic to bind a subject. Same discipline as claims.py: a single
 # shared generic word is coincidence, not the same fact.
 _GENERIC = {
@@ -777,7 +793,24 @@ def _probe_path(repo: str, path: str, git: bool, strict: bool = False,
                                f"destination is not named here"}
         rc2, out2 = _run(["git", "ls-files", "--", f"*{os.path.basename(path)}"], repo)
         if rc2 == 0 and out2.strip():
+            hits = [l for l in out2.splitlines() if l.strip()
+                    and os.path.basename(l.strip()) == os.path.basename(path)]
             hit = out2.strip().splitlines()[0][:200]
+            if "/" in path and not strict and len(hits) == 1:
+                # GATE profile only. The route is dead and exactly one tracked
+                # file carries the same name: that is a move, and the doc is
+                # stale. world-relay's AGENTS.md still routes agents to
+                # `src/__tests__/e2e-api.test.ts`; the file lives at
+                # `src/lib/__tests__/e2e-api.test.ts`. `helicon review` flags
+                # it (pointers), the gate said "can't tell", and the agent was
+                # never told. Two or more candidates stay UNVERIFIABLE below:
+                # a common name like index.ts names no destination. Strict
+                # (the public sweep) keeps the cautious branch untouched.
+                return {"verdict": CONTRADICTED, "moved_to": hits[0][:200],
+                        "probe": f"git ls-files -- *{os.path.basename(path)}",
+                        "output": hits[0][:200],
+                        "why": f"the doc routes to {path}; that path is gone, and "
+                               f"the only tracked file with that name is {hits[0]}"}
             if "/" in path:
                 # A same-named file somewhere else is not this file. Neither
                 # UPHELD (the route is dead) nor CONTRADICTED (it may simply be
@@ -1302,6 +1335,45 @@ def _derive_and_run(repo, git, assertion, heading, switches, evidence,
                         + f" (bound on: {', '.join(bound)})"),
                 "switch": sw["name"]})
             break  # one switch per sentence; the first is the closest binding
+
+    # path inside a quoted command — `pytest tests/test_app.py` points at a
+    # file as surely as `tests/test_app.py` does, but _PATH_TOKEN only reads a
+    # backtick span that is nothing BUT a path, so the commonest rotting line
+    # in an agent file (the test command, 75.9% of them per arXiv 2511.12884)
+    # was never probed at all. Output targets (`-o x`, `> x`) are skipped:
+    # a file the command is about to write is not one it promises exists.
+    seen_cmd_paths = set()
+    for cm in _CMD_SPAN.finditer(assertion):
+        body = cm.group(1)
+        if not _RUNNER.match(body):
+            continue
+        for pm in _CMD_ARG_PATH.finditer(body):
+            path = pm.group(1).split("::", 1)[0]
+            if path.startswith("./"):
+                path = path[2:]
+            # A home or absolute path names another tree, never this repo.
+            # An AGENTS.md quoting `python3 ~/CODE/other-repo/x.py` was read
+            # as `CODE/other-repo/x.py` inside this repo: a false alarm on
+            # the first live prompt.
+            prev = body[max(0, pm.start() - 1):pm.start()]
+            if prev in ("~", "/") or "$" in prev:
+                continue
+            before = body[:pm.start()].rstrip().rstrip("=")
+            if before.endswith(_OUTPUT_FLAGS):
+                continue
+            if path in seen_cmd_paths:
+                continue
+            seen_cmd_paths.add(path)
+            at = cm.start(1) + pm.start()
+            why_named = _names_not_points(assertion, path, at, strict)
+            if why_named:
+                out.append({"kind": "path", "verdict": UNVERIFIABLE,
+                            "probe": f"(not probed) {path}", "output": "",
+                            "why": f"{path}: {why_named} — the repo was never "
+                                   f"meant to contain it, so its absence proves nothing"})
+                continue
+            out.append({"kind": "path",
+                        **_probe_path(repo, path, git, strict, base=context_base)})
 
     # path — a file the doc points AT (naming one is a different act; see
     # _names_not_points, which is the whole of the 2026-08-03 noise)

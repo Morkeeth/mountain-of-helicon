@@ -275,7 +275,8 @@ def govern_from_capture(conn, capture_id, objective, acceptance,
     return {"ok": True, "task_run_id": rid, "capture_id": capture_id}
 
 
-def hook_gate(conn, cwd, session="", prompt="", mode="block") -> dict | None:
+def hook_gate(conn, cwd, session="", prompt="", mode="block",
+              wait_s: float | None = None) -> dict | None:
     """The doorway, live. Called by the UserPromptSubmit hook BEFORE anything is
     delivered: if this repo's loaded context contains claims the running code
     disproves, the operator sees the configured warning/block intervention.
@@ -299,7 +300,17 @@ def hook_gate(conn, cwd, session="", prompt="", mode="block") -> dict | None:
     if repo is None or _is_private(repo):
         return None
 
-    v = doorway.verdict(conn, repo, config=None)
+    # The slow probe never runs inside the prompt any more. Cold (first
+    # prompt after a commit or a doc edit) it starts in the background and
+    # gets `wait_s` to land; past that this prompt says nothing and the next
+    # one is told. Measured 24 Nov: 2.2 to 4.4 s inline in doc-heavy repos.
+    # wait_s=None keeps the old inline probe for library callers and tests.
+    if wait_s is None:
+        v = doorway.verdict(conn, repo, config=None)
+    else:
+        v, _state = doorway.verdict_within(conn, repo, wait_s=wait_s)
+        if v is None:
+            return None
     d = doorway.decide(v, prompt)
     if d["action"] == "allow":
         return None
@@ -478,7 +489,65 @@ def format_receipt(r: dict) -> str:
     return "\n".join(out)
 
 
-def hook_deliver(conn, cwd, session="", transcript_path="") -> str | None:
+def lookup_configured(config) -> bool:
+    from helicon import lookup
+    cfg = lookup.settings(config)
+    return cfg["enabled"] and bool(cfg["pages"] or cfg["rulings"])
+
+
+def _lookup_seen(conn, session: str) -> set:
+    """Units already handed to this session, so one page is not repeated on
+    every prompt of a long session."""
+    if not session:
+        return set()
+    seen = set()
+    for (detail,) in conn.execute(
+            "SELECT detail FROM run_events WHERE kind='lookup_delivered' "
+            "AND detail LIKE ?", (f'%"session": "{session}"%',)).fetchall():
+        try:
+            seen.add(json.loads(detail).get("key", ""))
+        except (TypeError, ValueError):
+            pass
+    return seen
+
+
+def hook_lookup(conn, cwd, session="", prompt="", config=None) -> str | None:
+    """The right-page lookup for one prompt: the one page section or ruling
+    from the configured corpus that this prompt is about, or None.
+
+    Runs in any working folder the privacy pattern does not match. The corpus
+    is the operator's own pages, which their sessions load anyway; what this
+    adds is choosing ONE for the prompt. Never waits for an index rebuild."""
+    from helicon import lookup
+    cfg = lookup.settings(config)
+    if not cfg["enabled"] or not (cfg["pages"] or cfg["rulings"]):
+        return None
+    if _is_private(cwd or "") or not (prompt or "").strip():
+        return None
+    try:
+        lookup.refresh_in_background(cfg)
+    except OSError:
+        pass
+    hit = lookup.best(cfg, prompt)
+    # The best unit was already handed to this session: say nothing. Handing
+    # the runner-up instead would break "one page or nothing", and the
+    # runner-up is usually the wrong page.
+    if hit is None or hit["key"] in _lookup_seen(conn, session):
+        return None
+    text = lookup.render(hit, prompt)
+    conn.execute(
+        "INSERT INTO run_events (task_run_id, ts, kind, actor, detail) "
+        "VALUES (?,?,?,?,?)",
+        (_hook_run_id(conn, session), _now(), "lookup_delivered", "helicon",
+         json.dumps({"session": session, "key": hit["key"], "kind": hit["kind"],
+                     "score": hit["score"], "matched": hit["matched"],
+                     "bytes": len(text)})))
+    conn.commit()
+    return text
+
+
+def hook_deliver(conn, cwd, session="", transcript_path="", prompt="",
+                 config=None) -> str | None:
     """The delivery edge, made real (closes the Codex P0-3 gap honestly). A
     Claude Code UserPromptSubmit hook calls this: it returns the approved
     output-review rulings as text that the harness injects into a LIVE session,
@@ -496,12 +565,24 @@ def hook_deliver(conn, cwd, session="", transcript_path="") -> str | None:
       the degradation it exists to detect. Over budget, the rulings are trimmed
       oldest-first and the trim is RECORDED — never silently dropped.
     """
+    # The right-page lookup. With a prompt and a configured corpus, the one
+    # page or ruling this prompt is about replaces the old dump of the newest
+    # twenty rulings, which ignored what the prompt asked.
+    found = None
+    if prompt:
+        try:
+            found = hook_lookup(conn, cwd, session, prompt, config)
+        except Exception:
+            found = None
     repo = _safe_repo_root(cwd)
     if repo is None:
-        return None
-    rows = conn.execute(
-        "SELECT id, content FROM helicon_cubes WHERE source='output-review' "
-        "AND review_status='approved' ORDER BY created_at DESC LIMIT 20").fetchall()
+        return found
+    if prompt and lookup_configured(config):
+        rows = []
+    else:
+        rows = conn.execute(
+            "SELECT id, content FROM helicon_cubes WHERE source='output-review' "
+            "AND review_status='approved' ORDER BY created_at DESC LIMIT 20").fetchall()
 
     # A deliberate forward-governed run has exactly one open packet for this
     # repo. Ambiguity fails closed: two open runs means Helicon cannot know which
@@ -527,6 +608,8 @@ def hook_deliver(conn, cwd, session="", transcript_path="") -> str | None:
     kept, trimmed = _fit_rulings(list(rows), packet["text"] if packet else "")
 
     parts = []
+    if found:
+        parts.append(found)
     if packet:
         parts.append(packet["text"])
     if kept:

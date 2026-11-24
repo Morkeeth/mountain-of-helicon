@@ -1195,7 +1195,8 @@ def cmd_hook(args):
     banner = None
     gate_mode = _gate_mode(config)
     try:
-        g = hook_gate(conn, cwd, session, prompt, mode=gate_mode)
+        g = hook_gate(conn, cwd, session, prompt, mode=gate_mode,
+                      wait_s=_gate_wait(config))
     except Exception:
         g = None
     gate_ctx = None
@@ -1225,7 +1226,8 @@ def cmd_hook(args):
     if g and g["action"] == "override":
         banner = g["message"]
 
-    ctx = hook_deliver(conn, cwd, session, transcript)
+    ctx = hook_deliver(conn, cwd, session, transcript, prompt=prompt,
+                       config=config)
     joined = "\n\n".join(x for x in (gate_ctx, ctx) if x)
     out = {}
     if joined:
@@ -1235,6 +1237,17 @@ def cmd_hook(args):
         out["systemMessage"] = banner
     if out:
         print(_json.dumps(out))
+
+
+def _gate_wait(config: dict) -> float:
+    """Seconds the prompt may wait for a cold probe before it goes through
+    unchecked (the probe still finishes in the background). Default 0.8."""
+    raw = (os.environ.get("HELICON_GATE_WAIT")
+           or (config.get("doorway") or {}).get("wait_s"))
+    try:
+        return max(0.0, min(5.0, float(raw))) if raw not in (None, "") else 0.8
+    except (TypeError, ValueError):
+        return 0.8
 
 
 def _gate_mode(config: dict) -> str:
